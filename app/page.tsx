@@ -24,7 +24,7 @@ export default function Home() {
               transition={{ delay: 0.2, duration: 0.8 }}
               className="text-5xl sm:text-7xl font-bold text-zinc-900 dark:text-white tracking-tight"
             >
-              Building the future of technology and education.
+              Building AI tools for the next generation.
             </motion.h1>
             <motion.p 
               initial={{ opacity: 0, y: 20 }}
@@ -32,8 +32,8 @@ export default function Home() {
               transition={{ delay: 0.4, duration: 0.8 }}
               className="mt-6 text-xl text-zinc-600 dark:text-zinc-300"
             >
-              Engineering student turned founder, speaker, and tech influencer. 
-              Building scalable solutions at the intersection of AI and human potential.
+              18-year-old founder and engineering student. Building PromptEasy to revolutionize AI dataset creation, 
+              while sharing my journey in tech and entrepreneurship.
             </motion.p>
           </div>
         </motion.section>
@@ -46,22 +46,22 @@ export default function Home() {
           className="grid grid-cols-1 md:grid-cols-3 gap-8 py-16"
         >
           <div className="p-8 bg-zinc-50 dark:bg-zinc-900 rounded-2xl">
-            <h3 className="text-5xl font-bold text-zinc-900 dark:text-white">500K+</h3>
-            <p className="mt-2 text-zinc-600 dark:text-zinc-400">Tech community members</p>
+            <h3 className="text-5xl font-bold text-zinc-900 dark:text-white">50K+</h3>
+            <p className="mt-2 text-zinc-600 dark:text-zinc-400">Students taught on Udemy</p>
           </div>
           <div className="p-8 bg-zinc-50 dark:bg-zinc-900 rounded-2xl">
-            <h3 className="text-5xl font-bold text-zinc-900 dark:text-white">25+</h3>
-            <p className="mt-2 text-zinc-600 dark:text-zinc-400">Speaking engagements</p>
+            <h3 className="text-5xl font-bold text-zinc-900 dark:text-white">N&W S4</h3>
+            <p className="mt-2 text-zinc-600 dark:text-zinc-400">Buildspace participant</p>
           </div>
           <div className="p-8 bg-zinc-50 dark:bg-zinc-900 rounded-2xl">
-            <h3 className="text-5xl font-bold text-zinc-900 dark:text-white">$2M+</h3>
-            <p className="mt-2 text-zinc-600 dark:text-zinc-400">Raised in venture capital</p>
+            <h3 className="text-5xl font-bold text-zinc-900 dark:text-white">PromptEasy</h3>
+            <p className="mt-2 text-zinc-600 dark:text-zinc-400">AI Dataset Platform</p>
           </div>
         </motion.section>
 
         {/* Featured Work */}
         <section className="py-16">
-          <h2 className="text-3xl font-bold text-zinc-900 dark:text-white mb-12">Featured Work</h2>
+          <h2 className="text-3xl font-bold text-zinc-900 dark:text-white mb-12">What I Do</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <motion.a 
               href="#startup"
@@ -69,25 +69,27 @@ export default function Home() {
               className="group relative overflow-hidden rounded-2xl bg-zinc-50 dark:bg-zinc-900 p-8"
             >
               <h3 className="text-2xl font-semibold text-zinc-900 dark:text-white mb-4">
-                Startup
+                PromptEasy
                 <ArrowUpRightIcon className="inline-block ml-2 w-5 h-5 transform group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
               </h3>
               <p className="text-zinc-600 dark:text-zinc-400">
-                Building next-gen AI tools for education and professional development.
+                Streamlining dataset creation for fine-tuning GPT models with high-quality synthetic data.
               </p>
             </motion.a>
 
             <motion.a 
-              href="#speaking"
+              href="https://www.youtube.com/@mariusmanolachi"
+              target="_blank"
+              rel="noopener noreferrer"
               whileHover={{ scale: 0.98 }}
               className="group relative overflow-hidden rounded-2xl bg-zinc-50 dark:bg-zinc-900 p-8"
             >
               <h3 className="text-2xl font-semibold text-zinc-900 dark:text-white mb-4">
-                Speaking
+                YouTube
                 <ArrowUpRightIcon className="inline-block ml-2 w-5 h-5 transform group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
               </h3>
               <p className="text-zinc-600 dark:text-zinc-400">
-                Keynotes on AI, entrepreneurship, and the future of education.
+                Sharing my engineering journey, project builds, and insights into tech and entrepreneurship.
               </p>
             </motion.a>
 
@@ -101,33 +103,44 @@ export default function Home() {
                 <ArrowUpRightIcon className="inline-block ml-2 w-5 h-5 transform group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
               </h3>
               <p className="text-zinc-600 dark:text-zinc-400">
-                Building scalable systems and AI-powered solutions.
+                Building AI-powered solutions and sharing my learning experiences as an engineering student.
               </p>
             </motion.a>
 
             <motion.a 
-              href="#content"
+              href="#teaching"
               whileHover={{ scale: 0.98 }}
               className="group relative overflow-hidden rounded-2xl bg-zinc-50 dark:bg-zinc-900 p-8"
             >
               <h3 className="text-2xl font-semibold text-zinc-900 dark:text-white mb-4">
-                Content
+                Education
                 <ArrowUpRightIcon className="inline-block ml-2 w-5 h-5 transform group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
               </h3>
               <p className="text-zinc-600 dark:text-zinc-400">
-                Tech insights and entrepreneurship journey for 500K+ followers.
+                Teaching 50,000+ students on Udemy, sharing knowledge about technology and development.
               </p>
             </motion.a>
           </div>
         </section>
 
-        {/* Investors & Partners */}
+        {/* Projects Section */}
         <section className="py-16 border-t border-zinc-200 dark:border-zinc-800">
           <h2 className="text-sm font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider mb-8">
-            Backed by World-Class Investors
+            Featured Projects
           </h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-12 items-center opacity-60 dark:opacity-40">
-            {/* Add investor logos here */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="p-6 bg-zinc-50 dark:bg-zinc-900 rounded-xl">
+              <h3 className="font-semibold text-zinc-900 dark:text-white">PromptEasy</h3>
+              <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+                Platform for creating high-quality datasets for GPT model fine-tuning
+              </p>
+            </div>
+            <div className="p-6 bg-zinc-50 dark:bg-zinc-900 rounded-xl">
+              <h3 className="font-semibold text-zinc-900 dark:text-white">Buildspace N&W S4</h3>
+              <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+                Currently building innovative projects in the Nights & Weekends program
+              </p>
+            </div>
           </div>
         </section>
 
@@ -139,16 +152,18 @@ export default function Home() {
           className="py-24 text-center"
         >
           <h2 className="text-3xl font-bold text-zinc-900 dark:text-white mb-6">
-            Let&apos;s Build Something Great
+            Let&apos;s Connect
           </h2>
           <p className="text-xl text-zinc-600 dark:text-zinc-400 mb-8 max-w-2xl mx-auto">
-            Whether you&apos;re an investor, potential partner, or fellow builder, I&apos;d love to connect.
+            Whether you&apos;re interested in AI, engineering, or building cool stuff, I&apos;d love to chat.
           </p>
           <a 
-            href="#contact" 
+            href="https://www.youtube.com/@mariusmanolachi"
+            target="_blank"
+            rel="noopener noreferrer"
             className="inline-flex items-center px-8 py-4 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-full text-lg font-semibold hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-colors"
           >
-            Get in Touch
+            Subscribe on YouTube
             <ArrowUpRightIcon className="ml-2 w-5 h-5" />
           </a>
         </motion.section>
