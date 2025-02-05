@@ -1,77 +1,99 @@
 'use client';
 
-import { useTheme } from 'next-themes';
-import { SunIcon, MoonIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
+import { motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
 
 export default function Navigation() {
-  const { theme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 20);
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const renderNav = () => (
-    <nav className="flex justify-between items-center py-6">
-      <div className="flex items-center space-x-1">
-        <Link href="/" className="text-xl font-bold text-zinc-900 dark:text-white mr-12">
-          MM
-        </Link>
-        <a 
-          href="#projects" 
-          className="px-4 py-2 text-sm font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white transition-colors"
-        >
-          Projects
-        </a>
-        <a 
-          href="https://www.youtube.com/@mariusmanolachi" 
-          target="_blank"
-          rel="noopener noreferrer"
-          className="px-4 py-2 text-sm font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white transition-colors"
-        >
-          YouTube
-        </a>
-        <a 
-          href="#engineering" 
-          className="px-4 py-2 text-sm font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white transition-colors"
-        >
-          Engineering
-        </a>
-        <a 
-          href="#teaching" 
-          className="px-4 py-2 text-sm font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white transition-colors"
-        >
-          Teaching
-        </a>
+  const scrollToSection = (sectionId: string) => {
+    const element = document.querySelector(sectionId);
+    if (element) {
+      const offset = 80; // Height of fixed header
+      const elementPosition = element.getBoundingClientRect().top;
+      const offsetPosition = elementPosition + window.pageYOffset - offset;
+
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: 'smooth'
+      });
+    }
+  };
+
+  return (
+    <motion.nav 
+      initial={{ y: -100 }}
+      animate={{ y: 0 }}
+      transition={{ duration: 0.5 }}
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+        scrolled 
+          ? 'bg-white/80 backdrop-blur-lg shadow-sm' 
+          : 'bg-transparent'
+      }`}
+    >
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-center h-16">
+          <div className="flex items-center space-x-1">
+            <Link 
+              href="/" 
+              className="relative px-4 py-1"
+            >
+              <span className="text-xl font-bold mr-10 bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent hover:opacity-80 transition-opacity">
+                MM
+              </span>
+            </Link>
+            <div className="hidden md:flex items-center ml-16 space-x-1">
+              {[
+                { href: '#consultancy', label: 'Consultancy' },
+                { href: '#udemy', label: 'Udemy' },
+                { href: '#speaking', label: 'Speaking' },
+                { href: '#youtube', label: 'YouTube' }
+              ].map((item) => (
+                <motion.button
+                  key={item.label}
+                  onClick={() => scrollToSection(item.href)}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="relative group px-4 py-2"
+                >
+                  <span className="relative z-10 text-sm font-medium text-gray-600 group-hover:text-gray-900 transition-colors">
+                    {item.label}
+                  </span>
+                  <div className="absolute inset-0 rounded-lg bg-gray-100 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </motion.button>
+              ))}
+            </div>
+          </div>
+          
+          <div className="flex items-center space-x-4">
+            <motion.button
+              onClick={() => scrollToSection('#contact')}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="relative px-6 py-2.5 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all duration-300"
+            >
+              <div className="flex items-center">
+                <span className="text-sm font-medium text-gray-900 mr-2">
+                  Let&apos;s Talk
+                </span>
+                <svg className="w-4 h-4 text-gray-900" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                </svg>
+              </div>
+            </motion.button>
+          </div>
+        </div>
       </div>
-      
-      <div className="flex items-center space-x-6">
-        <a 
-          href="#contact"
-          className="px-4 py-2 text-sm font-medium text-zinc-900 dark:text-white hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
-        >
-          Contact
-        </a>
-        <button
-          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-          className="p-2 rounded-full bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
-          aria-label="Toggle theme"
-        >
-          {theme === 'dark' ? (
-            <SunIcon className="w-5 h-5 text-zinc-600 dark:text-zinc-400" />
-          ) : (
-            <MoonIcon className="w-5 h-5 text-zinc-600 dark:text-zinc-400" />
-          )}
-        </button>
-      </div>
-    </nav>
+    </motion.nav>
   );
-
-  if (!mounted) {
-    return renderNav();
-  }
-
-  return renderNav();
-} 
+}
