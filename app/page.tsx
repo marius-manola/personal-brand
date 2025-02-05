@@ -27,20 +27,20 @@ export default function Home() {
           animate={{ opacity: 1 }}
           transition={{ duration: 1 }}
           style={{ opacity, scale }}
-          className="py-32 sm:py-40 relative"
+          className="py-20 sm:py-32 md:py-40 relative"
         >
           {/* Badge */}
           <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
-            className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-50 to-blue-100/50 px-4 py-2 rounded-full mb-8 shadow-[0_2px_8px_-1px_rgba(59,130,246,0.15)] border border-blue-100"
+            className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-50 to-blue-100/50 px-3 sm:px-4 py-2 rounded-full mb-6 sm:mb-8 shadow-[0_2px_8px_-1px_rgba(59,130,246,0.15)] border border-blue-100"
           >
             <div className="w-1.5 h-1.5 rounded-full bg-gradient-to-r from-blue-600 to-blue-500 shadow-sm" />
-            <span className="text-[10px] text-blue-900 tracking-[0.2em] uppercase font-medium">AI Instructor & Founder</span>
+            <span className="text-[9px] sm:text-[10px] text-blue-900 tracking-[0.2em] uppercase font-medium">AI Instructor & Founder</span>
           </motion.div>
           
-          <div className="max-w-3xl space-y-6">
+          <div className="max-w-3xl space-y-4 sm:space-y-6">
             {['Building AI tools', 'for the next', 'generation'].map((text, index) => (
               <motion.div
                 key={text}
@@ -49,14 +49,14 @@ export default function Home() {
                 transition={{ delay: 0.3 + index * 0.2 }}
                 className="relative"
               >
-                <span className="block text-5xl sm:text-7xl font-bold text-gray-900 tracking-tight leading-[1.1]">{text}</span>
+                <span className="block text-3xl sm:text-5xl md:text-7xl font-bold text-gray-900 tracking-tight leading-[1.1]">{text}</span>
               </motion.div>
             ))}
             <motion.p 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.8 }}
-              className="text-xl text-gray-600 leading-relaxed max-w-2xl"
+              className="text-lg sm:text-xl text-gray-600 leading-relaxed max-w-2xl"
             >
               18-year-old founder and engineering student. Building PromptEasy to revolutionize AI dataset creation, 
               while sharing my journey in tech and entrepreneurship.
@@ -89,7 +89,7 @@ export default function Home() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.8 }}
-          className="grid grid-cols-1 md:grid-cols-3 gap-8 py-16 scroll-mt-24"
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8 py-12 sm:py-16 scroll-mt-24"
         >
           {[
             { title: '50K+', subtitle: 'Students taught on Udemy', color: 'from-blue-600 to-blue-500', shadowColor: 'shadow-blue-200' },
@@ -121,10 +121,10 @@ export default function Home() {
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
           transition={{ duration: 0.8 }}
-          className="py-24 border-t border-gray-100 scroll-mt-24"
+          className="py-16 sm:py-24 border-t border-gray-100 scroll-mt-24"
         >
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-            <div className="space-y-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 sm:gap-16 items-center">
+            <div className="space-y-6 sm:space-y-8">
               <div className="space-y-2">
                 <motion.span
                   initial={{ opacity: 0 }}
@@ -138,7 +138,7 @@ export default function Home() {
                   initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
-                  className="text-4xl font-bold text-gray-900 leading-tight"
+                  className="text-3xl sm:text-4xl font-bold text-gray-900 leading-tight"
                 >
                   Transforming Businesses
                   <span className="block text-blue-600">Through AI Innovation</span>
@@ -149,12 +149,12 @@ export default function Home() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: 0.1 }}
-                className="text-xl text-gray-600 leading-relaxed"
+                className="text-lg sm:text-xl text-gray-600 leading-relaxed"
               >
                 Helping companies leverage AI to solve complex problems and drive growth. From strategy to implementation, 
                 I provide end-to-end AI consulting services.
               </motion.p>
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                 {[
                   { title: 'AI Strategy', description: 'Roadmap development and implementation planning' },
                   { title: 'LLM Integration', description: 'Custom LLM solutions for your business needs' },
@@ -217,11 +217,11 @@ export default function Home() {
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
           transition={{ duration: 0.8 }}
-          className="py-24 border-t border-gray-100 scroll-mt-24"
+          className="py-16 sm:py-24 border-t border-gray-100 scroll-mt-24"
         >
           <div className="relative">
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-orange-50 via-transparent to-transparent opacity-70" />
-            <div className="relative flex flex-col md:flex-row items-center gap-16">
+            <div className="relative flex flex-col md:flex-row items-center gap-8 sm:gap-16">
               <div className="flex-1 space-y-8">
                 <div className="space-y-2">
                   <motion.div
@@ -362,9 +362,9 @@ export default function Home() {
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
           transition={{ duration: 0.8 }}
-          className="py-24 border-t border-gray-100 scroll-mt-24"
+          className="py-16 sm:py-24 border-t border-gray-100 scroll-mt-24"
         >
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 sm:gap-16 items-center">
             <div className="order-2 lg:order-1 relative">
               <div className="aspect-[4/3] rounded-2xl overflow-hidden">
                 <img 
@@ -456,7 +456,7 @@ export default function Home() {
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
           transition={{ duration: 0.8 }}
-          className="py-24 border-t border-gray-100 scroll-mt-24"
+          className="py-16 sm:py-24 border-t border-gray-100 scroll-mt-24"
         >
           <div className="relative">
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-red-50 via-transparent to-transparent opacity-70" />
@@ -558,10 +558,10 @@ export default function Home() {
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
           transition={{ duration: 0.8 }}
-          className="py-32 text-center border-t border-gray-100 relative overflow-hidden scroll-mt-24"
+          className="py-20 sm:py-32 text-center border-t border-gray-100 relative overflow-hidden scroll-mt-24"
         >
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,_var(--tw-gradient-stops))] from-blue-50 via-transparent to-transparent opacity-70" />
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             <div className="space-y-2">
               <motion.span
                 initial={{ opacity: 0 }}
@@ -575,7 +575,7 @@ export default function Home() {
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                className="text-4xl font-bold text-gray-900 leading-tight"
+                className="text-3xl sm:text-4xl font-bold text-gray-900 leading-tight"
               >
                 Let&apos;s Create Something
                 <span className="block text-blue-600">Extraordinary</span>
@@ -586,7 +586,7 @@ export default function Home() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: 0.1 }}
-              className="text-xl text-gray-600 mb-12 max-w-2xl mx-auto leading-relaxed"
+              className="text-lg sm:text-xl text-gray-600 mb-8 sm:mb-12 max-w-2xl mx-auto leading-relaxed"
             >
               Whether you&apos;re interested in AI consulting, speaking engagements, or collaboration opportunities,
               I&apos;d love to chat about how we can work together.
