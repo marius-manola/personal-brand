@@ -3,9 +3,11 @@
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
+import { useMediaQuery } from 'react-responsive';
 
 export default function Navigation() {
   const [scrolled, setScrolled] = useState(false);
+  const isMobile = useMediaQuery({ maxWidth: 768 });
 
   useEffect(() => {
     const handleScroll = () => {
@@ -30,6 +32,10 @@ export default function Navigation() {
     }
   };
 
+  if (isMobile) {
+    return null;
+  }
+
   return (
     <motion.nav 
       initial={{ y: -100 }}
@@ -52,10 +58,10 @@ export default function Navigation() {
                 MM
               </span>
             </Link>
-            <div className="hidden md:flex items-center ml-16 space-x-1">
+            <div className="flex items-center ml-16 space-x-1">
               {[
                 { href: '#consultancy', label: 'Consultancy' },
-                { href: '#udemy', label: 'Udemy' },
+                { href: '#udemy', label: 'Courses' },
                 { href: '#speaking', label: 'Speaking' },
                 { href: '#youtube', label: 'YouTube' }
               ].map((item) => (

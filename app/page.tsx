@@ -6,13 +6,14 @@ import Navigation from '@/components/Navigation';
 import { useRef, useEffect, useState } from 'react';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
+import { useMediaQuery } from 'react-responsive';
 
 // Dynamically import motion components for sections that are below the fold
 const MotionSection = dynamic(() => Promise.resolve(motion.section), { ssr: true });
 
 // Preload critical images
 const preloadImages = () => {
-  const images = ['/hero.png', '/consulting.png', '/udemy2.png'];
+  const images = ['/hero.png', '/consulting.png', '/udemy3.png'];
   images.forEach((src) => {
     const imgElement = new window.Image();
     imgElement.src = src;
@@ -45,6 +46,8 @@ export default function Home() {
     }
   ];
 
+  const isMobile = useMediaQuery({ maxWidth: 768 });
+
   useEffect(() => {
     preloadImages();
     const timer = setInterval(() => {
@@ -63,26 +66,47 @@ export default function Home() {
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 relative">
         <Navigation />
         
-        {/* Hero Section */}
+        {/* Hero Section - Mobile Optimized */}
         <motion.section 
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.8 }}
           style={{ opacity, scale }}
-          className="py-8 sm:py-16 md:py-24 relative"
+          className="py-4 sm:py-16 md:py-24 relative"
         >
+          {/* Mobile Hero Image */}
+          {isMobile && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="relative w-full h-[200px] mb-6 rounded-xl overflow-hidden"
+            >
+              <Image 
+                src="/hero.png" 
+                alt="Marius working on AI" 
+                fill
+                sizes="100vw"
+                className="object-cover"
+                priority
+                quality={85}
+              />
+              <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-white" />
+            </motion.div>
+          )}
+
           {/* Badge */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
-            className="inline-flex items-center gap-1.5 sm:gap-2 bg-gradient-to-r from-blue-50 to-blue-100/50 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-full mb-4 sm:mb-6 shadow-[0_2px_8px_-1px_rgba(59,130,246,0.15)] border border-blue-100"
+            className="inline-flex items-center gap-1.5 sm:gap-2 bg-gradient-to-r from-blue-50 to-blue-100/50 px-2 sm:px-4 py-1 sm:py-2 rounded-full mb-3 sm:mb-6 shadow-sm border border-blue-100"
           >
-            <div className="w-1.5 h-1.5 rounded-full bg-gradient-to-r from-blue-600 to-blue-500 shadow-sm" />
+            <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-gradient-to-r from-blue-600 to-blue-500" />
             <span className="text-[8px] sm:text-[10px] text-blue-900 tracking-[0.2em] uppercase font-medium">AI Instructor & Founder</span>
           </motion.div>
           
-          <div className="max-w-3xl space-y-2 sm:space-y-4">
+          <div className="max-w-3xl space-y-1 sm:space-y-4">
             {['Building AI tools', 'for the next', 'generation'].map((text, index) => (
               <motion.div
                 key={text}
@@ -91,11 +115,11 @@ export default function Home() {
                 transition={{ delay: 0.2 + index * 0.15 }}
                 className="relative"
               >
-                <span className="block text-2xl sm:text-4xl md:text-6xl font-bold text-gray-900 tracking-tight leading-[1.1]">{text}</span>
+                <span className="block text-xl sm:text-4xl md:text-6xl font-bold text-gray-900 tracking-tight leading-[1.1]">{text}</span>
               </motion.div>
             ))}
             <motion.p 
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.6 }}
               className="text-sm sm:text-base md:text-lg text-gray-600 leading-relaxed max-w-2xl"
@@ -105,59 +129,102 @@ export default function Home() {
             </motion.p>
           </div>
 
-          {/* Hero Image */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.8 }}
-            className="relative mt-6 sm:mt-8 lg:mt-0 lg:absolute lg:top-20 lg:right-0 lg:w-[45%] w-full max-w-md mx-auto"
-          >
-            <div className="relative aspect-[4/3] rounded-2xl overflow-hidden bg-gradient-to-br from-blue-50 to-white">
-              <Image 
-                src="/hero.png" 
-                alt="Marius working on AI" 
-                fill
-                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                className="object-cover mix-blend-multiply"
-                priority
-                quality={85}
-              />
-              <div className="absolute inset-0 bg-gradient-to-r from-white/50 to-transparent mix-blend-overlay" />
-            </div>
-          </motion.div>
+          {/* Desktop Hero Image */}
+          {!isMobile && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.8 }}
+              className="relative mt-6 sm:mt-8 lg:mt-0 lg:absolute lg:top-20 lg:right-0 lg:w-[45%] w-full max-w-md mx-auto"
+            >
+              <div className="relative aspect-[4/3] rounded-2xl overflow-hidden bg-gradient-to-br from-blue-50 to-white">
+                <Image 
+                  src="/hero.png" 
+                  alt="Marius working on AI" 
+                  fill
+                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                  className="object-cover mix-blend-multiply"
+                  priority
+                  quality={85}
+                />
+                <div className="absolute inset-0 bg-gradient-to-r from-white/50 to-transparent mix-blend-overlay" />
+              </div>
+            </motion.div>
+          )}
         </motion.section>
 
-        {/* Achievements Grid */}
+        {/* Achievements Grid - Mobile Optimized */}
         <MotionSection 
           id="achievements"
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
-          transition={{ duration: 0.8 }}
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6 py-8 sm:py-16 scroll-mt-24"
+          transition={{ duration: 0.5 }}
+          className={`scroll-mt-24 ${isMobile ? 'py-4' : 'py-8'}`}
         >
-          {[
-            { title: '50K+', subtitle: 'Students taught on Udemy', color: 'from-blue-600 to-blue-500', shadowColor: 'shadow-blue-200' },
-            { title: 'OECD', subtitle: 'Member within FG-3 E2040', color: 'from-indigo-600 to-indigo-500', shadowColor: 'shadow-indigo-200' },
-            { title: 'notclass', subtitle: 'EdTech Startup', color: 'from-sky-600 to-sky-500', shadowColor: 'shadow-sky-200' }
-          ].map((achievement, index) => (
-            <motion.div 
-              key={achievement.title}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: index * 0.1 }}
-              whileHover={{ scale: 0.98 }}
-              className={`group relative p-8 rounded-2xl bg-white shadow-sm hover:shadow-xl transition-all duration-300 ${achievement.shadowColor} border border-gray-100`}
-            >
-              <div className="absolute -top-3 right-4 text-sm font-medium text-gray-400/80">0{index + 1}</div>
-              <h3 className={`text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r ${achievement.color}`}>
-                {achievement.title}
-              </h3>
-              <p className="mt-2 text-gray-600">{achievement.subtitle}</p>
-            </motion.div>
-          ))}
+          {isMobile ? (
+            // Mobile layout - horizontal scroll
+            <div className="flex overflow-x-auto pb-2 gap-3 hide-scrollbar">
+              {[
+                { title: '50K+', subtitle: 'Students', color: 'text-blue-600' },
+                { title: 'OECD', subtitle: 'Member', color: 'text-indigo-600' },
+                { title: 'notclass', subtitle: 'Startup', color: 'text-sky-600' }
+              ].map((achievement) => (
+                <div 
+                  key={achievement.title}
+                  className="flex-shrink-0 w-[140px] bg-white p-3 rounded-lg border border-gray-100"
+                >
+                  <h3 className={`text-xl font-bold ${achievement.color}`}>
+                    {achievement.title}
+                  </h3>
+                  <p className="text-[10px] text-gray-600">{achievement.subtitle}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            // Desktop layout - grid
+            <div className="grid grid-cols-3 gap-4">
+              {[
+                { title: '50K+', subtitle: 'Students taught on Udemy', color: 'text-blue-600' },
+                { title: 'OECD', subtitle: 'Member within FG-3 E2040', color: 'text-indigo-600' },
+                { title: 'notclass', subtitle: 'EdTech Startup', color: 'text-sky-600' }
+              ].map((achievement) => (
+                <div 
+                  key={achievement.title}
+                  className="bg-white p-4 rounded-xl border border-gray-100 hover:border-gray-200 transition-colors duration-200"
+                >
+                  <h3 className={`text-2xl font-bold ${achievement.color}`}>
+                    {achievement.title}
+                  </h3>
+                  <p className="text-sm mt-1 text-gray-600">{achievement.subtitle}</p>
+                </div>
+              ))}
+            </div>
+          )}
         </MotionSection>
+
+        {/* Mobile-specific navigation menu */}
+        {isMobile && (
+          <div className="fixed bottom-4 left-4 right-4 bg-white/80 backdrop-blur-lg rounded-2xl shadow-lg border border-gray-100 p-3 z-50">
+            <div className="flex justify-around items-center">
+              {[
+                { icon: '🎓', label: 'Courses', href: '#udemy' },
+                { icon: '💼', label: 'Consulting', href: '#consultancy' },
+                { icon: '🎤', label: 'Speaking', href: '#speaking' },
+                { icon: '📱', label: 'Contact', href: '#contact' }
+              ].map((item) => (
+                <a
+                  key={item.label}
+                  href={item.href}
+                  className="flex flex-col items-center gap-1"
+                >
+                  <span className="text-lg">{item.icon}</span>
+                  <span className="text-[10px] text-gray-600">{item.label}</span>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* AI Consultancy Section */}
         <MotionSection 
@@ -166,7 +233,7 @@ export default function Home() {
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
           transition={{ duration: 0.8 }}
-          className="py-16 sm:py-24 border-t border-gray-100 scroll-mt-24"
+          className={`py-8 sm:py-16 border-t border-gray-100 scroll-mt-24 ${isMobile ? 'space-y-6' : 'space-y-8'}`}
         >
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 sm:gap-16 items-center">
             <div className="space-y-6 sm:space-y-8">
@@ -287,27 +354,27 @@ export default function Home() {
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
           transition={{ duration: 0.8 }}
-          className="py-16 sm:py-24 border-t border-gray-100 scroll-mt-24"
+          className={`py-12 sm:py-24 border-t border-gray-100 scroll-mt-24 ${isMobile ? 'space-y-8' : ''}`}
         >
           <div className="relative">
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-orange-50 via-transparent to-transparent opacity-70" />
-            <div className="relative flex flex-col md:flex-row items-center gap-8 sm:gap-16">
-              <div className="flex-1 space-y-8">
+            <div className={`relative ${isMobile ? 'space-y-8' : 'flex flex-col md:flex-row items-center gap-8 sm:gap-16'}`}>
+              <div className={`${isMobile ? 'space-y-6' : 'flex-1 space-y-8'}`}>
                 <div className="space-y-2">
                   <motion.div
                     initial={{ opacity: 0 }}
                     whileInView={{ opacity: 1 }}
                     viewport={{ once: true }}
-                    className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-50 to-orange-100/50 px-4 py-2 rounded-full shadow-[0_2px_8px_-1px_rgba(234,88,12,0.15)] border border-orange-100"
+                    className={`inline-flex items-center gap-2 bg-gradient-to-r from-orange-50 to-orange-100/50 ${isMobile ? 'px-3 py-1.5' : 'px-4 py-2'} rounded-full shadow-sm border border-orange-100`}
                   >
-                    <div className="w-1.5 h-1.5 rounded-full bg-gradient-to-r from-orange-600 to-orange-500 shadow-sm" />
-                    <span className="text-[10px] text-orange-900 tracking-[0.2em] uppercase font-medium">Top-Rated Instructor</span>
+                    <div className="w-1 h-1 rounded-full bg-gradient-to-r from-orange-600 to-orange-500" />
+                    <span className={`${isMobile ? 'text-[8px]' : 'text-[10px]'} text-orange-900 tracking-[0.2em] uppercase font-medium`}>Top-Rated Instructor</span>
                   </motion.div>
                   <motion.h2 
                     initial={{ opacity: 0, y: 20 }}
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
-                    className="text-4xl font-bold text-gray-900 leading-tight"
+                    className={`${isMobile ? 'text-2xl' : 'text-4xl'} font-bold text-gray-900 leading-tight`}
                   >
                     Teaching the World
                     <span className="block text-orange-600">AI & Technology</span>
@@ -318,56 +385,85 @@ export default function Home() {
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ delay: 0.1 }}
-                  className="text-xl text-gray-600 leading-relaxed"
+                  className={`${isMobile ? 'text-sm' : 'text-xl'} text-gray-600 leading-relaxed`}
                 >
                   Empowering 50,000+ students worldwide with practical skills in AI, programming, and technology through comprehensive online courses.
                 </motion.p>
-                <div className="grid grid-cols-2 gap-6">
-                  {[
-                    { number: '4.5', label: 'Average Rating', icon: '⭐️' },
-                    { number: '50K+', label: 'Students Taught', icon: '👨‍🎓' }
-                  ].map((stat, index) => (
-                    <motion.div
-                      key={stat.label}
-                      initial={{ opacity: 0, y: 20 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true }}
-                      transition={{ delay: 0.1 * index }}
-                      className="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition-all duration-300 group"
-                    >
-                      <div className="flex items-start gap-4">
-                        <span className="text-2xl">{stat.icon}</span>
+
+                {/* Stats for mobile */}
+                {isMobile && (
+                  <div className="flex gap-4 overflow-x-auto hide-scrollbar pb-2">
+                    {[
+                      { number: '4.5', label: 'Average Rating', icon: '⭐️' },
+                      { number: '50K+', label: 'Students Taught', icon: '👨‍🎓' }
+                    ].map((stat) => (
+                      <div
+                        key={stat.label}
+                        className="flex-shrink-0 bg-white rounded-xl p-3 shadow-sm border border-orange-100 flex items-center gap-3"
+                      >
+                        <span className="text-xl">{stat.icon}</span>
                         <div>
-                          <p className="text-2xl font-bold text-gray-900 group-hover:text-orange-600 transition-colors">{stat.number}</p>
-                          <p className="text-sm text-gray-600">{stat.label}</p>
+                          <p className="text-lg font-bold text-gray-900">{stat.number}</p>
+                          <p className="text-xs text-gray-600">{stat.label}</p>
                         </div>
                       </div>
-                    </motion.div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Stats for desktop */}
+                {!isMobile && (
+                  <div className="grid grid-cols-2 gap-6">
+                    {[
+                      { number: '4.5', label: 'Average Rating', icon: '⭐️' },
+                      { number: '50K+', label: 'Students Taught', icon: '👨‍🎓' }
+                    ].map((stat, index) => (
+                      <motion.div
+                        key={stat.label}
+                        initial={{ opacity: 0, y: 20 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true }}
+                        transition={{ delay: 0.1 * index }}
+                        className="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition-all duration-300 group"
+                      >
+                        <div className="flex items-start gap-4">
+                          <span className="text-2xl">{stat.icon}</span>
+                          <div>
+                            <p className="text-2xl font-bold text-gray-900 group-hover:text-orange-600 transition-colors">{stat.number}</p>
+                            <p className="text-sm text-gray-600">{stat.label}</p>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
                 
-                <div className="flex gap-4">
+                <div className={`flex ${isMobile ? 'justify-center' : ''} gap-4`}>
                   <motion.a 
                     href="https://www.udemy.com/user/marius-manola/"
                     target="_blank"
                     rel="noopener noreferrer"
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    className="px-8 py-4 bg-orange-600 text-white rounded-xl font-medium hover:bg-orange-700 transition-all duration-300 shadow-lg shadow-orange-200 hover:shadow-xl hover:shadow-orange-200/50"
+                    className={`${isMobile ? 'w-full' : ''} px-6 py-3 sm:px-8 sm:py-4 bg-orange-600 text-white rounded-xl font-medium hover:bg-orange-700 transition-all duration-300 shadow-lg shadow-orange-200 hover:shadow-xl hover:shadow-orange-200/50 text-center`}
                   >
-                    <span className="flex items-center">
+                    <span className="flex items-center justify-center">
                       View Courses
                       <ArrowUpRightIcon className="ml-2 w-5 h-5 inline-block" />
                     </span>
                   </motion.a>
                 </div>
               </div>
-              <div className="flex-1">
+
+              {/* Course preview and reviews */}
+              <div className={`${isMobile ? 'space-y-6' : 'flex-1'}`}>
                 <div className="relative">
-                  <div className="absolute inset-x-4 -top-4 h-72 bg-gradient-to-b from-orange-100 to-white rounded-[2rem] -z-10" />
-                  <div className="relative aspect-video rounded-2xl overflow-hidden relative shadow-2xl">
+                  {!isMobile && (
+                    <div className="absolute inset-x-4 -top-4 h-72 bg-gradient-to-b from-orange-100 to-white rounded-[2rem] -z-10" />
+                  )}
+                  <div className={`relative aspect-video rounded-xl sm:rounded-2xl overflow-hidden ${isMobile ? 'shadow-lg' : 'shadow-2xl'}`}>
                     <Image 
-                      src="/udemy2.png" 
+                      src="/udemy4.png" 
                       alt="Udemy Courses Preview" 
                       fill
                       sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
@@ -377,62 +473,47 @@ export default function Home() {
                     />
                     <div className="absolute inset-0 bg-gradient-to-r from-orange-600/10 to-transparent mix-blend-overlay" />
                   </div>
-                  <div className="absolute -bottom-6 -right-6">
-                    <div className="bg-white rounded-xl p-4 shadow-xl">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center">
-                          <svg className="w-6 h-6 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                          </svg>
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">50K+ Students</p>
-                          <p className="text-xs text-gray-600">Learning AI & Tech</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
                 </div>
-                <div className="mt-8">
-                  <div className="mt-6 relative h-[120px]">
-                    <motion.div
-                      key={reviews[currentReviewIndex].author}
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -20 }}
-                      transition={{ duration: 0.3 }}
-                      className="absolute inset-0 bg-gradient-to-r from-orange-50/80 to-white p-3 rounded-xl border border-orange-100/80"
-                    >
-                      <div className="flex items-start gap-3">
-                        <div>
-                          <div className="flex items-center gap-2 mb-1">
-                            <h4 className="font-medium text-gray-900 text-sm">{reviews[currentReviewIndex].author}</h4>
-                            <div className="flex items-center gap-0.5">
-                              {[...Array(reviews[currentReviewIndex].rating)].map((_, i) => (
-                                <span key={i} className="text-orange-400 text-[10px]">⭐️</span>
-                              ))}
-                            </div>
+
+                {/* Reviews section */}
+                <div className={`mt-6 relative ${isMobile ? 'h-[100px]' : 'h-[120px]'}`}>
+                  <motion.div
+                    key={reviews[currentReviewIndex].author}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.3 }}
+                    className={`absolute inset-0 bg-gradient-to-r from-orange-50/80 to-white ${isMobile ? 'p-2' : 'p-3'} rounded-xl border border-orange-100/80`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <h4 className={`font-medium text-gray-900 ${isMobile ? 'text-xs' : 'text-sm'}`}>{reviews[currentReviewIndex].author}</h4>
+                          <div className="flex items-center gap-0.5">
+                            {[...Array(reviews[currentReviewIndex].rating)].map((_, i) => (
+                              <span key={i} className={`text-orange-400 ${isMobile ? 'text-[8px]' : 'text-[10px]'}`}>⭐️</span>
+                            ))}
                           </div>
-                          <blockquote className="text-gray-600 text-sm leading-relaxed">
-                            &ldquo;{reviews[currentReviewIndex].text}&rdquo;
-                          </blockquote>
                         </div>
+                        <blockquote className={`text-gray-600 ${isMobile ? 'text-xs' : 'text-sm'} leading-relaxed`}>
+                          &ldquo;{reviews[currentReviewIndex].text}&rdquo;
+                        </blockquote>
                       </div>
-                    </motion.div>
-                    <div className="absolute -bottom-4 left-1/2 transform -translate-x-1/2 flex justify-center gap-1.5">
-                      {reviews.map((_, index) => (
-                        <button
-                          key={index}
-                          onClick={() => setCurrentReviewIndex(index)}
-                          className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
-                            currentReviewIndex === index 
-                              ? 'bg-orange-500 w-3' 
-                              : 'bg-orange-200 hover:bg-orange-300'
-                          }`}
-                          aria-label={`View review ${index + 1}`}
-                        />
-                      ))}
                     </div>
+                  </motion.div>
+                  <div className="absolute -bottom-3 left-1/2 transform -translate-x-1/2 flex justify-center gap-1">
+                    {reviews.map((_, index) => (
+                      <button
+                        key={index}
+                        onClick={() => setCurrentReviewIndex(index)}
+                        className={`${isMobile ? 'w-1 h-1' : 'w-1.5 h-1.5'} rounded-full transition-all duration-300 ${
+                          currentReviewIndex === index 
+                            ? 'bg-orange-500 w-2' 
+                            : 'bg-orange-200 hover:bg-orange-300'
+                        }`}
+                        aria-label={`View review ${index + 1}`}
+                      />
+                    ))}
                   </div>
                 </div>
               </div>
@@ -559,98 +640,45 @@ export default function Home() {
           </div>
         </MotionSection>
 
-        {/* YouTube Section */}
+        {/* YouTube Section - Simplified */}
         <MotionSection 
           id="youtube"
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
           transition={{ duration: 0.8 }}
-          className="py-16 sm:py-24 border-t border-gray-100 scroll-mt-24"
+          className={`py-12 sm:py-24 border-t border-gray-100 scroll-mt-24 ${isMobile ? 'space-y-6' : ''}`}
         >
           <div className="relative">
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-red-50 via-transparent to-transparent opacity-70" />
-            <div className="relative flex flex-col md:flex-row items-center gap-16">
-              <div className="flex-1 order-2 md:order-2">
-                <div className="relative">
-                  <div className="absolute inset-x-4 -top-4 h-72 bg-gradient-to-b from-red-100 to-white rounded-[2rem] -z-10" />
-                  <div className="relative aspect-video rounded-2xl overflow-hidden relative shadow-2xl">
-                    <Image 
-                      src="/youtube.png" 
-                      alt="YouTube Channel Preview" 
-                      fill
-                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                      className="object-cover"
-                      loading="lazy"
-                      quality={85}
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-r from-red-600/10 to-transparent mix-blend-overlay" />
-                  </div>
-                  <div className="absolute -bottom-6 -left-6">
-                    <div className="bg-white rounded-xl p-4 shadow-xl">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
-                          <svg className="w-6 h-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                          </svg>
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">100+ Subscribers</p>
-                          <p className="text-xs text-gray-600">Growing Community</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="flex-1 order-1 md:order-1 space-y-8">
+            <div className={`relative ${isMobile ? 'space-y-6' : 'flex items-center gap-12'}`}>
+              {/* Content */}
+              <div className={`${isMobile ? 'text-center space-y-4' : 'flex-1 space-y-6'}`}>
                 <div className="space-y-2">
-                  <motion.span
-                    initial={{ opacity: 0 }}
-                    whileInView={{ opacity: 1 }}
-                    viewport={{ once: true }}
-                    className="block text-sm text-red-600 font-medium"
-                  >
-                    YouTube
-                  </motion.span>
                   <motion.h2 
                     initial={{ opacity: 0, y: 20 }}
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
-                    className="text-4xl font-bold text-gray-900 leading-tight"
+                    className={`${isMobile ? 'text-2xl' : 'text-3xl'} font-bold text-gray-900 leading-tight`}
                   >
-                    Learn & Grow
-                    <span className="block text-red-600">Together</span>
+                    Learn AI & Tech
+                    <span className="block text-red-600">on YouTube</span>
                   </motion.h2>
+                  <p className={`${isMobile ? 'text-sm' : 'text-base'} text-gray-600`}>
+                    Weekly videos on AI development and tech entrepreneurship
+                  </p>
                 </div>
-                <motion.p 
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: 0.1 }}
-                  className="text-xl text-gray-600 leading-relaxed"
-                >
-                  Join 100+ students learning about tech, AI, and entrepreneurship through practical tutorials and behind-the-scenes content.
-                </motion.p>
-                <motion.div 
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: 0.2 }}
-                  className="flex gap-4"
-                >
+                
+                <div className={`flex ${isMobile ? 'justify-center' : ''} gap-3`}>
                   <motion.a 
-                    href="https://www.youtube.com/@mariusmanolachi?sub_confirmation=1"
+                    href="https://www.youtube.com/@mariusmanola"
                     target="_blank"
                     rel="noopener noreferrer"
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    className="px-8 py-4 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition-colors shadow-lg shadow-red-200"
+                    className={`${isMobile ? 'flex-1' : ''} px-5 py-2.5 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors shadow-lg shadow-red-200 text-center text-sm`}
                   >
-                    <span className="flex items-center">
-                      Subscribe
-                      <ArrowUpRightIcon className="ml-2 w-5 h-5 inline-block" />
-                    </span>
+                    Subscribe
                   </motion.a>
                   <motion.a
                     href="https://youtu.be/vIS0QVHKbrA?si=lq3qbS9rWNVeBPAv"
@@ -658,11 +686,29 @@ export default function Home() {
                     rel="noopener noreferrer"
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    className="px-8 py-4 bg-gray-100 text-gray-900 rounded-xl font-medium hover:bg-gray-200 transition-colors"
+                    className={`${isMobile ? 'flex-1' : ''} px-5 py-2.5 bg-gray-100 text-gray-900 rounded-lg font-medium hover:bg-gray-200 transition-colors text-center text-sm`}
                   >
-                    Latest Videos
+                    Latest Video
                   </motion.a>
-                </motion.div>
+                </div>
+              </div>
+
+              {/* Video Preview */}
+              <div className={`${isMobile ? '' : 'flex-1'}`}>
+                <div className="relative">
+                  <div className={`relative aspect-video rounded-lg overflow-hidden ${isMobile ? 'shadow-md' : 'shadow-xl'}`}>
+                    <Image 
+                      src="/youtube.png" 
+                      alt="YouTube Channel Preview" 
+                      fill
+                      sizes="(max-width: 768px) 100vw, 50vw"
+                      className="object-cover"
+                      loading="lazy"
+                      quality={85}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-r from-red-600/10 to-transparent mix-blend-overlay" />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
