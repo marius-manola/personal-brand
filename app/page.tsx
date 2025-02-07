@@ -163,8 +163,8 @@ export default function Home() {
           className={`scroll-mt-24 ${isMobile ? 'py-4' : 'py-8'}`}
         >
           {isMobile ? (
-            // Mobile layout - horizontal scroll
-            <div className="flex overflow-x-auto pb-2 gap-3 hide-scrollbar">
+            // Mobile layout - vertical stack
+            <div className="grid grid-cols-2 gap-2">
               {[
                 { title: '50K+', subtitle: 'Students', color: 'text-blue-600' },
                 { title: 'OECD', subtitle: 'Member', color: 'text-indigo-600' },
@@ -172,7 +172,7 @@ export default function Home() {
               ].map((achievement) => (
                 <div 
                   key={achievement.title}
-                  className="flex-shrink-0 w-[140px] bg-white p-3 rounded-lg border border-gray-100"
+                  className="bg-white p-3 rounded-lg border border-gray-100"
                 >
                   <h3 className={`text-xl font-bold ${achievement.color}`}>
                     {achievement.title}
@@ -392,19 +392,19 @@ export default function Home() {
 
                 {/* Stats for mobile */}
                 {isMobile && (
-                  <div className="flex gap-4 overflow-x-auto hide-scrollbar pb-2">
+                  <div className="grid grid-cols-2 gap-3">
                     {[
-                      { number: '4.5', label: 'Average Rating', icon: '⭐️' },
-                      { number: '50K+', label: 'Students Taught', icon: '👨‍🎓' }
+                      { number: '4.5', label: 'Rating', icon: '⭐️' },
+                      { number: '50K+', label: 'Students', icon: '👨‍🎓' }
                     ].map((stat) => (
                       <div
                         key={stat.label}
-                        className="flex-shrink-0 bg-white rounded-xl p-3 shadow-sm border border-orange-100 flex items-center gap-3"
+                        className="bg-white rounded-lg p-3 shadow-sm border border-orange-100 flex items-center gap-2"
                       >
-                        <span className="text-xl">{stat.icon}</span>
+                        <span className="text-lg">{stat.icon}</span>
                         <div>
-                          <p className="text-lg font-bold text-gray-900">{stat.number}</p>
-                          <p className="text-xs text-gray-600">{stat.label}</p>
+                          <p className="text-base font-bold text-gray-900">{stat.number}</p>
+                          <p className="text-[10px] text-gray-600">{stat.label}</p>
                         </div>
                       </div>
                     ))}
