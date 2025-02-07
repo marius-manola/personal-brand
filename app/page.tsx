@@ -3,14 +3,56 @@
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { ArrowUpRightIcon } from '@heroicons/react/24/outline';
 import Navigation from '@/components/Navigation';
-import { useRef } from 'react';
+import { useRef, useEffect, useState } from 'react';
+import Image from 'next/image';
+import dynamic from 'next/dynamic';
+
+// Dynamically import motion components for sections that are below the fold
+const MotionSection = dynamic(() => Promise.resolve(motion.section), { ssr: true });
+
+// Preload critical images
+const preloadImages = () => {
+  const images = ['/hero.png', '/consulting.png', '/udemy2.png'];
+  images.forEach((src) => {
+    const imgElement = new window.Image();
+    imgElement.src = src;
+  });
+};
 
 export default function Home() {
-  const containerRef = useRef(null);
+  const containerRef = useRef<HTMLElement>(null);
   const { scrollYProgress } = useScroll({
     target: containerRef,
     offset: ["start start", "end end"]
   });
+
+  const [currentReviewIndex, setCurrentReviewIndex] = useState(0);
+  const reviews = [
+    {
+      text: "Yes, It opened my eyes on what we can do with Gen AI tools",
+      author: "Arindam S.",
+      rating: 5
+    },
+    {
+      text: "Very, very clear and excellent content. I confirm, this course is very clear, and I find it very interesting with new things and ways to apply in AI at the moment we interact with a chatbot",
+      author: "Francisco V.",
+      rating: 5
+    },
+    {
+      text: "It was very good and covered all the topics in prompt writing and got more knowledge on prompt engineering. Thank you so much Marius Manola",
+      author: "Gunda R.",
+      rating: 5
+    }
+  ];
+
+  useEffect(() => {
+    preloadImages();
+    const timer = setInterval(() => {
+      setCurrentReviewIndex((prev) => (prev + 1) % reviews.length);
+    }, 5000); // Change review every 5 seconds
+
+    return () => clearInterval(timer);
+  }, []);
 
   const opacity = useTransform(scrollYProgress, [0, 0.5], [1, 0]);
   const scale = useTransform(scrollYProgress, [0, 0.5], [1, 0.8]);
@@ -18,45 +60,45 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-gradient-to-b from-white to-gray-50" ref={containerRef}>
       <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-50 via-white to-orange-50 opacity-70" />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 relative">
         <Navigation />
         
         {/* Hero Section */}
         <motion.section 
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 1 }}
+          transition={{ duration: 0.8 }}
           style={{ opacity, scale }}
-          className="py-20 sm:py-32 md:py-40 relative"
+          className="py-8 sm:py-16 md:py-24 relative"
         >
           {/* Badge */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
-            className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-50 to-blue-100/50 px-3 sm:px-4 py-2 rounded-full mb-6 sm:mb-8 shadow-[0_2px_8px_-1px_rgba(59,130,246,0.15)] border border-blue-100"
+            className="inline-flex items-center gap-1.5 sm:gap-2 bg-gradient-to-r from-blue-50 to-blue-100/50 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-full mb-4 sm:mb-6 shadow-[0_2px_8px_-1px_rgba(59,130,246,0.15)] border border-blue-100"
           >
             <div className="w-1.5 h-1.5 rounded-full bg-gradient-to-r from-blue-600 to-blue-500 shadow-sm" />
-            <span className="text-[9px] sm:text-[10px] text-blue-900 tracking-[0.2em] uppercase font-medium">AI Instructor & Founder</span>
+            <span className="text-[8px] sm:text-[10px] text-blue-900 tracking-[0.2em] uppercase font-medium">AI Instructor & Founder</span>
           </motion.div>
           
-          <div className="max-w-3xl space-y-4 sm:space-y-6">
+          <div className="max-w-3xl space-y-2 sm:space-y-4">
             {['Building AI tools', 'for the next', 'generation'].map((text, index) => (
               <motion.div
                 key={text}
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.3 + index * 0.2 }}
+                transition={{ delay: 0.2 + index * 0.15 }}
                 className="relative"
               >
-                <span className="block text-3xl sm:text-5xl md:text-7xl font-bold text-gray-900 tracking-tight leading-[1.1]">{text}</span>
+                <span className="block text-2xl sm:text-4xl md:text-6xl font-bold text-gray-900 tracking-tight leading-[1.1]">{text}</span>
               </motion.div>
             ))}
             <motion.p 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.8 }}
-              className="text-lg sm:text-xl text-gray-600 leading-relaxed max-w-2xl"
+              transition={{ delay: 0.6 }}
+              className="text-sm sm:text-base md:text-lg text-gray-600 leading-relaxed max-w-2xl"
             >
               18-year-old founder and engineering student. Building PromptEasy to revolutionize AI dataset creation, 
               while sharing my journey in tech and entrepreneurship.
@@ -67,29 +109,32 @@ export default function Home() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 1 }}
-            className="absolute top-20 right-0 w-[45%] hidden lg:block"
+            transition={{ delay: 0.8 }}
+            className="relative mt-6 sm:mt-8 lg:mt-0 lg:absolute lg:top-20 lg:right-0 lg:w-[45%] w-full max-w-md mx-auto"
           >
             <div className="relative aspect-[4/3] rounded-2xl overflow-hidden bg-gradient-to-br from-blue-50 to-white">
-              <img 
+              <Image 
                 src="/hero.png" 
                 alt="Marius working on AI" 
-                className="w-full h-full object-cover mix-blend-multiply"
+                fill
+                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                className="object-cover mix-blend-multiply"
+                priority
+                quality={85}
               />
               <div className="absolute inset-0 bg-gradient-to-r from-white/50 to-transparent mix-blend-overlay" />
-              
             </div>
           </motion.div>
         </motion.section>
 
         {/* Achievements Grid */}
-        <motion.section 
+        <MotionSection 
           id="achievements"
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.8 }}
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8 py-12 sm:py-16 scroll-mt-24"
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6 py-8 sm:py-16 scroll-mt-24"
         >
           {[
             { title: '50K+', subtitle: 'Students taught on Udemy', color: 'from-blue-600 to-blue-500', shadowColor: 'shadow-blue-200' },
@@ -112,10 +157,10 @@ export default function Home() {
               <p className="mt-2 text-gray-600">{achievement.subtitle}</p>
             </motion.div>
           ))}
-        </motion.section>
+        </MotionSection>
 
         {/* AI Consultancy Section */}
-        <motion.section 
+        <MotionSection 
           id="consultancy"
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
@@ -174,20 +219,45 @@ export default function Home() {
                   </motion.div>
                 ))}
               </div>
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className="px-8 py-4 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200"
-              >
-                Schedule a Consultation
-              </motion.button>
+              <div className="flex gap-4 flex-wrap">
+                <motion.a
+                  href="https://calendar.app.google/hgErEDRcNsSMjbs17"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="inline-flex items-center px-6 py-4 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200"
+                >
+                  <span className="flex items-center">
+                    Schedule Meeting
+                    <ArrowUpRightIcon className="ml-2 w-5 h-5" />
+                  </span>
+                </motion.a>
+                <motion.a
+                  href="mailto:mariusmanola@gmail.com?subject=AI%20Consulting%20Inquiry"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="inline-flex items-center px-6 py-4 bg-blue-50 text-blue-900 rounded-xl font-medium hover:bg-blue-100 transition-all duration-300 border border-blue-100"
+                >
+                  <span className="flex items-center">
+                    Email Me
+                    <svg className="ml-2 w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                  </span>
+                </motion.a>
+              </div>
             </div>
             <div className="relative">
-              <div className="aspect-[4/3] rounded-2xl overflow-hidden">
-                <img 
+              <div className="relative aspect-[4/3] rounded-2xl overflow-hidden">
+                <Image 
                   src="/consulting.png" 
                   alt="AI Consulting Session" 
-                  className="w-full h-full object-cover"
+                  fill
+                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                  className="object-cover"
+                  loading="lazy"
+                  quality={85}
                 />
                 <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 to-transparent mix-blend-overlay" />
               </div>
@@ -208,10 +278,10 @@ export default function Home() {
               </div>
             </div>
           </div>
-        </motion.section>
+        </MotionSection>
 
         {/* Udemy Section */}
-        <motion.section 
+        <MotionSection 
           id="udemy"
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
@@ -254,10 +324,8 @@ export default function Home() {
                 </motion.p>
                 <div className="grid grid-cols-2 gap-6">
                   {[
-                    { number: '4.8', label: 'Average Rating', icon: '⭐️' },
-                    { number: '10+', label: 'Courses Created', icon: '📚' },
-                    { number: '180+', label: 'Video Lessons', icon: '🎥' },
-                    { number: '40+', label: 'Countries Reached', icon: '🌍' }
+                    { number: '4.5', label: 'Average Rating', icon: '⭐️' },
+                    { number: '50K+', label: 'Students Taught', icon: '👨‍🎓' }
                   ].map((stat, index) => (
                     <motion.div
                       key={stat.label}
@@ -280,7 +348,7 @@ export default function Home() {
                 
                 <div className="flex gap-4">
                   <motion.a 
-                    href="https://www.udemy.com/user/marius-manolachi/"
+                    href="https://www.udemy.com/user/marius-manola/"
                     target="_blank"
                     rel="noopener noreferrer"
                     whileHover={{ scale: 1.02 }}
@@ -292,23 +360,20 @@ export default function Home() {
                       <ArrowUpRightIcon className="ml-2 w-5 h-5 inline-block" />
                     </span>
                   </motion.a>
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    className="px-8 py-4 bg-orange-50 text-orange-900 rounded-xl font-medium hover:bg-orange-100 transition-all duration-300 border border-orange-100"
-                  >
-                    Course Catalog
-                  </motion.button>
                 </div>
               </div>
               <div className="flex-1">
                 <div className="relative">
                   <div className="absolute inset-x-4 -top-4 h-72 bg-gradient-to-b from-orange-100 to-white rounded-[2rem] -z-10" />
-                  <div className="aspect-video rounded-2xl overflow-hidden relative shadow-2xl">
-                    <img 
+                  <div className="relative aspect-video rounded-2xl overflow-hidden relative shadow-2xl">
+                    <Image 
                       src="/udemy2.png" 
                       alt="Udemy Courses Preview" 
-                      className="w-full h-full object-cover"
+                      fill
+                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                      className="object-cover"
+                      loading="lazy"
+                      quality={85}
                     />
                     <div className="absolute inset-0 bg-gradient-to-r from-orange-600/10 to-transparent mix-blend-overlay" />
                   </div>
@@ -328,35 +393,55 @@ export default function Home() {
                     </div>
                   </div>
                 </div>
-                <div className="mt-12 bg-gradient-to-b from-orange-50 to-white p-6 rounded-2xl border border-orange-100">
-                  <div className="flex items-center gap-4 mb-6">
-                    <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center">
-                      <span className="text-xl">⭐️</span>
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-gray-900">Student Review</h4>
-                      <p className="text-sm text-gray-600">Latest Feedback</p>
-                    </div>
-                  </div>
-                  <blockquote className="text-gray-600 italic">
-                    &ldquo;Marius is an exceptional instructor. His explanations are clear, and the practical examples are invaluable.&rdquo;
-                  </blockquote>
-                  <div className="mt-4 flex items-center justify-between">
-                    <div className="flex items-center gap-1">
-                      {[...Array(5)].map((_, i) => (
-                        <span key={i} className="text-orange-400">⭐️</span>
+                <div className="mt-8">
+                  <div className="mt-6 relative h-[120px]">
+                    <motion.div
+                      key={reviews[currentReviewIndex].author}
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      transition={{ duration: 0.3 }}
+                      className="absolute inset-0 bg-gradient-to-r from-orange-50/80 to-white p-3 rounded-xl border border-orange-100/80"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <h4 className="font-medium text-gray-900 text-sm">{reviews[currentReviewIndex].author}</h4>
+                            <div className="flex items-center gap-0.5">
+                              {[...Array(reviews[currentReviewIndex].rating)].map((_, i) => (
+                                <span key={i} className="text-orange-400 text-[10px]">⭐️</span>
+                              ))}
+                            </div>
+                          </div>
+                          <blockquote className="text-gray-600 text-sm leading-relaxed">
+                            &ldquo;{reviews[currentReviewIndex].text}&rdquo;
+                          </blockquote>
+                        </div>
+                      </div>
+                    </motion.div>
+                    <div className="absolute -bottom-4 left-1/2 transform -translate-x-1/2 flex justify-center gap-1.5">
+                      {reviews.map((_, index) => (
+                        <button
+                          key={index}
+                          onClick={() => setCurrentReviewIndex(index)}
+                          className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
+                            currentReviewIndex === index 
+                              ? 'bg-orange-500 w-3' 
+                              : 'bg-orange-200 hover:bg-orange-300'
+                          }`}
+                          aria-label={`View review ${index + 1}`}
+                        />
                       ))}
                     </div>
-                    <span className="text-sm text-gray-500">2 days ago</span>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        </motion.section>
+        </MotionSection>
 
         {/* AI Speaking & Workshops Section */}
-        <motion.section 
+        <MotionSection 
           id="speaking"
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
@@ -366,11 +451,15 @@ export default function Home() {
         >
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 sm:gap-16 items-center">
             <div className="order-2 lg:order-1 relative">
-              <div className="aspect-[4/3] rounded-2xl overflow-hidden">
-                <img 
+              <div className="relative aspect-[4/3] rounded-2xl overflow-hidden">
+                <Image 
                   src="/speaking.JPG" 
                   alt="Speaking at AI Conference" 
-                  className="w-full h-full object-cover"
+                  fill
+                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                  className="object-cover"
+                  loading="lazy"
+                  quality={85}
                 />
                 <div className="absolute inset-0 bg-gradient-to-r from-indigo-600/10 to-transparent mix-blend-overlay" />
               </div>
@@ -438,19 +527,40 @@ export default function Home() {
                   </motion.div>
                 ))}
               </div>
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className="px-8 py-4 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200"
-              >
-                Book for Speaking
-              </motion.button>
+              <div className="flex gap-4 flex-wrap">
+                <motion.a
+                  href="https://calendar.app.google/hgErEDRcNsSMjbs17"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="inline-flex items-center px-6 py-4 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200"
+                >
+                  <span className="flex items-center">
+                    Book a Call
+                    <ArrowUpRightIcon className="ml-2 w-5 h-5" />
+                  </span>
+                </motion.a>
+                <motion.a
+                  href="mailto:mariusmanola@gmail.com?subject=Speaking%20Engagement%20Inquiry"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="inline-flex items-center px-6 py-4 bg-indigo-50 text-indigo-900 rounded-xl font-medium hover:bg-indigo-100 transition-all duration-300 border border-indigo-100"
+                >
+                  <span className="flex items-center">
+                    Email Details
+                    <svg className="ml-2 w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                  </span>
+                </motion.a>
+              </div>
             </div>
           </div>
-        </motion.section>
+        </MotionSection>
 
         {/* YouTube Section */}
-        <motion.section 
+        <MotionSection 
           id="youtube"
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
@@ -464,11 +574,15 @@ export default function Home() {
               <div className="flex-1 order-2 md:order-2">
                 <div className="relative">
                   <div className="absolute inset-x-4 -top-4 h-72 bg-gradient-to-b from-red-100 to-white rounded-[2rem] -z-10" />
-                  <div className="aspect-video rounded-2xl overflow-hidden relative shadow-2xl">
-                    <img 
+                  <div className="relative aspect-video rounded-2xl overflow-hidden relative shadow-2xl">
+                    <Image 
                       src="/youtube.png" 
                       alt="YouTube Channel Preview" 
-                      className="w-full h-full object-cover"
+                      fill
+                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                      className="object-cover"
+                      loading="lazy"
+                      quality={85}
                     />
                     <div className="absolute inset-0 bg-gradient-to-r from-red-600/10 to-transparent mix-blend-overlay" />
                   </div>
@@ -525,10 +639,10 @@ export default function Home() {
                   transition={{ delay: 0.2 }}
                   className="flex gap-4"
                 >
-            <motion.a 
-              href="https://www.youtube.com/@mariusmanolachi"
-              target="_blank"
-              rel="noopener noreferrer"
+                  <motion.a 
+                    href="https://www.youtube.com/@mariusmanolachi?sub_confirmation=1"
+                    target="_blank"
+                    rel="noopener noreferrer"
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     className="px-8 py-4 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition-colors shadow-lg shadow-red-200"
@@ -537,31 +651,34 @@ export default function Home() {
                       Subscribe
                       <ArrowUpRightIcon className="ml-2 w-5 h-5 inline-block" />
                     </span>
-            </motion.a>
-                  <motion.button
+                  </motion.a>
+                  <motion.a
+                    href="https://youtu.be/vIS0QVHKbrA?si=lq3qbS9rWNVeBPAv"
+                    target="_blank"
+                    rel="noopener noreferrer"
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     className="px-8 py-4 bg-gray-100 text-gray-900 rounded-xl font-medium hover:bg-gray-200 transition-colors"
                   >
                     Latest Videos
-                  </motion.button>
+                  </motion.a>
                 </motion.div>
-            </div>
+              </div>
             </div>
           </div>
-        </motion.section>
+        </MotionSection>
 
         {/* Contact */}
-        <motion.section 
+        <MotionSection 
           id="contact"
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
           transition={{ duration: 0.8 }}
-          className="py-20 sm:py-32 text-center border-t border-gray-100 relative overflow-hidden scroll-mt-24"
+          className="py-16 sm:py-24 text-center border-t border-gray-100 relative overflow-hidden scroll-mt-24"
         >
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,_var(--tw-gradient-stops))] from-blue-50 via-transparent to-transparent opacity-70" />
-          <div className="space-y-4 sm:space-y-6">
+          <div className="relative space-y-6 sm:space-y-8 max-w-4xl mx-auto px-4">
             <div className="space-y-2">
               <motion.span
                 initial={{ opacity: 0 }}
@@ -586,24 +703,59 @@ export default function Home() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: 0.1 }}
-              className="text-lg sm:text-xl text-gray-600 mb-8 sm:mb-12 max-w-2xl mx-auto leading-relaxed"
+              className="text-lg text-gray-600 max-w-2xl mx-auto leading-relaxed"
             >
               Whether you&apos;re interested in AI consulting, speaking engagements, or collaboration opportunities,
               I&apos;d love to chat about how we can work together.
             </motion.p>
-            <motion.a 
-              href="mailto:contact@mariusmanolachi.com"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="inline-flex items-center px-8 py-4 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200"
-            >
-              <span className="flex items-center">
-                Let&apos;s talk
-            <ArrowUpRightIcon className="ml-2 w-5 h-5" />
-              </span>
-            </motion.a>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mx-auto">
+              <motion.a 
+                href="https://calendar.app.google/hgErEDRcNsSMjbs17"
+                target="_blank"
+                rel="noopener noreferrer"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="group flex items-center justify-center gap-3 px-8 py-4 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-all duration-300 shadow-lg shadow-blue-200/50 hover:shadow-xl hover:shadow-blue-300/50"
+              >
+                <svg className="w-5 h-5 text-blue-200 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <span>Schedule a Meeting</span>
+              </motion.a>
+              <motion.a 
+                href="mailto:mariusmanola@gmail.com"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="group flex items-center justify-center gap-3 px-8 py-4 bg-white text-blue-600 rounded-xl font-medium hover:bg-blue-50 transition-all duration-300 border-2 border-blue-100 hover:border-blue-200"
+              >
+                <svg className="w-5 h-5 text-blue-400 group-hover:text-blue-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                <span>Send Email</span>
+              </motion.a>
+            </div>
+            <div className="flex justify-center gap-6 pt-8 text-sm text-gray-500">
+              <motion.a 
+                href="https://www.youtube.com/@mariusmanola"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-red-600 transition-colors"
+                whileHover={{ y: -2 }}
+              >
+                YouTube
+              </motion.a>
+              <motion.a 
+                href="https://www.udemy.com/user/marius-manola/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-orange-600 transition-colors"
+                whileHover={{ y: -2 }}
+              >
+                Udemy
+              </motion.a>
+            </div>
           </div>
-        </motion.section>
+        </MotionSection>
       </div>
     </main>
   );
