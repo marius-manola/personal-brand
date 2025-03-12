@@ -671,7 +671,7 @@ export default function Home() {
                 
                 <div className={`flex ${isMobile ? 'justify-center' : ''} gap-3`}>
                   <motion.a 
-                    href="https://www.youtube.com/@mariusmanola"
+                    href="https://www.youtube.com/@mariusmanolachi"
                     target="_blank"
                     rel="noopener noreferrer"
                     whileHover={{ scale: 1.02 }}
