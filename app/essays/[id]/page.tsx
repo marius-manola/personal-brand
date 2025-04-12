@@ -7,6 +7,7 @@ interface PageProps {
   params: {
     id: string;
   };
+  searchParams?: { [key: string]: string | string[] | undefined };
 }
 
 // Generate static params for all essays at build time
@@ -18,8 +19,8 @@ export async function generateStaticParams() {
 }
 
 export default async function EssayPage({ params }: PageProps) {
-  // Get the id directly from params since it's not a Promise
-  const { id } = params;
+  // Await params before destructuring
+  const { id } = await params;
   const essay = await getEssayById(id);
 
   if (!essay) {
