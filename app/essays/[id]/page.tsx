@@ -18,8 +18,8 @@ export async function generateStaticParams() {
 }
 
 export default async function EssayPage({ params }: PageProps) {
-  // Destructure and await params at the top level
-  const { id } = await Promise.resolve(params);
+  // Get the id directly from params since it's not a Promise
+  const { id } = params;
   const essay = await getEssayById(id);
 
   if (!essay) {
@@ -52,34 +52,33 @@ export default async function EssayPage({ params }: PageProps) {
               <div className="prose prose-sm whitespace-pre-wrap
                 [&>*]:mt-0 
                 [&>*+*]:mt-4
+
                 [&>p]:text-gray-600 [&>p]:leading-relaxed
-                [&>p:first-of-type]:text-xl [&>p:first-of-type]:font-light [&>p:first-of-type]:text-gray-900 [&>p:first-of-type]:mb-8
-                [&>p>strong]:font-medium [&>p>strong]:text-gray-900
+                [&>p:first-of-type]:text-lg [&>p:first-of-type]:text-gray-800 [&>p:first-of-type]:mb-8
                 [&>p+p]:not-first-of-type:border-t [&>p+p]:not-first-of-type:border-gray-50 [&>p+p]:not-first-of-type:pt-4
 
-                [&>ol]:list-none [&>ol]:pl-0 [&>ol]:my-2 
-                [&>ol>li]:text-gray-600 [&>ol>li]:leading-relaxed [&>ol>li]:font-medium 
-                [&>ol>li]:pl-6 [&>ol>li]:relative [&>ol>li]:py-0.5
+                [&>ol]:list-none [&>ol]:pl-0 [&>ol]:my-1
+                [&>ol>li]:text-gray-600 [&>ol>li]:leading-relaxed
+                [&>ol>li]:pl-8 [&>ol>li]:relative [&>ol>li]:py-0.5
                 [&>ol>li]:before:content-[counter(list-item)_')'] 
                 [&>ol>li]:before:absolute [&>ol>li]:before:left-0 
-                [&>ol>li]:before:text-gray-400 [&>ol>li]:before:font-normal
+                [&>ol>li]:before:text-gray-400
 
-                prose-headings:font-light prose-headings:text-gray-900
-                prose-h2:text-xl prose-h2:mt-8 prose-h2:mb-4
+                [&>h2]:text-lg [&>h2]:text-gray-800 [&>h2]:font-light [&>h2]:mt-8 [&>h2]:mb-3
 
-                prose-a:text-blue-600 prose-a:no-underline hover:prose-a:underline
-                prose-strong:font-medium prose-strong:text-gray-900
-                prose-code:text-blue-600 prose-code:bg-blue-50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded
-                prose-pre:bg-gray-900 prose-pre:text-gray-100 prose-pre:my-4
-                prose-blockquote:border-l-4 prose-blockquote:border-gray-200 prose-blockquote:pl-4 
-                prose-blockquote:italic prose-blockquote:text-gray-600 prose-blockquote:my-4
-
-                [&>p]:first-line:font-medium [&>p]:first-line:text-gray-900
+                [&>a]:text-blue-600 [&>a]:no-underline hover:[&>a]:underline
+                [&>strong]:font-medium [&>strong]:text-gray-800
+                [&>code]:text-blue-600 [&>code]:bg-blue-50 [&>code]:px-1 [&>code]:py-0.5 [&>code]:rounded
+                [&>pre]:bg-gray-900 [&>pre]:text-gray-100 [&>pre]:my-4 [&>pre]:p-4 [&>pre]:rounded
+                [&>blockquote]:border-l-4 [&>blockquote]:border-gray-200 [&>blockquote]:pl-4 
+                [&>blockquote]:italic [&>blockquote]:text-gray-600 [&>blockquote]:my-4
 
                 [&_p:has(+ol)]:mb-2
-                [&_ol:has(+p)]:mb-4
+                [&_ol:has(+p)]:mb-6
                 [&_h2:has(+ol)]:mb-2
-                [&_h2:has(+p)]:mb-2">
+                [&_h2:has(+p)]:mb-2
+
+                [&>ol:has(li[value])]:space-y-3">
                 <MDXRemote source={essay.content} />
               </div>
 
