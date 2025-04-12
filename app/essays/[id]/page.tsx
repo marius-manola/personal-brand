@@ -4,9 +4,9 @@ import MobileNavigation, { DesktopNavigation } from '@/components/Navigation';
 import { getEssayById, getAllEssays } from '@/lib/server/essays.server';
 
 interface PageProps {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
   searchParams?: { [key: string]: string | string[] | undefined };
 }
 
@@ -19,7 +19,6 @@ export async function generateStaticParams() {
 }
 
 export default async function EssayPage({ params }: PageProps) {
-  // Await params before destructuring
   const { id } = await params;
   const essay = await getEssayById(id);
 
