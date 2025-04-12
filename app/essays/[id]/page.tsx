@@ -7,7 +7,7 @@ interface PageProps {
   params: Promise<{
     id: string;
   }>;
-  searchParams?: { [key: string]: string | string[] | undefined };
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
 // Generate static params for all essays at build time
