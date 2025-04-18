@@ -1,41 +1,41 @@
 'use client';
 
-import { useRef,  } from 'react';
+import { useRef, useState } from 'react';
 import MobileNavigation, { DesktopNavigation } from '@/components/Navigation';
 
 export default function Home() {
   const containerRef = useRef<HTMLElement>(null);
-  // const [email, setEmail] = useState('');
-  // const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  // const [message, setMessage] = useState('');
+  const [email, setEmail] = useState('');
+  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [message, setMessage] = useState('');
 
-  // const handleSubmit = async (e: React.FormEvent) => {
-  //   e.preventDefault();
-  //   setStatus('loading');
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setStatus('loading');
     
-  //   try {
-  //     const response = await fetch('/api/subscribe', {
-  //       method: 'POST',
-  //       headers: {
-  //         'Content-Type': 'application/json',
-  //       },
-  //       body: JSON.stringify({ email }),
-  //     });
+    try {
+      const response = await fetch('/api/subscribe', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
 
-  //     const data = await response.json();
+      const data = await response.json();
 
-  //     if (!response.ok) {
-  //       throw new Error(data.error || 'Subscription failed');
-  //     }
+      if (!response.ok) {
+        throw new Error(data.error || 'Subscription failed');
+      }
 
-  //     setStatus('success');
-  //     setMessage('Thank you for subscribing!');
-  //     setEmail('');
-  //   } catch (error) {
-  //     setStatus('error');
-  //     setMessage(error instanceof Error ? error.message : 'Failed to subscribe');
-  //   }
-  // };
+      setStatus('success');
+      setMessage('Thank you for subscribing!');
+      setEmail('');
+    } catch (error) {
+      setStatus('error');
+      setMessage(error instanceof Error ? error.message : 'Failed to subscribe');
+    }
+  };
 
   return (
     <>
@@ -69,7 +69,7 @@ export default function Home() {
                   </a>
                 </div>
 
-                {/* <div className="space-y-6">
+                <div className="space-y-6">
                   <form onSubmit={handleSubmit} className="space-y-3">
                     <div className="relative">
                       <input
@@ -95,7 +95,7 @@ export default function Home() {
                       {status === 'loading' ? 'subscribing...' : 'subscribe to my journey →'}
                     </button>
                   </form>
-                </div> */}
+                </div>
               </section>
 
               <footer className="text-xs text-gray-400">
