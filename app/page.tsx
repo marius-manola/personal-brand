@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import MobileNavigation, { DesktopNavigation } from '@/components/Navigation';
+import AgeCounter from './components/AgeCounter';
 
 export default function Home() {
   const containerRef = useRef<HTMLElement>(null);
@@ -52,7 +53,7 @@ export default function Home() {
 
               <section className="space-y-12">
                 <p className="text-base text-gray-600 leading-relaxed">
-                  I&apos;m 18 years old, born and raised in Moldova.<br></br>I love humanity, hiking, technology and solving problems.
+                  I&apos;m <AgeCounter /> years old, born and raised in Moldova.<br></br>I love humanity, hiking, technology and solving problems.
                 </p>
 
                 <div>
