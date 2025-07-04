@@ -1,43 +1,39 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useRef /*, useState */ } from 'react';
 import MobileNavigation, { DesktopNavigation } from '@/components/Navigation';
-import AgeCounter from './components/AgeCounter';
+// import AgeCounter from './components/AgeCounter';
 import Counter from '@/components/Counter';
 
 export default function Home() {
   const containerRef = useRef<HTMLElement>(null);
-  const [email, setEmail] = useState('');
-  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  const [message, setMessage] = useState('');
+  // const [email, setEmail] = useState('');
+  // const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  // const [message, setMessage] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setStatus('loading');
-    
-    try {
-      const response = await fetch('/api/subscribe', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Subscription failed');
-      }
-
-      setStatus('success');
-      setMessage('Thank you for subscribing!');
-      setEmail('');
-    } catch (error) {
-      setStatus('error');
-      setMessage(error instanceof Error ? error.message : 'Failed to subscribe');
-    }
-  };
+  // const handleSubmit = async (e: React.FormEvent) => {
+  //   e.preventDefault();
+  //   setStatus('loading');
+  //   try {
+  //     const response = await fetch('/api/subscribe', {
+  //       method: 'POST',
+  //       headers: {
+  //         'Content-Type': 'application/json',
+  //       },
+  //       body: JSON.stringify({ email }),
+  //     });
+  //     const data = await response.json();
+  //     if (!response.ok) {
+  //       throw new Error(data.error || 'Subscription failed');
+  //     }
+  //     setStatus('success');
+  //     setMessage('Thank you for subscribing!');
+  //     setEmail('');
+  //   } catch (error) {
+  //     setStatus('error');
+  //     setMessage(error instanceof Error ? error.message : 'Failed to subscribe');
+  //   }
+  // };
 
   return (
     <>

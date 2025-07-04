@@ -5,10 +5,9 @@ import { useState, useEffect } from 'react';
 interface CounterProps {
   startDate: Date;
   afterDecimals?: number;
-  className?: string;
 }
 
-export default function Counter({ startDate, afterDecimals = 8 ,className = "" }: CounterProps) {
+export default function Counter({ startDate, afterDecimals = 8 }: CounterProps) {
   const [timeElapsed, setTimeElapsed] = useState<number>(0);
 
   useEffect(() => {
