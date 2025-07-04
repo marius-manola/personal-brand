@@ -105,35 +105,27 @@ export default function Books() {
     <>
       <MobileNavigation />
 
-      <div className="min-h-screen">
+      <div className="min-h-screen bg-white dark:bg-gray-900">
         <div className="flex justify-center">
           <main className="max-w-md w-full px-6 py-24" ref={containerRef}>
             <div className="space-y-16">
               <header className="space-y-4">
                 <div>
-                  <h1 className="text-2xl font-light text-gray-900 mb-1">Book Recommendations</h1>
-                  <p className="text-sm text-gray-400">A curated collection of books that shaped my thinking</p>
+                  <h1 className="text-2xl font-light text-gray-900 dark:text-gray-100 mb-1">Book Recommendations</h1>
+                  <p className="text-sm text-gray-400 dark:text-gray-500">A curated list of books that have shaped my thinking.</p>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex space-x-4 mb-8">
                   <button
                     onClick={() => setSelectedCategory(null)}
-                    className={`px-3 py-1 text-sm rounded-full transition-all duration-200 ${
-                      selectedCategory === null
-                        ? 'bg-gray-900 text-white shadow-sm'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
+                    className={`text-sm ${selectedCategory === null ? 'text-gray-900 dark:text-gray-100' : 'text-gray-400 dark:text-gray-500'}`}
                   >
                     All
                   </button>
-                  {categories.map((category) => (
+                  {categories.map(category => (
                     <button
                       key={category}
                       onClick={() => setSelectedCategory(category)}
-                      className={`px-3 py-1 text-sm rounded-full transition-all duration-200 ${
-                        selectedCategory === category
-                          ? 'bg-gray-900 text-white shadow-sm'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
+                      className={`text-sm ${selectedCategory === category ? 'text-gray-900 dark:text-gray-100' : 'text-gray-400 dark:text-gray-500'}`}
                     >
                       {category}
                     </button>
@@ -159,23 +151,23 @@ export default function Books() {
                         <div className="absolute inset-0 ring-1 ring-black/5 rounded-xl pointer-events-none" />
                       </div>
                       <div>
-                        <h3 className="text-sm font-medium text-gray-900 group-hover:text-gray-600 transition-colors">
+                        <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors">
                           {book.title}
                         </h3>
-                        <p className="text-sm text-gray-500 mt-0.5">{book.author}</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{book.author}</p>
                       </div>
                     </article>
                   ))}
                 </div>
                 {filteredBooks.length === 0 && (
-                  <p className="text-center text-gray-500 py-12">
+                  <p className="text-center text-gray-500 dark:text-gray-400 py-12">
                     No books found in this category.
                   </p>
                 )}
               </section>
 
-              <footer className="text-xs text-gray-400">
-                <p>© 2025 Marius Manolachi</p>
+              <footer className="text-xs text-gray-400 dark:text-gray-500">
+                <p>© 2025 Aakash Chawla</p>
               </footer>
             </div>
           </main>

@@ -4,13 +4,14 @@ import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
 import { usePathname } from 'next/navigation';
+import ThemeToggle from './ThemeToggle';
 
 const navItems = [
   { path: '/', label: 'home' },
-  { path: '/essays', label: 'essays' },
   { path: '/projects', label: 'projects' },
-  { path: '/books', label: 'books' },
-  { path: '/about', label: 'about' },
+  // { path: '/books', label: 'books' },
+  { path: '/quotes', label: 'quotes' },
+  // { path: '/about', label: 'about' },
 ];
 
 // Shared NavLinks component
@@ -27,7 +28,7 @@ const NavLinks = ({ onClick }: { onClick?: () => void }) => {
         >
           <div className="flex items-center">
             <motion.div
-              className="absolute -left-3 top-1/2 -translate-y-1/2 w-px h-4 bg-gray-900"
+              className="absolute -left-3 top-1/2 -translate-y-1/2 w-px h-4 bg-gray-900 dark:bg-gray-100"
               initial={false}
               animate={{ 
                 scaleY: pathname === item.path ? 1 : 0,
@@ -37,14 +38,17 @@ const NavLinks = ({ onClick }: { onClick?: () => void }) => {
             />
             <span className={`text-sm tracking-wide transition-all duration-200 ${
               pathname === item.path 
-                ? 'text-gray-900 font-medium' 
-                : 'text-gray-400 group-hover:text-gray-800'
+                ? 'text-gray-900 dark:text-gray-100 font-medium' 
+                : 'text-gray-400 dark:text-gray-500 group-hover:text-gray-800 dark:group-hover:text-gray-200'
             }`}>
               /{item.label}
             </span>
           </div>
         </Link>
       ))}
+      <div className="pt-4">
+        <ThemeToggle />
+      </div>
     </div>
   );
 };
@@ -71,35 +75,38 @@ export default function MobileNavigation() {
   return (
     <>
       <div className="md:hidden fixed top-0 left-0 right-0 z-50">
-        <nav className="w-full bg-white/90 backdrop-blur-md">
+        <nav className="w-full bg-white/90 dark:bg-gray-900/90 backdrop-blur-md">
           <div className="px-6 py-6 flex justify-between items-center">
-            <div className="text-xs text-gray-400 tracking-wide">menu</div>
-            <button
-              onClick={toggleMobileMenu}
-              className="text-gray-400 hover:text-gray-900 transition-colors duration-200 focus:outline-none"
-              aria-label="Toggle menu"
-            >
-              <motion.div
-                animate={{ rotate: isMobileMenuOpen ? 90 : 0 }}
-                transition={{ duration: 0.2 }}
+            <div className="text-xs text-gray-400 dark:text-gray-500 tracking-wide">menu</div>
+            <div className="flex items-center space-x-4">
+              <ThemeToggle />
+              <button
+                onClick={toggleMobileMenu}
+                className="text-gray-400 dark:text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 transition-colors duration-200 focus:outline-none"
+                aria-label="Toggle menu"
               >
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="1.5"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
+                <motion.div
+                  animate={{ rotate: isMobileMenuOpen ? 90 : 0 }}
+                  transition={{ duration: 0.2 }}
                 >
-                  {isMobileMenuOpen ? (
-                    <path d="M6 18L18 6M6 6l12 12" />
-                  ) : (
-                    <path d="M4 6h16M4 12h16M4 18h16" />
-                  )}
-                </svg>
-              </motion.div>
-            </button>
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="1.5"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    {isMobileMenuOpen ? (
+                      <path d="M6 18L18 6M6 6l12 12" />
+                    ) : (
+                      <path d="M4 6h16M4 12h16M4 18h16" />
+                    )}
+                  </svg>
+                </motion.div>
+              </button>
+            </div>
           </div>
         </nav>
 
@@ -110,7 +117,7 @@ export default function MobileNavigation() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.15, ease: 'easeOut' }}
-              className="absolute top-[72px] left-0 right-0 bg-white/90 backdrop-blur-md border-t border-gray-100"
+              className="absolute top-[72px] left-0 right-0 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md border-t border-gray-100 dark:border-gray-800"
             >
               <div className="px-6 py-8">
                 <NavLinks onClick={toggleMobileMenu} />

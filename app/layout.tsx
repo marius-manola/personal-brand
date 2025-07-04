@@ -9,21 +9,21 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Marius Manolachi | Tech Founder & Engineer",
+  title: "Aakash Chawla | Tech Founder & Engineer",
   description: "Building the future of technology and education. Engineering student turned founder, speaker, and tech influencer.",
   openGraph: {
-    title: "Marius Manolachi | Tech Founder & Engineer",
+    title: "Aakash Chawla | Tech Founder & Engineer",
     description: "Building the future of technology and education. Engineering student turned founder, speaker, and tech influencer.",
-    url: "https://mariusmanolachi.com",
-    siteName: "Marius Manolachi",
+    url: "https://aakashchawla.com",
+    siteName: "Aakash Chawla",
     locale: "en_US",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Marius Manolachi | Tech Founder & Engineer",
+    title: "Aakash Chawla | Tech Founder & Engineer",
     description: "Building the future of technology and education. Engineering student turned founder, speaker, and tech influencer.",
-    creator: "@mariusmanolachi",
+    creator: "@aakashchawla",
   },
   robots: {
     index: true,
