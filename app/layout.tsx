@@ -9,11 +9,11 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Aakash Chawla | Tech Founder & Engineer",
-  description: "Building the future of technology and education. Engineering student turned founder, speaker, and tech influencer.",
+  title: "Aakash Chawla",
+  description: "",
   openGraph: {
-    title: "Aakash Chawla | Tech Founder & Engineer",
-    description: "Building the future of technology and education. Engineering student turned founder, speaker, and tech influencer.",
+    title: "Aakash Chawla",
+    description: "",
     url: "https://aakashchawla.com",
     siteName: "Aakash Chawla",
     locale: "en_US",
@@ -21,9 +21,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Aakash Chawla | Tech Founder & Engineer",
-    description: "Building the future of technology and education. Engineering student turned founder, speaker, and tech influencer.",
-    creator: "@aakashchawla",
+    title: "Aakash Chawla",
+    description: "",
+    creator: "@whychawla",
   },
   robots: {
     index: true,
