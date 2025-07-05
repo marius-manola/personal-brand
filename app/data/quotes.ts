@@ -20,24 +20,21 @@ export const quotes: Quote[] = [
     categories: ["Motivation", "Inspiration"]
   },
   {
-    text: "The only way to do great work is to love what you do.",
-    author: "Steve Jobs",
-    sourceText: "Steve Jobs",
-    sourceLink: "https://en.wikipedia.org/wiki/Steve_Jobs",
+    text: "The entire point of life is to take chances on dreams that seem crazy to most, but feel like destiny to you.",
+    author: "Case Kenny",
     categories: ["Inspiration", "Motivation"]
   },
   {
-    text: "Stay hungry, stay foolish.",
-    author: "Steve Jobs",
-    sourceText: "Steve Jobs",
-    sourceLink: "https://en.wikipedia.org/wiki/Steve_Jobs",
+    text: "If you pray to win a marathon, expect shoes, not a medal.",
     categories: ["Motivation", "Innovation"]
   },
   {
-    text: "The future belongs to those who believe in the beauty of their dreams.",
-    author: "Eleanor Roosevelt",
-    sourceText: "Eleanor Roosevelt",
-    sourceLink: "https://en.wikipedia.org/wiki/Eleanor_Roosevelt",
+    text: "How do you know you are doing the right thing? If people you respect approve of your action.",
+    author: "Nasim Nicholas Taleb",
+    categories: ["Inspiration", "Motivation"]
+  },
+  {
+    text: "Make it exist first, you can make it good later.",
     categories: ["Inspiration", "Motivation"]
   }
 ]; 

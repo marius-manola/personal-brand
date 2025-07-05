@@ -20,7 +20,7 @@ export default function Projects() {
                 <article className="group">
                   <div className="space-y-2">
                     <h2 className="text-base font-light text-gray-900 dark:text-gray-100">SharkTankStartups</h2>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">A directory website for shark tank india startups. I recently found out that these are called directory websites and you would want to search keywork volume and difficutly before building one. Anyways this required a lot of operational work and I&apos;m not sure if it&apos;s worth it.</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">A directory website for shark tank india startups. I recently found out that these are called directory websites and you would want to search keyword volume and difficutly before building one. Anyways this required a lot of operational work. Stopped it for now.</p>
                     <a 
                       href="https://sharktankstartups.com" 
                       target="_blank"
