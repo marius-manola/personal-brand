@@ -51,9 +51,9 @@ export default function Home() {
               <section className="space-y-12">
                 <p className="text-base text-gray-600 dark:text-gray-300 leading-relaxed">
                   I&apos;m <Counter startDate={new Date('1997-04-09')}/> years old, born and raised in India.<br></br>
-                  I have been working at Google for the past <Counter startDate={new Date('2021-03-15')} afterDecimals={1} /> years. I like it here.<br></br>
+                  I have been working at Google for the past <Counter startDate={new Date('2021-03-15')} afterDecimals={1} /> years. Currently working on recommendation system.<br></br>
                   <br></br>
-                  I keep building mini projects on my nights & weekends. Hoping to bump into something I love to do.
+                  I keep building mini projects on my nights & weekends. Curating things I love to do.
                 </p>
 
                 {/* <div>
