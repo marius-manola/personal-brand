@@ -83,7 +83,7 @@ export default async function EssayPage({ params }: PageProps) {
               </div>
 
               <footer className="text-xs text-gray-400 pt-8 border-t border-gray-100">
-                <p>© 2025 Marius Manolachi</p>
+                <p>© {new Date().getFullYear()} Marius Manolachi</p>
               </footer>
             </div>
           </main>

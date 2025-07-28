@@ -11,7 +11,7 @@ export default function Home() {
     <>
       <MobileNavigation />
       
-      <div className="min-h-screen">
+      <div className="min-h-screen overflow-y-scroll" style={{ scrollbarGutter: 'stable' }}>
         <div className="flex justify-center">
           <main className="max-w-md w-full px-6 py-24" ref={containerRef}>
             <div className="space-y-16">
@@ -41,7 +41,7 @@ export default function Home() {
               </section>
 
               <footer className="text-xs text-gray-400">
-                <p>© 2025 Marius Manolachi</p>
+                <p>© {new Date().getFullYear()} Marius Manolachi</p>
               </footer>
             </div>
           </main>

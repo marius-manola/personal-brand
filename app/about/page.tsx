@@ -2,15 +2,16 @@
 
 import MobileNavigation, { DesktopNavigation } from '@/components/Navigation';
 import { content } from '@/app/data/about';
+import Age from '@/app/components/Age';
 
 export default function About() {
-  const { title, subtitle, content: paragraphs } = content.about;
+  const { title, subtitle, contentPrefix, contentSuffix } = content.about;
 
   return (
     <>
       <MobileNavigation />
 
-      <div className="min-h-screen">
+      <div className="min-h-screen overflow-y-scroll" style={{ scrollbarGutter: 'stable' }}>
         <div className="flex justify-center">
           <main className="max-w-md w-full px-6 py-24">
             <div className="space-y-16">
@@ -24,19 +25,14 @@ export default function About() {
               </header>
 
               <section className="space-y-12">
-                {paragraphs.map((paragraph, index) => (
-                  <p 
-                    key={index} 
-                    className="text-base text-gray-600 leading-relaxed"
-                  >
-                    {paragraph}
-                  </p>
-                ))}
+                <p className="text-base text-gray-600 leading-relaxed">
+                  {contentPrefix}<Age />{contentSuffix}
+                </p>
               </section>
 
               <footer className="text-xs text-gray-400">
                 <p>
-                  © 2025 Marius Manolachi
+                  © {new Date().getFullYear()} Marius Manolachi
                 </p>
               </footer>
             </div>

@@ -91,7 +91,7 @@ export default function Projects() {
               </section>
 
               <footer className="text-xs text-gray-400">
-                <p>© 2025 Marius Manolachi</p>
+                <p>© {new Date().getFullYear()} Marius Manolachi</p>
               </footer>
             </div>
           </main>

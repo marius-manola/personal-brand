@@ -25,15 +25,16 @@ const NavLinks = ({ onClick }: { onClick?: () => void }) => {
           className="group relative"
           onClick={onClick}
         >
-          <div className="flex items-center">
+          <div className="flex items-center relative">
             <motion.div
-              className="absolute -left-3 top-1/2 -translate-y-1/2 w-px h-4 bg-gray-900"
+              className="absolute -left-3 w-px h-4 bg-gray-900"
               initial={false}
               animate={{ 
                 scaleY: pathname === item.path ? 1 : 0,
                 opacity: pathname === item.path ? 1 : 0 
               }}
               transition={{ duration: 0.2 }}
+              style={{ top: '50%', transform: 'translateY(-50%)' }}
             />
             <span className={`text-sm tracking-wide transition-all duration-200 ${
               pathname === item.path 
