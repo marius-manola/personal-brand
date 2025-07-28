@@ -9,7 +9,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Marius Manolachi | Tech Founder & Engineer",
+  title: "Marius Manolachi | Human",
   description: "Building the future of technology and education. Engineering student turned founder, speaker, and tech influencer.",
   openGraph: {
     title: "Marius Manolachi | Tech Founder & Engineer",
