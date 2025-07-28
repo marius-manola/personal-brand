@@ -17,7 +17,7 @@ export default function Home() {
             <div className="space-y-16">
               <header>
                 <h1 className="text-2xl font-light text-gray-900 mb-1">Marius Manolachi</h1>
-                <p className="text-sm text-gray-400">building the future of education</p>
+                <p className="text-sm text-gray-400">building cool shit I care about</p>
               </header>
 
               <section className="space-y-12">
