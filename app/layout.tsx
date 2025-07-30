@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Providers } from "./providers";
+import { Analytics } from "@vercel/analytics/next"
 import { Inter } from 'next/font/google';
 
 const inter = Inter({
@@ -44,6 +45,7 @@ export default function RootLayout({
       </head>
       <body className={`${inter.variable} font-sans`}>
         <Providers>{children}</Providers>
+        <Analytics/>
       </body>
     </html>
   );
