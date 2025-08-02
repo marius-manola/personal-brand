@@ -57,21 +57,30 @@ const onest = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Marius Manolachi | Human",
-  description: "Building the future of technology and education. Engineering student turned founder, speaker, and tech influencer.",
+  title: "Marius Manolachi",
+  description: "building cool shit I care about",
   openGraph: {
-    title: "Marius Manolachi | Tech Founder & Engineer",
-    description: "Building the future of technology and education. Engineering student turned founder, speaker, and tech influencer.",
+    title: "Marius Manolachi",
+    description: "building cool shit I care about",
     url: "https://mariusmanolachi.com",
     siteName: "Marius Manolachi",
     locale: "en_US",
     type: "website",
+    images: [
+      {
+        url: "https://mariusmanolachi.com/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Marius Manolachi",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Marius Manolachi | Tech Founder & Engineer",
-    description: "Building the future of technology and education. Engineering student turned founder, speaker, and tech influencer.",
+    title: "Marius Manolachi",
+    description: "building cool shit I care about",
     creator: "@mariusmanolachi",
+    images: ["https://mariusmanolachi.com/og-image.png"],
   },
   robots: {
     index: true,
@@ -89,6 +98,11 @@ export default function RootLayout({
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
+        {/* Open Graph and Twitter image meta tags for link previews */}
+        <meta property="og:image" content="https://mariusmanolachi.com/og-image.png" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta name="twitter:image" content="https://mariusmanolachi.com/og-image.png" />
       </head>
       <body className={`${onest.variable} font-sans`}>
         <Providers>{children}</Providers>
