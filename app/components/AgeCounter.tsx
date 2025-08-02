@@ -3,9 +3,12 @@
 import { useEffect, useState } from 'react';
 
 export default function AgeCounter() {
-  const [age, setAge] = useState<number>(0);
+  const [age, setAge] = useState<number | null>(null);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
+    
     const calculateAge = () => {
       const birthDate = new Date('2006-05-25');
       const now = new Date();
@@ -22,6 +25,11 @@ export default function AgeCounter() {
 
     return () => clearInterval(interval);
   }, []);
+
+  // Prevent hydration mismatch by not rendering until mounted
+  if (!mounted || age === null) {
+    return <span>18</span>; // Static fallback that matches expected age range
+  }
 
   return (
     <span className="font-mono">

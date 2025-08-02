@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import MobileNavigation, { DesktopNavigation } from '@/components/Navigation';
 import { books, categories } from '@/app/data/books';
+import Copyright from '@/app/components/Copyright';
 
 interface BookModalProps {
   book: {
@@ -105,14 +106,14 @@ export default function Books() {
     <>
       <MobileNavigation />
 
-      <div className="min-h-screen">
+      <div className="min-h-screen bg-white overflow-y-scroll" style={{ scrollbarGutter: 'stable' }}>
         <div className="flex justify-center">
-          <main className="max-w-md w-full px-6 py-24" ref={containerRef}>
-            <div className="space-y-16">
-              <header className="space-y-4">
-                <div>
-                  <h1 className="text-2xl font-light text-gray-900 mb-1">Book Recommendations</h1>
-                  <p className="text-sm text-gray-400">A curated collection of books that shaped my thinking</p>
+          <main className="max-w-lg w-full px-8 py-28 sm:py-32" ref={containerRef}>
+            <div className="space-y-20">
+              <header className="space-y-6">
+                <div className="space-y-3">
+                  <h1 className="text-3xl sm:text-4xl font-medium text-black tracking-tight leading-tight">Book Recommendations</h1>
+                  <p className="text-base text-gray-500 font-medium tracking-wide">A curated collection of books that shaped my thinking</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button
@@ -141,8 +142,8 @@ export default function Books() {
                 </div>
               </header>
 
-              <section>
-                <div className="grid grid-cols-2 gap-6">
+              <section className="space-y-16">
+                <div className="grid grid-cols-2 gap-8">
                   {filteredBooks.map((book) => (
                     <article
                       key={book.title}
@@ -159,10 +160,10 @@ export default function Books() {
                         <div className="absolute inset-0 ring-1 ring-black/5 rounded-xl pointer-events-none" />
                       </div>
                       <div>
-                        <h3 className="text-sm font-medium text-gray-900 group-hover:text-gray-600 transition-colors">
+                        <h3 className="text-sm font-semibold text-gray-900 group-hover:text-gray-600 transition-colors">
                           {book.title}
                         </h3>
-                        <p className="text-sm text-gray-500 mt-0.5">{book.author}</p>
+                        <p className="text-sm text-gray-500 mt-0.5 font-light">{book.author}</p>
                       </div>
                     </article>
                   ))}
@@ -174,8 +175,10 @@ export default function Books() {
                 )}
               </section>
 
-              <footer className="text-xs text-gray-400">
-                <p>© {new Date().getFullYear()} Marius Manolachi</p>
+              <footer className="pt-8">
+                <p className="text-sm text-gray-400 font-thin">
+                  © <Copyright /> Marius Manolachi
+                </p>
               </footer>
             </div>
           </main>

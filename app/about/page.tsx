@@ -3,6 +3,7 @@
 import MobileNavigation, { DesktopNavigation } from '@/components/Navigation';
 import { content } from '@/app/data/about';
 import Age from '@/app/components/Age';
+import Copyright from '@/app/components/Copyright';
 
 export default function About() {
   const { title, subtitle, contentPrefix, contentSuffix } = content.about;
@@ -11,28 +12,30 @@ export default function About() {
     <>
       <MobileNavigation />
 
-      <div className="min-h-screen overflow-y-scroll" style={{ scrollbarGutter: 'stable' }}>
+      <div className="min-h-screen bg-white overflow-y-scroll" style={{ scrollbarGutter: 'stable' }}>
         <div className="flex justify-center">
-          <main className="max-w-md w-full px-6 py-24">
-            <div className="space-y-16">
-              <header>
-                <h1 className="text-2xl font-light text-gray-900 mb-1">
+          <main className="max-w-lg w-full px-8 py-28 sm:py-32">
+            <div className="space-y-20">
+              <header className="space-y-3">
+                <h1 className="text-3xl sm:text-4xl font-medium text-black tracking-tight leading-tight">
                   {title}
                 </h1>
-                <p className="text-sm text-gray-400">
+                <p className="text-base text-gray-500 font-medium tracking-wide">
                   {subtitle}
                 </p>
               </header>
 
-              <section className="space-y-12">
-                <p className="text-base text-gray-600 leading-relaxed">
-                  {contentPrefix}<Age />{contentSuffix}
-                </p>
+              <section className="space-y-16">
+                <div className="prose prose-lg max-w-none">
+                  <p className="text-lg text-gray-700 leading-relaxed font-light">
+                    {contentPrefix}<Age />{contentSuffix}
+                  </p>
+                </div>
               </section>
 
-              <footer className="text-xs text-gray-400">
-                <p>
-                  © {new Date().getFullYear()} Marius Manolachi
+              <footer className="pt-8">
+                <p className="text-sm text-gray-400 font-thin">
+                  © <Copyright /> Marius Manolachi
                 </p>
               </footer>
             </div>

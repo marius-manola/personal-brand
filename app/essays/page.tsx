@@ -1,6 +1,7 @@
 import MobileNavigation, { DesktopNavigation } from '@/components/Navigation';
 import Link from 'next/link';
 import { getAllEssays } from '@/lib/server/essays.server';
+import Copyright from '../components/Copyright';
 
 export default async function EssaysPage() {
   const essays = await getAllEssays();
@@ -9,39 +10,44 @@ export default async function EssaysPage() {
     <>
       <MobileNavigation />
 
-      <div className="min-h-screen bg-white">
+      <div className="min-h-screen bg-white overflow-y-scroll" style={{ scrollbarGutter: 'stable' }}>
         <div className="flex justify-center">
-          <main className="max-w-md w-full px-6 py-24">
-            <div className="space-y-16">
-              <header>
-                <h1 className="text-2xl font-light text-gray-900 mb-1">
-                  <span className="line-through">Essays</span> Thoughts
+          <main className="max-w-lg w-full px-8 py-28 sm:py-32">
+            <div className="space-y-20">
+              <header className="space-y-3">
+                <h1 className="text-3xl sm:text-4xl font-medium text-black tracking-tight leading-tight">
+                  <span className="line-through font-light">Essays</span> Thoughts
                 </h1>
-                <p className="text-sm text-gray-500">Not your usual school essays...</p>
+                <p className="text-base text-gray-500 font-medium tracking-wide">Not your usual essays...</p>
               </header>
 
-              <section className="space-y-12">
-                {essays.map((essay) => (
+              <section className="space-y-1">
+                {essays.map((essay, index) => (
                   <Link key={essay.id} href={`/essays/${essay.id}`} className="block group">
-                    <article className="space-y-2">
-                      <h2 className="text-base font-light text-gray-900">
-                        {essay.metadata.title}
-                      </h2>
-                      <p className="text-sm text-gray-500">{essay.metadata.excerpt}</p>
-                      <div className="text-xs text-gray-400">
-                        {new Date(essay.metadata.date).toLocaleDateString('en-US', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric'
-                        })}
+                    <article className={`py-4 hover:bg-gray-50 -mx-8 px-8 transition-colors duration-200 ${
+                      index !== essays.length - 1 ? 'border-b border-gray-100' : ''
+                    }`}>
+                      <div className="flex justify-between items-baseline">
+                        <h2 className="text-base text-black font-normal leading-relaxed group-hover:text-gray-600 transition-colors">
+                          {essay.metadata.title}
+                        </h2>
+                        <div className="text-xs text-gray-400 font-extralight ml-4 flex-shrink-0">
+                          {new Date(essay.metadata.date).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric'
+                          })}
+                        </div>
                       </div>
                     </article>
                   </Link>
                 ))}
               </section>
 
-              <footer className="text-xs text-gray-400">
-                <p>© {new Date().getFullYear()} Marius Manolachi</p>
+              <footer className="pt-8">
+                <p className="text-sm text-gray-400 font-thin">
+                  © <Copyright /> Marius Manolachi
+                </p>
               </footer>
             </div>
           </main>

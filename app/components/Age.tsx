@@ -3,9 +3,12 @@
 import { useEffect, useState } from 'react';
 
 export default function Age() {
-  const [age, setAge] = useState<number>(0);
+  const [age, setAge] = useState<number | null>(null);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
+    
     const calculateAge = () => {
       const birthDate = new Date('2006-05-25');
       const today = new Date();
@@ -24,6 +27,11 @@ export default function Age() {
 
     return () => clearInterval(interval);
   }, []);
+
+  // Prevent hydration mismatch by not rendering until mounted
+  if (!mounted || age === null) {
+    return <>18</>; // Static fallback
+  }
 
   return <>{age}</>;
 }
