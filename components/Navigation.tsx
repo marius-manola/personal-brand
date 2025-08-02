@@ -64,7 +64,7 @@ export default function MobileNavigation() {
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50">
         <nav className="w-full bg-white border-b border-gray-100">
           <div className="px-6 py-6 flex justify-between items-center">
-            <div className="text-sm text-gray-600 font-light tracking-wide">menu</div>
+            <div className="text-sm text-gray-600 font-light tracking-wide"></div>
             <button
               onClick={toggleMobileMenu}
               className="text-gray-700 hover:text-black focus:outline-none focus:ring-2 focus:ring-gray-200 rounded-sm p-1 transition-colors duration-200"
