@@ -1,7 +1,7 @@
 'use client';
 
-import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
-import { useEffect, useRef, useState } from 'react';
+import { motion, useMotionValue, useSpring } from 'framer-motion';
+import { useEffect, useState } from 'react';
 import Counter from '@/components/Counter';
 import ThemeToggle from '@/components/ThemeToggle';
 import { books, categories } from '@/app/data/books';
@@ -87,7 +87,6 @@ function BookModal({ book, onClose }: BookModalProps) {
 }
 
 export default function Home() {
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [selectedBook, setSelectedBook] = useState<typeof books[0] | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [currentQuoteIndex, setCurrentQuoteIndex] = useState(0);
@@ -100,7 +99,6 @@ export default function Home() {
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      setMousePosition({ x: e.clientX, y: e.clientY });
       cursorX.set(e.clientX);
       cursorY.set(e.clientY);
     };
