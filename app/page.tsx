@@ -221,9 +221,9 @@ export default function Home() {
               {/* Large Card - Age */}
               <motion.div
                 whileHover={{ scale: 1.02, rotate: -1 }}
-                className="col-span-2 p-8 bg-gradient-to-br from-gray-100 to-gray-50 dark:from-white/5 dark:to-white/10 backdrop-blur-xl border border-gray-200 dark:border-white/10 rounded-2xl"
+                className="col-span-2 p-8 bg-gradient-to-br from-gray-100 to-gray-50 dark:from-white/5 dark:to-white/10 backdrop-blur-xl border border-gray-200 dark:border-white/10 rounded-2xl overflow-hidden"
               >
-                <div className="text-5xl font-light mb-2">
+                <div className="text-3xl sm:text-4xl md:text-5xl font-light mb-2 break-all">
                   <Counter startDate={new Date('1997-04-09')} afterDecimals={8} />
                 </div>
                 <div className="text-gray-700 dark:text-white/60">trips around the sun</div>
