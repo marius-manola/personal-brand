@@ -21,7 +21,7 @@ export default function Home() {
                   Marius Manolachi
                 </h1>
                 <p className="text-base text-gray-500 font-medium tracking-wide">
-                  building cool shit I care about
+                  building cool shit I care about 
                 </p>
               </header>
 
