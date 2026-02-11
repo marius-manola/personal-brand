@@ -8,26 +8,26 @@ export default function Projects() {
     <>
       <MobileNavigation />
 
-      <div className="min-h-screen bg-white overflow-y-scroll" style={{ scrollbarGutter: 'stable' }}>
+      <div className="page-shell" style={{ scrollbarGutter: 'stable' }}>
         <div className="flex justify-center">
-          <main className="max-w-lg w-full px-8 py-28 sm:py-32">
-            <div className="space-y-20">
-              <header className="space-y-3">
-                <h1 className="text-3xl sm:text-4xl font-medium text-black tracking-tight leading-tight">Projects</h1>
-                <p className="text-base text-gray-500 font-medium tracking-wide">My latest work</p>
+          <main className="page-main">
+            <div className="page-stack">
+              <header className="page-header">
+                <h1 className="page-title">Projects</h1>
+                <p className="page-subtitle">My latest work</p>
               </header>
 
-              <section className="space-y-16">
+              <section className="space-y-14">
                 <article className="group">
                   <div className="space-y-4">
-                    <h2 className="text-lg text-black font-light leading-relaxed">NotClass</h2>
-                    <p className="text-base text-gray-600">A modern platform for online education and course creation.</p>
+                    <h2 className="text-[1.45rem] font-medium tracking-tight">NotClass</h2>
+                    <p className="page-body text-[1.02rem]">A modern platform for online education and course creation.</p>
                     <div className="pt-2">
                       <a 
                         href="https://notclass.com" 
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center text-base font-medium text-black hover:text-gray-600 transition-all duration-300 group border-b border-gray-200 hover:border-gray-400 pb-1"
+                        className="inline-link group"
                       >
                         Visit NotClass
                         <svg className="w-4 h-4 ml-2 transform group-hover:translate-x-1 transition-transform duration-300 ease-out" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -40,14 +40,14 @@ export default function Projects() {
 
                 <article className="group">
                   <div className="space-y-4">
-                    <h2 className="text-lg text-black font-light leading-relaxed">startuping.io</h2>
-                    <p className="text-base text-gray-600">An app that helps you build a team at hackathons.</p>
+                    <h2 className="text-[1.45rem] font-medium tracking-tight">startuping.io</h2>
+                    <p className="page-body text-[1.02rem]">An app that helps you build a team at hackathons.</p>
                     <div className="pt-2">
                       <a 
                         href="https://startuping.io" 
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center text-base font-medium text-black hover:text-gray-600 transition-all duration-300 group border-b border-gray-200 hover:border-gray-400 pb-1"
+                        className="inline-link group"
                       >
                         Visit Startuping
                         <svg className="w-4 h-4 ml-2 transform group-hover:translate-x-1 transition-transform duration-300 ease-out" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -60,14 +60,14 @@ export default function Projects() {
 
                 <article className="group">
                   <div className="space-y-4">
-                    <h2 className="text-lg text-black font-light leading-relaxed">AI Courses</h2>
-                    <p className="text-base text-gray-600">Teaching AI and prompt engineering to thousands of students.</p>
+                    <h2 className="text-[1.45rem] font-medium tracking-tight">AI Courses</h2>
+                    <p className="page-body text-[1.02rem]">Teaching AI and prompt engineering to thousands of students.</p>
                     <div className="pt-2">
                       <a 
                         href="https://www.udemy.com/user/marius-manola/" 
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center text-base font-medium text-black hover:text-gray-600 transition-all duration-300 group border-b border-gray-200 hover:border-gray-400 pb-1"
+                        className="inline-link group"
                       >
                         View Courses
                         <svg className="w-4 h-4 ml-2 transform group-hover:translate-x-1 transition-transform duration-300 ease-out" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -80,14 +80,14 @@ export default function Projects() {
 
                 <article className="group">
                   <div className="space-y-4">
-                    <h2 className="text-lg text-black font-light leading-relaxed">PromptEasy</h2>
-                    <p className="text-base text-gray-600">A platform revolutionizing AI dataset creation.</p>
+                    <h2 className="text-[1.45rem] font-medium tracking-tight">PromptEasy</h2>
+                    <p className="page-body text-[1.02rem]">A platform revolutionizing AI dataset creation.</p>
                     <div className="pt-2">
                       <a 
                         href="https://www.producthunt.com/products/prompteasy-ai#prompteasy-ai" 
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center text-base font-medium text-black hover:text-gray-600 transition-all duration-300 group border-b border-gray-200 hover:border-gray-400 pb-1"
+                        className="inline-link group"
                       >
                         View on Product Hunt
                         <svg className="w-4 h-4 ml-2 transform group-hover:translate-x-1 transition-transform duration-300 ease-out" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -99,8 +99,8 @@ export default function Projects() {
                 </article>
               </section>
 
-              <footer className="pt-8">
-                <p className="text-sm text-gray-400 font-thin">
+              <footer className="page-footer">
+                <p>
                   © <Copyright /> Marius Manolachi
                 </p>
               </footer>

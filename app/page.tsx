@@ -12,22 +12,22 @@ export default function Home() {
     <>
       <MobileNavigation />
       
-      <div className="min-h-screen bg-white overflow-y-scroll" style={{ scrollbarGutter: 'stable' }}>
+      <div className="page-shell" style={{ scrollbarGutter: 'stable' }}>
         <div className="flex justify-center">
-          <main className="max-w-lg w-full px-8 py-28 sm:py-32" ref={containerRef}>
-            <div className="space-y-20">
-              <header className="space-y-3">
-                <h1 className="text-3xl sm:text-4xl font-medium text-black tracking-tight leading-tight">
+          <main className="page-main" ref={containerRef}>
+            <div className="page-stack">
+              <header className="page-header">
+                <h1 className="page-title">
                   Marius Manolachi
                 </h1>
-                <p className="text-base text-gray-500 font-medium tracking-wide">
-                  building cool shit I care about 
+                <p className="page-subtitle">
+                  perpetual learner
                 </p>
               </header>
 
-              <section className="space-y-16">
-                <div className="prose prose-lg max-w-none">
-                  <p className="text-lg text-gray-700 leading-relaxed font-light">
+              <section className="space-y-14">
+                <div className="max-w-none">
+                  <p className="page-body text-[1.08rem]">
                     I&apos;m <AgeCounter /> years old, born and raised in Moldova. I love humanity, hiking, technology and solving problems.
                   </p>
                 </div>
@@ -37,7 +37,7 @@ export default function Home() {
                     href="https://notclass.com" 
                     target="_blank" 
                     rel="noopener noreferrer"
-                    className="inline-flex items-center text-base font-medium text-black hover:text-gray-600 transition-all duration-300 group border-b border-gray-200 hover:border-gray-400 pb-1"
+                    className="inline-link group"
                   >
                     notclass.com
                     <svg className="w-4 h-4 ml-2 transform group-hover:translate-x-1 transition-transform duration-300 ease-out" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -47,8 +47,8 @@ export default function Home() {
                 </div>
               </section>
 
-              <footer className="pt-8">
-                <p className="text-sm text-gray-400 font-thin">
+              <footer className="page-footer">
+                <p>
                   © <Copyright /> Marius Manolachi
                 </p>
               </footer>

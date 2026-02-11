@@ -58,10 +58,10 @@ const onest = localFont({
 
 export const metadata: Metadata = {
   title: "Marius Manolachi",
-  description: "building cool shit I care about",
+  description: "perpetual learner",
   openGraph: {
     title: "Marius Manolachi",
-    description: "building cool shit I care about",
+    description: "perpetual learner",
     url: "https://mariusmanolachi.com",
     siteName: "Marius Manolachi",
     locale: "en_US",
@@ -78,7 +78,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Marius Manolachi",
-    description: "building cool shit I care about",
+    description: "perpetual learner",
     creator: "@mariusmanolachi",
     images: ["https://mariusmanolachi.com/og-image.png"],
   },

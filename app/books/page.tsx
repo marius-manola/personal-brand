@@ -23,11 +23,11 @@ function BookModal({ book, onClose }: BookModalProps) {
 
   return (
     <div 
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
       onClick={onClose}
     >
       <div 
-        className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-xl transform transition-all duration-300 scale-100 opacity-100" 
+        className="bg-[hsl(var(--card))] border border-[hsl(var(--border)/0.5)] rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-xl transform transition-all duration-300 scale-100 opacity-100" 
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-8 space-y-8">
@@ -42,24 +42,24 @@ function BookModal({ book, onClose }: BookModalProps) {
             </div>
             <div className="space-y-4 flex-1">
               <div>
-                <h2 className="text-3xl font-medium text-gray-900">{book.title}</h2>
-                <p className="text-lg text-gray-600 mt-1">by {book.author}</p>
+                <h2 className="text-3xl font-medium tracking-tight">{book.title}</h2>
+                <p className="text-lg text-[hsl(var(--muted-foreground))] mt-1">by {book.author}</p>
               </div>
               <div className="flex items-center gap-3">
-                <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-sm font-medium">
+                <span className="chip">
                   {book.category}
                 </span>
                 {book.yearRead && (
-                  <span className="text-sm text-gray-500">Read in {book.yearRead}</span>
+                  <span className="text-sm text-[hsl(var(--muted-foreground))]">Read in {book.yearRead}</span>
                 )}
               </div>
-              <p className="text-gray-600 leading-relaxed">{book.description}</p>
+              <p className="page-body">{book.description}</p>
               {book.link && (
                 <a
                   href={book.link}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors group"
+                  className="inline-link group"
                 >
                   Learn More
                   <svg className="w-4 h-4 ml-2 transform group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -73,11 +73,11 @@ function BookModal({ book, onClose }: BookModalProps) {
         
         <button
           onClick={onClose}
-          className="absolute top-6 right-6 p-2 hover:bg-gray-100 rounded-full transition-colors"
+          className="absolute top-6 right-6 p-2 hover:bg-[hsl(var(--muted)/0.4)] rounded-full transition-colors"
           aria-label="Close modal"
         >
           <svg
-            className="w-6 h-6 text-gray-500"
+            className="w-6 h-6 text-[hsl(var(--muted-foreground))]"
             fill="none"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -106,22 +106,22 @@ export default function Books() {
     <>
       <MobileNavigation />
 
-      <div className="min-h-screen bg-white overflow-y-scroll" style={{ scrollbarGutter: 'stable' }}>
+      <div className="page-shell" style={{ scrollbarGutter: 'stable' }}>
         <div className="flex justify-center">
-          <main className="max-w-lg w-full px-8 py-28 sm:py-32" ref={containerRef}>
-            <div className="space-y-20">
+          <main className="page-main" ref={containerRef}>
+            <div className="page-stack">
               <header className="space-y-6">
-                <div className="space-y-3">
-                  <h1 className="text-3xl sm:text-4xl font-medium text-black tracking-tight leading-tight">Book Recommendations</h1>
-                  <p className="text-base text-gray-500 font-medium tracking-wide">A curated collection of books that shaped my thinking</p>
+                <div className="page-header">
+                  <h1 className="page-title">Book Recommendations</h1>
+                  <p className="page-subtitle">A curated collection of books that shaped my thinking</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button
                     onClick={() => setSelectedCategory(null)}
-                    className={`px-3 py-1 text-sm rounded-full transition-all duration-200 ${
+                    className={`chip ${
                       selectedCategory === null
-                        ? 'bg-gray-900 text-white shadow-sm'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        ? 'chip-active'
+                        : ''
                     }`}
                   >
                     All
@@ -130,10 +130,10 @@ export default function Books() {
                     <button
                       key={category}
                       onClick={() => setSelectedCategory(category)}
-                      className={`px-3 py-1 text-sm rounded-full transition-all duration-200 ${
+                      className={`chip ${
                         selectedCategory === category
-                          ? 'bg-gray-900 text-white shadow-sm'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          ? 'chip-active'
+                          : ''
                       }`}
                     >
                       {category}
@@ -160,23 +160,23 @@ export default function Books() {
                         <div className="absolute inset-0 ring-1 ring-black/5 rounded-xl pointer-events-none" />
                       </div>
                       <div>
-                        <h3 className="text-sm font-semibold text-gray-900 group-hover:text-gray-600 transition-colors">
+                        <h3 className="text-sm font-semibold text-[hsl(var(--foreground))] group-hover:text-[hsl(var(--muted-foreground))] transition-colors">
                           {book.title}
                         </h3>
-                        <p className="text-sm text-gray-500 mt-0.5 font-light">{book.author}</p>
+                        <p className="text-sm text-[hsl(var(--muted-foreground))] mt-0.5 font-light">{book.author}</p>
                       </div>
                     </article>
                   ))}
                 </div>
                 {filteredBooks.length === 0 && (
-                  <p className="text-center text-gray-500 py-12">
+                  <p className="text-center text-[hsl(var(--muted-foreground))] py-12">
                     No books found in this category.
                   </p>
                 )}
               </section>
 
-              <footer className="pt-8">
-                <p className="text-sm text-gray-400 font-thin">
+              <footer className="page-footer">
+                <p>
                   © <Copyright /> Marius Manolachi
                 </p>
               </footer>

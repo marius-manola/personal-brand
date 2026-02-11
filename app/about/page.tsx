@@ -12,29 +12,29 @@ export default function About() {
     <>
       <MobileNavigation />
 
-      <div className="min-h-screen bg-white overflow-y-scroll" style={{ scrollbarGutter: 'stable' }}>
+      <div className="page-shell" style={{ scrollbarGutter: 'stable' }}>
         <div className="flex justify-center">
-          <main className="max-w-lg w-full px-8 py-28 sm:py-32">
-            <div className="space-y-20">
-              <header className="space-y-3">
-                <h1 className="text-3xl sm:text-4xl font-medium text-black tracking-tight leading-tight">
+          <main className="page-main">
+            <div className="page-stack">
+              <header className="page-header">
+                <h1 className="page-title">
                   {title}
                 </h1>
-                <p className="text-base text-gray-500 font-medium tracking-wide">
+                <p className="page-subtitle">
                   {subtitle}
                 </p>
               </header>
 
-              <section className="space-y-16">
-                <div className="prose prose-lg max-w-none">
-                  <p className="text-lg text-gray-700 leading-relaxed font-light">
+              <section className="space-y-14">
+                <div className="max-w-none">
+                  <p className="page-body text-[1.08rem]">
                     {contentPrefix}<Age />{contentSuffix}
                   </p>
                 </div>
               </section>
 
-              <footer className="pt-8">
-                <p className="text-sm text-gray-400 font-thin">
+              <footer className="page-footer">
+                <p>
                   © <Copyright /> Marius Manolachi
                 </p>
               </footer>

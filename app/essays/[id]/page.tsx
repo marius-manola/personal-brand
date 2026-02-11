@@ -36,42 +36,42 @@ export default async function EssayPage({ params }: PageProps) {
     <>
       <MobileNavigation />
       
-      <div className="min-h-screen bg-white overflow-y-scroll" style={{ scrollbarGutter: 'stable' }}>
+      <div className="page-shell" style={{ scrollbarGutter: 'stable' }}>
         <div className="flex justify-center">
-          <main className="max-w-lg w-full px-8 py-28 sm:py-32">
-            <div className="space-y-20">
-              <header className="space-y-3">
-                <h1 className="text-3xl sm:text-4xl font-medium text-black tracking-tight leading-tight">
+          <main className="page-main">
+            <div className="page-stack">
+              <header className="page-header">
+                <h1 className="page-title">
                   {essay.metadata.title}
                 </h1>
-                <div className="text-sm text-gray-400 font-extralight">
+                <div className="page-subtitle">
                   {formattedDate}
                 </div>
               </header>
 
               <div className="prose prose-sm whitespace-pre-wrap
                 [&>*]:mt-0 
-                [&>*+*]:mt-4
+                [&>*+*]:mt-5
 
-                [&>p]:text-gray-600 [&>p]:leading-relaxed [&>p]:font-light
-                [&>p:first-of-type]:text-lg [&>p:first-of-type]:text-gray-800 [&>p:first-of-type]:mb-8 [&>p:first-of-type]:font-normal
-                [&>p+p]:not-first-of-type:border-t [&>p+p]:not-first-of-type:border-gray-50 [&>p+p]:not-first-of-type:pt-4
+                [&>p]:text-[hsl(var(--card-foreground)/0.85)] [&>p]:leading-[1.95] [&>p]:font-[330]
+                [&>p:first-of-type]:text-[1.15rem] [&>p:first-of-type]:text-[hsl(var(--foreground))] [&>p:first-of-type]:mb-8 [&>p:first-of-type]:font-[380]
+                [&>p+p]:not-first-of-type:border-t [&>p+p]:not-first-of-type:border-[hsl(var(--border)/0.35)] [&>p+p]:not-first-of-type:pt-5
 
                 [&>ol]:list-none [&>ol]:pl-0 [&>ol]:my-1
-                [&>ol>li]:text-gray-600 [&>ol>li]:leading-relaxed [&>ol>li]:font-light
+                [&>ol>li]:text-[hsl(var(--card-foreground)/0.85)] [&>ol>li]:leading-relaxed [&>ol>li]:font-light
                 [&>ol>li]:pl-8 [&>ol>li]:relative [&>ol>li]:py-0.5
                 [&>ol>li]:before:content-[counter(list-item)_')'] 
                 [&>ol>li]:before:absolute [&>ol>li]:before:left-0 
-                [&>ol>li]:before:text-gray-400 [&>ol>li]:before:font-thin
+                [&>ol>li]:before:text-[hsl(var(--muted-foreground))] [&>ol>li]:before:font-thin
 
-                [&>h2]:text-xl [&>h2]:text-gray-800 [&>h2]:font-semibold [&>h2]:mt-8 [&>h2]:mb-3
+                [&>h2]:text-[1.55rem] [&>h2]:font-medium [&>h2]:mt-10 [&>h2]:mb-4
 
-                [&>a]:text-blue-600 [&>a]:no-underline hover:[&>a]:underline [&>a]:font-medium
-                [&>strong]:font-semibold [&>strong]:text-gray-800
-                [&>code]:text-blue-600 [&>code]:bg-blue-50 [&>code]:px-1 [&>code]:py-0.5 [&>code]:rounded [&>code]:font-medium
-                [&>pre]:bg-gray-900 [&>pre]:text-gray-100 [&>pre]:my-4 [&>pre]:p-4 [&>pre]:rounded [&>pre]:font-normal
-                [&>blockquote]:border-l-4 [&>blockquote]:border-gray-200 [&>blockquote]:pl-4 
-                [&>blockquote]:italic [&>blockquote]:text-gray-600 [&>blockquote]:my-4 [&>blockquote]:font-light
+                [&>a]:text-[hsl(var(--foreground))] [&>a]:underline [&>a]:underline-offset-[3px] [&>a]:decoration-[hsl(var(--border))] hover:[&>a]:decoration-[hsl(var(--ring))] [&>a]:font-medium
+                [&>strong]:font-semibold [&>strong]:text-[hsl(var(--foreground))]
+                [&>code]:text-[hsl(var(--foreground))] [&>code]:bg-[hsl(var(--secondary)/0.6)] [&>code]:px-1 [&>code]:py-0.5 [&>code]:rounded [&>code]:font-medium
+                [&>pre]:bg-[hsl(var(--foreground))] [&>pre]:text-[hsl(var(--background))] [&>pre]:my-4 [&>pre]:p-4 [&>pre]:rounded [&>pre]:font-normal
+                [&>blockquote]:border-l-2 [&>blockquote]:border-[hsl(var(--border))] [&>blockquote]:pl-4 
+                [&>blockquote]:italic [&>blockquote]:text-[hsl(var(--muted-foreground))] [&>blockquote]:my-4 [&>blockquote]:font-light
 
                 [&_p:has(+ol)]:mb-2
                 [&_ol:has(+p)]:mb-6
@@ -82,8 +82,8 @@ export default async function EssayPage({ params }: PageProps) {
                 <MDXRemote source={essay.content} />
               </div>
 
-              <footer className="pt-8">
-                <p className="text-sm text-gray-400 font-thin">
+              <footer className="page-footer">
+                <p>
                   © {new Date().getFullYear()} Marius Manolachi
                 </p>
               </footer>
