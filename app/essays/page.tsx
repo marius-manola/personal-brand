@@ -15,7 +15,9 @@ export default async function EssaysPage() {
           <main className="page-main">
             <div className="page-stack">
               <header className="page-header">
-                <h1 className="page-title">Thoughts</h1>
+                <h1 className="page-title">
+                  <span className="line-through">Essays</span> 1am thoughts
+                </h1>
                 <p className="page-subtitle">essays, notes, and ideas</p>
               </header>
 

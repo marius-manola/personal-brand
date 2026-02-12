@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 
 const navItems = [
   { path: '/', label: 'home' },
+  { path: '/player', label: 'player' },
   { path: '/essays', label: 'essays' },
   { path: '/projects', label: 'projects' },
   { path: '/books', label: 'books' },
@@ -24,7 +25,7 @@ const NavLinks = ({ onClick }: { onClick?: () => void }) => {
           onClick={onClick}
           className={`nav-link ${pathname === item.path ? 'nav-link-active' : ''}`}
         >
-          /{item.label}
+          {item.label}
         </Link>
       ))}
     </div>
@@ -53,9 +54,9 @@ export default function MobileNavigation() {
   return (
     <>
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50">
-        <nav className="w-full bg-background/95 backdrop-blur-sm border-b border-[hsl(var(--border)/0.45)]">
+        <nav className="w-full bg-background border-b border-[hsl(var(--border)/0.55)]">
           <div className="px-6 py-6 flex justify-between items-center">
-            <div className="text-xs text-[hsl(var(--muted-foreground))]">marius</div>
+            <div className="text-xs uppercase tracking-[0.08em] text-[hsl(var(--muted-foreground))]">Menu</div>
             <button
               onClick={toggleMobileMenu}
               className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring)/0.3)] rounded-sm p-1 transition-colors duration-200"
