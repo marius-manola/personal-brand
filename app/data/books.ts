@@ -10,12 +10,12 @@ interface Book {
 
 export const books: Book[] = [
   {
-    title: "Zero to One",
-    author: "Peter Thiel",
-    description: "Notes on startups, or how to build the future. A contrarian view on innovation and what it takes to build something truly new.",
-    category: "Startups & Innovation",
-    link: "https://www.google.com/url?sa=i&url=https%3A%2F%2Fwww.amazon.com%2FZero-One-Notes-Startups-Future%2Fdp%2F0804139296&psig=AOvVaw1nP4IpQuESPYN-C8n_2_B2&ust=1744484090486000&source=images&cd=vfe&opi=89978449&ved=0CBQQjRxqFwoTCMCfjebT0IwDFQAAAAAdAAAAABAE",
-    coverImage: "/zerotoone.jpg"
+    title: "Surely You're Joking, Mr. Feynman!",
+    author: "Richard P. Feynman",
+    description: "Adventures of a curious character. A brilliant physicist's account of his extraordinary life and the joy of discovery.",
+    category: "Biographies",
+    link: "https://en.wikipedia.org/wiki/Surely_You%27re_Joking,_Mr._Feynman!",
+    coverImage: "/35167685.jpg"
   },
   {
     title: "Hackers & Painters",
@@ -26,12 +26,20 @@ export const books: Book[] = [
     coverImage: "/hackersandpainters.jpg"
   },
   {
-    title: "Surely You're Joking, Mr. Feynman!",
-    author: "Richard P. Feynman",
-    description: "Adventures of a curious character. A brilliant physicist's account of his extraordinary life and the joy of discovery.",
-    category: "Biographies",
-    link: "https://en.wikipedia.org/wiki/Surely_You%27re_Joking,_Mr._Feynman!",
-    coverImage: "/35167685.jpg"
+    title: "Introduction to Systems Theory",
+    author: "Niklas Luhmann",
+    description: "A foundational text on sociological systems theory, exploring how social systems emerge, maintain themselves, and evolve through communication and self-reference.",
+    category: "Philosophy & Life",
+    link: "https://www.wiley.com/en-us/Introduction+to+Systems+Theory-p-9780745645711",
+    coverImage: "/systemstheory.jpg"
+  },
+  {
+    title: "Lifelong Kindergarten",
+    author: "Mitchel Resnick",
+    description: "Cultivating creativity through projects, passion, peers, and play. A vision for learning inspired by the way children learn in kindergarten.",
+    category: "Education",
+    link: "https://mitpress.mit.edu/9780262536134/lifelong-kindergarten/",
+    coverImage: "/lifelongkindergarten.jpg"
   },
   {
     title: "Shoe Dog",
@@ -42,20 +50,36 @@ export const books: Book[] = [
     coverImage: "/shoedog.jpg"
   },
   {
-    title: "Steve Jobs",
-    author: "Walter Isaacson",
-    description: "The exclusive biography of the innovative founder of Apple, based on more than forty interviews with Steve Jobs himself.",
-    category: "Biographies",
-    link: "https://www.simonandschuster.com/books/Steve-Jobs/Walter-Isaacson/9781451648539",
-    coverImage: "/stevejobs.jpg"
-  },
-  {
     title: "The Hobbit",
     author: "J.R.R. Tolkien",
     description: "A masterful tale of adventure that has enchanted readers for generations, following Bilbo Baggins on an unexpected journey that will change his life forever.",
     category: "Philosophy & Life",
     link: "https://www.tolkienestate.com/works/the-hobbit/",
     coverImage: "/thehobbit.jpg"
+  },
+  {
+    title: "Aesthetic Theory",
+    author: "Theodor W. Adorno",
+    description: "Adorno's magnum opus on the philosophy of art, exploring the tensions between art and society, beauty and truth, autonomy and social function.",
+    category: "Philosophy & Life",
+    link: "https://en.wikipedia.org/wiki/Aesthetic_Theory",
+    coverImage: "/aesthetictheory.jpg"
+  },
+  {
+    title: "Zero to One",
+    author: "Peter Thiel",
+    description: "Notes on startups, or how to build the future. A contrarian view on innovation and what it takes to build something truly new.",
+    category: "Startups & Innovation",
+    link: "https://www.google.com/url?sa=i&url=https%3A%2F%2Fwww.amazon.com%2FZero-One-Notes-Startups-Future%2Fdp%2F0804139296&psig=AOvVaw1nP4IpQuESPYN-C8n_2_B2&ust=1744484090486000&source=images&cd=vfe&opi=89978449&ved=0CBQQjRxqFwoTCMCfjebT0IwDFQAAAAAdAAAAABAE",
+    coverImage: "/zerotoone.jpg"
+  },
+  {
+    title: "Steve Jobs",
+    author: "Walter Isaacson",
+    description: "The exclusive biography of the innovative founder of Apple, based on more than forty interviews with Steve Jobs himself.",
+    category: "Biographies",
+    link: "https://www.simonandschuster.com/books/Steve-Jobs/Walter-Isaacson/9781451648539",
+    coverImage: "/stevejobs.jpg"
   },
   {
     title: "1984",
@@ -96,30 +120,6 @@ export const books: Book[] = [
     category: "Biographies",
     link: "https://en.wikipedia.org/wiki/Stephen_Hawking:_A_Memoir_of_Friendship_and_Physics",
     coverImage: "/memoirefriendship.jpg"
-  },
-  {
-    title: "Introduction to Systems Theory",
-    author: "Niklas Luhmann",
-    description: "A foundational text on sociological systems theory, exploring how social systems emerge, maintain themselves, and evolve through communication and self-reference.",
-    category: "Philosophy & Life",
-    link: "https://www.wiley.com/en-us/Introduction+to+Systems+Theory-p-9780745645711",
-    coverImage: "/systemstheory.jpg"
-  },
-  {
-    title: "Lifelong Kindergarten",
-    author: "Mitchel Resnick",
-    description: "Cultivating creativity through projects, passion, peers, and play. A vision for learning inspired by the way children learn in kindergarten.",
-    category: "Education",
-    link: "https://mitpress.mit.edu/9780262536134/lifelong-kindergarten/",
-    coverImage: "/lifelongkindergarten.jpg"
-  },
-  {
-    title: "Aesthetic Theory",
-    author: "Theodor W. Adorno",
-    description: "Adorno's magnum opus on the philosophy of art, exploring the tensions between art and society, beauty and truth, autonomy and social function.",
-    category: "Philosophy & Life",
-    link: "https://en.wikipedia.org/wiki/Aesthetic_Theory",
-    coverImage: "/aesthetictheory.jpg"
   }
 ];
 
