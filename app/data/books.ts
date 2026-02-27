@@ -96,6 +96,30 @@ export const books: Book[] = [
     category: "Biographies",
     link: "https://en.wikipedia.org/wiki/Stephen_Hawking:_A_Memoir_of_Friendship_and_Physics",
     coverImage: "/memoirefriendship.jpg"
+  },
+  {
+    title: "Introduction to Systems Theory",
+    author: "Niklas Luhmann",
+    description: "A foundational text on sociological systems theory, exploring how social systems emerge, maintain themselves, and evolve through communication and self-reference.",
+    category: "Philosophy & Life",
+    link: "https://www.wiley.com/en-us/Introduction+to+Systems+Theory-p-9780745645711",
+    coverImage: "/systemstheory.jpg"
+  },
+  {
+    title: "Lifelong Kindergarten",
+    author: "Mitchel Resnick",
+    description: "Cultivating creativity through projects, passion, peers, and play. A vision for learning inspired by the way children learn in kindergarten.",
+    category: "Education",
+    link: "https://mitpress.mit.edu/9780262536134/lifelong-kindergarten/",
+    coverImage: "/lifelongkindergarten.jpg"
+  },
+  {
+    title: "Aesthetic Theory",
+    author: "Theodor W. Adorno",
+    description: "Adorno's magnum opus on the philosophy of art, exploring the tensions between art and society, beauty and truth, autonomy and social function.",
+    category: "Philosophy & Life",
+    link: "https://en.wikipedia.org/wiki/Aesthetic_Theory",
+    coverImage: "/aesthetictheory.jpg"
   }
 ];
 
