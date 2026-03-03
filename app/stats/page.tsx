@@ -120,7 +120,7 @@ export default async function PlayerPage() {
                   <ul className="space-y-2 text-[1.03rem] leading-relaxed">
                     <li>Learns by building and testing, not passive intake.</li>
                     <li>Writing and dialogue used to debug thinking in real time.</li>
-                    <li>If knowledge isn't tied to agency or output, it gets dropped.</li>
+                    <li>If knowledge isn&apos;t tied to agency or output, it gets dropped.</li>
                   </ul>
                   <p className="text-sm text-[hsl(var(--muted-foreground))] mt-4">
                     {writingEvidence.join(' · ')}
@@ -154,9 +154,9 @@ export default async function PlayerPage() {
                   <p className="page-body text-[1.08rem] leading-relaxed">
                     This profile is generated entirely from published essays — no self-reported data, no questionnaires.
                     The analysis scans for recurring word patterns across all {essays.length} essays and maps them
-                    to known personality dimensions. It's imperfect by design: writing reveals tendencies, not truths.
-                    What shows up here is whatever I keep returning to — the themes I can't stop thinking about,
-                    the tensions I haven't resolved, the instincts that shape how I move through problems.
+                    to known personality dimensions. It&apos;s imperfect by design: writing reveals tendencies, not truths.
+                    What shows up here is whatever I keep returning to — the themes I can&apos;t stop thinking about,
+                    the tensions I haven&apos;t resolved, the instincts that shape how I move through problems.
                     Think of it less as a personality test and more as a mirror built from text.
                   </p>
                 </div>
