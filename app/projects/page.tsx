@@ -46,7 +46,7 @@ export default function Projects() {
                       <a 
                         href="https://www.udemy.com/user/marius-manola/" 
                         target="_blank"
-                        rel="noopener noreferrer"
+                        rel="noopener noreferrer" 
                         className="inline-link group"
                       > 
                         View Courses
