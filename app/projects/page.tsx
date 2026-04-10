@@ -40,26 +40,6 @@ export default function Projects() {
 
                 <article className="group">
                   <div className="space-y-4">
-                    <h2 className="text-[1.45rem] font-medium tracking-tight">startuping.io</h2>
-                    <p className="page-body text-[1.02rem]">An app that helps you build a team at hackathons.</p>
-                    <div className="pt-2">
-                      <a 
-                        href="https://startuping.io" 
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-link group"
-                      >
-                        Visit Startuping
-                        <svg className="w-4 h-4 ml-2 transform group-hover:translate-x-1 transition-transform duration-300 ease-out" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                        </svg>
-                      </a>
-                    </div>
-                  </div>
-                </article>
-
-                <article className="group">
-                  <div className="space-y-4">
                     <h2 className="text-[1.45rem] font-medium tracking-tight">AI Courses</h2>
                     <p className="page-body text-[1.02rem]">Teaching AI and prompt engineering to thousands of students.</p>
                     <div className="pt-2">
