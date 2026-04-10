@@ -3,6 +3,7 @@ interface YouTubeEmbedProps {
   title?: string;
   caption?: string;
   className?: string;
+  showMeta?: boolean;
 }
 
 function getYouTubeEmbedUrl(url: string) {
@@ -41,6 +42,7 @@ export default function YouTubeEmbed({
   title = 'YouTube video player',
   caption,
   className = '',
+  showMeta = true,
 }: YouTubeEmbedProps) {
   const embedUrl = getYouTubeEmbedUrl(url);
 
@@ -60,7 +62,7 @@ export default function YouTubeEmbed({
         </div>
       </div>
 
-      {(caption || url) && (
+      {showMeta && (caption || url) && (
         <div className="flex flex-col gap-2 text-sm text-[hsl(var(--muted-foreground))] sm:flex-row sm:items-center sm:justify-between">
           {caption ? <p className="page-body text-sm leading-relaxed">{caption}</p> : <span />}
           <a
