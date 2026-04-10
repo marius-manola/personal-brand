@@ -2,6 +2,7 @@ export interface EssayMetadata {
   title: string;
   date: string;
   excerpt: string;
+  videoUrl?: string;
 }
 
 export interface Essay {
@@ -15,6 +16,7 @@ export interface MDXContent {
   title: string;
   date: string;
   excerpt: string;
+  videoUrl?: string;
   content: string;
 }
 
@@ -23,13 +25,14 @@ export interface MDXContent {
 export type Essays = Essay[];
 
 // Helper function to format the essay data
-export function formatEssay(id: string, { title, date, excerpt, content }: MDXContent): Essay {
+export function formatEssay(id: string, { title, date, excerpt, videoUrl, content }: MDXContent): Essay {
   return {
     id,
     metadata: {
       title,
       date,
       excerpt,
+      videoUrl,
     },
     content
   };
