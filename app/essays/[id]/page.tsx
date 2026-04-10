@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { MDXRemote } from 'next-mdx-remote/rsc';
 import MobileNavigation, { DesktopNavigation } from '@/components/Navigation';
 import { getEssayById, getAllEssays } from '@/lib/server/essays.server';
+import YouTubeEmbed from '@/app/components/YouTubeEmbed';
 
 interface PageProps {
   params: Promise<{
@@ -48,6 +49,16 @@ export default async function EssayPage({ params }: PageProps) {
                   {formattedDate}
                 </div>
               </header>
+
+              {essay.metadata.videoUrl && (
+                <section>
+                  <YouTubeEmbed
+                    url={essay.metadata.videoUrl}
+                    title={essay.metadata.title}
+                    caption="This essay is presented as a video."
+                  />
+                </section>
+              )}
 
               <div className="prose prose-sm whitespace-pre-wrap
                 [&>*]:mt-0 
