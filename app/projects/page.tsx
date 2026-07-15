@@ -46,9 +46,9 @@ export default function Projects() {
                       <a 
                         href="https://www.udemy.com/user/marius-manola/" 
                         target="_blank"
-                        rel="noopener noreferrer"
+                        rel="noopener noreferrer" 
                         className="inline-link group"
-                      >
+                      > 
                         View Courses
                         <svg className="w-4 h-4 ml-2 transform group-hover:translate-x-1 transition-transform duration-300 ease-out" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />

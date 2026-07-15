@@ -4,6 +4,9 @@ import { useRef } from 'react';
 import MobileNavigation, { DesktopNavigation } from '@/components/Navigation';
 import AgeCounter from './components/AgeCounter';
 import Copyright from './components/Copyright';
+import YouTubeEmbed from './components/YouTubeEmbed';
+
+const FEATURED_VIDEO_URL = 'https://youtu.be/bGj4BI13svc';
 
 export default function Home() {
   const containerRef = useRef<HTMLElement>(null);
@@ -30,6 +33,15 @@ export default function Home() {
                   <p className="page-body text-[1.08rem]">
                     I&apos;m <AgeCounter /> years old, born and raised in Moldova. I love humanity, hiking, technology and solving problems.
                   </p>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="page-subtitle">Featured video</div>
+                  <YouTubeEmbed
+                    url={FEATURED_VIDEO_URL}
+                    title="Featured clip from Marius Manolachi"
+                    caption="A short clip now featured both here and in the essays section."
+                  />
                 </div>
 
                 <div className="pt-4">

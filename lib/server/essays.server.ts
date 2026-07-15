@@ -9,6 +9,7 @@ interface EssayMetadata {
   title: string;
   date: string;
   excerpt: string;
+  videoUrl?: string;
 }
 
 export interface Essay {
@@ -39,6 +40,7 @@ export async function getAllEssays(): Promise<Essay[]> {
           title: data.title,
           date: data.date,
           excerpt: data.excerpt,
+          videoUrl: data.videoUrl,
         },
         content: content.trim(),
       };
@@ -66,6 +68,7 @@ export async function getEssayById(id: string): Promise<Essay | undefined> {
         title: data.title,
         date: data.date,
         excerpt: data.excerpt,
+        videoUrl: data.videoUrl,
       },
       content: content.trim(),
     };
