@@ -1,7 +1,7 @@
 import MobileNavigation, { DesktopNavigation } from '@/components/Navigation';
-import Link from 'next/link';
 import { getAllEssays } from '@/lib/server/essays.server';
 import Copyright from '../components/Copyright';
+import EssayRow from '../components/EssayRow';
 
 export default async function EssaysPage() {
   const essays = await getAllEssays();
@@ -23,22 +23,11 @@ export default async function EssaysPage() {
 
               <section>
                 {essays.map((essay, index) => (
-                  <Link key={essay.id} href={`/essays/${essay.id}`} className="block group">
-                    <article className={`list-row ${index !== essays.length - 1 ? 'section-divider' : ''}`}>
-                      <div className="flex justify-between items-baseline">
-                        <h2 className="text-[1.03rem] font-normal leading-relaxed group-hover:text-[hsl(var(--muted-foreground))] transition-colors">
-                          {essay.metadata.title}
-                        </h2>
-                        <div className="text-[0.68rem] uppercase tracking-[0.12em] text-[hsl(var(--muted-foreground))] ml-4 flex-shrink-0">
-                          {new Date(essay.metadata.date).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric'
-                          })}
-                        </div>
-                      </div>
-                    </article>
-                  </Link>
+                  <EssayRow
+                    key={essay.id}
+                    essay={essay}
+                    showDivider={index !== essays.length - 1}
+                  />
                 ))}
               </section>
 

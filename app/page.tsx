@@ -1,69 +1,51 @@
-'use client';
-
-import { useRef } from 'react';
 import MobileNavigation, { DesktopNavigation } from '@/components/Navigation';
+import { getAllEssays } from '@/lib/server/essays.server';
 import AgeCounter from './components/AgeCounter';
-import Copyright from './components/Copyright';
-import YouTubeEmbed from './components/YouTubeEmbed';
+import BioList from './components/BioList';
+import RecentEssays from './components/RecentEssays';
+import ProjectsRow from './components/ProjectsRow';
+import HomeFooter from './components/HomeFooter';
+import LinkPreview from './components/LinkPreview';
 
-const FEATURED_VIDEO_URL = 'https://youtu.be/bGj4BI13svc';
-
-export default function Home() {
-  const containerRef = useRef<HTMLElement>(null);
+export default async function Home() {
+  const essays = await getAllEssays();
 
   return (
     <>
       <MobileNavigation />
-      
+
       <div className="page-shell" style={{ scrollbarGutter: 'stable' }}>
         <div className="flex justify-center">
-          <main className="page-main" ref={containerRef}>
+          <main className="page-main">
             <div className="page-stack">
+              {/* 1 · Serif hero */}
               <header className="page-header">
                 <h1 className="page-title">
-                  Marius Manolachi
+                  {/* LinkPreview reveals a portrait on hover from public/portrait.jpg.
+                      The image is preloaded offscreen and only shown once it loads;
+                      onError permanently disables it. See app/components/LinkPreview.tsx. */}
+                  <LinkPreview src="/portrait.jpg">Marius Manolachi</LinkPreview>
                 </h1>
-                <p className="page-subtitle">
-                  perpetual learner
+                <p className="page-subtitle">perpetual learner</p>
+                <p className="page-body text-[1.08rem] mt-6 max-w-[34rem]">
+                  I&apos;m <AgeCounter /> years old, born and raised in Moldova. I love
+                  humanity, hiking, technology, and the quiet thrill of solving hard
+                  problems. Right now I&apos;m building TryUncle — an AI tutor that
+                  lives on your screen and teaches DaVinci Resolve the second you get stuck.
                 </p>
               </header>
 
-              <section className="space-y-14">
-                <div className="max-w-none">
-                  <p className="page-body text-[1.08rem]">
-                    I&apos;m <AgeCounter /> years old, born and raised in Moldova. I love humanity, hiking, technology and solving problems.
-                  </p>
-                </div>
+              {/* 2 · me in short */}
+              <BioList />
 
-                <div className="space-y-4">
-                  <div className="page-subtitle">Featured video</div>
-                  <YouTubeEmbed
-                    url={FEATURED_VIDEO_URL}
-                    title="Featured clip from Marius Manolachi"
-                    caption="A short clip now featured both here and in the essays section."
-                  />
-                </div>
+              {/* 3 · writing */}
+              <RecentEssays essays={essays.slice(0, 4)} />
 
-                <div className="pt-4">
-                  <a 
-                    href="https://notclass.com" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="inline-link group"
-                  >
-                    notclass.com
-                    <svg className="w-4 h-4 ml-2 transform group-hover:translate-x-1 transition-transform duration-300 ease-out" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                    </svg>
-                  </a>
-                </div>
-              </section>
+              {/* 4 · building */}
+              <ProjectsRow />
 
-              <footer className="page-footer">
-                <p>
-                  © <Copyright /> Marius Manolachi
-                </p>
-              </footer>
+              {/* 5 · footer */}
+              <HomeFooter />
             </div>
           </main>
 
