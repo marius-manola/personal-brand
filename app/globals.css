@@ -29,6 +29,8 @@
     --border: 34 20% 81%;
     --input: 34 20% 81%;
     --ring: 10 38% 40%;
+    /* Cursor spotlight on the pricing group. */
+    --glow: 14 62% 42%;
     --radius: 0.25rem;
     --display-serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Times New Roman", serif;
     --body-serif: "Baskerville", "Times New Roman", Times, serif;
@@ -60,6 +62,7 @@
     --border: 240 3.7% 15.9%;
     --input: 240 3.7% 15.9%;
     --ring: 240 4.9% 83.9%;
+    --glow: 30 78% 62%;
   }
 }
 
@@ -67,12 +70,12 @@
   * {
     @apply border-zinc-200 dark:border-zinc-800;
   }
-  
+
   html {
     scroll-behavior: smooth;
     -webkit-text-size-adjust: 100%;
   }
-  
+
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1, "ss01" 1, "ss02" 1;
@@ -214,6 +217,166 @@ h1, h2, h3, h4, h5, h6 {
   width: 100%;
 }
 
+/* ---------- homepage: section labels + "me in short" list + building rows ---------- */
+.section-block {
+  display: flex;
+  flex-direction: column;
+  gap: 1.4rem;
+}
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.section-label {
+  color: hsl(var(--muted-foreground));
+  font-size: 0.8rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 400;
+}
+
+.short-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.short-list li {
+  position: relative;
+  padding-left: 1.4rem;
+  color: hsl(var(--card-foreground) / 0.92);
+  line-height: 1.85;
+  font-size: 1.02rem;
+}
+
+.short-list li::before {
+  content: "";
+  position: absolute;
+  left: 0.1rem;
+  top: 0.85em;
+  width: 0.42rem;
+  height: 1px;
+  background: hsl(var(--muted-foreground) / 0.85);
+}
+
+/* Inline text link inside prose (brand color + subtle bottom border). */
+.text-link {
+  color: hsl(var(--brand));
+  border-bottom: 1px solid hsl(var(--brand) / 0.35);
+  padding-bottom: 0.05rem;
+  transition: border-color 180ms ease, color 180ms ease;
+}
+
+.text-link:hover {
+  color: hsl(var(--ring));
+  border-color: hsl(var(--ring));
+}
+
+/* Compact "all X →" link used in section heads and building-row labels. */
+.section-more {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: hsl(var(--brand));
+  white-space: nowrap;
+  transition: color 180ms ease;
+}
+
+.section-more:hover,
+.build-row:hover .section-more {
+  color: hsl(var(--ring));
+}
+
+/* Building rows (projects on the homepage). */
+.build-row {
+  padding: 1rem 0.2rem;
+  border-bottom: 1px solid hsl(var(--border) / 0.38);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1.2rem;
+  transition: background-color 180ms ease;
+}
+
+.build-row:first-child {
+  border-top: 1px solid hsl(var(--border) / 0.38);
+}
+
+.build-row:hover {
+  background-color: hsl(var(--muted) / 0.42);
+}
+
+.build-name {
+  font-family: var(--display-serif);
+  font-size: 1.03rem;
+  font-weight: 500;
+}
+
+.build-desc {
+  color: hsl(var(--muted-foreground));
+  font-size: 0.92rem;
+  line-height: 1.6;
+  flex: 1;
+}
+
+/* Footer social link row. */
+.footer-links {
+  display: flex;
+  gap: 1.4rem;
+}
+
+.footer-links a {
+  color: hsl(var(--muted-foreground));
+  transition: color 180ms ease;
+}
+
+.footer-links a:hover {
+  color: hsl(var(--foreground));
+}
+
+/* Photo-on-hover preview (LinkPreview). */
+.link-preview-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+/* Offscreen preload image: not visible, only used to gate the popover on load. */
+.link-preview-preload {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  left: -9999px;
+}
+
+.link-preview-pop {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 0.6rem;
+  z-index: 40;
+  width: 9rem;
+  height: 11rem;
+  border: 1px solid hsl(var(--border) / 0.6);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: hsl(var(--card));
+  box-shadow: 0 12px 30px -12px hsl(var(--foreground) / 0.35);
+}
+
+.link-preview-pop img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
 .chip {
   padding: 0.3rem 0.72rem;
   border: 1px solid hsl(var(--border) / 0.85);
@@ -269,4 +432,940 @@ h1, h2, h3, h4, h5, h6 {
 
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+/* ---------- /learn-ai landing ---------- */
+
+/* This page hides the site nav and runs denser than the rest of the site: a
+   narrower measure, tighter leading, and smaller gaps, so the whole offer is
+   scannable in a couple of screens. These override .page-main / .page-stack /
+   .page-body by source order (both are single-class) and by descendant
+   specificity, so this block must stay after the shared rules above. */
+/* Wider than the rest of the site (which caps at 44rem) so the stats, package
+   cards and fit columns get real room. */
+.learn-page {
+  --page-pad: 3rem;
+  max-width: 60rem;
+  padding: 3.8rem var(--page-pad) 3.4rem;
+}
+
+/* Prose keeps a readable measure even though the frame is wide — only the grids
+   use the full width. Without this, body copy would run ~860px per line. */
+.learn-page .page-body,
+.learn-page .short-list,
+.learn-page .prep-list {
+  max-width: 38rem;
+}
+
+/* The screener panel is already inset, so its intro copy wants a slightly
+   tighter measure. Outranks the rule above by specificity, not order. */
+.learn-page .apply-panel .page-body {
+  max-width: 34rem;
+}
+
+.learn-page .page-stack {
+  gap: 3.2rem;
+}
+
+.learn-page .page-header {
+  gap: 0;
+  padding-bottom: 0;
+}
+
+.learn-page .page-title {
+  font-size: clamp(2rem, 3.2vw, 2.5rem);
+}
+
+.learn-page .page-body {
+  font-size: 1.02rem;
+  line-height: 1.7;
+}
+
+/* Slightly larger than body for the one paragraph that opens a section. Keeps a step
+   of hierarchy without a pull-quote, which the v3 copy doesn't have. */
+.learn-page .page-body-lead {
+  font-size: 1.1rem;
+  line-height: 1.62;
+  color: hsl(var(--card-foreground));
+}
+
+.learn-page .section-block {
+  gap: 1.05rem;
+}
+
+/* ---------- hierarchy ----------
+   The old page set the title at 2.5rem and everything else between 1.0 and 1.45rem,
+   which is why it read flat: nothing commanded. Three deliberate tiers now —
+   the headline, the pull-quote, and the proof numbers — with everything else quiet. */
+
+/* Availability chip sits above the headline on its own line. */
+.hero-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.9rem 1.1rem;
+  margin-bottom: 1.4rem;
+}
+
+/* Tier 1. Tight leading and a slight negative tracking are what stop a serif this
+   large from looking like a wall of separate words. */
+.hero-title {
+  font-family: var(--display-serif);
+  font-size: clamp(2.5rem, 5vw, 3.9rem);
+  line-height: 1.03;
+  letter-spacing: -0.022em;
+  font-weight: 500;
+  max-width: 30ch;
+}
+
+.hero-lead {
+  margin-top: 1.5rem;
+  max-width: 44ch;
+  font-size: 1.14rem;
+  line-height: 1.65;
+  color: hsl(var(--card-foreground) / 0.88);
+}
+
+/* Proof ledger.
+   A number column, the claim, and where to check it. Right-aligned tabular figures
+   give the column a spine, which a centred metrics band never has — and it lets a
+   credential with no number sit in the same table without looking broken. */
+.ledger {
+  margin-top: 1.4rem;
+  border-top: 1px solid hsl(var(--border) / 0.5);
+}
+
+.ledger-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.15rem 1.1rem;
+  padding: 0.85rem 0.15rem;
+  border-bottom: 1px solid hsl(var(--border) / 0.4);
+  transition: background-color 180ms ease;
+}
+
+@media (min-width: 700px) {
+  .ledger-row {
+    grid-template-columns: 7.5rem minmax(0, 1fr) auto;
+    align-items: baseline;
+  }
+}
+
+a.ledger-row:hover {
+  background-color: hsl(var(--muted) / 0.4);
+}
+
+a.ledger-row:focus-visible {
+  outline: 2px solid hsl(var(--ring) / 0.55);
+  outline-offset: 2px;
+}
+
+.ledger-value {
+  font-family: var(--display-serif);
+  font-size: 1.55rem;
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--foreground));
+}
+
+@media (min-width: 700px) {
+  .ledger-value {
+    text-align: right;
+  }
+}
+
+/* A row with no figure spans the number column instead of showing a placeholder —
+   an em-dash in a column of positive numbers reads as a minus sign. */
+@media (min-width: 700px) {
+  .ledger-text-wide {
+    grid-column: 1 / 3;
+  }
+}
+
+.ledger-text {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: hsl(var(--card-foreground) / 0.92);
+}
+
+.ledger-link {
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: hsl(var(--brand));
+  transition: color 180ms ease;
+}
+
+a.ledger-row:hover .ledger-link {
+  color: hsl(var(--ring));
+}
+
+/* Section rhythm: a label rail on the left, content on the right. Pins every
+   section to the same spine and finally gives the 60rem width a job — the old
+   layout stacked label-above-content identically eight times over. */
+.lp-section {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  padding-top: 1.7rem;
+  border-top: 1px solid hsl(var(--border) / 0.45);
+}
+
+@media (min-width: 900px) {
+  .lp-section {
+    grid-template-columns: 9.5rem 1fr;
+    column-gap: 2.6rem;
+    gap: 0;
+  }
+}
+
+.lp-rail {
+  align-self: start;
+}
+
+.lp-rail-note {
+  margin-top: 0.5rem;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: hsl(var(--muted-foreground));
+}
+
+.lp-content {
+  min-width: 0;
+}
+
+.learn-page .short-list li {
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.learn-page .learn-page .prep-list {
+  gap: 0.8rem;
+}
+
+.learn-page .apply-panel {
+  padding: 2rem 1.7rem 2.2rem;
+}
+
+/* Receipts rows reuse the homepage .build-row idiom. Two adjustments: a floor on
+   the name column so descriptions line up instead of stepping in and out with each
+   name's length, and wrapping so the row stacks on a phone rather than squeezing
+   three columns into 390px. */
+.learn-page .build-row {
+  flex-wrap: wrap;
+}
+
+.learn-page .build-name {
+  min-width: 10.5rem;
+}
+
+.learn-page .build-row:focus-visible {
+  outline: 2px solid hsl(var(--ring) / 0.5);
+  outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+  .learn-page .build-name,
+  .learn-page .build-desc {
+    min-width: 0;
+    flex-basis: 100%;
+  }
+
+  .learn-page .build-row {
+    gap: 0.35rem;
+  }
+}
+
+/* Scarcity badge above the hero CTA. */
+.spots-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.34rem 0.85rem 0.34rem 0.7rem;
+  border: 1px solid hsl(var(--border) / 0.85);
+  border-radius: 9999px;
+  background: hsl(var(--card));
+  font-size: 0.73rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.spots-dot {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 9999px;
+  background: hsl(var(--success));
+  box-shadow: 0 0 0 3px hsl(var(--success) / 0.16);
+}
+
+/* Primary CTA. Brand-filled in light mode; the dark theme flips --brand to
+   near-white, so the label follows --brand-foreground rather than a fixed color. */
+.cta-button {
+  background: hsl(var(--brand));
+  color: hsl(var(--brand-foreground));
+  border-radius: 9999px;
+  padding: 0.9rem 1.6rem;
+  font-family: var(--display-serif);
+  font-size: 1rem;
+  letter-spacing: 0.01em;
+  border-color: hsl(var(--brand-foreground) / 0.14);
+}
+
+.cta-note {
+  color: hsl(var(--muted-foreground));
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+}
+
+/* NumberTicker renders its *start* value (0) into the server HTML and only counts
+   up once its observer fires, so without JS the proof numbers would read
+   "0 students taught". This static twin carries the real figure and is swapped in
+   by the noscript block in app/learn-ai/page.tsx. */
+.ticker-fallback {
+  display: none;
+}
+
+/* Proof stats row. */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.6rem 1.2rem;
+}
+
+@media (min-width: 640px) {
+  .stat-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.stat-value {
+  font-family: var(--display-serif);
+  font-size: 1.72rem;
+  line-height: 1.1;
+  font-weight: 500;
+  display: flex;
+  align-items: baseline;
+}
+
+.stat-label {
+  margin-top: 0.35rem;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.5;
+}
+
+/* Pricing cards (MagicCard supplies the hover spotlight; layout lives here). */
+.price-grid {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+@media (min-width: 720px) {
+  .price-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* The card itself now carries its border and surface — MagicCard used to supply
+   those, but its spotlight was scoped to whichever card you hovered, so the light
+   stopped dead at that card's border. */
+.price-card {
+  position: relative;
+  isolation: isolate;
+  border: 1px solid hsl(var(--border) / 0.7);
+  border-radius: 0.6rem;
+  background: hsl(var(--card));
+  overflow: hidden;
+  padding: 1.5rem 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  height: 100%;
+}
+
+/* ONE light across the whole group.
+   background-attachment: fixed anchors the gradient to the viewport, so every card
+   paints the same light from the same origin. That's what makes it continue across
+   the gaps instead of restarting inside each card — and why the JS feeds it
+   clientX/clientY (viewport coords) rather than offsets within a card.
+   Both layers are keyed off .price-grid:hover, so the light is present whenever the
+   cursor is anywhere over the group, including the gaps between cards. */
+.price-card::before,
+.price-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-attachment: fixed;
+  opacity: 0;
+  transition: opacity 300ms ease;
+}
+
+/* Interior wash. */
+.price-card::before {
+  z-index: -1;
+  background-image: radial-gradient(
+    28rem circle at var(--pointer-x, -100vw) var(--pointer-y, -100vh),
+    hsl(var(--glow) / 0.17),
+    transparent 66%
+  );
+}
+
+/* Border glow — a gradient ring, masked to just the 1px edge. */
+.price-card::after {
+  border-radius: inherit;
+  padding: 1px;
+  background-image: radial-gradient(
+    20rem circle at var(--pointer-x, -100vw) var(--pointer-y, -100vh),
+    hsl(var(--glow) / 0.8),
+    transparent 58%
+  );
+  -webkit-mask:
+    linear-gradient(#000, #000) content-box,
+    linear-gradient(#000, #000);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000, #000) content-box,
+    linear-gradient(#000, #000);
+  mask-composite: exclude;
+}
+
+.price-grid:hover .price-card::before,
+.price-grid:hover .price-card::after {
+  opacity: 1;
+}
+
+/* No cursor to follow — don't imply one. */
+@media (hover: none) {
+  .price-card::before,
+  .price-card::after {
+    display: none;
+  }
+}
+
+.price-name {
+  font-family: var(--display-serif);
+  font-size: 1rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: hsl(var(--foreground));
+}
+
+.price-amount {
+  font-family: var(--display-serif);
+  font-size: 2.05rem;
+  line-height: 1;
+  font-weight: 500;
+}
+
+.price-rate {
+  color: hsl(var(--muted-foreground));
+  font-size: 0.85rem;
+}
+
+/* Numbered "before the call" prep steps. */
+.prep-list {
+  list-style: none;
+  counter-reset: prep;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+.prep-list li {
+  counter-increment: prep;
+  display: flex;
+  gap: 1rem;
+  align-items: baseline;
+}
+
+.prep-list li::before {
+  content: counter(prep);
+  font-family: var(--display-serif);
+  font-size: 0.85rem;
+  color: hsl(var(--muted-foreground));
+  border: 1px solid hsl(var(--border) / 0.8);
+  border-radius: 9999px;
+  width: 1.6rem;
+  height: 1.6rem;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Screener panel — the page's conversion point, so it gets a surface of its own. */
+.apply-panel {
+  border: 1px solid hsl(var(--border) / 0.55);
+  background: hsl(var(--secondary) / 0.4);
+  padding: 2.2rem 1.9rem 2.4rem;
+  scroll-margin-top: 1.5rem;
+}
+
+.dark .apply-panel {
+  background: hsl(var(--secondary) / 0.22);
+}
+
+/* ---------- hero photo strip ---------- */
+
+/* The track is viewport-wide, not card-width — that's what puts the photos beyond
+   the page frame. `margin-inline: calc(50% - 50vw)` pulls it out of the card and
+   centres it on the viewport without needing a transform (motion needs the
+   transform channel on the row below). Any few-px overshoot from the scrollbar is
+   absorbed by .strip-guard. */
+.photo-strip {
+  position: relative;
+  width: 100vw;
+  margin-inline: calc(50% - 50vw);
+  display: flex;
+  /* Not centred any more — the row's offset is driven by the motion value, and
+     centring would fight it. */
+  justify-content: flex-start;
+  overflow: hidden;
+  padding-block: 1rem;
+  /* Text selection while dragging looks broken. */
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+  /* Horizontal gestures are handled in JS; this keeps vertical page scroll working
+     on touch instead of swallowing it. */
+  touch-action: pan-y;
+}
+
+.photo-strip:active {
+  cursor: grabbing;
+}
+
+/* Holds two copies of the list back to back, so wrapping the offset by one copy's
+   width always leaves a full copy on screen and the seam never shows. */
+.photo-row {
+  display: flex;
+  align-items: center;
+  gap: 1.9rem;
+  width: max-content;
+  will-change: transform;
+}
+
+.photo-card img {
+  display: block;
+  width: 100%;
+  /* Wider than the old 9:10 — these are screenshots, and a portrait crop threw
+     away most of each one. Anchored to the top so the part that carries the proof
+     (the name, the headline, the number) is the part that survives the crop. */
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  object-position: center top;
+  /* Rounder than the site's 0.25rem radius — matching the reference this was
+     modelled on, where the softness is the point. */
+  border-radius: 1rem;
+  background: #ece5d8;
+  /* No drop shadow — it muddied the cream. A hairline holds the edge instead. */
+  border: 1px solid hsl(var(--border) / 0.55);
+  -webkit-user-drag: none;
+}
+
+/* Stops the escaping photos from making the page scroll sideways. `clip` rather
+   than `hidden` on purpose: hidden on one axis forces the other to auto, which
+   would turn this into a nested scroll container and fight .page-shell. */
+.strip-guard {
+  overflow-x: clip;
+}
+
+@media (max-width: 640px) {
+  .photo-row {
+    gap: 1rem;
+  }
+}
+
+/* ---------- testimonial, shaped like the post it came from ---------- */
+
+.li-card {
+  max-width: 34rem;
+  border: 1px solid hsl(var(--border) / 0.7);
+  border-radius: 0.7rem;
+  background: hsl(var(--card));
+  padding: 1.15rem 1.25rem 0.9rem;
+}
+
+.li-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+/* Monogram, not a lifted profile photo. */
+.li-avatar {
+  flex: 0 0 auto;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: hsl(var(--secondary));
+  color: hsl(var(--secondary-foreground));
+  font-family: var(--display-serif);
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+}
+
+.li-who {
+  min-width: 0;
+}
+
+.li-name {
+  font-size: 0.98rem;
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+.li-headline,
+.li-time {
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: hsl(var(--muted-foreground));
+}
+
+.li-time {
+  font-size: 0.74rem;
+}
+
+.li-body {
+  margin: 0.95rem 0 0;
+  font-size: 1rem;
+  line-height: 1.68;
+  color: hsl(var(--card-foreground) / 0.92);
+}
+
+.li-foot {
+  margin-top: 1rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid hsl(var(--border) / 0.5);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.li-stats {
+  font-size: 0.76rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.li-link {
+  font-size: 0.76rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: hsl(var(--brand));
+  transition: color 180ms ease;
+}
+
+.li-link:hover {
+  color: hsl(var(--ring));
+}
+
+/* ---------- interaction states ---------- */
+
+/* Every interactive surface gets a visible keyboard ring in the same language. */
+.cta-button:focus-visible,
+.text-link:focus-visible,
+.li-link:focus-visible,
+.footer-links a:focus-visible,
+.nav-link:focus-visible {
+  outline: 2px solid hsl(var(--ring) / 0.55);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+.cta-button:hover {
+  filter: brightness(1.06);
+}
+
+.cta-button:disabled,
+.cta-button[aria-disabled='true'] {
+  opacity: 0.55;
+  cursor: not-allowed;
+  filter: none;
+}
+
+/* Receipts rows nudge their arrow on hover — the only motion below the hero. */
+.build-row .section-more,
+.ledger-link {
+  transition: color 180ms ease, transform 180ms ease;
+}
+
+a.ledger-row:hover .ledger-link {
+  transform: translateX(2px);
+}
+
+/* ---------- expandable photos ---------- */
+
+/* Each photo is a button: the strip crops these screenshots, so the full version has
+   to be reachable — by click and by keyboard. */
+.photo-card {
+  flex: 0 0 auto;
+  width: 19rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+  border-radius: 1rem;
+  transition: transform 220ms ease;
+}
+
+.photo-card:focus-visible {
+  outline: 2px solid hsl(var(--ring) / 0.7);
+  outline-offset: 4px;
+}
+
+/* Must live after the rule above, not up in the strip block — same specificity, so
+   source order decides, and the desktop width was winning on phones. */
+@media (max-width: 640px) {
+  .photo-card {
+    width: 12rem;
+  }
+}
+
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.9rem;
+  padding: clamp(1.25rem, 4vw, 3rem);
+  /* Near-opaque: these screenshots are full of small text, and a light scrim left
+     the page behind it competing for attention. */
+  background: rgb(10 8 7 / 0.94);
+  cursor: zoom-out;
+  animation: lightbox-in 180ms ease-out;
+}
+
+@keyframes lightbox-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lightbox {
+    animation: none;
+  }
+}
+
+.lightbox-figure {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.85rem;
+  max-width: 100%;
+  /* min-height:0 lets the image shrink inside the flex column instead of
+     overflowing off the bottom of the screen. */
+  min-height: 0;
+  cursor: default;
+}
+
+.lightbox-img {
+  display: block;
+  max-width: 100%;
+  /* Room left for the caption underneath. */
+  max-height: min(82vh, 900px);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 0.5rem;
+  background: #fff;
+  box-shadow: 0 30px 80px -30px rgb(0 0 0 / 0.8);
+}
+
+.lightbox-caption {
+  max-width: 40rem;
+  text-align: center;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: rgb(255 255 255 / 0.68);
+}
+
+.lightbox-close {
+  position: absolute;
+  top: clamp(0.75rem, 2.5vw, 1.5rem);
+  right: clamp(0.75rem, 2.5vw, 1.5rem);
+  width: 2.5rem;
+  height: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgb(255 255 255 / 0.22);
+  border-radius: 9999px;
+  background: rgb(255 255 255 / 0.08);
+  color: rgb(255 255 255 / 0.9);
+  font-size: 1.45rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 180ms ease, border-color 180ms ease;
+}
+
+.lightbox-close:hover {
+  background: rgb(255 255 255 / 0.18);
+  border-color: rgb(255 255 255 / 0.4);
+}
+
+.lightbox-close:focus-visible {
+  outline: 2px solid rgb(255 255 255 / 0.85);
+  outline-offset: 2px;
+}
+
+/* Panel header. Lives inside QualifyForm so a result can replace it. */
+.apply-head {
+  margin-bottom: 1.7rem;
+}
+
+.apply-heading {
+  font-family: var(--display-serif);
+  font-size: 1.4rem;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.qualify-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* Two fields per row on desktop, stacked on phones. */
+.field-row {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 1.25rem;
+}
+
+@media (min-width: 640px) {
+  .field-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.field-label {
+  font-size: 0.78rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+}
+
+.field-control {
+  width: 100%;
+  padding: 0.62rem 0.75rem;
+  border: 1px solid hsl(var(--border) / 0.9);
+  border-radius: var(--radius);
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+  font-family: var(--body-serif);
+  font-size: 0.98rem;
+  line-height: 1.5;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+  /* Selects inherit the OS chrome otherwise, which breaks the serif look. */
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+/* Restore an affordance for the selects, since appearance:none removes the arrow. */
+select.field-control {
+  background-image: linear-gradient(45deg, transparent 50%, hsl(var(--muted-foreground)) 50%),
+    linear-gradient(135deg, hsl(var(--muted-foreground)) 50%, transparent 50%);
+  background-position: calc(100% - 1rem) 52%, calc(100% - 0.7rem) 52%;
+  background-size: 0.3rem 0.3rem, 0.3rem 0.3rem;
+  background-repeat: no-repeat;
+  padding-right: 2.1rem;
+}
+
+.field-control:focus {
+  outline: none;
+  border-color: hsl(var(--ring) / 0.75);
+  box-shadow: 0 0 0 3px hsl(var(--ring) / 0.14);
+}
+
+.field-textarea {
+  resize: vertical;
+  min-height: 6.2rem;
+}
+
+.field-hint {
+  font-size: 0.8rem;
+  color: hsl(var(--muted-foreground));
+}
+
+/* Honeypot: off-screen rather than display:none, which some bots skip. */
+.hp-field {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.form-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  align-items: flex-start;
+}
+
+.form-error {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: hsl(var(--destructive));
+}
+
+.form-result {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.7rem;
+}
+
+.form-result-heading {
+  font-family: var(--display-serif);
+  font-size: 1.2rem;
+  font-weight: 500;
+}
+
+/* Must sit after the shared `@media (max-width: 640px) .page-main` rule above,
+   which is equally specific and would otherwise win on source order. */
+@media (max-width: 640px) {
+  .learn-page {
+    --page-pad: 1.4rem;
+    padding: 2.8rem var(--page-pad) 2.6rem;
+  }
+
+  .learn-page .page-stack {
+    gap: 2.6rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-shiny-text,
+  .animate-shimmer-slide,
+  .animate-spin-around {
+    animation: none !important;
+  }
 }
