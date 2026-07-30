@@ -25,17 +25,23 @@ export interface QualifyFormProps {
     name: string;
     email: string;
     project: string;
-    technical: string;
+    usage: string;
     timeline: string;
     detail: string;
     detailHint: string;
   };
   projectChoices: Choice[];
-  technicalChoices: Choice[];
+  usageChoices: Choice[];
   timelineChoices: Choice[];
   submitLabel: string;
   submitting: string;
-  booked: { heading: string; body: string; ctaLabel: string; undelivered: string };
+  booked: {
+    heading: string;
+    body: string;
+    opened: string;
+    ctaLabel: string;
+    undelivered: string;
+  };
   error: { heading: string; body: string };
   contactEmail: string;
 }
@@ -43,7 +49,7 @@ export interface QualifyFormProps {
 type Status =
   | { kind: 'idle' }
   | { kind: 'submitting' }
-  | { kind: 'done'; calendarUrl: string; delivered: boolean }
+  | { kind: 'done'; calendarUrl: string; delivered: boolean; openedInNewTab: boolean }
   | { kind: 'error'; message?: string };
 
 export default function QualifyForm({
@@ -52,7 +58,7 @@ export default function QualifyForm({
   spotsNote,
   fields,
   projectChoices,
-  technicalChoices,
+  usageChoices,
   timelineChoices,
   submitLabel,
   submitting,
@@ -67,6 +73,12 @@ export default function QualifyForm({
     const data = new FormData(event.currentTarget);
     setStatus({ kind: 'submitting' });
 
+    // Opened here, synchronously, while the click is still the reason we're running.
+    // Waiting until after the await would put window.open outside the user gesture,
+    // and every popup blocker would swallow it. The blank tab is parked and pointed
+    // at the calendar once the server answers, or closed if there's nothing to show.
+    const calendarTab = window.open('', '_blank');
+
     try {
       const response = await fetch('/api/qualify', {
         method: 'POST',
@@ -75,20 +87,25 @@ export default function QualifyForm({
       });
       const payload = await response.json().catch(() => ({}));
 
-      if (!response.ok) {
+      if (!response.ok || !payload.calendarUrl) {
+        calendarTab?.close();
         setStatus({ kind: 'error', message: payload?.error });
         return;
       }
-      if (!payload.calendarUrl) {
-        setStatus({ kind: 'error', message: payload?.error });
-        return;
+
+      if (calendarTab) {
+        calendarTab.location = payload.calendarUrl;
       }
       setStatus({
         kind: 'done',
         calendarUrl: payload.calendarUrl,
+        // The button stays on screen regardless: a blocked popup must never be the
+        // difference between booking and not booking.
+        openedInNewTab: calendarTab !== null && !calendarTab.closed,
         delivered: payload.delivered !== false,
       });
     } catch {
+      calendarTab?.close();
       setStatus({ kind: 'error' });
     }
   }
@@ -100,7 +117,9 @@ export default function QualifyForm({
     return (
       <div className="form-result" aria-live="polite">
         <h3 className="form-result-heading">{booked.heading}</h3>
-        <p className="page-body">{booked.body}</p>
+        <p className="page-body">
+          {status.openedInNewTab ? booked.opened : booked.body}
+        </p>
         <a
           href={status.calendarUrl}
           target="_blank"
@@ -167,12 +186,12 @@ export default function QualifyForm({
           </label>
 
           <label className="field">
-            <span className="field-label">{fields.technical}</span>
-            <select className="field-control" name="technical" required defaultValue="">
+            <span className="field-label">{fields.usage}</span>
+            <select className="field-control" name="usage" required defaultValue="">
               <option value="" disabled>
                 Choose one
               </option>
-              {technicalChoices.map((choice) => (
+              {usageChoices.map((choice) => (
                 <option key={choice.value} value={choice.value}>
                   {choice.label}
                 </option>

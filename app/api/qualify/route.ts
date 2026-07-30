@@ -3,7 +3,7 @@ import {
   calendarUrl,
   projectChoices,
   signals,
-  technicalChoices,
+  usageChoices,
   timelineChoices,
   type Choice,
 } from '@/app/data/learn-ai';
@@ -27,7 +27,7 @@ interface Lead {
   name: string;
   email: string;
   project: string;
-  technical: string;
+  usage: string;
   timeline: string;
   detail: string;
 }
@@ -67,7 +67,7 @@ function composeMessage(lead: Lead, strong: boolean): string {
     ['Name', lead.name],
     ['Email', lead.email],
     ['Working on', labelFor(projectChoices, lead.project)],
-    ['Technical', labelFor(technicalChoices, lead.technical)],
+    ['Uses AI to', labelFor(usageChoices, lead.usage)],
     ['Timeline', labelFor(timelineChoices, lead.timeline)],
   ];
 
@@ -133,7 +133,7 @@ export async function POST(request: Request) {
     name: readField(body, 'name', MAX.name),
     email: readField(body, 'email', MAX.email),
     project: readField(body, 'project', 40),
-    technical: readField(body, 'technical', 40),
+    usage: readField(body, 'usage', 40),
     timeline: readField(body, 'timeline', 40),
     detail: readField(body, 'detail', MAX.detail),
   };

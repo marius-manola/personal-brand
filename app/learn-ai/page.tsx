@@ -19,6 +19,7 @@ import {
   ratesNote,
   contactEmail,
   prep,
+  profileLink,
   projectChoices,
   ledger,
   proofPhotos,
@@ -26,7 +27,7 @@ import {
   quietLinks,
   spotsOpen,
   teamsNote,
-  technicalChoices,
+  usageChoices,
   testimonial,
   timelineChoices,
   youGet,
@@ -113,6 +114,14 @@ export default function LearnAI() {
                       </AnimatedShinyText>
                     </span>
                   )}
+                  <a
+                    className="hero-link"
+                    href={profileLink.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {profileLink.label} &rarr;
+                  </a>
                 </BlurFade>
 
                 <BlurFade delay={STEP * 2} className="reveal">
@@ -194,6 +203,16 @@ export default function LearnAI() {
               </section>
 
               {/* 4 · the offer + what you get, as one block */}
+              {/* 3 · what people say, ahead of the pitch so the claim that follows
+                   arrives already vouched for */}
+              <section className="lp-section">
+                <h2 className="section-label lp-rail">what people say</h2>
+                <div className="lp-content">
+                  <LinkedInQuote item={testimonial} />
+                </div>
+              </section>
+
+              {/* 4 · who this is for */}
               <section className="lp-section">
                 <h2 className="section-label lp-rail">{offer.label}</h2>
                 <div className="lp-content">
@@ -203,7 +222,8 @@ export default function LearnAI() {
                       <li key={item}>{item}</li>
                     ))}
                   </ul>
-                  <p className="page-body mt-6">{offer.after}</p>
+                  <p className="page-body mt-6">{offer.framework}</p>
+                  <p className="page-body mt-5">{offer.after}</p>
                 </div>
               </section>
 
@@ -246,7 +266,6 @@ export default function LearnAI() {
                       <li key={item}>{item}</li>
                     ))}
                   </ul>
-                  <p className="page-body mt-6">{fit.caveat}</p>
                 </div>
               </section>
 
@@ -262,13 +281,6 @@ export default function LearnAI() {
                 </ul>
               </section>
 
-              <section className="lp-section">
-                <h2 className="section-label lp-rail">what people say</h2>
-                <div className="lp-content">
-                  <LinkedInQuote item={testimonial} />
-                </div>
-              </section>
-
               {/* 8 · the screener — the only route to the calendar.
                    This replaced a closing CTA panel: with the form as the last
                    section, a button pointing down at it was pointing at itself. */}
@@ -280,7 +292,7 @@ export default function LearnAI() {
                     spotsNote={spotsOpen > 0 ? `${spotsOpen} spots open this month` : undefined}
                     fields={qualifier.fields}
                     projectChoices={projectChoices}
-                    technicalChoices={technicalChoices}
+                    usageChoices={usageChoices}
                     timelineChoices={timelineChoices}
                     submitLabel={qualifier.submitLabel}
                     submitting={qualifier.submitting}

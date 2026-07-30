@@ -20,6 +20,13 @@ export const contactEmail = process.env.LEAD_CONTACT_EMAIL || 'mariusmanola@gmai
 // Shown in the hero badge and the closing panel. Set to 0 to hide both.
 export const spotsOpen = 5;
 
+// Sits beside the availability chip in the hero. People want to see who they'd be
+// handing $300 to before they read anything else.
+export const profileLink = {
+  label: 'linkedin',
+  href: 'https://www.linkedin.com/in/marius-manolachi/',
+};
+
 // The word is "consulting", first line, on purpose. Coaching, mentoring and training
 // all invite a discount in the reader's head; consulting doesn't.
 //
@@ -134,6 +141,11 @@ export const offer = {
   label: 'who this is for',
   intro:
     'It’s consulting. We meet over video, an hour at a time, and we work on your actual work rather than on exercises. Claude Code, Codex, ChatGPT, whatever you’re using.',
+  // The real product isn't prompts, it's a way of thinking. This replaced a paragraph
+  // that undersold it as "I'm a builder and a teacher, not a senior systems engineer",
+  // which is the wrong thing to promise someone who wants to think like one.
+  framework:
+    'What I actually do is close the gap between not technical at all and genuinely capable. That happens by changing how you think about the work rather than by handing you prompts: in systems, in pieces that connect, the way an engineer sees it. You get the fundamentals properly, including enough of how these models are built to reason about why they behave the way they do. I won’t teach you transformers end to end. I’ll give you a way of working that makes what you already know go a great deal further.',
   after:
     'You share your screen, I share mine, and you do the typing. I explain what I’m doing as I do it, because the point is that you can do it without me afterwards.',
 };
@@ -177,18 +189,15 @@ export const guarantee =
 // individual rates. Training a team is different work and gets priced on the call.
 export const teamsNote = 'Teams are priced differently. Tell me in the form.';
 
-// Only the disqualifiers now. Section 3 already says who this is for, so a "yes, if"
-// column opposite it was the same information twice.
+// Only the disqualifiers, and only ones that are true. "If you already ship with
+// these tools daily" was removed: a developer shipping code every day still has
+// everything to gain from working in systems rather than prompts.
 export const fit = {
   label: 'probably not a fit',
   notFor: [
     'If you want it built for you rather than with you. That’s an agency, not me.',
-    'If you already ship with these tools daily. You’d be paying me for things you’d work out in a week.',
     'If you want a certificate rather than a working thing.',
   ],
-  // Saying the limit out loud buys more trust than another claim would.
-  caveat:
-    'And to be straight about it: I’m a builder and a teacher, not a senior systems engineer. If what you need is hardened infrastructure or anything regulated, I’ll say so on the call and point you somewhere better.',
 };
 
 export const prep = {
@@ -219,11 +228,15 @@ export const projectChoices: Choice[] = [
   { value: 'good', label: 'I use it daily and want to be really good at it' },
 ];
 
-export const technicalChoices: Choice[] = [
-  { value: 'none', label: 'I’ve never written code' },
-  { value: 'tools', label: 'I use AI tools but I don’t code' },
-  { value: 'read', label: 'I can read code and edit it' },
-  { value: 'dev', label: 'I write code' },
+// Ordered by depth of use, not by coding ability. "How technical are you" was the
+// wrong question: it sorted people by a skill this service doesn't require, and it
+// made non-technical readers feel measured before they'd even booked.
+export const usageChoices: Choice[] = [
+  { value: 'questions', label: 'I ask it questions' },
+  { value: 'brainstorm', label: 'I brainstorm and draft with it' },
+  { value: 'decisions', label: 'I use it to make real decisions' },
+  { value: 'build', label: 'I build things with it' },
+  { value: 'automate', label: 'I automate actual work with it' },
 ];
 
 export const timelineChoices: Choice[] = [
@@ -251,7 +264,7 @@ export const qualifier = {
     name: 'Your name',
     email: 'Email',
     project: 'Which one sounds most like you?',
-    technical: 'Where are you today?',
+    usage: 'How do you use AI today?',
     timeline: 'When do you want to start?',
     detail: 'What do you want to exist, and what’s stopped you so far?',
     detailHint: 'Be specific. This is the answer I actually read before the call.',
@@ -260,7 +273,12 @@ export const qualifier = {
   submitting: 'One second...',
   booked: {
     heading: 'Here’s my calendar',
+    // Shown when the popup was blocked and they have to click the button themselves.
     body: 'Pick a time, and bring the three things above.',
+    // Shown when the calendar opened itself, so the page doesn't ask for a click
+    // that already happened.
+    opened:
+      'My calendar just opened in a new tab. Pick a time, and bring the three things above.',
     ctaLabel: 'Open my calendar',
     undelivered: 'Your answers didn’t reach me. Bring them to the call.',
   },

@@ -22,6 +22,7 @@ so the more skill you walk in with, the more there is to multiply.
 - **Button:** See if it fits
 - **Note beside it:** Four questions. One minute.
 - **Availability chip:** 5 spots open this month · `spotsOpen`
+- **Profile link beside it:** linkedin → · `profileLink`
 
 ### Hero options
 
@@ -62,7 +63,27 @@ column of positive numbers reads as a minus sign.
 
 ---
 
-## 3 · Who comes to me
+## 3 · What people say
+
+> `testimonial` - rendered as a LinkedIn-shaped card
+
+**Natalia Melniciuc, PhD, PMP**
+IT Delivery Manager | Build strong teams with agile mindset
+2y · LinkedIn
+
+> I have attended a ChatGPT workshop at Orange, led by the talented Marius Manolachi,
+> an AI expert, and author of Udemy courses with millions of views. Marius captivated
+> the audience with his deep knowledge and passion for AI. He shared valuable insights
+> & HOW-TO write ChatGPT prompts, shedding light on its applications with real
+> examples.
+
+24 reactions · 1 repost - **Read the post**
+
+Verbatim, reaction counts included. No verification badge, monogram rather than photo.
+
+---
+
+## 4 · Who comes to me
 
 > `offer`, `youGet`
 
@@ -77,12 +98,19 @@ work rather than on exercises. Claude Code, Codex, ChatGPT, whatever you're usin
 - People who've been using it a while and it keeps going wrong.
 - People who already use it daily and want to be genuinely good at it.
 
+What I actually do is close the gap between not technical at all and genuinely
+capable. That happens by changing how you think about the work rather than by handing
+you prompts: in systems, in pieces that connect, the way an engineer sees it. You get
+the fundamentals properly, including enough of how these models are built to reason
+about why they behave the way they do. I won't teach you transformers end to end. I'll
+give you a way of working that makes what you already know go a great deal further.
+
 You share your screen, I share mine, and you do the typing. I explain what I'm doing
 as I do it, because the point is that you can do it without me afterwards.
 
 ---
 
-## 4 · Rates
+## 5 · Rates
 
 > `packages`, `ratesNote`, `includesNote`, `guarantee`, `teamsNote`
 
@@ -106,48 +134,22 @@ Teams are priced differently. Tell me in the form.
 
 ---
 
-## 5 · probably not a fit
+## 6 · probably not a fit
 
 > `fit`
 
 - If you want it built for you rather than with you. That's an agency, not me.
-- If you already ship with these tools daily. You'd be paying me for things you'd
-  work out in a week.
 - If you want a certificate rather than a working thing.
-
-And to be straight about it: I'm a builder and a teacher, not a senior systems
-engineer. If what you need is hardened infrastructure or anything regulated, I'll say
-so on the call and point you somewhere better.
 
 ---
 
-## 6 · before the call
+## 7 · before the call
 
 > `prep`
 
 1. What you want to exist, in two sentences.
 2. What has stopped you until now.
 3. What working would look like.
-
----
-
-## 7 · What people say
-
-> `testimonial` - rendered as a LinkedIn-shaped card
-
-**Natalia Melniciuc, PhD, PMP**
-IT Delivery Manager | Build strong teams with agile mindset
-2y · LinkedIn
-
-> I have attended a ChatGPT workshop at Orange, led by the talented Marius Manolachi,
-> an AI expert, and author of Udemy courses with millions of views. Marius captivated
-> the audience with his deep knowledge and passion for AI. He shared valuable insights
-> & HOW-TO write ChatGPT prompts, shedding light on its applications with real
-> examples.
-
-24 reactions · 1 repost - **Read the post**
-
-Verbatim, reaction counts included. No verification badge, monogram rather than photo.
 
 ---
 
@@ -167,7 +169,7 @@ every answer before we meet.
 | name | Your name | |
 | email | Email | |
 | project | Which one sounds most like you? | I want to get into this and don't know where to start · I'm stuck on a specific problem · I want to build and code with it · I use it already and it keeps going wrong · I use it daily and want to be really good at it |
-| technical | Where are you today? | I've never written code · I use AI tools but I don't code · I can read code and edit it · I write code |
+| usage | How do you use AI today? | I ask it questions · I brainstorm and draft with it · I use it to make real decisions · I build things with it · I automate actual work with it |
 | timeline | When do you want to start? | This week · Within a month · No particular timeline |
 | detail | What do you want to exist, and what's stopped you so far? | *Hint:* Be specific. This is the answer I actually read before the call. |
 
@@ -175,8 +177,13 @@ every answer before we meet.
 
 ### After submitting
 
+The calendar opens itself in a new tab. The button stays on screen either way, in
+case a popup blocker eats it.
+
 **Here's my calendar**
-Pick a time, and bring the three things above.
+*If it opened by itself:* My calendar just opened in a new tab. Pick a time, and bring
+the three things above.
+*If the popup was blocked:* Pick a time, and bring the three things above.
 → **Open my calendar**
 
 *Shown only if the Telegram notification failed:* Your answers didn't reach me. Bring
@@ -244,6 +251,22 @@ sake of punching. Verified: zero em dashes in the rendered page text.
 
 **The Udemy review count is 23,929**, not 229. The v3 draft had 229, which looks like
 dropped digits and would undersell the profile by two orders of magnitude.
+
+**The testimonial comes before the pitch.** A claim lands differently once someone
+else has vouched for you, so "what people say" sits above "who this is for".
+
+**"How do you use AI today?" replaced "where are you today?"** Sorting people by
+coding ability measured a skill this service doesn't require, and it made
+non-technical readers feel graded before they'd booked. Depth of use is the useful
+signal, and the options run from asking questions to automating real work.
+
+**Two disqualifiers, not three.** "If you already ship with these tools daily" was
+removed because it isn't true: a developer shipping every day still has everything to
+gain from working in systems rather than prompts.
+
+**The framework paragraph replaced a disclaimer.** It used to say "I'm a builder and a
+teacher, not a senior systems engineer", which is the wrong thing to tell someone who
+wants to learn to think like one. What's sold here is a way of working, not prompts.
 
 **One thing worth doing after a few clients:** replace or supplement Natalia's
 testimonial with two people who built something with you, plus a screenshot of what
