@@ -169,10 +169,15 @@ export interface Package {
 // "Rates", not "packages" — packages implies a funnel, rates is what someone who
 // does this work charges. No tier is flagged as recommended; `ratesNote` below does
 // that job in a sentence instead of a badge.
+//
+// Introductory pricing, set deliberately low to get the first clients and the first
+// testimonials, with the intention of raising it once there's demand to turn away.
+// The ladder is still the argument: $150 for a single hour, down to $100 an hour if
+// you commit to eight.
 export const packages: Package[] = [
-  { name: 'One session', price: '$300', rate: '$300 / hour' },
-  { name: 'Four sessions', price: '$1,000', rate: '$250 / hour' },
-  { name: 'Sixteen sessions', price: '$3,200', rate: '$200 / hour' },
+  { name: 'One session', price: '$150', rate: '$150 / hour' },
+  { name: 'Four sessions', price: '$500', rate: '$125 / hour' },
+  { name: 'Eight sessions', price: '$800', rate: '$100 / hour' },
 ];
 
 export const ratesNote = 'Most people start with one and go from there.';

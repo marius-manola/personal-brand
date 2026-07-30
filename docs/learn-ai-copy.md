@@ -118,9 +118,9 @@ as I do it, because the point is that you can do it without me afterwards.
 
 | | Price | Rate |
 | --- | --- | --- |
-| One session | **$300** | $300 / hour |
-| Four sessions | **$1,000** | $250 / hour |
-| Sixteen sessions | **$3,200** | $200 / hour |
+| One session | **$150** | $150 / hour |
+| Four sessions | **$500** | $125 / hour |
+| Eight sessions | **$800** | $100 / hour |
 
 Most people start with one and go from there.
 
@@ -245,6 +245,11 @@ the page and the form agree.
 
 **"Rates" rather than "packages."** Packages implies a funnel. Rates is what a person
 who does this work charges.
+
+**These are introductory rates.** Set deliberately low to get the first clients and
+the first testimonials, to be raised once there's demand to turn away. At $150 an hour
+the $1,000-a-month target is under seven hours of work; the constraint is finding
+buyers, not the price.
 
 **No em dashes anywhere.** Sentence length still varies, but nothing punches for the
 sake of punching. Verified: zero em dashes in the rendered page text.
