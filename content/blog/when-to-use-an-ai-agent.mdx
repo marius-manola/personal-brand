@@ -1,0 +1,170 @@
+---
+title: 'When Should You Use an AI Agent? A Decision Framework'
+date: '2026-08-14'
+updated: '2026-08-14'
+excerpt: 'Use five hard gates to decide whether a workflow needs an AI agent, a fixed LLM workflow, or ordinary automation before you spend money or grant access.'
+answer: 'Use an AI agent when a valuable workflow requires flexible judgment across multiple steps, the path cannot be fully hard-coded, success can be measured, and mistakes can be contained. Use deterministic software for predictable rules. Start with human-supervised, read-only scope; expand permissions only after the agent passes representative evaluations.'
+targetQuery: 'when should you use an AI agent'
+queryAliases:
+  - 'when to use AI agents'
+  - 'when not to use AI agents'
+  - 'AI agent vs automation'
+  - 'does this workflow need an AI agent'
+intent: 'commercial investigation'
+funnel: 'consideration'
+cluster: 'AI agent architecture'
+tags:
+  - 'AI agents'
+  - 'Automation'
+  - 'AI strategy'
+author: 'Marius Manolachi'
+nextReviewAt: '2027-02-10'
+sources:
+  - 'https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/'
+  - 'https://www.anthropic.com/engineering/building-effective-agents'
+  - 'https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/'
+  - 'https://www.imda.gov.sg/-/media/imda/files/about/emerging-tech-and-research/artificial-intelligence/mgf-for-agentic-ai.pdf'
+cover: '/blog/when-to-use-an-ai-agent-hero.jpg'
+coverAlt: 'A branching system separates a fixed automation path from an adaptive agent loop contained by approval gates'
+draft: false
+---
+
+The first agent decision isn't which model or framework to use. It is whether the workflow needs an agent at all.
+
+An agent earns its complexity only when a simpler system cannot handle the job safely enough. Start with ordinary software. Add an LLM for bounded interpretation. Give the model control over the path only when the path genuinely cannot be known in advance.
+
+## Start with the simplest architecture that can do the job
+
+Use the word *agent* precisely. OpenAI defines an agent as a system in which an LLM manages workflow execution, chooses tools, and decides when work is complete or should return to a person. A chatbot or classifier that uses an LLM without letting it control the workflow is not an agent ([OpenAI](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/)).
+
+Anthropic draws the same practical boundary: a workflow follows code paths that you define; an agent lets the model direct its own process and tool use. Its advice is blunt: start with the simplest solution and add complexity only when it improves the outcome, because agentic systems often exchange more cost and latency for better task performance ([Anthropic](https://www.anthropic.com/engineering/building-effective-agents)).
+
+That gives you an architecture ladder:
+
+| If the work looks like this | Start with this | Example |
+| --- | --- | --- |
+| Inputs and steps are predictable; rules cover the exceptions | Deterministic software | Validate a required field, calculate tax, or send a scheduled reminder |
+| One bounded step needs language or document interpretation | One LLM call inside software | Classify an email, extract invoice fields, or draft a reply for review |
+| The stages are known, but some stages need an LLM | Fixed LLM workflow | Extract, validate against rules, route, then draft |
+| The goal is clear, but the required steps change with what the system discovers | Agent | Investigate an exception across several systems and choose the next check from each result |
+
+An agent is not better software. It is software that deliberately hands some path selection to a model. That flexibility is useful, but it also creates more possible failure paths.
+
+## Use the AGENT gate before you build
+
+The AGENT gate below is an original synthesis of the constraints in the primary guidance. It is not an industry standard or a tested benchmark. It uses five vetoes instead of a weighted score because high potential value must not cancel out missing evidence or unacceptable risk.
+
+| Gate | Question you must answer | Evidence to bring | If the answer is no |
+| --- | --- | --- | --- |
+| **A: Ambiguity** | Does the task require judgment across steps that cannot be fully hard-coded? | Exception map, sample inputs, and the decisions a skilled person makes | Use deterministic automation or a fixed LLM workflow |
+| **G: Ground truth** | Can the system observe whether each action moved it toward the goal? | Tool results, tests, status changes, reconciled records, or a human checkpoint | Keep the task assistive; do not let it run an open loop |
+| **E: Evaluation** | Can you define success before choosing the system? | Representative cases, expected outcomes, failure labels, and acceptance thresholds | Do discovery first; you cannot improve what you cannot judge |
+| **N: Narrow permissions** | Can mistakes be made reversible, visible, and tolerable? | Read/write inventory, approval gates, stop conditions, logs, and an owner | Reduce scope or do not deploy an agent |
+| **T: Task value** | Is the outcome worth the added build and operating burden? | Current volume, time, delay, error cost, and a simpler baseline | Keep the simpler system |
+
+All five gates must pass. Here is why.
+
+### Ambiguity must be real
+
+OpenAI recommends agents for workflows with context-sensitive decisions, brittle rule sets, or heavy use of unstructured data. It also says a deterministic solution may be enough when those conditions are absent ([OpenAI](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/)).
+
+Do not count the mere presence of documents or language as proof that you need an agent. If an LLM can extract fields and ordinary code can validate and route them, you have a fixed workflow. That is easier to test, explain, and repair.
+
+The agent case begins when the next useful step depends on what the system discovers and the branches cannot be maintained sensibly in advance. Anthropic describes this as an open-ended problem where the number and order of steps are hard to predict or hard-code ([Anthropic](https://www.anthropic.com/engineering/building-effective-agents)).
+
+### Ground truth must close the loop
+
+An agent needs more than instructions. It needs fresh evidence from the environment: the result of a tool call, a test run, a changed status, or a question answered by a person. Anthropic calls this environmental feedback “ground truth” and recommends checkpoints and stopping conditions so the system can judge progress and remain under control ([Anthropic](https://www.anthropic.com/engineering/building-effective-agents)).
+
+Without ground truth, the model can produce a plausible sequence of actions without knowing whether the underlying job changed. If the only signal is the model reviewing its own prose, keep a person in the loop and call the system an assistant.
+
+### Evaluation must exist before autonomy
+
+Write the pass conditions before the implementation. OpenAI recommends establishing an evaluation baseline before optimizing models for cost or latency ([OpenAI](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/)).
+
+Your evaluation set should represent the work you expect, not just the happy path. Include normal cases, missing context, conflicting inputs, tool failures, permission failures, requests outside scope, and cases that must escalate. Record the expected final outcome and the actions that are forbidden even if the outcome looks correct.
+
+If experts disagree about the expected result, that is discovery work. Resolve the policy or define who decides. Do not hide an unclear operating process inside a prompt.
+
+### Narrow permissions must contain failure
+
+Permissions turn a wrong answer into a real consequence. OpenAI recommends rating tools by read versus write access, reversibility, required account permissions, and financial impact. It also calls for human intervention when retry limits are exceeded or an action is sensitive, irreversible, or high-stakes ([OpenAI](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/)).
+
+Current security guidance gives this gate teeth. OWASP's agentic risk list includes goal hijacking, tool misuse, identity and privilege abuse, compromised dependencies, and unexpected code execution ([OWASP](https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/)). Singapore's updated governance framework likewise treats error tolerance, sensitive data, external-system access, and action scope as impact factors, while keeping people accountable for deployment ([IMDA](https://www.imda.gov.sg/-/media/imda/files/about/emerging-tech-and-research/artificial-intelligence/mgf-for-agentic-ai.pdf)).
+
+Start read-only. Give the agent the fewest tools and records it needs. Put drafts, messages, record changes, purchases, deletions, and other consequential actions behind explicit approval. Add a maximum number of steps or retries. Log what the agent saw, chose, called, and received back.
+
+### Task value must repay the burden
+
+An agent adds evaluation, monitoring, security review, model usage, latency, and maintenance. The business case therefore needs a baseline. Measure the workflow as it exists now: volume, handling time, delay, rework, error cost, and the share of cases that follow a stable path.
+
+Then compare the agent with the cheapest credible alternative. That alternative might be a form, better documentation, ordinary automation, one LLM step, or a fixed workflow. An agent passes this gate only if the extra flexibility changes an outcome worth paying for.
+
+## What does the framework look like on a real workflow?
+
+Consider a **hypothetical** accounts-payable workflow. A shared inbox receives invoices and vendor questions. The proposed system would read each message, find the related purchase order, identify exceptions, and decide what to check next.
+
+This is an example, not a client result or a performance claim.
+
+| Gate | Assessment | Design consequence |
+| --- | --- | --- |
+| Ambiguity | Likely pass: formats vary and exceptions may require different checks | Use the model for interpretation and next-step selection only where fixed routing stops working |
+| Ground truth | Pass if purchase orders, vendor records, and invoice status are available through reliable tools | Every step must use returned system data, not model memory |
+| Evaluation | Conditional: finance must label representative cases and expected escalation decisions | No pilot until the owner can judge correct routing and forbidden actions |
+| Narrow permissions | Pass only with a restricted start | Read records and draft a recommendation; do not send, edit the ledger, approve, or pay without a person |
+| Task value | Unknown until the current workflow is measured | Compare exception-handling time and quality with a fixed extraction-and-routing baseline |
+
+The verdict is not “build the agent.” It is “the workflow may justify a supervised agent pilot after the evaluation set and baseline exist.” The first version should investigate and recommend. It should not move money.
+
+## How should you pilot an AI agent safely?
+
+Use six stages. Each one should earn the next.
+
+1. **Write a one-page use-case brief.** Name the owner, trigger, goal, inputs, allowed tools, forbidden actions, success criteria, escalation path, and current baseline.
+2. **Build the simpler baseline.** Try rules, one LLM call, or a fixed workflow first. Keep it if it meets the acceptance threshold.
+3. **Run the agent in shadow mode.** Let it propose decisions without affecting the live process. Compare its final outcomes and action traces with the expected cases.
+4. **Open read-only tools.** Use production-like data only under the organization's privacy, security, and access rules. Preserve logs and stop on missing context or repeated failure.
+5. **Add approval-gated writes.** A person reviews the proposed action and the evidence behind it before execution. Track where approvals catch errors and where people routinely disagree.
+6. **Expand one permission at a time.** Grant a write action only when its case set passes, the action is reversible or safely bounded, monitoring exists, and a named owner accepts the residual risk.
+
+This sequence is deliberately slow at the permissions boundary. Agent errors can compound across turns, so Anthropic recommends extensive sandbox testing and appropriate guardrails for autonomous systems ([Anthropic](https://www.anthropic.com/engineering/building-effective-agents)). Speed comes after you know which part deserves automation.
+
+## Copy this use-case brief
+
+Use this before discussing vendors or frameworks:
+
+```text
+Workflow:
+Owner:
+Trigger:
+Goal:
+Current volume and handling time:
+Current failure or delay cost:
+
+Why fixed rules are insufficient:
+What the agent must decide:
+Ground-truth systems and tool results:
+
+Allowed read actions:
+Allowed write actions:
+Actions requiring approval:
+Forbidden actions:
+Maximum steps or retries:
+Escalation owner:
+
+Representative evaluation cases:
+Expected outcome for each case:
+Forbidden actions for each case:
+Acceptance threshold:
+
+Simpler baseline:
+Reason the agent must beat it:
+```
+
+A weak brief exposes a weak use case early. That is a successful result. Deleting an unnecessary agent is cheaper than making one reliable.
+
+## Make the decision before choosing the stack
+
+Use an agent only after the workflow passes all five gates: real ambiguity, available ground truth, defined evaluation, contained permissions, and sufficient value. If one fails, reduce the scope or move down the architecture ladder.
+
+If the answer is still “maybe,” bring one workflow, its exceptions, and its current baseline. [My one-to-one AI consulting](/learn-ai) is for working through the real task together and leaving you able to operate it. It is not a done-for-you agency build.
