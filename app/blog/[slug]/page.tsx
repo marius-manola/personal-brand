@@ -3,7 +3,6 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import { MDXRemote } from 'next-mdx-remote/rsc';
-import remarkGfm from 'remark-gfm';
 import Copyright from '@/app/components/Copyright';
 import { getAllBlogPosts, getBlogPost } from '@/lib/server/blog.server';
 
@@ -19,6 +18,52 @@ const longDateFormatter = new Intl.DateTimeFormat('en-US', {
   year: 'numeric',
   timeZone: 'UTC',
 });
+
+function tableCells(line: string) {
+  return line.trim().replace(/^\||\|$/g, '').split(/(?<!\\)\|/).map((cell) =>
+    cell.trim()
+      .replace(/\\\|/g, '|')
+      .replace(/\*\*(.*?)\*\*/g, '$1')
+      .replace(/`([^`]+)`/g, '$1')
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1 ($2)'),
+  );
+}
+
+function withBlogTables(source: string) {
+  const lines = source.split('\n');
+  const output: string[] = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const header = lines[index];
+    const separator = lines[index + 1];
+    if (header.includes('|') && separator && /^\s*\|?\s*:?-{3,}/.test(separator)) {
+      const headers = tableCells(header);
+      const rows: string[][] = [];
+      index += 2;
+      while (index < lines.length && lines[index].includes('|') && lines[index].trim()) {
+        rows.push(tableCells(lines[index]));
+        index += 1;
+      }
+      const data = encodeURIComponent(JSON.stringify({ headers, rows }));
+      output.push(`<BlogTable data="${data}" />`);
+      if (index < lines.length) output.push(lines[index]);
+    } else {
+      output.push(header);
+    }
+  }
+  return output.join('\n');
+}
+
+function BlogTable({ data }: { data: string }) {
+  const parsed = JSON.parse(decodeURIComponent(data)) as { headers: string[]; rows: string[][] };
+  return (
+    <table>
+      <thead><tr>{parsed.headers.map((header) => <th key={header}>{header}</th>)}</tr></thead>
+      <tbody>{parsed.rows.map((row, rowIndex) => (
+        <tr key={rowIndex}>{parsed.headers.map((_, cellIndex) => <td key={cellIndex}>{row[cellIndex] || ''}</td>)}</tr>
+      ))}</tbody>
+    </table>
+  );
+}
 
 export async function generateStaticParams() {
   const posts = await getAllBlogPosts();
@@ -132,7 +177,7 @@ export default async function BlogPostPage({ params }: PageProps) {
           )}
 
           <div className="blog-prose">
-            <MDXRemote source={post.content} options={{ mdxOptions: { remarkPlugins: [remarkGfm] } }} />
+            <MDXRemote source={withBlogTables(post.content)} components={{ BlogTable }} />
           </div>
         </article>
 
