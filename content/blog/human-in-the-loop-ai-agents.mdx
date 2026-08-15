@@ -1,0 +1,699 @@
+---
+title: 'Human-in-the-Loop AI Agents: Approval Gates That Work'
+date: '2026-08-15'
+updated: '2026-08-15'
+excerpt: 'A vendor-neutral method for deciding which AI agent actions need human approval, binding each decision to the exact action, and testing the gate.'
+answer: 'Use human approval before an AI agent takes a consequential or hard-to-reverse action. Put the gate outside the model, bind approval to the exact tool call, show the reviewer its effect and evidence, and fail closed if approval is missing, changed, expired, or unauthorized. Automate low-risk actions instead of asking people to approve everything.'
+targetQuery: 'human-in-the-loop AI agents'
+queryAliases:
+  - 'human in the loop AI agent'
+  - 'AI agent human approval'
+  - 'AI agent approval workflow'
+  - 'human approval for AI agents'
+  - 'AI agent approval gates'
+intent: 'implementation'
+funnel: 'consideration'
+cluster: 'AI agent safety and operations'
+tags:
+  - 'AI agents'
+  - 'Human in the loop'
+  - 'AI safety'
+  - 'Agent operations'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-13'
+sources:
+  - 'https://cheatsheetseries.owasp.org/cheatsheets/AI_Agent_Security_Cheat_Sheet.html'
+  - 'https://openai.github.io/openai-agents-python/human_in_the_loop/'
+  - 'https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/'
+  - 'https://learn.microsoft.com/en-us/agents/center-of-excellence/responsible-ai'
+  - 'https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence'
+  - 'https://github.com/cloudflare/agents/blob/main/docs/agents/human-in-the-loop.md'
+cover: '/blog/human-in-the-loop-ai-agents-approval-boundary-hero.png'
+coverAlt: 'An AI agent action reaching a control boundary that routes it to automatic execution, human review, or a blocked path'
+draft: false
+---
+
+An approval button can be as cosmetic as a warning label. If the agent can change the action after approval, use another tool, or continue when the approval service fails, the person did not control the outcome. They only clicked.
+
+A real human-in-the-loop boundary is narrower and stronger. The agent proposes a specific action. Policy decides whether it must pause. A qualified person sees the effect and the evidence. Then a separate executor verifies that the decision still applies before it touches the outside world.
+
+This distinction matters because “human in the loop” can describe several different activities. A person may label training data, inspect an evaluation result, supervise a pilot, answer an agent's question, or authorize a live side effect. All can be useful. Only the last one is the subject of this guide: a production approval boundary for an agent that can use tools.
+
+The practical design problem is therefore not “Where can we add a human?” It is “Which real-world effects require human authority, what exact proposal does that authority cover, and what must the executor verify before acting?” Those questions lead to a system that can be implemented, tested, and audited. The vague version does not.
+
+## What does human-in-the-loop mean for an AI agent?
+
+Human-in-the-loop, or HITL, is a runtime control that pauses an agent before a defined action until a person approves, rejects, or redirects it. It is not the vague promise that “a human is involved.”
+
+Current agent frameworks expose this as an interruption in execution. OpenAI's Agents SDK can mark tools as needing approval, serialize the paused run, and resume it after a decision. Cloudflare documents the same pause-and-resume pattern for durable, multi-step workflows ([OpenAI Agents SDK](https://openai.github.io/openai-agents-python/human_in_the_loop/), [Cloudflare Agents](https://github.com/cloudflare/agents/blob/main/docs/agents/human-in-the-loop.md)). The API names will change. The control boundary should not.
+
+Put the boundary immediately before the side effect, not after the agent has already sent the message, changed the record, or spent the money. And do not let the model decide whether its own risky action is exempt. The model may propose and explain an action; ordinary authorization code should decide whether that action is allowed to proceed.
+
+If you have not decided whether the workflow needs agentic control at all, start with [the AI agent decision framework](/blog/when-to-use-an-ai-agent). Human approval cannot make an unnecessary agent simpler.
+
+### Runtime approval is different from supervision
+
+It helps to separate four controls that teams often combine under the HITL label:
+
+| Control | When it happens | Human job | What it does not guarantee |
+| --- | --- | --- | --- |
+| Training feedback | Before deployment, while improving a model or system | Label, rank, correct, or demonstrate | That a specific production action is authorized |
+| Evaluation review | Before or between releases | Judge test cases and failure patterns | That the runtime agent cannot bypass policy |
+| Operational supervision | During a pilot or live run | Observe work and intervene when needed | That intervention occurs before every sensitive effect |
+| Pre-execution approval | Immediately before a classified side effect | Approve or reject one bound action | That the rest of the system has least privilege or good evaluation coverage |
+
+These controls complement one another. They are not interchangeable. An agent can pass an evaluation and still encounter a novel runtime case. A supervisor can watch a queue and still miss a fast tool call. A valid approval can authorize a bad decision if the reviewer sees weak evidence. The architecture must state which failure each control is meant to stop.
+
+For this guide, an **action** is a structured request to a tool with an authenticated requester, a target, normalized arguments, and an expected effect. An **approval** is a time-limited decision by an authorized reviewer over that exact action. An **execution** is a separate attempt to produce the effect after all conditions are checked again.
+
+That three-part vocabulary prevents a common design error: treating the conversation as the unit of approval. “Approve this conversation” is too broad. A long agent run may contain harmless reads, several drafts, and one high-impact write. The approval should cover the write, not everything the model has said or might say next.
+
+![A four-part map separating training feedback, evaluation review, operational supervision, and pre-execution approval](/blog/human-in-the-loop-ai-agents-hitl-control-types.png)
+
+## Which AI agent actions need human approval?
+
+Classify actions, not agents. One agent may read a public document, draft an internal note, email a customer, and change an account role. Those actions do not belong in one risk bucket.
+
+OpenAI recommends rating tools using factors such as read versus write access, reversibility, required account permissions, and financial impact. Microsoft recommends approval for actions that are hard to reverse or affect people, money, or compliance. NIST's Generative AI Profile takes the broader position that oversight should vary with the system's context and risk ([OpenAI](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/), [Microsoft](https://learn.microsoft.com/en-us/agents/center-of-excellence/responsible-ai), [NIST](https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence)).
+
+Turn that guidance into four questions:
+
+1. **Consequence:** Can the action materially affect a person, money, privacy, compliance, production data, or an external audience?
+2. **Reversibility:** Can the exact effect be undone quickly, completely, and at acceptable cost?
+3. **Authority:** Does it use a privileged credential, cross a data boundary, grant access, or act as another person or organization?
+4. **Ambiguity:** Does the decision require context or judgment that a deterministic policy cannot settle safely?
+
+Then route the action to one of four paths.
+
+| Execution path | Use it when | Example | Required control |
+| --- | --- | --- | --- |
+| Automatic | Consequence is low, scope is narrow, and policy is machine-checkable | Search an approved public knowledge base | Authorization, schema validation, limits, and logging |
+| Approve before execution | The agent can prepare the action, but a person must accept its real-world effect | Send an external email or apply a consequential record change | Decision-ready preview, qualified approver, exact-action binding, and expiry |
+| Human handles the task | The decision itself requires accountable human judgment, not just confirmation | Resolve an ambiguous exception that materially affects a person | Transfer context and evidence; do not hide the decision behind an approve button |
+| Forbidden | The action exceeds the organization's risk tolerance or the agent should never hold the authority | Escalate its own privileges or bypass a required control | Deny by policy and test the denial |
+
+Approval is not a substitute for least privilege. OWASP recommends minimum per-tool permissions and explicit authorization for sensitive operations even when human controls exist ([OWASP](https://cheatsheetseries.owasp.org/cheatsheets/AI_Agent_Security_Cheat_Sheet.html)). A person may approve a refund. That does not mean the agent should receive an unrestricted finance credential.
+
+Model confidence can help decide what context to show, but it should not be the only gate. Confidence is generated by the same system that proposed the action and can be wrong or manipulated. Base the hard boundary on the action, the authenticated actor, the target, policy, and current state.
+
+### Inventory effects before assigning risk
+
+Start from effects, not tool names. A tool called `update_record` may correct a draft field, publish a legal status, alter a payment destination, or remove a user's access. One name hides four very different consequences. Conversely, `send_email`, `post_message`, and `create_ticket` may all create the same externally visible commitment. A policy that controls only one tool name leaves alternate paths open.
+
+Create an inventory with one row per effect-bearing action. This is a design artifact, not an agent-generated description created at runtime.
+
+| Inventory field | Question to answer | Why it matters |
+| --- | --- | --- |
+| Effect | What changes outside the agent's private working state? | Policies should follow consequences across equivalent tools |
+| Target class | Which people, systems, records, or accounts can be affected? | A write to a sandbox is not a write to production |
+| Credential | Which identity and permission perform the action? | Approval must not silently broaden authority |
+| Maximum scope | What is the largest batch, amount, audience, or data range possible? | Narrow limits contain mistakes and misuse |
+| Reversal | How is the effect undone, by whom, and with what residual harm? | A technical undo may not reverse a public or human consequence |
+| Evidence | Which inputs justify the action, and where do they come from? | The reviewer needs traceable grounds, not model confidence |
+| Policy owner | Who has authority to define and change the rule? | Product teams should not improvise legal or financial policy |
+| Reviewer role | Which role can approve this class of effect? | Any logged-in human is not automatically a qualified approver |
+| Failure path | What happens on reject, expiry, or unavailable dependencies? | Silence and outages need explicit outcomes |
+
+Do not let the agent fill in unknown governance facts and treat them as truth. If the owner, credential, reversal procedure, or maximum scope is unknown, the action is not ready for automatic or approval-gated execution. Keep it human-only or forbidden until those fields have real owners.
+
+### Use the four questions as a routing conversation, not a magic score
+
+Consequence, reversibility, authority, and ambiguity are deliberately qualitative. A weighted score can help a team compare actions, but a single total can also conceal a veto condition. A low-dollar payment from a privileged account may still require review. An easily reverted access change may still expose private data before reversal. A public message can be deleted while screenshots and commitments remain.
+
+A safer workshop uses two layers:
+
+1. Check hard constraints. If the action is prohibited by policy, exceeds the agent's permitted authority, lacks a qualified reviewer, or cannot produce a reliable preview, stop. Do not calculate a score.
+2. For the remaining actions, use the four questions to choose automatic, approval, or human-only handling. Record the reason in plain language and name the policy owner.
+
+The result might look like this hypothetical policy table:
+
+| Proposed action | Consequence and reversal | Authority and ambiguity | Route | Rationale |
+| --- | --- | --- | --- | --- |
+| Search an approved public documentation index | No external change; query is logged | Read-only credential; policy can validate scope | Automatic | The effect is contained and machine-checkable |
+| Save a draft reply in a private workspace | Internal, reversible draft | Narrow write; no external commitment | Automatic with limits | A person still controls sending |
+| Send the prepared reply to a customer | External communication; recall is unreliable | Acts for the organization; context affects wording | Approval | The agent can prepare, but a person accepts the commitment |
+| Decide whether an ambiguous exception is fair | Material effect on a person; reversal may not repair harm | Judgment and accountability are central | Human-only | Approval would disguise the real decision |
+| Add its own account to an administrator role | High-impact privilege change | Self-escalation conflicts with the control boundary | Forbidden | No runtime reviewer should convert this into an agent capability |
+
+The examples illustrate the method. They are not claims about a deployed system or universal policy. Your routes depend on actual permissions, obligations, users, and failure costs.
+
+### Distinguish “reversible in software” from “reversible in the world”
+
+Reversibility deserves more scrutiny than a yes-or-no column. Ask four follow-up questions:
+
+- Can the system restore the prior state exactly?
+- How long will detection and reversal take?
+- What happens between the original action and the reversal?
+- Does the action create a human, legal, reputational, privacy, or financial consequence that restoration cannot erase?
+
+Changing an internal draft and then restoring it may be genuinely reversible. Sending a message and then deleting the stored copy is not. Granting access and revoking it later does not prove that no data was read. Publishing a price and correcting it later may not undo a customer's reliance on the first value. Treat reversibility as an analysis of residual consequence, not the presence of an undo endpoint.
+
+### Separate threshold decisions from judgment decisions
+
+Some actions become reviewable only after deterministic policy has narrowed them. Suppose a workflow can propose a refund. Software should first check that the authenticated operator may request refunds, the order exists, the amount is within the tool's hard limit, the currency matches the order, and no completed refund already exists. Human review then addresses the remaining judgment: whether the evidence supports this proposed refund.
+
+This ordering keeps reviewers from serving as schema validators. It also prevents a reviewer from approving something the system must never allow. Human discretion belongs inside the permitted envelope, not above it.
+
+![A decision map routing agent actions through consequence, reversibility, authority, and ambiguity into automatic, approval, human-only, or forbidden paths](/blog/human-in-the-loop-ai-agents-four-path-action-routing.png)
+
+## Where should the approval gate sit?
+
+Put it between proposal and execution. The simplest useful architecture looks like this:
+
+```text
+agent proposes a structured tool call
+                |
+                v
+policy service validates identity, scope, arguments, and risk
+                |
+       +--------+---------+
+       |                  |
+       v                  v
+automatic path       approval queue
+       |                  |
+       |          approve / reject / expire
+       |                  |
+       +--------+---------+
+                v
+executor revalidates policy, approval, and current state
+                |
+                v
+side effect plus immutable decision and execution record
+```
+
+For destructive, financial, administrative, or externally visible actions, OWASP recommends separating decision-making from execution. Its guidance says the execution component should independently validate scope, privilege, and approval state, and that high-impact failures should fail closed ([OWASP](https://cheatsheetseries.owasp.org/cheatsheets/AI_Agent_Security_Cheat_Sheet.html)).
+
+That separation closes an important gap. A prompt can tell an agent to ask first. A policy service can make asking unavoidable.
+
+The paused state also needs a durable home. A reviewer may respond minutes or days later, after the web request and worker that created the proposal have disappeared. OpenAI documents serializing a paused `RunState`; Cloudflare's workflow pattern waits for a decision and requires an explicit timeout path ([OpenAI Agents SDK](https://openai.github.io/openai-agents-python/human_in_the_loop/), [Cloudflare Agents](https://github.com/cloudflare/agents/blob/main/docs/agents/human-in-the-loop.md)). Store pending work in a database or durable workflow system. On timeout, reject or escalate. Never treat silence as approval.
+
+### Give each component one job
+
+A production boundary is easier to reason about when its responsibilities are explicit:
+
+| Component | Owns | Must not be trusted to do alone |
+| --- | --- | --- |
+| Agent | Propose a tool, target, arguments, evidence references, and explanation | Decide that its own high-impact proposal can skip policy |
+| Tool adapter | Parse and normalize arguments into a canonical action | Execute before classification and authorization finish |
+| Policy service | Classify the effect and select automatic, approval, human-only, or forbidden | Infer missing policy from the model's explanation |
+| Approval store or workflow | Persist pending state, decision, expiry, and transition history | Treat a button click as sufficient without binding it to the request |
+| Reviewer interface | Present a decision-ready packet and collect an authenticated outcome | Reveal data the reviewer cannot otherwise access |
+| Executor | Revalidate policy, approval, credentials, current target state, and idempotency | Trust stale validation performed when the proposal was created |
+| Audit sink | Join proposal, decision, attempt, result, and final state | Become optional for a high-impact action if policy requires the record |
+
+This design is vendor-neutral. One application may implement several components in the same service. Another may use a workflow engine, an identity provider, a policy engine, and a separate execution worker. The security property comes from enforced responsibilities and independent checks, not the number of deployable services.
+
+### Normalize before requesting approval
+
+The human must approve the values the executor will use. Raw model arguments are a poor unit of authorization because equivalent values can have different textual forms, defaults may be filled later, and ambiguous strings may be interpreted differently by different libraries.
+
+Normalization should happen before the preview and digest are created. Depending on the action, that may include:
+
+- resolving a stable resource identifier instead of a display name;
+- making implicit defaults explicit;
+- choosing one canonical currency, time zone, unit, and timestamp representation;
+- sorting unordered collections and removing duplicate entries;
+- validating enum values, lengths, ranges, and batch limits;
+- resolving a template version rather than approving “the latest template”;
+- recording the target's current version or another concurrency token;
+- excluding presentation-only fields that cannot affect execution.
+
+Normalization is action-specific. A generic JSON sort is not enough if a decimal string, a floating-point value, and an integer in minor units could mean different things. The tool adapter should define the canonical representation and test it like any other authorization code.
+
+Once normalized, freeze the proposal. If the agent wants to revise the message, change the recipient, add an attachment, increase the amount, or target a different record, it creates a new request. Editing a pending request in place destroys the meaning of the earlier digest and preview.
+
+### Use a durable state machine, not a sleeping request
+
+Approval is a long-running workflow. Model it with explicit states and allowed transitions. A minimal version is:
+
+    proposed -> validating -> automatic_ready -> executing -> executed
+                          |
+                          +-> pending_review -> approved -> executing
+                          |                  |-> rejected
+                          |                  |-> expired
+                          |                  |-> cancelled
+                          |
+                          +-> human_only
+                          +-> forbidden
+                          +-> validation_failed
+
+The exact state names are less important than three rules.
+
+First, transitions are one-way decisions recorded with timestamps and actors. An expired request does not become approved. A rejected request is not reopened by modifying its arguments. A new proposal receives a new action ID.
+
+Second, an approval is not execution. The approved state means only that the recorded reviewer accepted the recorded proposal before expiry. The executor can still refuse because the target changed, credentials were revoked, policy was updated, or another process already produced the effect.
+
+Third, retries must be safe. A worker may crash after an external API accepts the request but before the local status becomes executed. The idempotency key should let the executor ask the external system, or safely retry, without duplicating the side effect. Where the target API has no idempotency mechanism, the action needs a more conservative reconciliation strategy and may not be suitable for unattended retry.
+
+![An execution-boundary architecture separating agent proposal, deterministic policy, durable review, executor revalidation, side effect, and audit](/blog/human-in-the-loop-ai-agents-execution-boundary-architecture.png)
+
+### Defend the time between approval and execution
+
+The target can change while a request waits. This is the classic time-of-check/time-of-use problem expressed in an approval workflow. The preview may show account version 17, while execution sees version 19. Even if the proposed fields are unchanged, another actor may have altered a dependency that changes the consequence.
+
+Use the strongest concurrency control the target supports. Options include a record version, entity tag, content hash, last-modified token, transaction condition, or a fresh policy lookup combined with field-level comparisons. The action contract should say which state is bound. “Current state” is not a value.
+
+When the state changes, choose one explicit behavior:
+
+1. **Invalidate and re-propose.** This is the safest default for high-impact changes. Recompute the preview and require a new decision.
+2. **Allow a narrow, predeclared tolerance.** For example, an unrelated metadata timestamp may change without affecting the approved effect. Encode that exception deterministically and test it.
+3. **Escalate to human-only handling.** Use this when the changed state creates a judgment problem that a new binary approval cannot capture.
+
+Do not silently recompute arguments to fit the new state after approval. Helpful post-approval adaptation is still mutation.
+
+### Revalidate policy at execution
+
+Policies and permissions can change while a request is pending. The executor should verify both the historical basis for the decision and the rules that govern execution now. A useful default is: a newer policy may make an approved action stricter or forbidden, but it should not silently broaden what was approved.
+
+This produces several legitimate non-execution outcomes after approval:
+
+- the request expired;
+- the reviewer no longer has the required role;
+- the requesting user or agent lost permission;
+- the target moved to a protected state;
+- the policy version is no longer accepted;
+- the action digest does not match;
+- the idempotency record shows the effect already happened;
+- a required audit dependency is unavailable and policy says to fail closed.
+
+Surface these as precise states, not a generic “agent failed” message. Operators need to know whether to retry, re-propose, escalate, or investigate a possible bypass.
+
+## What must the reviewer see?
+
+Show the decision, not a transcript dump.
+
+The approval surface should answer seven questions:
+
+- What exact effect will occur?
+- Which person, account, file, record, or system will it affect?
+- What fields or state will change, including a before-and-after view where useful?
+- What source evidence supports the proposal?
+- Which policy requires approval, and which policy conditions already passed?
+- Can the action be reversed, and what happens if it is wrong?
+- When will this request expire?
+
+Also show who requested the action and which identity will execute it. Microsoft says reviewers need enough context to decide without turning review into a bottleneck. OWASP recommends an action preview and a structured audit trail for high-risk decisions ([Microsoft](https://learn.microsoft.com/en-us/agents/center-of-excellence/responsible-ai), [OWASP](https://cheatsheetseries.owasp.org/cheatsheets/AI_Agent_Security_Cheat_Sheet.html)).
+
+Do not expose extra private data in the name of context. The reviewer should see only what their own identity is authorized to access. The approval page is part of the security boundary too.
+
+Avoid a generic “Looks good?” button. Use **Approve exact action**, **Reject**, and, when the workflow supports it, **Return for changes**. A rejection should send a bounded reason back to the workflow. It must not invite the agent to reach the same forbidden outcome through a different tool.
+
+### Build a decision packet, not a chat history
+
+A reviewer should not have to reconstruct the proposal from a transcript. Conversation history is noisy, may contain untrusted content, and often omits the normalized values that execution will use. Build the approval view from the frozen action object and trusted system data.
+
+A useful packet has five layers, ordered from decision to detail:
+
+1. **Effect summary.** One sentence in direct language: “Send this message to these two external recipients” or “Change this account role from member to administrator.” Avoid an agent-written euphemism such as “complete the requested update.”
+2. **Material parameters.** Show recipients, amount and currency, resource identity, changed fields, audience, attachments, permissions, or other values that determine consequence.
+3. **Before-and-after state.** Show the current bound version and the proposed result. Highlight changes without hiding unchanged fields that materially affect interpretation.
+4. **Evidence and policy.** Link each relevant evidence reference to its source, state which validations passed, and name the policy and reason that routed the action to review.
+5. **Execution conditions.** Show the executing identity, expiry, reversibility note, and what rejection or timeout will do.
+
+The model may draft the effect summary, but deterministic code should verify or construct the critical fields. If the UI says “update contact” while the payload also changes billing permissions, the payload is authoritative and the preview is defective.
+
+### Match information to reviewer authority
+
+More context is not always safer. An approval queue can become an unintended data browser if a reviewer can open evidence, records, or attachments beyond their normal permissions. Authenticate the reviewer, authorize every underlying data fetch, and redact or summarize fields the role does not need.
+
+At the same time, redaction cannot remove information essential to the decision. If a reviewer is not permitted to see the evidence required to judge an action, route the request to a different role. Do not ask someone to approve a hidden consequence.
+
+This creates two separate checks:
+
+- **Can this identity view the packet?** This controls disclosure.
+- **Can this identity decide this action class and scope?** This controls authority.
+
+A manager who may view a record may not be authorized to grant administrator access. A finance reviewer may approve an amount within one business unit but not another. Capture these distinctions in policy and verify them again at execution.
+
+### Design against habitual approval
+
+Approval fatigue is a system design problem, not merely a reviewer training problem. Several interface choices reduce empty clicks:
+
+- Put the proposed effect and changed values before the agent's rationale.
+- Make approval language specific to the action rather than using a universal primary button.
+- Keep approve and reject visually distinct without making rejection hard to reach.
+- Show when a request is a duplicate, retry, or replacement for an expired proposal.
+- Group related low-risk reads in the background, but never bundle unrelated high-impact writes into one approval.
+- Let reviewers filter by owned action class and urgency, while preserving an expiry order.
+- Require a reason code for rejection and for narrowly defined exceptional approvals, but avoid free-form essays for ordinary decisions.
+
+Do not use dark patterns to improve approval latency. A faster queue is not a safer queue if reviewers cannot see what changed.
+
+### Decide what “return for changes” means
+
+Return for changes is neither approval nor mutable approval. It should close or supersede the current request and produce a bounded instruction for a new proposal. The agent can then revise its draft, rerun validation, normalize new arguments, and submit a new action ID and digest.
+
+Suppose a proposed customer email has the correct recipient but an unsupported promise. The reviewer returns it with a reason such as “remove unsupported delivery commitment.” The workflow should not let the agent edit the pending email while keeping the old approval token. It creates a new message proposal, and the reviewer sees the complete new effect.
+
+Similarly, rejection should be effect-aware. If a reviewer rejects an external message, the agent must not use a generic webhook or a second messaging tool to send the same content. Record the rejected effect class, not only the rejected tool invocation, and route equivalent attempts through policy.
+
+![An approval packet organized around the exact effect, material parameters, before-and-after state, evidence, policy, authority, and expiry](/blog/human-in-the-loop-ai-agents-reviewer-decision-packet.png)
+
+## Copy this parameter-bound approval contract
+
+An approval should authorize one normalized action, not a general intention. OWASP specifically recommends binding the actor, tool, target, normalized parameters, timestamp, and expiry to the decision ([OWASP](https://cheatsheetseries.owasp.org/cheatsheets/AI_Agent_Security_Cheat_Sheet.html)).
+
+This vendor-neutral schema turns that recommendation into an implementation contract. The values below are types and allowed states, not a live record or customer example.
+
+```yaml
+version: 1
+
+request:
+  action_id: string
+  run_id: string
+  requested_by:
+    user_id: string
+    agent_id: string
+    agent_version: string
+  tool: string
+  target:
+    resource_type: string
+    resource_id: string
+    state_version: string
+  normalized_arguments: object
+  proposed_effect: string
+  evidence_refs: array[string]
+  risk_path: automatic | approval | human_only | forbidden
+  policy_version: string
+  action_digest: sha256
+  requested_at: datetime
+  expires_at: datetime
+
+decision:
+  reviewer_id: string
+  reviewer_role: string
+  outcome: approve | reject
+  reason_code: string
+  decided_at: datetime
+
+execution:
+  idempotency_key: string
+  status: not_started | executed | rejected | expired | failed
+  executed_at: datetime | null
+  result_ref: string | null
+```
+
+Calculate `action_digest` from a canonical representation of the tool, target, target state version, normalized arguments, and policy version. At execution time, calculate it again. If it differs, ask for a new decision.
+
+Do the same when the target state changed after the preview. Approval to update one version of a record is not approval to overwrite a newer one. The executor should also verify the reviewer's authority, the agent's current permission, the expiry, and the idempotency key. This is a design recommendation derived from exact-action binding, least privilege, replay protection, and fail-closed execution in the OWASP guidance.
+
+### What each field prevents
+
+The contract is intentionally more detailed than an approved boolean. Each group answers a different security or operations question.
+
+**Identity fields** connect the request to the authenticated user, agent, and reviewer. The agent ID alone is not enough because an agent normally acts on behalf of someone or some scheduled process. Store stable internal identifiers, not only display names. Record the reviewer role used for the decision so later role changes do not erase the historical basis.
+
+**Tool and target fields** describe the operation and affected resource. A stable target ID prevents a renamed display label from redirecting the effect. The target state version detects changes between preview and execution.
+
+**Normalized arguments** are the actual values the executor will consume. Do not store a prompt summary in their place. If the action uses a template, attachment, recipient list, or policy-derived default, resolve and include the version or stable identity that affects the result.
+
+**Policy and risk fields** explain why the action took this path. The policy version makes a past decision interpretable after rules change. The risk path records whether the action was automatically executable, approval-gated, human-only, or forbidden when classified. The executor should never convert a human-only or forbidden record into an executable approval.
+
+**Time fields** bound the request. Expiry should reflect how quickly the target or evidence can become stale, not one global convenience setting. A pending public message may remain semantically stable longer than a change based on rapidly changing account state, but the correct value belongs to the action owner.
+
+**Digest and idempotency fields** solve different problems. The digest proves that the proposal has not changed. The idempotency key prevents the same approved proposal from producing the effect more than once. Do not reuse one as the other.
+
+**Evidence and result references** keep the core record small while linking to authorized, retained material. References should be stable enough for the required audit period and should not expose secrets in logs or URLs.
+
+### Canonicalize and hash the executable meaning
+
+The action digest is useful only if every producer and verifier computes the same bytes for the same executable meaning. Define a versioned canonicalization function. For example, the digest input might contain:
+
+```json
+{
+  "canonicalization_version": 1,
+  "tool": "customer_message.send",
+  "target": {
+    "resource_type": "conversation",
+    "resource_id": "stable-resource-id",
+    "state_version": "bound-version"
+  },
+  "normalized_arguments": {
+    "attachment_ids": [],
+    "recipient_ids": ["stable-recipient-id"],
+    "template_version": "approved-template-version"
+  },
+  "policy_version": "policy-version"
+}
+```
+
+This is a type-shaped hypothetical, not a production record. It deliberately avoids customer data, live identifiers, or a claim that the scheme has been deployed.
+
+Serialize that structure with a documented canonical JSON method or an equivalently deterministic format, then compute the digest. Version the canonicalization rules. If a later release changes number handling, Unicode normalization, default expansion, or field inclusion, old pending requests should not be interpreted under the new rules by accident.
+
+The digest input should include everything that can change the authorized effect and exclude values that cannot. A trace ID can stay outside. The executing credential identity, policy version, target version, template version, selected recipients, attachments, and substantive arguments usually belong inside. The exact list is part of the tool's security contract.
+
+![A parameter-binding diagram showing one frozen action digest connecting actor, tool, target version, normalized arguments, policy, reviewer decision, and executor](/blog/human-in-the-loop-ai-agents-exact-action-binding.png)
+
+### Make the executor boring
+
+The executor should not plan, reinterpret, or improve the action. Its job is to reject unsafe states or call one narrow tool with already normalized arguments. The following pseudocode shows the order of checks:
+
+    execute(action_id, decision_id):
+      action = load_frozen_action(action_id)
+      decision = load_final_decision(decision_id)
+
+      require action.status == approved
+      require decision.action_id == action.id
+      require decision.outcome == approve
+      require now < action.expires_at
+
+      current_policy = load_policy(action.effect_class)
+      require current_policy.permits_execution(action)
+      require reviewer_is_authorized(decision.reviewer_id, action)
+      require requester_is_authorized(action.requested_by, action)
+
+      current_target = load_target_version(action.target)
+      require current_target.matches(action.target.state_version)
+
+      canonical = canonicalize_executable_action(action)
+      require sha256(canonical) == action.action_digest
+
+      prior = load_idempotency_result(action.execution.idempotency_key)
+      if prior exists:
+        return prior
+
+      require audit_sink_available_if_policy_demands_it()
+      result = call_narrow_tool(action.normalized_arguments)
+      record_result_atomically_or_reconcile(action, result)
+      return result
+
+Real code must adapt to the storage and external API guarantees available. The ordering conveys the principle: check identity, state, policy, binding, and replay before the side effect; handle the uncertain interval around the external call explicitly.
+
+Do not pass the whole conversation to the executor and ask another model whether it looks approved. That recreates the original problem inside the control. A model may help produce a reviewer-friendly explanation, but the authorization checks are deterministic.
+
+### Handle secrets and sensitive values without weakening binding
+
+An action may contain a secret or sensitive field that should not appear in the approval UI or general audit log. Redacting it from display does not mean omitting it from authorization.
+
+Prefer stable secret references and controlled resolution. For example, bind the action to a credential reference and version, while the executor retrieves the actual secret from an authorized store. If the value itself changes the effect, include a cryptographic commitment or secure version identifier in the digest. The reviewer can see a safe label such as the approved sending account, while logs avoid the credential.
+
+For personal or regulated data, minimize what the action record copies. Evidence references can point to access-controlled source records. Retention should follow the organization's actual policy. The approval system is not a justification to create a second uncontrolled data warehouse.
+
+### Treat batches as first-class actions
+
+Batching can reduce review cost, but it can also turn one click into a broad grant. If a proposal affects multiple targets, bind the complete target set, per-target arguments, aggregate scope, and batch policy. Show counts and meaningful exceptions, but do not make the reviewer approve an unseen tail of items.
+
+Choose one of three designs:
+
+- **Independent actions:** one request and decision per target. Strong isolation, higher queue volume.
+- **Bounded homogeneous batch:** one request for a fixed list of similar effects under a batch limit. Efficient only when the reviewer can inspect the whole set or trustworthy deterministic checks cover every item.
+- **Human-operated bulk task:** the agent prepares data, but a person performs the bulk operation in the authoritative system. Appropriate when exceptions and accountability dominate.
+
+Never let an approved batch accept new members after the decision. New members create a new digest and need a new decision.
+
+### Three hypothetical walkthroughs
+
+Consider an external message. The proposal binds the sending identity, conversation version, recipients, subject, body, attachment IDs, and policy version. The preview shows all recipients and attachments. If the agent edits one sentence after approval, the digest changes and execution stops. If a recipient is added through another field, normalization must include it or the contract is incomplete.
+
+Consider a record update. The proposal binds the stable record ID, version, changed fields, and values. The preview shows before and after. If another process updates the record first, the version mismatch forces a new proposal. The reviewer never unknowingly approves an overwrite of unseen state.
+
+Consider a refund-like financial action. Deterministic code validates the permitted account, currency, maximum amount, eligible order, and absence of an earlier completed effect before review. The person judges the evidence within that envelope. Execution checks those facts again and uses an idempotency key. This is a design example, not a claim that every refund requires the same workflow.
+
+## How do you test a human approval workflow?
+
+Test the boundary as an adversary and as a tired reviewer. The happy path proves almost nothing.
+
+Before granting write access, verify all of these cases:
+
+- A high-impact tool call cannot execute without an approval record.
+- Changing the tool, target, arguments, policy version, or target state invalidates the approval.
+- An expired decision is rejected and follows the written escalation path.
+- A reviewer without the required role cannot approve the action.
+- Replaying an approval or retrying the executor does not repeat the side effect.
+- Malformed or unclassifiable arguments fail closed.
+- Rejection cannot be bypassed by choosing another tool with the same effect.
+- Timeout does not become implicit approval.
+- A failure in policy lookup, approval validation, or audit logging blocks high-impact execution.
+- The log joins the proposal, decision, executor result, and final environment state under one action ID.
+- The approval view hides data the reviewer is not authorized to see.
+- A reviewer can understand the effect and evidence without reading the whole agent trace.
+
+OWASP's current abuse-case matrix explicitly calls for testing whether high-impact actions require a valid, unexpired, parameter-bound approval. It also recommends retaining the approval, denial, timeout, or circuit-breaker evidence ([OWASP](https://cheatsheetseries.owasp.org/cheatsheets/AI_Agent_Security_Cheat_Sheet.html)). Add those cases to the broader [AI agent evaluation suite](/blog/how-to-evaluate-an-ai-agent), and preserve every confirmed bypass as a regression test.
+
+### Test invariants, not only screens
+
+An end-to-end UI test that clicks Approve is necessary but insufficient. State the properties that must remain true regardless of interface, agent prompt, tool alias, retry, or deployment topology.
+
+The core invariants are:
+
+1. No approval-gated effect occurs without one final, valid decision for the same frozen action.
+2. No decision authorizes a different tool, target, state version, normalized argument set, policy scope, or executing identity.
+3. No expired, rejected, cancelled, already-consumed, or insufficiently authorized decision can produce the effect.
+4. No model output can directly change an approval state or executor authorization result.
+5. No high-impact dependency failure follows a more permissive path than the same request under healthy conditions.
+6. Every attempted high-impact execution has a joinable record of classification, decision state, validation outcome, and effect result.
+
+Write tests at the policy, storage, executor, integration, and end-to-end layers. A polished approval page cannot compensate for an executor endpoint that accepts a tool call directly.
+
+### Build a mutation matrix
+
+For one known-good approved action, change exactly one bound element at a time and expect refusal. This makes gaps visible:
+
+| Mutation | Expected result | Defect if it executes |
+| --- | --- | --- |
+| Tool name or tool version changes | Invalidate and require reclassification | Approval is bound only to broad intent |
+| Target ID changes | Refuse | Approval can be redirected |
+| Target state version changes | Refuse or use a documented narrow tolerance | Stale preview can overwrite new state |
+| One normalized argument changes | Refuse | Digest does not cover executable parameters |
+| Default value changes after approval | Refuse | Normalization happened too late |
+| Recipient or attachment is added | Refuse | Hidden effect-bearing fields are unbound |
+| Policy version or effect class changes | Revalidate under explicit compatibility rules | Old decisions silently gain authority |
+| Executing credential changes | Refuse unless the bound policy explicitly permits it | Approval can cross identity boundaries |
+| Expiry passes | Mark expired; never execute | Time limit is cosmetic |
+| Reviewer role is revoked | Refuse at execution | Authority is checked only at click time |
+
+Automate this matrix for every high-impact tool contract. Tool-specific fields matter. A messaging tool needs recipient, reply-to, attachments, and sending identity coverage. A data update needs target version and changed fields. A financial tool needs amount representation, currency, destination, and idempotency coverage.
+
+### Test equivalent effects and indirect paths
+
+Agents can reach the same outcome through more than one tool. If policy guards the email tool but allows an unrestricted HTTP tool, the boundary is incomplete. Map tools to effect classes and test alternate routes.
+
+Examples of equivalence questions include:
+
+- Can a generic database tool alter the same field as the protected business action?
+- Can code execution call the external API directly?
+- Can a message be sent through a ticket comment, webhook, or shared document instead of the guarded messaging tool?
+- Can a file deletion be achieved by overwriting, moving, expiring, or changing permissions?
+- Can the agent delegate the forbidden action to another agent or workflow?
+
+The answer is not always to put a reviewer in front of every generic capability. Often the better fix is deletion: remove the broad tool, split it into narrow operations, restrict its network and credentials, or make the generic route unavailable to the agent. Approval should control a well-defined capability, not rescue an unbounded one.
+
+### Exercise the entire decision lifecycle
+
+Test each final and intermediate state:
+
+- proposal fails schema validation;
+- policy cannot classify the action;
+- action is automatically allowed within limits;
+- action is routed to review;
+- reviewer approves;
+- reviewer rejects with a reason;
+- reviewer returns for changes and a new request is created;
+- request expires before decision;
+- request is cancelled by the requester;
+- approval succeeds but execution later refuses stale state;
+- executor times out before calling the external system;
+- external system succeeds but the local result write fails;
+- retry finds an existing idempotency result;
+- audit dependency is unavailable;
+- policy changes while a request is pending.
+
+For each case, assert both what happens and what cannot happen. On rejection, verify no execution request is queued. On expiry, verify a late approval event is ignored. On uncertain external success, verify the reconciler checks before retrying. On failed audit, verify the documented fail-closed path for high-impact actions.
+
+### Treat the approval channel as an attack surface
+
+The request a reviewer opens may contain model-produced or externally sourced text. Render it as data, not executable markup. Do not let evidence content inject buttons, links that look like controls, scripts, or instructions that override the trusted page.
+
+Test at least:
+
+- untrusted HTML, Markdown, URLs, and bidirectional text in summaries and evidence;
+- an action explanation that falsely says a field is unchanged;
+- a misleading display name that resembles a protected target;
+- extremely long content that pushes material fields out of view;
+- duplicate recipients, Unicode lookalikes, and alternate identifier formats;
+- a link that points to a different resource than its label suggests;
+- stale browser tabs approving a request whose state changed elsewhere;
+- cross-site request forgery, session expiry, and reauthentication for sensitive decisions as appropriate to the application.
+
+The reviewer packet should privilege trusted identifiers and system-computed diffs over narrative generated by the agent.
+
+### Test reviewer usability with scenarios, not invented performance claims
+
+A technically enforced gate can still fail if people cannot understand the proposal. Use representative, authorized test scenarios and ask reviewers to state the effect, target, critical changes, evidence, and reversal path before deciding. Observe confusion and missing context. Do not turn a small usability exercise into a benchmark claim.
+
+Useful questions include:
+
+- Can the reviewer identify all recipients and attachments?
+- Can they distinguish current state from proposed state?
+- Can they tell why policy requested their role?
+- Can they find the source evidence without seeing unrelated sensitive data?
+- Can they recognize that an approved action expired or was superseded?
+- Can they distinguish rejection from return for changes?
+
+Record issues as interface or policy defects. “Reviewer error” is not a sufficient root cause when the system hid the consequence.
+
+### Keep a copyable pre-release test artifact
+
+Use this table for each approval-gated action:
+
+| Test ID | Setup | Attempt | Expected policy result | Expected side effect | Required evidence |
+| --- | --- | --- | --- | --- | --- |
+| AUTH-01 | No decision exists | Call executor directly | Deny | None | Validation and denial record |
+| BIND-01 | Valid approval exists | Change one bound argument | Invalidate | None | Digest mismatch with action ID |
+| STATE-01 | Target changed after preview | Execute approved action | Invalidate or documented tolerance | None unless tolerance is proven | Old and new state versions |
+| TIME-01 | Request is expired | Submit late approval | Keep expired | None | Expiry and ignored event |
+| ROLE-01 | Reviewer lacks required scope | Attempt approval | Deny decision | None | Identity and authorization result |
+| REPLAY-01 | Action already executed | Retry with same idempotency key | Return prior result | No duplicate | Prior and retry correlation |
+| REJECT-01 | Request was rejected | Try equivalent tool path | Deny effect class | None | Rejection and alternate path |
+| FAIL-01 | Required policy or audit dependency fails | Execute high-impact action | Fail closed | None | Dependency and refusal record |
+| DATA-01 | Packet contains unauthorized evidence | Open as limited reviewer | Redact or deny | None | Access-control result |
+| RECOVER-01 | External call may have succeeded before worker crash | Retry | Reconcile before any call | At most one effect | External and local correlation |
+
+Replace the generic setup with concrete, non-sensitive fixtures for the tool. A test passes only when the expected state, absence or presence of the effect, and required evidence all match. Preserve a discovered bypass as a regression case before widening access.
+
+![An adversarial test matrix covering missing approval, parameter mutation, stale state, expiry, role failure, replay, alternate tools, dependency failure, and recovery](/blog/human-in-the-loop-ai-agents-approval-adversarial-tests.png)
+
+## How do you keep approval from becoming a bottleneck?
+
+Do not make a person approve everything. That is the design inference at the center of this framework: if every harmless read and reversible draft pauses, the agent loses much of its value while reviewers learn to click through requests.
+
+Start with four operating signals:
+
+| Signal | What it may reveal | Useful response |
+| --- | --- | --- |
+| Approval and rejection rate by action | A path may be too broad, too narrow, or poorly explained | Inspect samples; change policy only with evidence |
+| Decision latency and timeout rate | The wrong role may own the queue, or the context may be insufficient | Fix routing, service level, or the reviewer packet |
+| Actions changed before approval | The agent may propose incomplete work | Improve validation before the queue |
+| Post-approval failure or rollback | Approval may not bind current state, or execution may be unreliable | Tighten state checks and add regression cases |
+| Bypass attempts and alternate-tool retries | The policy may control a tool name instead of the real-world effect | Group equivalent effects under one policy boundary |
+
+![An operating loop connecting approval outcomes, latency, timeouts, failures, and bypass attempts to evidence review and narrow policy changes](/blog/human-in-the-loop-ai-agents-approval-operations-loop.png)
+
+These are diagnostic measures, not universal targets. A high rejection rate can mean the gate works, the agent proposes bad actions, or the policy sends too much to review. Read the cases before changing the threshold.
+
+You can move a narrow action from approval to automatic execution only when its policy is deterministic, its permissions are minimal, its effect is contained, representative evaluations pass, and production monitoring can catch drift. Expand one action at a time.
+
+## When is a human approval gate the wrong control?
+
+Use a deterministic rule when the decision can be encoded completely. Do not pay a person to approve a change that policy already allows and software can verify.
+
+Hand the task to a person when the judgment itself carries accountability. The agent can collect evidence and prepare the case, but a yes-or-no button should not disguise a complex human decision.
+
+Forbid the action when neither the agent nor the proposed reviewer should have that power. Some risks should be removed, not approved.
+
+And never use HITL to cover missing authorization, weak evaluation, unbounded retries, or poor observability. Human approval is one control in a layered system. It is not a rescue plan for every other missing control.
+
+## A practical build sequence
+
+1. Inventory every tool and the real-world effects it can cause.
+2. Split broad tools into narrow actions with minimum credentials.
+3. Classify each action by consequence, reversibility, authority, and ambiguity.
+4. Assign one path: automatic, approval, human-only, or forbidden.
+5. Implement the preview and parameter-bound contract before the executor.
+6. Test mutation, expiry, replay, rejection, timeout, and failed dependencies.
+7. Pilot with limited scope, measure the queue, and widen one permission only after the evidence supports it.
+
+The goal is not to keep a human near the agent. It is to make human authority precise at the moment it matters.
+
+If you want to map one real workflow into these four paths, [my one-to-one AI consulting](/learn-ai) is for working through the design with you. It is not a done-for-you agency build. Bring the tool list, current permissions, risky actions, and the person who owns the outcome.
