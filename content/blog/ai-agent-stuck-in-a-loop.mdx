@@ -1,0 +1,292 @@
+---
+title: 'Why Is My AI Agent Stuck in a Loop? Diagnose and Fix It'
+date: '2026-08-17'
+updated: '2026-08-17'
+excerpt: 'Diagnose a looping AI agent with trace-first checks, verify real progress, contain runaway work, and add the right retry, recovery, or stop condition.'
+answer: 'An AI agent is stuck in a loop when it repeats actions without creating new evidence or moving the task toward a verifiable outcome. Trace the repeated tool call or handoff, compare state before and after each attempt, then add an explicit stop condition, bounded retry policy, and recovery path outside the model.'
+targetQuery: 'why is my AI agent stuck in a loop'
+queryAliases:
+  - 'AI agent infinite loop'
+  - 'AI agent keeps repeating the same action'
+  - 'how to stop an AI agent loop'
+  - 'AI agent retry loop'
+intent: 'diagnostic / implementation'
+funnel: 'consideration'
+cluster: 'AI agent failures and reliability'
+tags:
+  - 'AI agents'
+  - 'Agent reliability'
+  - 'Debugging'
+  - 'Agent operations'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-15'
+sources:
+  - 'https://openai.github.io/openai-agents-python/running_agents/'
+  - 'https://openai.github.io/openai-agents-python/guardrails/'
+  - 'https://openai.github.io/openai-agents-python/human_in_the_loop/'
+  - 'https://www.anthropic.com/engineering/building-effective-agents'
+  - 'https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents'
+  - 'https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-agent-spans.md'
+cover: '/blog/ai-agent-stuck-in-a-loop-ai-agent-loop-hero.png'
+coverAlt: 'An AI agent loop stopped at a boundary after repeated tool actions fail to produce progress'
+draft: false
+---
+
+An agent that keeps calling the same tool is not necessarily confused. It may be retrying a transient failure, waiting for a state change, or following a verifier that has no way to recognize success.
+
+The important distinction is progress. An AI agent is stuck in a loop when it repeats actions without creating new evidence or moving the task toward a verifiable outcome. The fix is not always “make the prompt better.” First trace the repeated step, compare state before and after it, then add an explicit stop condition, a bounded retry policy, and a recovery path outside the model.
+
+## Why does an AI agent get stuck in a loop?
+
+An agent loops when its continuation rule keeps evaluating to “try again” while the environment supplies no new information that could make the next attempt succeed.
+
+In a tool-using runtime, the basic cycle is straightforward: invoke the model, inspect its output, execute tool calls or a handoff, append the result, and invoke the loop again. OpenAI documents this pattern in its Agents SDK. The run ends when the agent produces a final output, or when a configured limit or guardrail stops it ([OpenAI Agents SDK running agents](https://openai.github.io/openai-agents-python/running_agents/), [Runner reference](https://openai.github.io/openai-agents-python/ref/run/)).
+
+That cycle can fail in several places:
+
+| Failure point | What repeats | Missing control |
+| --- | --- | --- |
+| Goal | The agent restates the task or rewrites the same plan | A concrete done condition and a smaller next action |
+| Tool | The same name and equivalent arguments appear repeatedly | A useful error contract, idempotency rule, or retry policy |
+| State | The agent writes, reads stale state, and writes again | A fresh read, version check, or postcondition |
+| Verifier | The agent completes the work but the checker never accepts it | A verifier that can observe the actual outcome |
+| Handoff | Two agents route the task back and forth | Ownership, a handoff limit, and a terminal owner |
+| Recovery | Each error triggers the same repair | Error classification and a different recovery branch |
+
+![Diagram comparing the main shapes of non-converging AI agent loops](/blog/ai-agent-stuck-in-a-loop-agent-loop-shapes.png)
+
+Do not diagnose the model before you locate the first repeated boundary. The model may be choosing a reasonable action in response to an unhelpful tool result. Anthropic describes agents as language models using tools based on environmental feedback in a loop, and stresses that toolsets and their documentation need to be designed clearly. A vague tool contract can create a loop even when the model is behaving consistently ([Anthropic: Building effective agents](https://www.anthropic.com/engineering/building-effective-agents)).
+
+## Is this a retry or a real loop?
+
+Use a progress test, not a repetition count alone.
+
+A **retry** is bounded and justified: the attempt targets a transient failure, changes a relevant input, or waits for a condition that can plausibly become true. A **loop** repeats without a new success-relevant state, evidence, or decision.
+
+For each attempt, ask:
+
+1. Did the agent call a different operation or change a meaningful argument?
+2. Did the tool return new information rather than the same error or stale record?
+3. Did the environment change in a way that makes the goal closer?
+4. Did the verifier’s evidence change?
+5. Did the recovery strategy change?
+
+If the answer is no across a bounded window, the runtime should stop or switch to a declared recovery path. That is an engineering rule, not a claim that one universal number of repeats works for every workflow.
+
+![LOOP-R gates for diagnosing and recovering from an AI agent loop](/blog/ai-agent-stuck-in-a-loop-loop-r-framework.png)
+
+This distinction matters because retrying can be useful. A network timeout may succeed on the next attempt. A rate-limited provider may recover after backoff. A tool that returns “job still running” may need polling. The runtime should know which cases are retryable, how long to wait, and what evidence ends the wait. The model should not be the only component deciding that.
+
+## What is the fastest way to debug a looping agent?
+
+Capture one complete run before changing the prompt. You need the ordered trace, the exact tool arguments after validation, tool results, state snapshots or version markers, retry reasons, and the termination event. OpenTelemetry’s current GenAI conventions model agent invocation, planning, and tool execution as distinct spans, and label the conventions as Development. Use that structure or an equivalent one, but keep your application’s diagnostic fields separate from any changing provider schema ([OpenTelemetry GenAI agent spans](https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-agent-spans.md)).
+
+Then walk backward from the repetition:
+
+1. **Find the first duplicate.** Compare tool name, normalized arguments, relevant retrieved evidence, and state version. Two calls that differ only in whitespace or phrasing may be the same effective action.
+2. **Read the tool result as a contract.** Is the result a success, a retryable error, a permanent error, or an ambiguous sentence? Does it include the next valid action?
+3. **Check the state change.** Did the action create a record, change a status, advance a cursor, or write an event? If not, what did the runtime expect?
+4. **Inspect the stop test.** What exact condition tells the agent or orchestrator to finish? Can that condition be observed outside the model?
+5. **Check the recovery branch.** When the first attempt fails, does the system choose another strategy, ask for missing input, escalate, or repeat the same call?
+6. **Contain before repair.** Stop the live run, cancel pending work where possible, and prevent a repeated write from creating more side effects.
+
+![Trace sequence showing an action fingerprint detecting a repeated effective tool call](/blog/ai-agent-stuck-in-a-loop-repeated-action-fingerprint.png)
+
+The first repeated boundary is usually more valuable than the last model message. The last message tells you what the agent said. The trace tells you what kept the system moving in circles.
+
+## What is the LOOP-R diagnostic framework?
+
+I use **LOOP-R** as a five-question checklist for a non-converging run. It is an original synthesis, not an SDK feature or a standards framework.
+
+| Gate | Question | Evidence to inspect | Typical fix |
+| --- | --- | --- | --- |
+| **L: Limit** | What hard boundary stops runaway work? | Turn, wall-clock, tool-call, token, spend, and side-effect budgets | Add a runtime cap and a safe termination state |
+| **O: Observe** | What exactly repeats? | Trace ID, action fingerprint, normalized arguments, tool result, state version | Add structured events and compare effective actions, not raw text |
+| **O: Outcome** | What proves the task is done? | Source-of-truth record, test result, file diff, approval, or user-confirmed state | Define an external success predicate |
+| **P: Progress** | What must change between attempts? | State delta, new evidence, cursor, version, or strategy branch | Add a postcondition, freshness check, or strategy change |
+| **R: Recover** | What happens after the loop is detected? | Retry class, backoff, escalation, rollback, and human decision | Route to a different bounded path or stop safely |
+
+LOOP-R turns “the model keeps looping” into a set of questions you can answer in code and traces. It also prevents a common half-fix: adding a maximum number of turns while leaving the agent unable to tell whether it made progress.
+
+## How do you fix the most common loop shapes?
+
+### 1. Identical-action loops
+
+**Symptom:** the same tool and equivalent arguments recur, often after the tool has already returned the same result.
+
+**Likely cause:** the tool result does not tell the agent whether the action succeeded, failed permanently, or can be retried. The action may also be non-idempotent, so repeating it can create duplicate side effects.
+
+**Fix:** normalize the arguments, fingerprint the effective action, and classify the result. Allow retries only when the error class is explicitly retryable. For writes, use an idempotency key or a server-side deduplication rule. On the second materially identical failure, prefer a recovery branch or escalation over another blind call.
+
+Do not block all duplicate calls. Some operations are intentionally repeatable, such as polling a job or refreshing a read. The tool contract should declare whether repetition is safe and what changed evidence looks like.
+
+### 2. Repair loops
+
+**Symptom:** the model receives an error, edits the arguments, receives the same validation error, and keeps making cosmetic variations.
+
+**Likely cause:** the validator explains what is wrong but not what valid input looks like, or the model does not have the missing information.
+
+**Fix:** make validation errors structured. Return a stable error code, the field that failed, the allowed range or shape, and whether the caller can fix it with the current context. After a bounded number of failed repairs, ask a person or return a precise missing-input request.
+
+If the model cannot supply the missing value, more retries are not more intelligence. They are repetition with a longer bill.
+
+### 3. Verifier loops
+
+**Symptom:** the agent performs the requested action, then keeps checking because the verifier never reports success.
+
+![Architecture diagram connecting an agent action to a verified postcondition and recovery branch](/blog/ai-agent-stuck-in-a-loop-agent-progress-postcondition.png)
+
+**Likely cause:** the action and the verifier disagree about identifiers, consistency delay, status vocabulary, or the definition of done.
+
+**Fix:** write the postcondition beside the action. Specify the record, fields, version, freshness window, and acceptable terminal states. If the system is eventually consistent, use a bounded poll with a timeout and a distinct `pending` state. Do not turn “not visible yet” into an instruction to repeat the write.
+
+### 4. Handoff loops
+
+**Symptom:** specialist A hands off to B, B routes to A, or a manager repeatedly delegates the same task.
+
+**Likely cause:** ownership overlaps, the handoff schema loses context, or no agent is authorized to finish.
+
+**Fix:** give each agent a narrow responsibility, a typed handoff payload, and a terminal owner. Track the handoff chain and set a handoff budget. If the budget is exceeded, return the task to a person or a deterministic fallback.
+
+The agent orchestration mechanism should not be treated as an exit condition. “The specialist has seen it” is not the same as “the task is complete.”
+
+### 5. Progress-free exploration
+
+**Symptom:** the agent keeps searching, retrieving, opening files, or asking tools for more context without narrowing the task.
+
+**Likely cause:** the goal is underspecified, the search tool returns too much low-signal material, or the agent has no criterion for sufficient evidence.
+
+**Fix:** define an evidence budget and a decision rule. For research, require a minimum set of relevant sources and a stop condition such as “the answer is supported or the uncertainty is explicit.” For code, require a changed file, a passing test, or an explicit blocker. More context is not automatically progress.
+
+## How do you stop a loop safely?
+
+Put containment outside the model. The runtime should enforce limits even if the model says it is almost finished.
+
+At minimum, define:
+
+- a maximum number of model turns;
+- a maximum wall-clock duration;
+- a maximum number of tool calls and repeated effective actions;
+- a token or spend budget where usage is metered;
+- a side-effect budget for writes, messages, or other external actions;
+- a termination state that records why the run stopped;
+- a recovery path: retry later, change strategy, ask a person, roll back, or return a partial result.
+
+![Runtime boundary diagram showing turn, time, cost, tool-call, and side-effect budgets](/blog/ai-agent-stuck-in-a-loop-bounded-agent-runtime.png)
+
+The OpenAI Agents SDK exposes `max_turns` and raises `MaxTurnsExceeded` when a run crosses the configured limit. Its guardrail system also exposes tripwires that can stop execution. Those are examples of runtime boundaries; the exact API is not universal ([OpenAI Agents SDK running agents](https://openai.github.io/openai-agents-python/running_agents/), [OpenAI Agents SDK guardrails](https://openai.github.io/openai-agents-python/guardrails/)).
+
+A limit should produce a useful incident record, not a silent timeout. Record the last action, the reason for termination, whether any side effect happened, and what the operator should do next.
+
+Here is an illustrative pseudocode pattern. It is intentionally framework-neutral and has not been run against a live agent:
+
+```text
+state = load_run_state()
+budget = {turns: 12, tool_calls: 24, wall_seconds: 90}
+seen_effective_actions = set()
+
+while budget.allows() and not outcome_verified(state):
+    proposal = model_step(state)
+    action = normalize_and_validate(proposal)
+
+    if action.is_side_effect and not authorized(action):
+        return stop("unauthorized_action", state)
+
+    fingerprint = effective_fingerprint(action)
+    if fingerprint in seen_effective_actions and not retry_is_declared_safe(action, state):
+        return recover("repeated_action", state)
+
+    seen_effective_actions.add(fingerprint)
+    result = execute_with_timeout(action)
+    state = record_result_and_refresh_state(state, result)
+
+    if permanent_error(result):
+        return recover("permanent_tool_error", state)
+    if not progress_observed(state):
+        return recover("no_progress", state)
+
+return recover("budget_or_unknown_stop", state)
+```
+
+The important parts are not the syntax. The model proposes; the runtime validates, authorizes, limits, records, and decides whether the next attempt is justified. For sensitive tools, a human can be part of the recovery path. OpenAI’s HITL flow describes pausing execution until a person approves or rejects a sensitive tool call, then resuming the saved run ([OpenAI Agents SDK human-in-the-loop](https://openai.github.io/openai-agents-python/human_in_the_loop/)).
+
+## What should the tool return to prevent loops?
+
+Tool design is often the real fix. A model can only choose well from the evidence it receives.
+
+Prefer structured results with:
+
+```json
+{
+  "status": "success | retryable_error | permanent_error | pending",
+  "code": "CASE_NOT_READY",
+  "message": "The case is still being indexed.",
+  "retry_after_seconds": 10,
+  "state_version": "v42",
+  "changed": false,
+  "next_allowed_action": "poll_case",
+  "safe_to_repeat": true
+}
+```
+
+This is an illustrative contract, not a vendor schema. The `status` and `code` let the runtime classify the result without asking a second model to interpret prose. `state_version` and `changed` make progress observable. `next_allowed_action` narrows the recovery path. `safe_to_repeat` prevents a generic retry handler from applying the same policy to a destructive write and a harmless read.
+
+The tool should not claim success merely because it accepted a request. If the call queues work, return `pending` and an identifier the verifier can poll. If it performs a write, return a durable reference and enough state for a postcondition check. If it fails permanently, say so in a machine-readable way.
+
+![Structured tool result showing status, retry guidance, state version, and the next allowed action](/blog/ai-agent-stuck-in-a-loop-structured-tool-result.png)
+
+## How do you test that the loop is actually fixed?
+
+Do not test only the original prompt. Test the boundary that failed.
+
+Build a small matrix with at least these cases:
+
+| Case | Injected condition | Expected behavior |
+| --- | --- | --- |
+| Transient read failure | First read times out, second succeeds | Bounded retry, then completion |
+| Identical permanent failure | Tool returns the same validation error twice | Stop or request missing input, no third blind call |
+| Stale verifier | Write succeeds but the read is briefly behind | Poll a bounded number of times; never repeat the write |
+| No-op write | Tool accepts a request but state version does not change | Detect no progress and recover |
+| Unsafe repeat | Same destructive action is proposed twice | Block, deduplicate, or require approval |
+| Handoff cycle | Agent A routes to B and B routes to A | Stop at the handoff budget and surface ownership |
+| Budget exhaustion | The task remains unresolved until the runtime limit | Terminate with a clear reason and no further side effects |
+
+For each case, assert both the final result and the trace: number of turns, tool calls, repeated fingerprints, state versions, termination reason, and side effects. Anthropic’s agent-evaluation guidance illustrates this broader pattern by giving an agent tools, a task, and an environment, then using tests to verify the resulting state rather than grading only the final prose ([Anthropic: Demystifying evals for AI agents](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)).
+
+![Regression matrix for transient failures, unsafe repeats, stale verification, handoff cycles, and budget exhaustion](/blog/ai-agent-stuck-in-a-loop-loop-regression-matrix.jpg)
+
+After the fix, keep the original failure as a regression case. If the fix is a new tool contract, add a contract test. If the fix is a runtime boundary, add a termination test. If the fix is a missing outcome check, add a postcondition test. A prompt edit without a test is a hope, not a repair.
+
+## When should a loop escalate to a person?
+
+Escalate when the agent lacks information, authority, or a safe next action. A human is useful at a boundary; a human who is asked to watch an unbounded loop is a substitute for a missing runtime control.
+
+Ask for a person when:
+
+- the next action could create a consequential or hard-to-reverse side effect;
+- the tool result is ambiguous and the system of record cannot resolve it;
+- the agent needs a value that is not available in its permitted context;
+- the run has crossed its retry, cost, time, or handoff budget;
+- two valid policies conflict and the workflow has no deterministic priority.
+
+Do not hide the escalation. Record what the agent proposed, what evidence the person saw, what decision they made, and whether the run resumed. This makes the human step part of the repairable system rather than an invisible manual patch. For broader approval design, use [the human-in-the-loop guide](/blog/human-in-the-loop-ai-agents). For the rest of the production evidence, use [the AI agent monitoring guide](/blog/how-to-monitor-an-ai-agent-in-production).
+
+## A compact loop-breaker checklist
+
+Use this when a run is repeating:
+
+- [ ] Stop or cap the current run before changing prompts.
+- [ ] Find the first repeated effective action, not just repeated wording.
+- [ ] Compare arguments, tool results, state versions, and retrieved evidence.
+- [ ] Classify the failure as transient, permanent, ambiguous, or unsafe to repeat.
+- [ ] Write the external condition that proves success.
+- [ ] Define what must change before another attempt is justified.
+- [ ] Add turn, time, cost, tool-call, and side-effect limits outside the model.
+- [ ] Make tool errors structured enough for code to classify.
+- [ ] Make writes idempotent or bind them to a deduplication key where possible.
+- [ ] Give every recovery branch a terminal state.
+- [ ] Turn the incident into a regression case and verify the real state after the fix.
+
+The goal is not to make an agent incapable of trying again. The goal is to make every retry earn its place with new evidence, a changed state, or a declared recovery strategy.
+
+If you want help finding the failing boundary in a real agent, Marius’s [AI consulting page](/learn-ai) describes one-to-one work on actual AI workflows, code, and agents. Bring the trace, the tool contract, and the last action that repeated. That is enough to start a useful diagnosis.
