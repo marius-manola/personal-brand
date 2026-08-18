@@ -1,0 +1,991 @@
+---
+title: 'How to Design an AI Agent State Machine'
+date: '2026-08-18'
+updated: '2026-08-18'
+excerpt: 'Design an AI agent state machine with explicit state, guarded transitions, safe side effects, persistence, recovery paths, and tests you can run before production.'
+answer: 'Design an AI agent state machine around an explicit run state and a small transition function. Keep the LLM inside bounded states that interpret or propose. Keep guards, permissions, retries, terminal conditions, persistence, and commits in deterministic runtime code. Persist before pauses or side effects, then test every legal transition and restart path.'
+targetQuery: 'how to design an ai agent state machine'
+queryAliases:
+  - 'AI agent state machine'
+  - 'agent workflow state machine'
+  - 'how to build an AI agent state machine'
+  - 'state machine design for AI agents'
+intent: 'informational / implementation'
+funnel: 'consideration'
+cluster: 'AI agent architecture'
+tags:
+  - 'AI agents'
+  - 'AI architecture'
+  - 'AI reliability'
+  - 'Building'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-16'
+sources:
+  - 'https://openai.github.io/openai-agents-python/running_agents/'
+  - 'https://openai.github.io/openai-agents-python/ref/run_state/'
+  - 'https://openai.github.io/openai-agents-python/multi_agent/'
+  - 'https://docs.langchain.com/oss/python/langgraph/persistence'
+  - 'https://docs.langchain.com/oss/python/langgraph/interrupts'
+  - 'https://docs.langchain.com/oss/python/langgraph/functional-api'
+  - 'https://docs.langchain.com/oss/python/langgraph/backward-compatibility'
+  - 'https://docs.aws.amazon.com/step-functions/latest/dg/concepts-statemachines.html'
+  - 'https://docs.aws.amazon.com/step-functions/latest/dg/concepts-error-handling.html'
+  - 'https://docs.temporal.io/'
+  - 'https://github.com/temporalio/documentation/blob/main/docs/encyclopedia/retry-policies.mdx'
+  - 'https://learn.microsoft.com/en-us/agent-framework/concepts/workflows/builder-and-execution'
+  - 'https://learn.microsoft.com/en-us/agent-framework/concepts/workflows/state'
+  - 'https://cheatsheetseries.owasp.org/cheatsheets/AI_Agent_Security_Cheat_Sheet.html'
+faq:
+  - q: 'What should be stored in an AI agent state machine?'
+    a: 'Store the current state ID, run and workflow versions, objective, validated inputs, bounded working data, pending action, attempt counters, budget, last event, and checkpoint metadata. Keep durable memory, live business facts, and audit evidence in their own stores.'
+  - q: 'Should the LLM choose the next state in an AI agent?'
+    a: 'Usually, no. Let the LLM interpret input or propose a structured action, then let deterministic runtime code validate the proposal and select the next legal state. An LLM may suggest a route inside a bounded set, but it should not bypass guards, permissions, budgets, or terminal states.'
+  - q: 'How do you prevent an AI agent state machine from looping forever?'
+    a: 'Give every run a step budget, every retryable transition an attempt budget, and every state a measurable exit condition. Record the transition fingerprint, detect repeated no-progress transitions, and route exhaustion to a terminal blocked or failed state instead of silently trying again.'
+  - q: 'How should an AI agent state machine handle human approval?'
+    a: 'Use an explicit waiting or approval state. Persist the exact proposed action, normalized parameters, actor, expiry, and run version before pausing. Resume only after validating that approval still binds to the same action and that permissions and live facts have not changed.'
+  - q: 'What is the difference between agent state and agent memory?'
+    a: 'State answers where the current run is and what it may do next. Memory is selected information intended to influence future runs. Task checkpoints, durable memory, live system facts, and audit evidence have different owners and retention rules, so do not collapse them into one transcript or vector index.'
+cover: '/blog/how-to-design-an-ai-agent-state-machine-hero.png'
+coverAlt: 'Illustration of an AI agent state machine with guarded transitions, checkpoints, and terminal states'
+draft: false
+---
+
+An AI agent becomes difficult to trust when its next move exists only in a prompt and a growing transcript.
+
+## How should you design an AI agent state machine?
+
+Design the machine around an explicit run state and a small transition function. Keep the LLM inside bounded states that interpret input or propose an action. Keep guards, permissions, retries, terminal conditions, persistence, and commits in deterministic runtime code. Persist before pauses or side effects, then test every legal transition and restart path.
+
+That is the short answer. The rest of this guide explains what each phrase means, how the parts fit, and where common implementations go wrong.
+
+The central distinction is between cognition and control. An LLM is useful when the input is ambiguous, the plan needs language-level reasoning, or an answer must be composed from retrieved material. It is a poor place to hide the rules that decide whether a payment may be sent, whether a retry is still safe, or whether a task has already reached a terminal condition.
+
+The [OpenAI Agents SDK running-agents guide](https://openai.github.io/openai-agents-python/running_agents/) describes a loop that calls the model, checks for final output, executes tool calls, follows handoffs, and stops when max_turns is exceeded. That is an agent loop. A state machine gives that loop an explicit outer contract: named states, legal events, validated transitions, persistence boundaries, and terminal outcomes.
+
+![Illustration of an AI agent loop becoming an explicit state machine](/blog/how-to-design-an-ai-agent-state-machine-inline-1.png)
+
+**A reliable AI agent uses the model for bounded judgment and the runtime for control.**
+
+This division does not make the agent rigid. It makes the flexible part visible. You can still let a model plan, classify, summarize, or select from a safe set of actions. You simply make the proposal pass through a state transition that your application can inspect and reject.
+
+## What is an AI agent state machine?
+
+An AI agent state machine is a finite set of named states connected by transitions. A run occupies one current state. An event, such as a validated tool result, an approval, a timeout, or an exhausted retry budget, can move it to another state.
+
+The machine needs four ingredients:
+
+1. **State.** What is true about the current run, including what has been validated and what is pending.
+2. **Events.** Inputs that may cause movement, such as task_received, classification_ready, tool_succeeded, approval_granted, or timeout.
+3. **Guards.** Conditions that must be true before an event is accepted as a transition.
+4. **Effects.** Work caused by the transition, including model calls, reads, writes, notifications, and commits.
+
+AWS Step Functions uses similar vocabulary at the workflow level. Its documentation describes workflows as event-driven steps, separates flow states that control execution from task states that perform work, and treats each run as an execution with state input and output ([AWS Step Functions state machines](https://docs.aws.amazon.com/step-functions/latest/dg/concepts-statemachines.html)). That is a useful mental model even when your runtime is not AWS.
+
+A state machine is not the same as a prompt with labels. A label such as REVIEWING does not create a control boundary if the model can ignore it, call any tool, or write directly to production. The state becomes real when the runtime enforces what can enter it, what can leave it, and which effects can happen inside it.
+
+### What does “finite” mean when the agent can handle many tasks?
+
+Finite refers to the defined set of states and transitions, not to a fixed number of user conversations. You can process many runs through the same machine. Each run has its own state instance, run ID, checkpoint history, budgets, and outputs.
+
+The machine can contain a loop, such as EVALUATE to PLAN, but the loop must have a measurable exit. The exit might be a validated answer, a completed side effect, a human decision, a step budget, or a terminal failure. An unbounded loop is not autonomy. It is an omitted failure state.
+
+### How is a state machine different from an agent loop?
+
+An agent loop usually describes the repeated interaction between a model and its tools. A state machine describes the larger lifecycle around that loop. It can decide when the model may be called, where tool results go, when an approval is required, which error gets retried, and what happens when no safe transition remains.
+
+OpenAI's public documentation uses the line, “The runner then runs a loop:” and then specifies model calls, final output, handoffs, tool calls, and max_turns behavior ([OpenAI Agents SDK, Running agents](https://openai.github.io/openai-agents-python/running_agents/)). That loop is a good inner execution primitive. Your state machine is the contract that keeps the inner primitive from becoming the whole system.
+
+### How is a state machine different from agent memory?
+
+State is about the current task. Memory is selected information that may influence future tasks. A checkpoint saying “the refund request is waiting for approval” is execution state. A validated preference saying “this account receives invoices in German” is durable memory. The current refund amount is a live business fact owned by the order system, not a memory record.
+
+LangGraph makes this distinction explicit in its persistence documentation. A checkpointer stores thread graph state, while a store holds application-defined data across threads ([LangGraph persistence](https://docs.langchain.com/oss/python/langgraph/persistence)). The names differ across frameworks, but the ownership distinction is the important part.
+
+If you place all four categories in one transcript, a later model call has to infer whether a sentence is a current fact, a prior observation, an instruction, or an audit record. That is a control problem disguised as a context problem.
+
+![Illustration of task state, agent memory, live facts, and audit evidence as separate layers](/blog/how-to-design-an-ai-agent-state-machine-inline-2.png)
+
+For a deeper treatment of memory fields and promotion rules, see [How to Design an AI Agent Memory Schema](/blog/how-to-design-an-ai-agent-memory-schema). This article uses that boundary rather than repeating it.
+
+## Should the state machine control the LLM or should the LLM control the state machine?
+
+The runtime should own the legal state graph. The LLM may provide a classification, plan, route proposal, or structured action, but the runtime should validate it against the current state and choose the transition.
+
+There are three useful control modes:
+
+| Mode | What the model does | What the runtime does | Suitable use |
+| --- | --- | --- | --- |
+| Deterministic route | No route decision | Selects the next state from an event | Approval, payment, deletion, policy, and retry boundaries |
+| Bounded proposal | Suggests one of a known set of actions or labels | Validates the schema and selects the matching legal edge | Classification, triage, tool selection, response planning |
+| Open-ended planning | Produces a plan or sequence | Validates each step, limits tools, budgets, and commits | Research or drafting tasks where the plan can change |
+
+The safest default is bounded proposal. Give the model a structured output such as a decision of needs_human and a reason. Then let code check that needs_human is a legal decision from the current state, that the reason is present, and that the corresponding transition exists.
+
+This is not an argument against model-directed orchestration. The [OpenAI Agents SDK orchestration guide](https://openai.github.io/openai-agents-python/multi_agent/) distinguishes orchestration decisions made by the LLM from orchestration decided by code. You can mix the two. The design question is which decisions can be wrong without causing an unsafe or unrecoverable effect.
+
+Put these decisions in code:
+
+- whether a payment can be committed;
+- whether an approval is still valid;
+- whether a tool is available in the current state;
+- whether a retry budget is exhausted;
+- whether the workflow can terminate;
+- whether a state version can consume a persisted checkpoint;
+- whether a failure is retryable, compensatable, or terminal.
+
+Let the model handle the parts for which language reasoning is genuinely useful:
+
+- extracting fields from a messy request;
+- proposing a next research question;
+- classifying an issue into a controlled taxonomy;
+- drafting a message from already validated facts;
+- ranking candidate actions before a deterministic policy check.
+
+**The LLM may propose a transition, but only the state machine may authorize it.**
+
+### When is it acceptable for the model to choose a route?
+
+It is acceptable when all of the following are true:
+
+1. The route is a finite, named choice rather than arbitrary code.
+2. The model output is schema-validated.
+3. The runtime checks that the route is legal from the current state.
+4. The route does not itself commit an irreversible effect.
+5. A budget, timeout, and terminal fallback exist.
+
+For example, the model can choose FETCH_ORDER, ASK_FOR_ORDER_ID, or ESCALATE from CLASSIFY. It should not be able to invent CALL_REFUND_API_WITH_ADMIN_TOKEN as a new state.
+
+### When should you use a plain workflow instead?
+
+Use a plain workflow when the sequence, branches, and validation rules are known before the run. An AI agent adds value where an input or intermediate result needs interpretation. It does not add value merely because the workflow contains more than one step.
+
+For a business process, start with the smallest machine that solves the job. Add model-directed planning only where fixed rules stop being useful. The state machine can remain deterministic while one or two states contain LLM calls.
+
+That choice also reduces test scope. A deterministic route can be tested with fixtures. A model proposal needs schema tests, adversarial inputs, distribution checks, and a clear policy for uncertain output.
+
+## What should the state object contain?
+
+Store enough information to decide the next legal transition and resume the run without guessing. Do not store every message by default.
+
+A practical execution-state shape looks like this:
+
+~~~ts
+type AgentRunState = {
+  runId: string
+  machineVersion: string
+  state: string
+  objective: string
+  input: Record<string, unknown>
+  validatedFacts: Record<string, unknown>
+  pendingAction?: {
+    actionId: string
+    tool: string
+    parameters: Record<string, unknown>
+    risk: "low" | "medium" | "high"
+    approval?: {
+      status: "required" | "approved" | "rejected" | "expired"
+      actorId?: string
+      approvedAt?: string
+      expiresAt?: string
+      policyVersion?: string
+    }
+  }
+  attempts: Record<string, number>
+  stepCount: number
+  budget: {
+    maxSteps: number
+    maxModelCalls: number
+    maxToolCalls: number
+  }
+  lastEvent?: {
+    type: string
+    at: string
+    fingerprint: string
+  }
+  checkpointId: string
+  status: "running" | "waiting" | "succeeded" | "blocked" | "failed" | "cancelled"
+}
+~~~
+
+The exact fields depend on the job. The design test is more important than the code: if the runtime restarts now, can it tell what state it was in, what it had already validated, which side effect was pending, and which next states are legal?
+
+### Which fields are control fields?
+
+Control fields answer questions such as:
+
+- What machine version should interpret this state?
+- Which state owns the next action?
+- How many steps and model calls have been consumed?
+- Which approval or authorization is pending?
+- What was the last event and what checkpoint contains it?
+- Is the run still active or already terminal?
+
+Keep them explicit. Do not ask an LLM to infer the current state from the last 30 messages.
+
+### Which fields are working data?
+
+Working data is validated information needed by later states in the same run. Examples include a normalized order ID, a retrieved policy version, a structured draft, or a tool result reference.
+
+Prefer references to large payloads. Store a document ID, hash, source timestamp, and access scope instead of embedding a 20 MB document in every checkpoint. If the next state needs the content, fetch it through a controlled read and verify that the source is still available.
+
+### Which fields should stay outside state?
+
+Keep these in their own systems unless the run truly needs a small, scoped reference:
+
+- durable cross-task memory;
+- current balances, permissions, prices, inventory, or account status;
+- credentials and access tokens;
+- raw audit trails;
+- complete transcripts that are not needed to resume;
+- unvalidated tool output;
+- secrets embedded in prompts or error messages.
+
+The state machine may store identifiers and hashes that point to those systems. It should not quietly become a second system of record.
+
+### What does state versioning protect?
+
+The state schema and the machine definition will change. Persisted runs may resume after a deploy made by a different version of the application. Include a machine version and schema version, then define one of three policies:
+
+| Policy | Meaning | Use when |
+| --- | --- | --- |
+| Pin | A run finishes under the exact machine version that started it | The run contains high-risk business semantics or strict replay requirements |
+| Migrate | A controlled migration transforms old state into the new schema | The state shape changes but the workflow meaning remains compatible |
+| Stop and review | The run enters MIGRATION_REQUIRED or BLOCKED | The old state cannot be proven safe under the new rules |
+
+Do not silently apply new transition logic to an old checkpoint without deciding whether the semantics remain compatible. LangGraph's backward-compatibility documentation warns that deploying new graph code against persisted in-flight threads makes graph changes a compatibility concern for those checkpoints ([LangGraph backward compatibility](https://docs.langchain.com/oss/python/langgraph/backward-compatibility)). That is a framework-specific example of a general rule: persisted state is an API.
+
+## How do you choose the states?
+
+Choose states by responsibility and observable exit, not by every sentence in the prompt. A good state owns one decision or one side-effect boundary.
+
+For each candidate state, ask:
+
+1. What must be true before entering?
+2. What work happens here?
+3. What evidence does the state produce?
+4. Which events can leave it?
+5. What happens when the evidence is missing or contradictory?
+6. Can the work be retried without duplicating an external effect?
+
+If a state cannot answer those questions, it is probably a vague phase such as THINKING or DOING_STUFF.
+
+### What is the State Contract Card?
+
+The State Contract Card is the design artifact I use for this page. It is a compact specification for one state before implementation:
+
+| Card field | Question it forces you to answer |
+| --- | --- |
+| State ID and purpose | What does this state mean in one sentence? |
+| Entry precondition | What has already been validated? |
+| Allowed observations | Which inputs, tools, and facts may this state read? |
+| Model responsibility | Does the LLM classify, propose, draft, or stay out? |
+| Validation guard | What must pass before the result becomes an event? |
+| Side-effect rule | Is this state read-only, reversible, idempotent, or commit-capable? |
+| Retry and timeout | Which failures retry, how many times, and for how long? |
+| Legal exits | What named events lead to which next states? |
+| Audit and checkpoint | What is recorded before and after the transition? |
+
+The card prevents a common failure: writing a graph first and inventing semantics after the graph has already become production behavior.
+
+![Illustration of a State Contract Card for an AI agent state](/blog/how-to-design-an-ai-agent-state-machine-inline-3.png)
+
+### How many states should an agent have?
+
+Use as few as you can while keeping different responsibilities, permissions, and failure policies separate. A single AGENT_LOOP state hides too much. A state for every micro-operation makes the machine noisy and hard to evolve.
+
+A useful split is:
+
+- input and normalization;
+- classification or planning;
+- read-only retrieval;
+- result validation;
+- proposal or drafting;
+- approval or waiting;
+- commit;
+- post-commit verification;
+- terminal success, blocked, failure, cancellation, and migration states.
+
+The right number depends on the cost of being wrong. Split states when the tool set, policy, owner, retry behavior, or audit requirement changes.
+
+### Which states should be terminal?
+
+Define terminal states explicitly. At minimum, most business agents need:
+
+- SUCCEEDED: the requested outcome is verified;
+- BLOCKED: the system cannot proceed safely without new information or approval;
+- FAILED: an error or invariant violation ended the run;
+- CANCELLED: a user or policy stopped the run;
+- EXPIRED: a time-bound run or approval is no longer valid;
+- MIGRATION_REQUIRED: persisted state cannot be interpreted safely.
+
+Terminal means no future event can continue the same run. If a user wants to try again, create a new run or an explicit recovery run with a new identity. Do not let FAILED quietly route back to PLANNING forever.
+
+## How should you define events and guards?
+
+Name events after facts that the runtime can verify, not after intentions the model claims. tool_result_validated is stronger than tool_finished. approval_bound_to_action is stronger than user_said_yes.
+
+An event should carry enough evidence for the guard to decide. For example:
+
+~~~json
+{
+  "type": "order_loaded",
+  "order_id": "ord_123",
+  "source": "orders-api",
+  "source_version": "2026-08-18T10:31:04Z",
+  "status": "eligible_for_refund",
+  "amount_minor": 4900,
+  "evidence_hash": "sha256:..."
+}
+~~~
+
+The event is not trusted merely because a tool returned JSON. Validate its schema, provenance, freshness, authorization scope, and relationship to the run's objective.
+
+### What is a useful guard?
+
+A useful guard is a predicate over validated state and an event. It should be deterministic, inspectable, and testable without a model call.
+
+~~~python
+def can_commit_refund(state, event):
+    return (
+        state["state"] == "APPROVED"
+        and event["type"] == "approval_revalidated"
+        and event["action_id"] == state["pending_action"]["action_id"]
+        and event["policy_version"] == state["pending_action"]["approval"]["policy_version"]
+        and event["amount_minor"] == state["pending_action"]["parameters"]["amount_minor"]
+        and event["expires_at"] > event["observed_at"]
+    )
+~~~
+
+The sample is illustrative. Your own authorization system may use different fields. The important property is exact binding: the approval must match the action that will actually be executed.
+
+OWASP's AI Agent Security Cheat Sheet recommends separating decision-making from execution, binding approval to the exact action and parameters, using replay protection, making high-impact actions idempotent where possible, and failing closed when policy or audit checks fail ([OWASP AI Agent Security](https://cheatsheetseries.owasp.org/cheatsheets/AI_Agent_Security_Cheat_Sheet.html)). Those are state-machine rules because they determine whether a transition is legal.
+
+### What should happen when a guard fails?
+
+Do not return a generic error to the model and hope it recovers. Choose a named path:
+
+| Guard failure | Appropriate path |
+| --- | --- |
+| Input is incomplete | WAITING_FOR_INPUT |
+| Tool result is malformed | REPAIR_RESULT or FAILED after a bound |
+| Live fact is stale | REFRESH_FACTS |
+| Approval expired | APPROVAL_REQUIRED |
+| Permission is missing | BLOCKED or ESCALATE |
+| Transient provider error | Retry within the current state |
+| Invariant violation | FAILED with an incident event |
+| Machine version cannot read state | MIGRATION_REQUIRED |
+
+The guard is part of the product behavior. A failed guard should tell the operator what the machine refused to do and why.
+
+## Where should tools and side effects live?
+
+Separate read-only work, proposals, approvals, commits, and verification. The model can call a read tool in one state and propose a write in another, but the commit should cross a visible boundary.
+
+A useful state classification is:
+
+| State kind | Examples | Default authority |
+| --- | --- | --- |
+| Interpret | Extract fields, classify intent | Model proposal, schema validation |
+| Observe | Fetch a record, search a source, inspect status | Read-only tools |
+| Decide | Compare validated facts with policy | Deterministic code, possibly model recommendation |
+| Propose | Draft an email, refund, change, or command | Model output plus policy validation |
+| Approve | Wait for a human or policy decision | External decision, exact binding |
+| Commit | Send, mutate, publish, delete, or charge | Dedicated executor with authorization |
+| Verify | Re-read the source of truth and check outcome | Read-only verification |
+
+This shape is more useful than giving every state the same tool list. State-specific tools make the machine's authority visible.
+
+### Should a tool call be a state?
+
+Make a tool call its own state when it has a distinct timeout, retry policy, permission, audit requirement, or external effect. A fast pure helper can remain inside a node. A payment call, email send, database mutation, or external job submission deserves a named boundary.
+
+The boundary lets you answer: did the process crash before the call, during the call, or after the call returned? Without that distinction, a retry may duplicate the effect or skip a needed verification.
+
+### What does idempotency change?
+
+If the runtime may retry a state, the state's external effect must tolerate a repeated request or have a deduplication strategy. Use a stable idempotency key based on the run ID, action ID, and intended effect. Store the request and result, then have the executor return the existing result when the same key arrives again.
+
+Do not generate a new idempotency key on every retry. That turns a safe retry into several distinct actions.
+
+LangGraph's functional API recommends checkpointable tasks with serializable inputs and outputs, placing non-deterministic work inside tasks, and designing external calls to be idempotent because tasks may re-execute after a failure ([LangGraph functional API](https://docs.langchain.com/oss/python/langgraph/functional-api)). Temporal makes a related distinction: workflow code must be deterministic for replay, while failure-prone or non-deterministic API and LLM calls belong in activities with retry policy ([Temporal retry policies](https://github.com/temporalio/documentation/blob/main/docs/encyclopedia/retry-policies.mdx)).
+
+**A retry policy without an idempotency policy is an invitation to duplicate side effects.**
+
+### Where should the commit boundary be?
+
+Put the commit boundary after proposal validation and approval, and before post-commit verification. The transition into COMMITTING should persist the exact action, parameters, authorization, policy version, and idempotency key. The commit executor should revalidate time-sensitive permissions immediately before making the external call.
+
+After the call, do not assume success because the network returned. Move to VERIFYING, re-read the authoritative system, and then enter SUCCEEDED only when the intended outcome is confirmed.
+
+## How do you persist and resume the machine?
+
+Persist a checkpoint at every boundary where the run might pause, fail, wait, or create an external effect. A checkpoint should identify the run, machine version, validated state data, pending action, next legal events, and checkpoint lineage.
+
+There are two useful moments to persist:
+
+1. **Before an effect or pause.** Save the intent, action ID, approval request, or waiting condition before invoking the side effect or returning control to a human.
+2. **After a result.** Save the normalized result, evidence reference, and chosen next state after the executor returns.
+
+The exact atomicity model depends on your storage system. If the state write and external side effect cannot be one transaction, use an outbox, an idempotency key, or a reconciliation state. Do not pretend two independent systems committed atomically.
+
+LangGraph describes checkpoint persistence as the basis for human-in-the-loop work, time travel, and fault tolerance. It uses a thread ID to locate a checkpoint, and its interrupt documentation says the graph state is saved before waiting for external input ([LangGraph persistence](https://docs.langchain.com/oss/python/langgraph/persistence), [LangGraph interrupts](https://docs.langchain.com/oss/python/langgraph/interrupts)). Temporal describes a different implementation model, where workflow execution state is persisted so the execution can resume after crashes and infrastructure failures ([Temporal platform documentation](https://docs.temporal.io/)).
+
+The OpenAI Agents SDK documents a serializable RunState as the input used to resume a paused run or a run stopped after a turn ([OpenAI Agents SDK, Run state](https://openai.github.io/openai-agents-python/ref/run_state/)). The field names differ from the schema above, but the design requirement is the same: resumption needs an explicit snapshot rather than a guess from conversation history.
+
+These products differ. The design principle does not: resumption requires a durable cursor and enough recorded state to continue without guessing.
+
+![Illustration of AI agent checkpoint persistence and crash recovery](/blog/how-to-design-an-ai-agent-state-machine-inline-5.png)
+
+### What is the durable cursor?
+
+The durable cursor is the identity that selects the run and its latest checkpoint. It might be a run ID, a LangGraph thread ID, a Temporal workflow ID, or an application-specific key. It must be stable across worker restarts and unique enough to prevent two unrelated tasks from sharing state.
+
+Treat the cursor as an authorization boundary. A caller who can choose another run ID may read or mutate another task unless the system checks ownership and scope.
+
+### What should a checkpoint contain?
+
+At minimum:
+
+~~~json
+{
+  "run_id": "run_01J...",
+  "machine_version": "refund-support-3",
+  "schema_version": 2,
+  "state": "APPROVAL_REQUIRED",
+  "status": "waiting",
+  "validated_facts": {
+    "order_id": "ord_123",
+    "amount_minor": 4900,
+    "eligibility": "eligible_for_refund",
+    "source_version": "2026-08-18T10:31:04Z"
+  },
+  "pending_action": {
+    "action_id": "act_01J...",
+    "tool": "refund_order",
+    "parameters_hash": "sha256:...",
+    "idempotency_key": "run_01J-act_01J"
+  },
+  "attempts": {
+    "FETCH_ORDER": 1,
+    "COMMIT_REFUND": 0
+  },
+  "last_event": "proposal_validated",
+  "checkpoint_id": "cp_17",
+  "parent_checkpoint_id": "cp_16"
+}
+~~~
+
+Avoid saving unbounded message history in every checkpoint. Keep a reference to the trace or transcript when it is needed for debugging, and store a compact working representation for transition logic.
+
+### What happens when the process crashes during a tool call?
+
+The machine needs a reconciliation rule. A crash does not tell you whether the external system received the request. Use one of these approaches:
+
+- an idempotent API with a stable key;
+- a queryable operation ID that lets you check status;
+- an outbox and worker that owns delivery;
+- a COMMIT_UNKNOWN state that requires reconciliation before retry;
+- a compensating action when the effect can be reversed.
+
+Never turn every unknown outcome into “retry immediately.” The correct route depends on the external system's semantics.
+
+### What happens when the machine definition changes?
+
+Record the version on every run and checkpoint. Before resuming, load the version policy. If the state is compatible, migrate it or route it through the newer machine. If compatibility is uncertain, stop in MIGRATION_REQUIRED and ask an operator to resolve it.
+
+This is one place where state machines resemble public APIs. State fields, event names, and transition meanings become contracts once persisted data outlives the process that created it.
+
+## How should human approval work?
+
+Represent approval as a state, not as a boolean buried in a message. A safe approval state contains the exact action to be approved, the normalized parameters, the risk classification, the policy version, the actor or group allowed to approve, the creation time, and the expiry.
+
+The path looks like this:
+
+~~~text
+PROPOSE_ACTION
+      |
+      | proposal validated, risk requires review
+      v
+APPROVAL_REQUIRED -- rejected --> BLOCKED
+      |
+      | approval received and revalidated
+      v
+APPROVED -- facts or policy changed --> REFRESH_AND_REVIEW
+      |
+      | commit guard passes
+      v
+COMMITTING -- unknown result --> COMMIT_UNKNOWN
+      |
+      v
+VERIFYING --> SUCCEEDED or FAILED
+~~~
+
+LangGraph documents interrupts as dynamic pauses that save state, wait for external input, and resume through a command; its examples include approve and reject branches ([LangGraph interrupts](https://docs.langchain.com/oss/python/langgraph/interrupts)). That is a runtime implementation. The state-machine design requirement is broader: the approval must bind to the exact action that will execute.
+
+Do not treat a human's “yes” as a reusable permission. If the amount, recipient, tool, resource, policy version, or action parameters change, create a new approval decision.
+
+For human approval patterns that go deeper into reviewer packets and exact-action binding, see [Human-in-the-Loop AI Agents: Approval Gates That Work](/blog/human-in-the-loop-ai-agents). This page stays focused on where the approval state fits in the machine.
+
+![Illustration of an AI agent approval and commit boundary](/blog/how-to-design-an-ai-agent-state-machine-inline-4.png)
+
+## How do retries, timeouts, and failures become states?
+
+Separate a retry inside a state from a transition to a recovery state. A transient network timeout may be retried inside FETCH_ORDER. A malformed response after the retry budget is exhausted should move to REPAIR_RESULT, ESCALATE, or FAILED. An authorization failure should not be retried as if it were a network timeout.
+
+AWS Step Functions documents Retry and Catch behavior, including backoff, maximum attempts, and fallback states. Its error-handling guide explains that a state can retry a matching error and then redirect to a catcher when retries do not resolve the problem ([AWS Step Functions error handling](https://docs.aws.amazon.com/step-functions/latest/dg/concepts-error-handling.html)). Use that as a vocabulary for designing your own failure paths.
+
+Temporal's retry guidance makes the same practical distinction from another angle: activities are the failure-prone boundary and receive retry policy, while workflow code needs deterministic behavior for replay ([Temporal retry policies](https://github.com/temporalio/documentation/blob/main/docs/encyclopedia/retry-policies.mdx)).
+
+### How should you classify errors?
+
+Use a small error taxonomy that maps to a state-machine response:
+
+| Error class | Example | Default response |
+| --- | --- | --- |
+| Transient | Timeout, connection reset, provider 503 | Retry with backoff and a cap |
+| Rate limited | Provider or API quota | Wait until a bounded retry time or fail with a clear reason |
+| Invalid input | Missing order ID, unreadable attachment | Ask for input or block |
+| Invalid model output | Wrong schema, unsupported action | Repair once or route to failure |
+| Stale fact | Permission or price changed | Refresh and re-evaluate |
+| Permanent business rejection | Refund window closed | Terminal blocked or user-facing rejection |
+| Authorization failure | Caller lacks permission | Block and alert, do not loop |
+| Unknown external outcome | Network failed after request may have landed | Reconcile before retry |
+| Invariant violation | State says APPROVED but no matching action | Fail closed and alert |
+
+The taxonomy is an implementation choice, not a universal standard. The point is to make error meaning affect the next state.
+
+![Illustration of AI agent failure classes mapped to bounded recovery paths](/blog/how-to-design-an-ai-agent-state-machine-inline-6.png)
+
+### What is the retry budget?
+
+Use more than one budget:
+
+- attempts per state and error class;
+- total transitions per run;
+- total model calls;
+- total tool calls;
+- wall-clock deadline;
+- cost or token budget when usage matters.
+
+An attempt counter alone may not stop a machine that alternates between two states. A total step budget alone may retry a dangerous commit too many times. Track both local and global budgets.
+
+### How do you detect no-progress loops?
+
+Record a transition fingerprint such as:
+
+~~~text
+from_state + event_type + normalized_input_hash + proposed_action + outcome_class
+~~~
+
+If the same fingerprint repeats without new evidence, count it as no progress. Route repeated no-progress behavior to BLOCKED or FAILED after a bounded threshold. If the machine returns to the same state with new evidence, the fingerprint should change because the evidence version or event ID changed.
+
+This is different from simply counting loops. A legitimate workflow may revisit PLANNING after a new tool result. The design question is whether the run is learning something that changes the next decision.
+
+For diagnosis of an agent that is already looping, see the existing guide titled Why Is My AI Agent Stuck in a Loop? The state-machine design here is the prevention and control layer.
+
+**Every retryable transition needs a bounded exit, and every bounded exit needs a named terminal path.**
+
+## How do you design parallel branches?
+
+Use parallel states only when the branches are independent, their outputs have clear ownership, and the join condition is explicit. Do not fan out because parallelism looks advanced. Fan out when it reduces latency or separates work that can safely proceed concurrently.
+
+For a research agent, parallel branches might fetch two independent sources. For a refund agent, checking order eligibility and checking account risk might run in parallel if the two reads do not depend on each other. The commit cannot happen until the join validates both results.
+
+Microsoft Agent Framework describes workflows as directed graphs of executors and edges, with supersteps that run triggered executors in parallel and a synchronization barrier before the next superstep. Its documentation connects the barrier to deterministic execution and checkpointing ([Microsoft Agent Framework workflow builder and execution](https://learn.microsoft.com/en-us/agent-framework/concepts/workflows/builder-and-execution)).
+
+Use a join state with an explicit completion condition:
+
+~~~text
+START
+  |
+  +--> FETCH_ORDER --------+
+  |                        |
+  +--> CHECK_RISK ---------+--> JOIN_FACTS --> PROPOSE_ACTION
+~~~
+
+The join must define what happens when one branch fails, times out, returns stale data, or produces an incompatible schema. “Wait for everything” is not enough if one branch can wait forever.
+
+![Illustration of parallel AI agent state branches with an explicit join](/blog/how-to-design-an-ai-agent-state-machine-inline-7.png)
+
+### What does state isolation mean in parallel work?
+
+Each run needs isolated mutable state. Each branch needs a defined write scope. Two branches should not silently overwrite the same field with different meanings.
+
+Microsoft's workflow state documentation warns that reusing mutable executor instances can share state across workflow executions and recommends creating fresh instances when isolation matters ([Microsoft Agent Framework workflow state](https://learn.microsoft.com/en-us/agent-framework/concepts/workflows/state)). Treat that as a concrete reminder to inspect object lifetime, process-level caches, and shared stores in your own runtime.
+
+Use branch-specific fields or an append-only event collection, then let the join reducer combine them deterministically. If two branches can write status, one of them probably owns too much.
+
+### When should parallel work become separate agents?
+
+Parallel branches do not automatically require multiple agents. They may be independent tools, deterministic functions, or model calls with different prompts. Choose separate agents when they need distinct instructions, tools, context, or responsibility boundaries. Choose separate states when the main need is control flow.
+
+For the one-agent versus multi-agent decision, use the existing guide titled When Should I Use a Single AI Agent Instead of Multiple Agents? In this article's terms, the state machine remains the outer control contract either way.
+
+## How do you implement the transition function?
+
+Represent transitions as data where possible. A transition table is easier to inspect, diff, test, and review than a large nest of conditionals.
+
+~~~ts
+type Transition = {
+  from: string
+  event: string
+  guard: string
+  to: string
+  effect: "none" | "read" | "model" | "propose" | "commit" | "notify"
+  retry: "none" | "bounded" | "reconcile"
+}
+
+const transitions: Transition[] = [
+  { from: "RECEIVED", event: "input_validated", guard: "has_request", to: "CLASSIFY", effect: "model", retry: "bounded" },
+  { from: "CLASSIFY", event: "needs_order_lookup", guard: "order_id_present", to: "FETCH_ORDER", effect: "read", retry: "bounded" },
+  { from: "FETCH_ORDER", event: "order_validated", guard: "eligible", to: "PROPOSE_ACTION", effect: "propose", retry: "bounded" },
+  { from: "PROPOSE_ACTION", event: "proposal_requires_review", guard: "policy_requires_approval", to: "APPROVAL_REQUIRED", effect: "none", retry: "none" },
+  { from: "APPROVED", event: "commit_guard_passed", guard: "exact_action_bound", to: "COMMITTING", effect: "commit", retry: "reconcile" },
+  { from: "VERIFYING", event: "outcome_confirmed", guard: "source_matches_intent", to: "SUCCEEDED", effect: "none", retry: "none" },
+]
+~~~
+
+The guard names above are symbolic. The implementation needs real functions and tests. The table is valuable because a reviewer can ask whether every event has a route, whether every commit has a guard, and whether every non-terminal state can eventually reach a terminal state.
+
+A reducer can select the next state without executing an external side effect:
+
+~~~python
+def reduce_state(state, event):
+    transition = find_transition(state["state"], event["type"])
+    if transition is None:
+        return fail(state, "illegal_transition")
+    if not guard_passes(transition.guard, state, event):
+        return route_guard_failure(state, transition, event)
+    return {
+        **state,
+        "state": transition.to,
+        "last_event": event,
+        "step_count": state["step_count"] + 1,
+    }
+~~~
+
+Then execute the effect associated with the new state through a controlled dispatcher. Keeping reduction separate from effects makes it easier to test the graph without calling an LLM or an API.
+
+### Why separate reduction from effects?
+
+It gives you a deterministic core. Given the same prior state and event, the reducer should choose the same next state. The LLM call, retrieval, or tool invocation may be non-deterministic, but its output enters the reducer as a validated event.
+
+This separation also helps replay. You can replay recorded events to inspect how the machine moved, while deciding separately whether to re-run an external action or use its recorded result. Be precise about the difference. Replaying a transition decision is not the same as replaying the side effect.
+
+### What belongs in an event log?
+
+Record enough to explain movement without storing secrets:
+
+- run ID and checkpoint ID;
+- machine and schema version;
+- previous and next state;
+- event type and normalized payload hash;
+- guard result and policy version;
+- effect name, attempt, idempotency key, and outcome class;
+- timestamps and latency;
+- trace or artifact reference;
+- redaction and access metadata.
+
+Do not put raw credentials, unrestricted model prompts, or sensitive customer content into an event log by default. Redaction is part of the state-machine design because operators will use the log during failure recovery.
+
+## What does a complete AI agent state machine look like?
+
+Consider a customer-support agent that handles a refund request. This is an illustrative design artifact, not a claim about a production system or client result.
+
+The business outcome is narrow: determine whether the request is eligible, ask for missing information, obtain approval when required, execute the refund exactly once, verify the account, and report the outcome.
+
+### Which states are needed for the refund example?
+
+| State | Purpose | Model role | Effects | Terminal? |
+| --- | --- | --- | --- | --- |
+| RECEIVED | Capture the request and create the run | None | Persist input | No |
+| CLASSIFY | Extract order ID, request type, and missing fields | Structured extraction | Model call | No |
+| WAITING_FOR_INPUT | Ask for missing required information | Draft a concise question | Notify user | No |
+| FETCH_ORDER | Read the authoritative order record | None | Read order API | No |
+| CHECK_ELIGIBILITY | Apply refund policy to validated facts | Optional explanation only | Read policy or deterministic check | No |
+| PROPOSE_REFUND | Create a normalized refund proposal | Propose amount and reason | No external mutation | No |
+| APPROVAL_REQUIRED | Wait for human or policy approval | None | Persist approval request | No |
+| REVALIDATE | Refresh time-sensitive facts and approval binding | None | Read current systems | No |
+| COMMITTING | Submit the refund with an idempotency key | None | Write to payment system | No |
+| COMMIT_UNKNOWN | Reconcile after an uncertain external result | None | Read operation status | No |
+| VERIFYING | Confirm final refund status | None | Read order/payment status | No |
+| RESPONDING | Write the user-facing result from verified facts | Draft response | Notify user | No |
+| SUCCEEDED | Mark verified completion | None | Audit event | Yes |
+| BLOCKED | Stop because safe progress is impossible | Optional explanation | Audit and notify | Yes |
+| FAILED | Stop because an invariant or permanent error occurred | None | Alert and audit | Yes |
+| CANCELLED | Stop because the user or policy cancelled the run | None | Audit | Yes |
+| MIGRATION_REQUIRED | Stop until old state is safely interpreted | None | Alert and audit | Yes |
+
+### What are the legal transitions?
+
+| From | Event and guard | To |
+| --- | --- | --- |
+| RECEIVED | input_validated and request is present | CLASSIFY |
+| CLASSIFY | fields_missing | WAITING_FOR_INPUT |
+| CLASSIFY | fields_validated | FETCH_ORDER |
+| WAITING_FOR_INPUT | user_input_received and fields validate | FETCH_ORDER |
+| FETCH_ORDER | order_loaded and schema plus provenance validate | CHECK_ELIGIBILITY |
+| FETCH_ORDER | transient error and attempts remain | FETCH_ORDER |
+| FETCH_ORDER | permanent error or attempts exhausted | BLOCKED or FAILED |
+| CHECK_ELIGIBILITY | policy says ineligible | BLOCKED |
+| CHECK_ELIGIBILITY | policy says eligible | PROPOSE_REFUND |
+| PROPOSE_REFUND | proposal valid and approval required | APPROVAL_REQUIRED |
+| PROPOSE_REFUND | proposal valid and policy permits automatic action | REVALIDATE |
+| APPROVAL_REQUIRED | exact approval received and not expired | REVALIDATE |
+| APPROVAL_REQUIRED | rejection or expiry | BLOCKED |
+| REVALIDATE | facts changed or approval no longer binds | PROPOSE_REFUND or APPROVAL_REQUIRED |
+| REVALIDATE | commit guard passes | COMMITTING |
+| COMMITTING | confirmed success | VERIFYING |
+| COMMITTING | timeout with unknown outcome | COMMIT_UNKNOWN |
+| COMMITTING | definitive failure and retry allowed | COMMITTING with a higher attempt |
+| COMMITTING | definitive permanent failure | FAILED |
+| COMMIT_UNKNOWN | operation status found | VERIFYING or FAILED |
+| COMMIT_UNKNOWN | operation cannot be reconciled | BLOCKED |
+| VERIFYING | source of truth confirms intended refund | RESPONDING |
+| VERIFYING | mismatch or verification timeout after bound | FAILED or BLOCKED |
+| RESPONDING | notification accepted | SUCCEEDED |
+
+The example has loops, but each loop is bounded. FETCH_ORDER can retry transient errors. REVALIDATE can send a changed proposal back for review. COMMIT_UNKNOWN can reconcile. None of those paths return to CLASSIFY without a new event and an explicit reason.
+
+### What does the State Contract Card look like for one state?
+
+Here is the card for COMMITTING:
+
+| Field | Contract |
+| --- | --- |
+| Purpose | Submit the already approved refund exactly once. |
+| Entry precondition | Current order facts, amount, recipient, policy version, approval, and idempotency key have been revalidated. |
+| Allowed observations | Payment API response and operation-status reads. No model-generated facts. |
+| Model responsibility | None. |
+| Validation guard | Action ID, parameters hash, policy version, permission, and approval expiry match the persisted proposal. |
+| Side-effect rule | One external write using the stable idempotency key. Never generate a new key during retry. |
+| Retry and timeout | Retry only classified transient failures within the attempt and deadline budget. Unknown outcome routes to reconciliation. |
+| Legal exits | confirmed_success, unknown_outcome, retryable_failure, permanent_failure. |
+| Audit and checkpoint | Persist before call, record request and result metadata, checkpoint after the response classification. |
+
+If you cannot fill this card, the state is not ready to implement.
+
+## How do you test an AI agent state machine?
+
+Test the machine as a graph and as a set of effects. A happy-path conversation is not enough. The important tests are the ones that prove the agent cannot leave a state through an illegal edge, commit without approval, or retry an unknown external result as a new action.
+
+### Which invariants should always hold?
+
+Write invariants before writing test cases:
+
+1. Every non-terminal state has at least one legal exit or a documented wait condition.
+2. Every transition names a source state, event, guard, and destination state.
+3. No transition enters COMMITTING without a valid action and authorization binding.
+4. No terminal state has an outgoing transition for the same run.
+5. Every retry path has a local attempt cap and contributes to a run-level step budget.
+6. An external write has a stable idempotency key or a reconciliation path.
+7. A checkpoint can be deserialized by the machine version that will resume it, or it routes to migration handling.
+8. Every approval is bound to the exact action, parameters, resource, actor, policy version, and expiry.
+9. A stale or contradictory source-of-truth result cannot be treated as a fresh fact.
+10. Redacted event logs still reveal why the state changed.
+
+These are design properties, not benchmark results. They are useful because they can be checked with table-driven tests, static graph checks, and failure injection.
+
+### What transition tests should you write?
+
+For each row in the transition table, create at least one accepted event and one rejected event. The accepted test proves the intended edge. The rejected test proves the guard is not decorative.
+
+Example cases for REVALIDATE to COMMITTING:
+
+- approval matches the action, amount, resource, policy version, and expiry;
+- approval matches except for amount, and the transition is rejected;
+- approval matches but has expired, and the run returns to approval;
+- order status changed after approval, and the proposal is rebuilt;
+- permission check fails, and the run enters BLOCKED;
+- the current machine version cannot interpret the proposal, and the run enters MIGRATION_REQUIRED.
+
+### What failure-injection tests matter?
+
+Inject failures at each side-effect boundary:
+
+| Failure point | Expected proof |
+| --- | --- |
+| Before checkpoint write | No external effect occurs. Run remains recoverable or fails safely. |
+| After checkpoint, before model call | Resume calls the intended state with the same run ID. |
+| During model call | Provider failure is classified, bounded, and logged without inventing an event. |
+| After tool request, before response | Retry uses idempotency or enters reconciliation. |
+| After external commit, before local checkpoint | Reconciliation finds the existing operation rather than submitting a duplicate. |
+| During human pause | Approval state survives process restart and expires correctly. |
+| After verification, before response | The verified outcome remains available for response generation. |
+| During machine deploy | Old checkpoints are pinned, migrated, or blocked according to policy. |
+
+### How do you test model states?
+
+Keep model tests separate from graph tests. For model states, test:
+
+- schema compliance;
+- missing and conflicting fields;
+- refusal or uncertainty behavior;
+- prompt injection in retrieved content;
+- unsupported tool or route proposals;
+- repeated or contradictory tool results;
+- context truncation;
+- model and prompt version changes.
+
+Then feed the validated outputs into the deterministic reducer. The graph test should not need a live model to prove that needs_human from PROPOSE_REFUND enters APPROVAL_REQUIRED or that an unrecognized route fails closed.
+
+### How do you test restart and replay?
+
+Take a checkpoint from every non-terminal state, stop the worker, reload the state, and resume with each legal event. Verify that:
+
+- the same state is loaded;
+- the next legal transitions are unchanged;
+- already completed read-only work is not repeated unless the policy allows it;
+- external writes are deduplicated or reconciled;
+- approval and time-bound facts are revalidated;
+- event history contains one coherent run rather than a second hidden run.
+
+LangGraph's persistence docs describe replay from prior checkpoints and note that nodes after the selected checkpoint may execute again, including model calls and API requests ([LangGraph persistence](https://docs.langchain.com/oss/python/langgraph/persistence)). That is why replay policy and idempotency belong in the design, not as an afterthought.
+
+### What should the release checklist ask?
+
+Before production, ask:
+
+1. Can I list every state and its purpose in one sentence?
+2. Can I list every event that can leave each state?
+3. Are all guards deterministic and testable?
+4. Does every state have a timeout or a reason it may wait indefinitely?
+5. Are retries classified by error type?
+6. Are unknown external outcomes reconciled?
+7. Is the commit action bound to exact approval and permissions?
+8. Is state isolated per run and versioned for deploys?
+9. Can an operator inspect the current state without asking the model?
+10. Can the run reach a terminal result from every reachable state?
+11. Can a worker restart at every checkpoint without duplicating a side effect?
+12. Are model proposals schema-validated before they become events?
+13. Are logs redacted and still useful for diagnosis?
+14. Does the machine have a cancellation path?
+15. Has the team tested the rejection paths, not just the happy path?
+
+If the answers are vague, the machine is still a diagram.
+
+![Illustration of an AI agent state machine release and restart test checklist](/blog/how-to-design-an-ai-agent-state-machine-inline-8.png)
+
+For the broader agent release process, connect this checklist to [How to Evaluate an AI Agent: A Practical Release Gate](/blog/how-to-evaluate-an-ai-agent). State-machine tests prove control-flow properties. They do not prove that the agent's business answers are useful, fair, or accurate across the full evaluation set.
+
+## Which framework should you use?
+
+Choose a framework after you understand the machine. Framework vocabulary can help you implement the design, but it should not decide your states for you.
+
+| Need | A relevant option | What to verify |
+| --- | --- | --- |
+| Agent loop with tools, handoffs, and resumable run state | OpenAI Agents SDK | How Runner, RunState, sessions, tool errors, and durable-execution integrations map to your states and checkpoints. |
+| Graph execution, checkpoints, interrupts, replay, and stores | LangGraph | Checkpointer scope, thread IDs, serialization, replay behavior, interrupt rules, and state versioning. |
+| Managed event-driven workflow with explicit flow and task states | AWS Step Functions | States Language semantics, retry and catch behavior, payload limits, execution history, and cost. |
+| Long-running durable workflows and activity retries | Temporal | Deterministic workflow code, activity boundaries, retry policy, event history, and versioning. |
+| Directed executor graph with supersteps and shared state | Microsoft Agent Framework | Superstep barriers, state scopes, executor isolation, checkpointing, and current API maturity. |
+
+The table is a mapping exercise, not an endorsement or a ranking. Each product evolves. Recheck the linked primary documentation when you implement.
+
+### What if the framework uses a graph instead of a finite-state machine?
+
+A directed graph can represent a finite-state machine when its nodes have named state semantics and its edges have guards and events. The syntax may be a graph builder, a workflow definition, a state reducer, or a durable workflow function.
+
+Do not confuse visual graph syntax with design completeness. A graph with vague nodes and model-controlled edges is still vague. A code-based workflow can be a strong state machine when it declares the same contracts.
+
+### What if you already use an agent SDK loop?
+
+Wrap it in a state. For example, RESEARCH can invoke an agent loop with a read-only tool set and a local max-turn budget. The outer machine decides when research is complete, when evidence is insufficient, and where failure goes. The inner loop cannot call the commit tool because the state does not expose it.
+
+This lets you keep an existing agent while adding explicit boundaries around it. You do not need to rewrite every model call before you can improve control.
+
+## What are the common design mistakes?
+
+### Mistake 1: One state called AGENT_LOOP
+
+This hides planning, retrieval, approval, commit, and verification behind one retry policy. Split the state when the authority or failure meaning changes.
+
+### Mistake 2: The transcript is the state
+
+A transcript is evidence, not a reliable control object. It can contain stale instructions, ambiguous pronouns, untrusted content, and missing version information. Store a structured cursor and keep the transcript as a scoped artifact.
+
+### Mistake 3: The model writes the next state as free text
+
+Free text is not a transition contract. Use a finite enum, schema validation, and a guard that checks the current state.
+
+### Mistake 4: Retry means “ask the model again”
+
+Model repetition may produce a different answer without adding evidence. Classify the failure, decide whether new information is needed, and set a bound. If there is no path to new information, stop.
+
+### Mistake 5: Approval is a boolean
+
+approved: true says nothing about what was approved, by whom, under which policy, or for how long. Bind approval to the action and revalidate before commit.
+
+### Mistake 6: The commit and verify steps are merged
+
+A successful API response may be ambiguous. Separate the request from the authoritative read-back. Enter SUCCEEDED only after verification.
+
+### Mistake 7: Parallel branches share mutable fields
+
+Two branches can overwrite one another or observe inconsistent data. Give branches scope, define a join, and make the join responsible for combining outputs.
+
+### Mistake 8: Deploys ignore in-flight runs
+
+New code is not automatically compatible with old checkpoints. Pin, migrate, or block. Document the policy.
+
+### Mistake 9: Observability is added after the graph
+
+If you do not record transitions, guards, attempt numbers, and checkpoint IDs, you cannot diagnose a failed run precisely. Add the event shape to the machine contract.
+
+For the operational side of those events, see [How to Monitor an AI Agent in Production: An Observability Contract](/blog/how-to-monitor-an-ai-agent-in-production). The state machine should emit the signals that guide that monitoring contract.
+
+### Mistake 10: The machine has no blocked state
+
+Without BLOCKED, teams often send every unresolved condition back to planning. That creates loops and hides the difference between “needs a user answer,” “needs approval,” and “cannot proceed safely.” Name the stop.
+
+## How should you document the machine for a team?
+
+Keep five artifacts next to the implementation:
+
+1. **State catalog.** One State Contract Card per state.
+2. **Transition table.** Every source, event, guard, destination, effect, and retry policy.
+3. **State schema.** Versioned fields, owners, sensitivity, and migration rules.
+4. **Failure matrix.** Error classes mapped to bounded paths.
+5. **Test map.** Invariants, accepted and rejected transitions, failure injection, restart, and replay cases.
+
+The documentation should be executable where practical. Generate a transition diagram from the table, validate that destination state IDs exist, and fail CI if a non-terminal reachable state has no exit. Keep the human-readable State Contract Cards because code alone rarely explains why a boundary exists.
+
+### What should a code review focus on?
+
+Ask reviewers to inspect the transitions before the prompts. The prompts matter, but the highest-risk mistakes often live in the edges:
+
+- Can this state call a tool that it should not see?
+- Can this event be forged by the model?
+- Does this transition require live revalidation?
+- What happens if the worker dies after the side effect?
+- What stops the loop?
+- Is this state terminal in the business sense, not just in the code path?
+- Can an old checkpoint enter this state after a deploy?
+
+Then review the model contract: output schema, uncertainty behavior, context inputs, and refusal path. Treat the LLM as one component inside the machine, not as the machine's invisible author.
+
+## What is the smallest useful implementation?
+
+Start with six states for a low-risk read-only task:
+
+~~~text
+RECEIVED -> CLASSIFY -> RETRIEVE -> VALIDATE -> RESPOND -> SUCCEEDED
+                         |             |
+                         v             v
+                      BLOCKED        FAILED
+~~~
+
+Give CLASSIFY a structured model output. Give RETRIEVE read-only tools. Give VALIDATE deterministic checks. Give RESPOND only verified facts. Add WAITING_FOR_INPUT, APPROVAL_REQUIRED, COMMITTING, and VERIFYING when the business process actually needs them.
+
+Do not start with a framework-specific graph, a multi-agent hierarchy, or an event-sourced platform because those terms sound production-ready. Start with the state contract. Choose the runtime that can enforce it with the least accidental complexity.
+
+If you need to inspect where the state-machine approach fits relative to RAG, fixed workflows, or agents, the existing RAG versus AI agent decision guide is a useful neighboring decision. This page's answer remains narrower: once you have an agent-shaped workflow, make its state and transitions explicit.
+
+## What should you do next?
+
+Write the State Contract Card for the most dangerous state first, not the easiest one. That is usually the commit, approval, or external-action boundary. If you cannot describe its entry precondition, exact action, authorization, retry rule, reconciliation path, and verification step, the rest of the machine is not ready to trust.
+
+Then implement the smallest deterministic reducer, add one model state behind a schema, and test the failure paths before adding more autonomy. A state machine earns its keep when a worker crashes, a tool returns something unexpected, a user changes their mind, or a deploy meets an in-flight run.
+
+The practical standard is simple: every run should expose where it is, why it got there, what it may do next, and how it will stop. That is how an AI agent becomes a system you can review instead of a loop you have to believe.

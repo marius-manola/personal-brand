@@ -1,7 +1,7 @@
 ---
 title: 'Why Does My AI Agent Choose the Wrong Tool? A Practical Diagnosis'
-date: '2026-08-17'
-updated: '2026-08-17'
+date: '2026-08-18'
+updated: '2026-08-18'
 excerpt: 'Find out why an AI agent picks the wrong tool by separating availability, description overlap, schema, runtime constraints, and misleading tool results.'
 answer: 'An AI agent usually chooses the wrong tool because its candidate set, descriptions, schemas, or runtime constraints make the wrong action look plausible. Check what was actually available, compare rival tools, separate tool choice from argument validity, then narrow the set and return clearer results before changing the prompt.'
 targetQuery: 'why does my ai agent choose the wrong tool'
@@ -25,6 +25,19 @@ sources:
   - 'https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools'
   - 'https://modelcontextprotocol.io/specification/2025-11-25/server/tools'
   - 'https://openai.github.io/openai-agents-python/tools/'
+  - 'https://json-schema.org/understanding-json-schema/reference/object'
+  - 'https://www.nist.gov/itl/ai-risk-management-framework'
+faq:
+  - q: 'Is the model always at fault when an AI agent chooses the wrong tool?'
+    a: 'No. First inspect the candidate set, permissions, descriptions, schema, and result contract. The model can only choose among the tools exposed in that turn, and a correct tool with incorrect arguments is a different failure from selecting the wrong tool.'
+  - q: 'Should I give an AI agent fewer tools?'
+    a: 'Usually, yes, when the extra tools are irrelevant or overlap with the intended operation. Filter by workflow stage, permissions, or task type, then test the boundary. Fewer tools help only when the remaining definitions are distinct and the runtime still exposes the needed capability.'
+  - q: 'Does strict schema validation fix wrong tool selection?'
+    a: 'No. Strict validation can constrain argument shape, required fields, and allowed values after a tool is selected. It cannot decide whether the model should have selected a different tool, so keep routing tests separate from argument-validation tests.'
+  - q: 'How do I stop a wrong tool from causing a side effect?'
+    a: 'Recheck the selected tool, normalized arguments, permissions, target identity, and current state in application code immediately before execution. Add an allowlist, dry-run or approval step, idempotency key, and executor-side authorization for consequential operations.'
+  - q: 'What should I log when debugging tool routing?'
+    a: 'Log the run and turn IDs, model endpoint, available and allowed tools, selected tool, raw and normalized arguments, authorization decision, result status, error code, state version, side effect, and final response. Redact secrets while preserving enough detail to reproduce the decision.'
 cover: '/blog/why-does-my-ai-agent-choose-the-wrong-tool-hero.png'
 coverAlt: 'A tool-using AI agent choosing between overlapping actions before a clear routing boundary'
 draft: false
@@ -218,6 +231,251 @@ For each case, assert the tool name, normalized arguments, candidate set, author
 Keep this test focused on selection and routing. If the selected action then repeats without progress, use the [AI agent loop guide](/blog/ai-agent-stuck-in-a-loop). If you are turning these cases into a pre-release gate, use [the AI agent evaluation guide](/blog/how-to-evaluate-an-ai-agent) for the broader release decision.
 
 ![A routing test matrix comparing user intent, available tools, expected choice, and blocked side effects](/blog/why-does-my-ai-agent-choose-the-wrong-tool-inline-5.png)
+
+## What evidence should you capture from a failing turn?
+
+Start with the model-facing request, not the source repository. The function definition in your code may differ from the definition that reached the model after permissions, feature flags, namespaces, tool search, and request-level filters were applied. A routing diagnosis that omits that last representation is a guess.
+
+Capture one complete failing turn in a redacted record. Keep the record small enough to inspect in a code review, but complete enough to replay the decision. The minimum fields are:
+
+| Field | Why it matters | Example |
+| --- | --- | --- |
+| run and turn ID | Connects selection to execution and follow-up turns | `run_41`, `turn_03` |
+| model and endpoint | Behavior depends on the deployed model and API path | `model-name`, dated endpoint |
+| user request | Preserves the language that created the ambiguity | “Find the account and close it” |
+| available tools | Shows what the model could see | `search_accounts`, `get_account` |
+| allowed tools | Shows the final runtime filter | `get_account` only |
+| definitions and schemas | Reveals rival wording and valid states | versioned JSON |
+| selected call | Separates tool identity from arguments | `search_accounts({query: ...})` |
+| authorization decision | Shows whether the call was permitted | `read: allowed`, `write: denied` |
+| result and effect | Distinguishes response text from system state | `pending`, no state change |
+
+Log the candidate set after every filtering step if the system has more than one tool-loading stage. A single `available_tools` field may still hide the important transition. For example, a connector may advertise fifteen tools, a tenant policy may reduce that list to nine, a task router may select four, and a request-level allowlist may leave two. The model only sees the last list, but the earlier lists explain why a required tool disappeared or why an unrelated rival survived.
+
+Record versions for definitions and policies. A tool name can remain unchanged while its description, required fields, permission rules, or result status changes. If the trace stores only `get_order`, a later investigator cannot tell whether the model saw the old contract or the new one. Treat the definition as a versioned interface, just as you would treat an HTTP response schema.
+
+Redact secrets and personal data before the trace enters a shared system. Do not remove the evidence that identifies the routing boundary, though. Replace an email address with `user_a@example.test`, preserve whether an exact ID was present, and keep the relationship between the user, tenant, and target. A redacted trace can still answer the important question: did the agent have enough trusted information to choose this operation?
+
+**A wrong-tool diagnosis is only as good as the model-facing tool list captured in the failing trace.**
+
+**Permissions should narrow the model's choices before selection and block the executor again before execution.**
+
+## How can permissions and tenant context create a wrong choice?
+
+Permissions do more than block execution. They often change the candidate set before the model chooses. A user who may read invoices but not issue refunds should not receive a model-facing definition that presents both operations as peers and relies on an error after selection. The executor must still enforce the rule, but the model should also see the truthful set for the current actor and task.
+
+Tenant context creates a similar problem. One workspace may use `archive_project`, while another can only use `export_project`. If the system merges all connector definitions and applies tenant checks late, the model may choose a tool that exists in the general library but is not valid for this tenant. The resulting error can look like poor reasoning when the real issue is a stale or overly broad tool catalog.
+
+Build the candidate set from trusted context in code. Resolve the actor, tenant, workflow stage, resource scope, and allowed side-effect level before the model call. Then expose only the operations that can be considered in that state. Keep a final authorization check at execution time because context can change between selection and execution.
+
+There is a useful distinction between hiding and refusing. Hiding a tool prevents it from competing in the current choice. Refusing a call protects the system when the model or an attacker sends a call outside policy. You need both. Hiding reduces confusion; refusal is the security boundary.
+
+Do not encode permission only in a natural-language sentence such as “never refund without approval.” That instruction may help the model, but it is not a reliable access control. The executor should inspect the authenticated actor, the target account, the requested amount, the approval record, and the current state. If any check fails, return a typed error and make no external change.
+
+When access changes during a conversation, refresh the tool set. A cached list can make an old permission look current. Store the permission snapshot or policy version with the trace so an incident review can tell whether the model acted on current context. MCP’s tool-list notifications and tool discovery model make this kind of change explicit, but any provider can implement the same operational rule with its own metadata ([Model Context Protocol Tools specification](https://modelcontextprotocol.io/specification/2025-11-25/server/tools)).
+
+## How do names, descriptions, and examples compete with one another?
+
+A model does not experience a tool library as a neat API reference. It sees a set of tokens that must be matched to a request. Two definitions can be technically accurate and still be indistinguishable at the choice point.
+
+Compare these descriptions:
+
+```text
+find_customer: Find customer information.
+get_customer: Retrieve customer information.
+```
+
+Both descriptions describe a useful capability. Neither tells the model what evidence separates one from the other. A better pair states the input condition and the boundary:
+
+```text
+search_customers: Find candidate customer records when the request has no trusted customer ID.
+Do not use this tool when an exact customer ID is already available.
+
+get_customer: Return one customer record for a trusted customer ID.
+Do not use this tool to search by name, email, or free text.
+```
+
+The names now reinforce the distinction. The descriptions explain the positive condition and the negative condition. The schema should repeat the same distinction in a machine-checkable way, with `customer_id` required for the second operation and a search query required for the first.
+
+Examples can help, but examples do not rescue a contradictory contract. If the description says “use only with an exact ID” while an optional `name` field remains in the schema, the model has to resolve the conflict. Remove fields that do not belong. If a field is known by the application, pass it in code instead of inviting the model to regenerate it.
+
+Review rival definitions together. A tool owner working alone may approve a perfectly clear description because the local function is clear. The routing problem appears only when that definition is placed beside five other “find,” “lookup,” “retrieve,” and “update” tools. Make a review table for each high-risk pair and require a one-sentence answer to “when should this tool lose?” If the team cannot write that sentence, consolidate the operations or insert a deterministic router.
+
+The same rule applies to agent-as-tool designs. Names such as `research_agent`, `knowledge_agent`, and `search_agent` can overlap even when the underlying systems differ. Name the job and the boundary, not just the implementation. `search_internal_policy` and `draft_customer_reply_from_policy` are easier to separate than three generic agent names.
+
+**A tool description needs a clear losing condition, or its nearest rival will remain plausible.**
+
+## When should routing move from the model into application code?
+
+Move a decision into code when the available facts already determine the safe operation. A model is useful for interpreting a natural-language request, but it does not need to choose among several tools when the application already knows the workflow stage, resource type, or permission result.
+
+Suppose a user enters an exact order ID into an order page and clicks “view status.” There is no benefit in asking a model to choose between `search_orders`, `get_order`, and `cancel_order`. The page can call `get_order` directly. A model might still summarize the returned record, but it should not decide which read operation is permitted when the interface has already made that decision.
+
+Keep the model in the ambiguous part. It can classify “I want to know where my order is” as a status request, extract a date range from “orders from last week,” or ask a clarifying question when two targets are plausible. The application can then map that intent to a small allowed set and verify the arguments.
+
+A practical split looks like this:
+
+1. The application resolves identity, tenant, permissions, workflow stage, and known identifiers.
+2. The model extracts intent and uncertain user-provided values.
+3. The application validates those values and filters tools.
+4. The model chooses among the small, remaining set when a real ambiguity remains.
+5. The executor checks authorization, target state, and idempotency before the side effect.
+
+This split reduces the cost of a wrong selection. It also makes the system easier to test. You can test the deterministic router with ordinary unit tests and reserve model evaluations for the parts that genuinely require language interpretation.
+
+Do not move every decision into code just to avoid model behavior. An enormous collection of hand-written routes can be harder to maintain than a small model-facing surface. The test is whether the rule is stable, trusted, and already known. Stable rules belong in code. Ambiguous language belongs with the model, inside a constrained boundary.
+
+## How should read and write tools be separated?
+
+Read and write operations need visibly different names, schemas, permissions, and execution paths. A generic `manage_customer` tool that can view, edit, merge, and delete records asks the model to infer several boundaries at once. It also makes review and authorization harder because the operation is hidden inside an argument.
+
+Prefer separate operations such as `get_customer`, `update_customer_email`, and `merge_customer_records`. Make the write schema narrow. Require a stable target ID, include only fields that the operation can change, and add a reason or confirmation token when policy requires one. The executor should ignore unexpected fields rather than silently accepting a broad object.
+
+A write tool should return enough information to establish what happened. “Done” is not a useful contract if a request was queued, partially applied, rejected by a downstream system, or accepted without changing state. Return a status, target ID, state version, changed fields, and a repeat rule. If the operation is pending, return the durable job ID and the permitted status-check action.
+
+Use dry-run or preview operations for changes that are difficult to reverse. A model can propose a set of edits, the application can render the normalized plan, and a user or policy engine can approve it. The final executor must recompute or validate the plan rather than trusting a free-text approval that could refer to a different target.
+
+The distinction is not cosmetic. MCP explicitly tells clients to treat tool annotations as untrusted unless they come from trusted servers. The specification also requires servers to validate inputs and implement access controls. The executor therefore needs its own decision boundary, regardless of what a tool description says:
+
+> “For trust & safety and security, clients MUST consider tool annotations to be untrusted unless they come from trusted servers.” [Model Context Protocol Tools specification](https://modelcontextprotocol.io/specification/2025-11-25/server/tools)
+
+**A schema can make an invalid argument impossible, but only a policy boundary can make an unauthorized effect impossible.**
+
+## What does a useful result contract look like?
+
+The result is part of the routing interface. It determines what the model believes happened and which tool it considers next. A long paragraph written for a human operator may contain the needed facts, but it forces the model to extract status, identity, and next action from prose.
+
+Use stable fields with a small vocabulary. The following is a provider-neutral shape, not a required vendor format:
+
+```json
+{
+  "status": "success",
+  "code": "CUSTOMER_FOUND",
+  "entity_id": "cus_123",
+  "state_version": "v18",
+  "changed": false,
+  "next_allowed_action": "update_customer_email",
+  "safe_to_repeat": true
+}
+```
+
+For object inputs, make required properties and additional fields deliberate rather than accidental. The JSON Schema object guidance is useful here because it separates the shape of an object from the application rule that decides which values are trusted ([JSON Schema object reference](https://json-schema.org/understanding-json-schema/reference/object)). The schema can reject an unknown field, but the application still has to decide whether the target is the correct customer or order.
+
+Define what each status means. `success` should mean the requested operation completed, not merely that the server accepted the request. `pending` should identify a durable operation that can be checked. `retryable_error` should explain what can change before a retry. `permanent_error` should tell the model to stop, ask the user, or choose a declared fallback.
+
+Return errors in a way the orchestrator can distinguish from normal content. The MCP specification describes tool execution errors and says clients should provide actionable errors to language models so they can self-correct. That does not mean every error should trigger a retry. Include a retry policy or next action so the model does not keep calling a tool with a new spelling of the same invalid argument ([MCP Tools specification](https://modelcontextprotocol.io/specification/2025-11-25/server/tools)).
+
+Keep the result scoped to the next decision. Do not return an entire database record when the next operation needs only the stable ID, current status, and one permission flag. Large results increase context pressure and may introduce irrelevant names that compete with the original target. Provide a detail tool when the user or workflow actually needs the full record.
+
+Test results with stale and partial downstream states. A payment provider can report that a request is accepted while the account remains unchanged. A CRM can return a record that was deleted between lookup and update. A queue can retry a task after the model has already received a timeout. The result contract should expose enough state for the executor and orchestrator to choose a safe next step.
+
+## How should retries handle a wrong tool?
+
+Retries can hide a routing defect. If the first call selects `search_orders` when the user supplied an exact order ID, blindly retrying with a slightly different query may produce a plausible record and make the final answer look correct. The system has still spent an extra turn and may have selected the wrong entity.
+
+Classify the failure before retrying. A transport timeout, rate limit, or temporary downstream outage may be retryable without changing the tool. An invalid argument may need correction or a user question. A wrong tool is a routing failure and should usually return to the selection boundary, not loop inside the same tool.
+
+Store the original selection and the reason for the retry. If the orchestrator changes from `search_orders` to `get_order`, that should be visible in the trace. If it retries the same operation, record why the repeat is safe and which state or input changed. Idempotency keys protect external effects, but they do not make a semantically wrong read useful.
+
+Use retry budgets by failure class. For example, allow one correction for a malformed date, one status poll for a pending job, and no automatic retry for a denied write. The exact numbers depend on the workflow. What matters is that a new attempt requires new evidence rather than only another model turn.
+
+If a tool returns an ambiguous result, prefer clarification over creative recovery. “I found three accounts with that name” is not a failure to be solved by guessing. Ask the user for a trusted identifier or show a safe selection list. A model that chooses one because it wants to complete the task is exhibiting the exact behavior the routing contract should prevent.
+
+**A retry should require new evidence, not merely a new wording of the same failed tool call.**
+
+## How can you build a routing regression dataset?
+
+A routing dataset does not need thousands of examples to become useful. Start with the smallest set that distinguishes the candidate tools. Each case should contain the user request, trusted context, expected candidate set, expected tool or clarification, argument constraints, authorization result, and expected external effect.
+
+Build cases in pairs and triplets. A single “look up order” example cannot tell you whether the system understands the boundary. Add a near neighbor with no order ID, one with a similar customer name, and one that asks to cancel the order. The expected behavior should change only when the relevant fact changes.
+
+Useful case families include:
+
+- exact identifier versus a free-text description;
+- read request versus write request;
+- one matching entity versus several similar entities;
+- permitted tenant versus restricted tenant;
+- tool available versus tool absent;
+- current state versus stale state;
+- successful result versus pending result;
+- retryable failure versus permanent failure;
+- direct user request versus instruction embedded in retrieved content;
+- one tool namespace versus two tools with overlapping names.
+
+For each case, assert more than the final answer. A system can say the right thing after calling the wrong read tool, and it can say a safe thing after attempting an unauthorized write. Assert the candidate set, selected tool, normalized arguments, policy decision, downstream calls, side effects, and final response.
+
+Keep an expected rationale for the dataset maintainer, but do not require the model to reveal private chain-of-thought. The test needs observable events and a concise classification such as `correct_tool`, `clarification_required`, `tool_unavailable`, `argument_error`, or `policy_denied`. This makes the dataset stable across providers and model versions.
+
+Run the cases against the exact configuration you deploy. A routing result can change when the model, tool order, description, temperature setting, endpoint, or request wrapper changes. Store the configuration alongside the result. Do not compare a production trace with a local experiment and call the difference a model regression without checking the surrounding request.
+
+Keep failures as permanent regression cases until the contract changes intentionally. When a case is removed, record why. Otherwise a team can “fix” a misroute by deleting the example that exposed it.
+
+## Which routing metrics should you monitor?
+
+The first useful metric is selection accuracy on labeled cases, but production monitoring needs more context. Track the rate of correct tool selection, clarification, argument validation failure, policy denial, retry, and external side effect. Break those rates down by workflow, tenant, model endpoint, tool version, and risk level.
+
+Measure the cost of a misroute. A wrong read may add latency and a second call. A wrong write may create a customer-visible change. A tool that is selected correctly but returns a misleading status may cause more harm than an obvious selection error because the trace looks successful.
+
+Useful operational signals include:
+
+| Signal | What it reveals |
+| --- | --- |
+| candidate-set size | Whether the model is comparing too many tools |
+| rival selection rate | Which tools steal requests from one another |
+| clarification rate | Whether boundaries are clear or overly narrow |
+| schema rejection rate | Whether arguments express valid states |
+| policy denial rate | Whether exposure and authorization disagree |
+| retry by failure class | Whether the orchestrator repeats the wrong layer |
+| pending-to-success time | Whether result semantics match workflow reality |
+| side effects after denial | Whether the executor fails closed |
+
+Do not optimize only for fewer clarifying questions. A lower clarification rate can mean the model is guessing more often. Set an acceptable tradeoff by workflow. For a low-risk internal lookup, one extra question may be annoying. For a refund, permission change, or deletion, a higher clarification rate may be the correct result.
+
+Review samples, not only aggregate numbers. A stable overall rate can hide one tenant whose tool filter is broken or one high-risk operation that fails rarely but matters greatly. Attach a compact trace to each alert and redact it before wider access.
+
+Treat the monitoring record as part of the system's risk evidence. The [NIST AI Risk Management Framework](https://www.nist.gov/itl/ai-risk-management-framework) is a useful reference for keeping risk identification, measurement, and response connected instead of treating a successful final answer as the whole outcome.
+
+## How should you roll out a routing repair?
+
+Change one layer at a time when the failure is still understandable. Freeze a baseline using the original trace and the nearby regression cases. Then change either the candidate set, rival descriptions, schema, result contract, or executor policy. Run the same cases and compare selection, arguments, effect, latency, and clarification.
+
+Start in shadow mode for consequential workflows. The repaired router can produce a proposed tool and normalized arguments while the existing path remains responsible for execution. Compare the proposals without sending the new side effect. This reveals whether the repair changes more requests than intended.
+
+Use a small allowlist during the first live release. Expose the repaired definition only to one workflow or tenant, record the candidate set, and keep an immediate fallback that does not repeat a risky call. Monitor policy denials and unexpected clarifications as carefully as successful calls.
+
+Expand only after the regression cases stay green across the deployed model and configuration. Then update the definition version, test fixtures, and operational notes together. A description change is a behavior change, even if the function signature is identical.
+
+Have a stop rule. Pause the rollout if a write is selected for a read-only request, if a target ID changes between lookup and execution, if an unavailable tool is presented as completed, or if a retry creates a duplicate external effect. The stop rule should be executable by the system where possible, not dependent on someone noticing a confusing transcript.
+
+## What belongs in a wrong-tool incident review?
+
+An incident review should answer five questions in order:
+
+1. What did the user ask, and what trusted context was present?
+2. What tool definitions and candidate set reached the model?
+3. Which tool and arguments did the model select?
+4. What did the executor authorize, run, and return?
+5. What repair will prevent the same boundary failure without hiding a useful capability?
+
+Avoid beginning with a verdict about the model. That framing encourages a prompt edit before the team has established the failure layer. Use neutral labels such as unavailable capability, rival ambiguity, schema mismatch, result ambiguity, policy gap, or downstream state mismatch.
+
+The review should include the smallest reproduction, the original and repaired definitions, the relevant policy version, and the regression cases. Include the final external state, not just the assistant response. If the operation was reversible, record the reversal and whether it actually restored the prior state.
+
+Separate immediate containment from durable repair. Immediate containment may disable a write tool, require approval, or route the workflow to a human. Durable repair may split a broad tool, change the result status, or move stable routing into code. Do not call containment a fix if the same ambiguous surface remains waiting behind a temporary flag.
+
+Record uncertainty. If logs do not show whether a tool was available, say so. A missing trace field is itself a reliability issue. Add the field and keep the incident open until a future run can distinguish the competing explanations.
+
+## How do provider differences change the repair?
+
+The concepts in this guide are provider-neutral, but the controls are not identical. One API may expose forced tool choice and an allowed subset. Another may emphasize detailed descriptions and tool consolidation. An MCP client may discover tools dynamically and receive structured results. An SDK may derive descriptions from docstrings and schemas from function signatures.
+
+Use provider documentation to verify the control you plan to use. Do not assume that a parameter named `tool_choice`, `allowed_tools`, `strict`, or `deferred` has the same scope across SDKs. Record the actual serialized request in a trace and test the behavior at the model endpoint you deploy ([OpenAI Function calling guide](https://developers.openai.com/api/docs/guides/function-calling), [OpenAI Agents SDK Tools](https://openai.github.io/openai-agents-python/tools/)).
+
+Keep your internal contract above the provider layer. Define concepts such as `candidate_tools`, `selected_tool`, `normalized_arguments`, `authorization`, `result_status`, and `next_allowed_action` in your own trace schema. Map provider-specific events into those fields. This lets you compare a routing failure across systems without pretending that every provider offers the same native feature.
+
+Provider guidance can also change. Tool-search behavior, schema support, model limits, and SDK defaults are moving parts. Set a review date for high-risk claims, pin the documentation version when the provider offers one, and make a change to the tool surface trigger the routing test suite.
+
+The stable principle is simple: a model chooses from the representation it receives. Make that representation narrow enough to inspect, distinct enough to choose, and constrained enough that a bad choice cannot create an unauthorized effect.
 
 ## What usually fails as a fix?
 

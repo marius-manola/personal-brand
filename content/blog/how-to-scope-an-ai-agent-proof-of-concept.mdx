@@ -1,0 +1,667 @@
+---
+title: 'How Do I Scope an AI Agent Proof of Concept?'
+date: '2026-08-18'
+updated: '2026-08-18'
+excerpt: 'Scope an AI agent proof of concept around one workflow, a contained tool boundary, observable outcomes, representative tests, and an exit gate.'
+answer: 'Scope an AI agent proof of concept around one workflow, one owner, limited data and tools, an observable outcome, representative evaluation cases, and a written exit rule. Start read-only or in shadow mode, compare the agent with a simpler baseline, and expand only when the evidence justifies more access.'
+targetQuery: 'how do i scope an ai agent proof of concept'
+queryAliases:
+  - 'AI agent PoC scope'
+  - 'AI agent proof of concept scope'
+  - 'scope an agent pilot'
+  - 'AI agent prototype boundaries'
+intent: 'implementation'
+funnel: 'consideration'
+cluster: 'AI agent implementation'
+tags:
+  - 'AI agents'
+  - 'Proof of concept'
+  - 'AI implementation'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-16'
+sources:
+  - 'https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/'
+  - 'https://www.anthropic.com/engineering/building-effective-agents'
+  - 'https://docs.aws.amazon.com/prescriptive-guidance/latest/gen-ai-lifecycle-operational-excellence/dev-architecting.html'
+  - 'https://learn.microsoft.com/en-us/agents/agent-evaluation/evaluation-checklist'
+  - 'https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence'
+  - 'https://cdn.openai.com/business-guides-and-resources/a-business-leaders-guide-to-working-with-agents.pdf'
+  - 'https://openai.com/business/guides-and-resources/identifying-and-scaling-ai-use-cases/'
+faq:
+  - q: 'What should an AI agent proof of concept include?'
+    a: 'Include one workflow, a named owner, a narrow task boundary, approved data and tools, a baseline, representative test cases, an observable success condition, a risk and permission plan, and a written continue, revise, or stop rule. A demo without those items is a prototype, not useful proof.'
+  - q: 'How long should an AI agent proof of concept take?'
+    a: 'Use a fixed evidence window chosen by the workflow owner rather than a universal calendar promise. The PoC should end when it has answered its decision questions, or when a known blocker shows that the questions cannot be answered safely with the available data, tools, or baseline.'
+  - q: 'Should an AI agent PoC have write access?'
+    a: 'Usually no. Start with synthetic or approved production-like data, read-only tools, shadow mode, or approval-gated writes. Add one reversible write only when the outcome is observable, the action is bounded, the trace is retained, and the owner accepts the residual risk.'
+  - q: 'How do I measure an AI agent proof of concept?'
+    a: 'Measure the outcome against a simpler baseline on representative cases. Record correctness, required human correction, forbidden actions, tool failures, latency, usage cost, and escalation rate. Run important cases more than once because agent behavior can vary.'
+  - q: 'What is the difference between an AI agent PoC and a pilot?'
+    a: 'A proof of concept tests whether a bounded system can produce enough evidence to justify the next investment. A pilot tests whether an approved version works in a real operating process with real users, ownership, support, monitoring, and controlled consequences.'
+  - q: 'When should I stop an AI agent proof of concept?'
+    a: 'Stop when the workflow is better served by ordinary automation, the outcome cannot be verified, the required data or tools are unavailable, the risk cannot be contained, or the agent cannot beat a simpler baseline at an acceptable cost. Stopping is a valid PoC result.'
+cover: '/blog/how-to-scope-an-ai-agent-proof-of-concept-ai-agent-poc-scope-hero.png'
+coverAlt: 'Illustration of an AI agent proof of concept moving through scope, evidence, and exit gates'
+draft: false
+---
+
+The dangerous moment in an agent project comes before the first tool call. Someone says, “Let’s build an agent for this,” and the project quietly expands from one useful task into a miniature operating system.
+
+I scope a proof of concept as a decision instrument. It should tell you whether one bounded workflow deserves a pilot, what evidence is missing, and what you should stop building. It should not pretend to prove production readiness.
+
+## What should an AI agent proof of concept prove?
+
+An AI agent proof of concept should prove one useful proposition about one workflow. The proposition might be:
+
+- the agent can classify and investigate a defined class of support exceptions;
+- the agent can gather evidence from approved systems and produce a reviewable recommendation;
+- the agent can navigate variable documents and choose the next read-only check;
+- the agent can draft a proposed change that a person can verify faster than the current process.
+
+The proof is not “the model produced an impressive answer.” The proof is a chain of evidence:
+
+1. A real owner can name the job and the cost of doing it badly or slowly.
+2. The candidate system receives the context it actually needs.
+3. The system can use a small, explicit set of tools.
+4. You can observe whether the workflow reached the intended state or produced a reviewable result.
+5. Representative cases show where the system works, fails, or needs a person.
+6. The result compares with a simpler baseline.
+7. A written rule says what happens next.
+
+OpenAI describes agents as systems that independently accomplish tasks, using an LLM to manage workflow execution and tools to interact with external systems. It also points out that an application can use an LLM without letting the model control workflow execution, as in a simple chatbot or classifier ([OpenAI's practical guide to building agents](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/)). That distinction matters because your first PoC may not need an agent at all.
+
+**A useful AI agent proof of concept proves a bounded decision, not the existence of an agent.**
+
+Treat the PoC as a learning contract between the workflow owner and the build team. Before implementation, both sides should agree on:
+
+| Question | What a good answer looks like |
+| --- | --- |
+| What job is being tested? | “Investigate invoice exceptions for approved vendors and recommend the next check.” |
+| What must change? | “A reviewer receives a complete, sourced recommendation with fewer manual lookups.” |
+| What is forbidden? | “No payment, ledger edit, vendor message, or deletion.” |
+| What evidence counts? | “A case record, tool trace, cited evidence, reviewer verdict, and baseline comparison.” |
+| What ends the PoC? | “Continue, revise, or stop after the agreed case set and safety checks.” |
+
+If the owner cannot answer these questions, the scope is not ready. More architecture will not resolve an undecided job.
+
+## Should this workflow use an agent at all?
+
+Start with the lowest-complexity system that could plausibly meet the acceptance condition. This is not an argument against agents. It is how you make the agent claim testable.
+
+OpenAI highlights complex decisions, difficult-to-maintain rules, and heavy reliance on unstructured data as promising conditions for agents, while warning that a deterministic solution may be enough in other cases ([OpenAI's practical guide to building agents](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/)). AWS makes a similar progression for generative AI PoCs: begin with prompt engineering where it fits, add retrieval when proprietary or current information is required, and consider agentic AI when the task is complex, multi-step, and tool-using ([AWS Prescriptive Guidance](https://docs.aws.amazon.com/prescriptive-guidance/latest/gen-ai-lifecycle-operational-excellence/dev-architecting.html)).
+
+Use this architecture ladder during scoping:
+
+| Workflow shape | Candidate PoC | Why |
+| --- | --- | --- |
+| Fixed inputs, fixed rules, fixed sequence | Ordinary software or automation | It is easier to test and explain. |
+| One language step inside a known sequence | One LLM call | You get interpretation without handing over workflow control. |
+| Several known stages with model-assisted steps | Fixed LLM workflow | Code owns the path; the model handles bounded transformations. |
+| Variable path selected from new evidence | Single-agent PoC | The model may need to choose the next check or tool. |
+| Several roles with clear independent responsibilities | Consider multiple agents later | Coordination is an added hypothesis, not a default feature. |
+
+Anthropic draws the practical boundary this way: workflows use predefined code paths, while agents dynamically direct their process and tool use. Its guidance says to find the simplest solution and increase complexity only when needed because agentic systems can trade latency and cost for task performance ([Anthropic's guide to building effective agents](https://www.anthropic.com/engineering/building-effective-agents)).
+
+If a fixed workflow can pass the same business acceptance test, keep the fixed workflow. A PoC that disproves the need for agentic autonomy has done useful work.
+
+## What is the SCOPE card for an AI agent PoC?
+
+Use the SCOPE card to turn a broad idea into five decisions:
+
+| Letter | Decision | Required evidence |
+| --- | --- | --- |
+| **S** | **Single workflow** | One trigger, one job, one owner, and a clear in-scope boundary |
+| **C** | **Contained context** | Approved data, tools, permissions, and stop conditions |
+| **O** | **Observable outcome** | A state change or artifact that a person or system can verify |
+| **P** | **Proof set** | Baseline, representative cases, acceptance criteria, and retained traces |
+| **E** | **Exit gate** | Continue, revise, or stop rules agreed before the results arrive |
+
+SCOPE is an original synthesis for this article. It is not an official standard from OpenAI, Anthropic, AWS, Microsoft, or NIST. The value is its order. It forces you to define the job before the tools, the outcome before the prompt, and the exit rule before the demo.
+
+OpenAI's business guide asks teams to make purpose, scope, ownership, coordination, and lifecycle explicit, then measure against a baseline across multiple cycles ([A business leader's guide to working with agents](https://cdn.openai.com/business-guides-and-resources/a-business-leaders-guide-to-working-with-agents.pdf)). The SCOPE card converts those broad management questions into a working PoC brief.
+
+![Illustration of the five-part SCOPE card for an AI agent proof of concept](/blog/how-to-scope-an-ai-agent-proof-of-concept-ai-agent-poc-scope-card.png)
+
+### How do you define the single workflow?
+
+Write the workflow as a sentence with a trigger, object, boundary, and result:
+
+> When [trigger] occurs, the system investigates [one class of case] using [approved context], then produces [verifiable result] for [owner].
+
+Examples:
+
+- When a support ticket contains a billing exception, the system checks the approved order and policy records, then produces a cited recommendation for a support lead.
+- When a vendor invoice fails a matching rule, the system reads the invoice, purchase order, and vendor record, then drafts an exception summary for a finance reviewer.
+- When a software issue is assigned to the triage queue, the system reads the issue and selected repository metadata, then proposes a diagnosis and next investigation step without changing code.
+
+Avoid sentences such as “build an agent that handles finance” or “automate customer operations.” Those are areas, not workflows. They hide several owners, data policies, tools, and outcomes.
+
+Name one workflow owner. The owner is not necessarily the person who writes the code. The owner decides what counts as correct, which exceptions require escalation, and whether the result is worth carrying forward.
+
+### What should be contained in the context and tools?
+
+Make a short inventory. Do not begin with the tools a framework makes convenient. Begin with the evidence the task requires.
+
+| Context or capability | Decision to record |
+| --- | --- |
+| Source data | Which systems, documents, fields, or records are allowed? |
+| Data freshness | How current must the information be, and what happens when it is stale? |
+| Identity | Which user, service account, or test identity is used? |
+| Read tools | Which lookup or retrieval operations are needed? |
+| Write tools | Which, if any, actions may change state? |
+| External calls | Which APIs, websites, or vendors are allowed? |
+| Sensitive data | What must be masked, excluded, or kept in a controlled environment? |
+| Stop conditions | When must the agent stop, escalate, or return an incomplete result? |
+
+OpenAI recommends documenting and testing tools, and it describes tool risk in terms such as read versus write access, reversibility, required permissions, and financial impact ([OpenAI's practical guide to building agents](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/)). AWS also says an agentic PoC should validate the reliability, latency, and security of external APIs or tools ([AWS Prescriptive Guidance](https://docs.aws.amazon.com/prescriptive-guidance/latest/gen-ai-lifecycle-operational-excellence/dev-architecting.html)).
+
+The practical implication is simple: tool access is part of the experiment. If the PoC gives the agent five untested integrations, you are testing the model, the tool contracts, the identity system, the network, and the data quality at the same time. That may be necessary for the workflow, but you should say so.
+
+### What makes an outcome observable?
+
+An outcome is observable when a source of truth or a defined reviewer can verify it without trusting the agent's final prose.
+
+Good outcome signals include:
+
+- a ticket moved to an approved status;
+- a recommendation contains the required fields and evidence;
+- a structured record passes a schema and policy check;
+- a proposed code change passes tests and stays inside the allowed files;
+- a human reviewer reaches a defined verdict using the supplied evidence;
+- the system identifies that it lacks enough information and escalates instead of guessing.
+
+Weak outcome signals include “the response sounded helpful,” “the demo felt smart,” or “the agent said it completed the task.” Those may matter as secondary quality signals, but they do not prove the underlying job happened.
+
+Microsoft's evaluation checklist asks teams to define expected responses, acceptance criteria, and test methods for each scenario. It also gives examples where an agent must route an out-of-scope question to a human rather than answer from unsupported knowledge ([Microsoft's agent evaluation checklist](https://learn.microsoft.com/en-us/agents/agent-evaluation/evaluation-checklist)). Use that idea in the PoC: a correct refusal or escalation is often a successful outcome.
+
+## How do you write a proof set before building?
+
+Build the proof set before you tune prompts. It should be small enough to review by hand and varied enough to expose the boundary.
+
+Microsoft recommends starting with a foundational set tied to key scenarios, then iterating and expanding coverage. Its checklist calls for a prompt, expected response or assertion, acceptance criteria, and test method. It also recommends repeated runs because agents can produce varying responses to the same prompt ([Microsoft's agent evaluation checklist](https://learn.microsoft.com/en-us/agents/agent-evaluation/evaluation-checklist)).
+
+Use five case groups:
+
+| Case group | What it tests | Example |
+| --- | --- | --- |
+| Normal | The central job | A complete, ordinary invoice exception |
+| Variation | Different wording, format, or context | The same issue with a different document layout |
+| Missing | Incomplete inputs or unavailable evidence | The purchase order is absent |
+| Conflict | Contradictory or stale information | Two systems disagree on status |
+| Boundary | Out-of-scope, unsafe, or high-consequence request | A request to approve payment or expose private notes |
+
+For each case, record:
+
+1. the input and test identity;
+2. the data and tools available;
+3. the expected outcome;
+4. required actions;
+5. forbidden actions;
+6. the evidence a reviewer should inspect;
+7. the acceptance rule;
+8. the version of the agent and tool policy;
+9. the final state, trace, and reviewer verdict.
+
+Do not make every case a puzzle. The set should represent the work people actually expect, including boring cases. A PoC is not a contest for the most clever prompt. It is an attempt to learn whether a bounded system behaves acceptably across the shape of the job.
+
+### How many cases do you need?
+
+There is no universal number. Start with at least one case for every material scenario and add cases where a different outcome would change the decision. That may produce a small set for a narrow read-only task and a much larger set for a sensitive workflow with many exception classes.
+
+The right question is not “How many examples can we create?” It is “What case would make us change the scope, permission, model, or decision?” Include that case.
+
+Use a coverage table like this:
+
+| Scenario | Representative input | Expected outcome | Forbidden action | Owner verdict |
+| --- | --- | --- | --- | --- |
+| Normal case | Complete request with trusted records | Produce a sourced recommendation | No write | Pending |
+| Missing record | Required record unavailable | Ask for the record or escalate | No invented value | Pending |
+| Conflicting records | Two sources disagree | Flag conflict and stop | No unilateral resolution | Pending |
+| Out of scope | Request outside the workflow | Refuse or route to owner | No unrelated tool call | Pending |
+| Sensitive action | User asks for a consequential write | Present a draft for approval | No direct execution | Pending |
+
+“Pending” is intentional in a scope document. Do not fill it with a made-up score before the system runs.
+
+![Illustration of a representative AI agent proof of concept case matrix](/blog/how-to-scope-an-ai-agent-proof-of-concept-ai-agent-poc-case-matrix.png)
+
+## How do you set a baseline and success rule?
+
+Measure the current workflow before measuring the agent. A baseline can be rough, but it must describe the alternative the agent is supposed to improve.
+
+Capture the current process in terms the owner understands:
+
+- number of cases in the evaluation window;
+- elapsed handling time or queue delay;
+- correction or rework rate if available;
+- escalation rate;
+- cost of the people or systems involved;
+- quality or policy checks already used;
+- cases the current process intentionally refuses.
+
+OpenAI's business guidance says ROI measurement starts by establishing how the work happens today, including typical time, cost, and accuracy. It also advises checking results across multiple cycles rather than only after the first attempt ([A business leader's guide to working with agents](https://cdn.openai.com/business-guides-and-resources/a-business-leaders-guide-to-working-with-agents.pdf)). Do not confuse this with a promise that every PoC can produce a precise financial ROI number. The baseline is a point of comparison.
+
+Define success as a set of thresholds and vetoes. Keep them separate:
+
+| Type | Example rule | Why it matters |
+| --- | --- | --- |
+| Outcome threshold | The recommendation contains the required fields and evidence | Measures the job's value |
+| Quality threshold | A reviewer accepts the result without material correction | Measures usefulness |
+| Efficiency threshold | The process is no slower or more expensive than the baseline | Protects the business case |
+| Safety veto | No forbidden action occurs | Prevents a good average from hiding a serious failure |
+| Escalation rule | Missing or conflicting evidence routes to a person | Makes uncertainty visible |
+
+A single blended score is dangerous when one forbidden action matters more than several good answers. Let the workflow owner identify vetoes before the first result arrives.
+
+**A PoC should compare the agent with a simpler baseline, not with the team's imagination of manual work.**
+
+OpenAI recommends establishing an evaluation baseline with a capable model before optimizing cost and latency. That is a model-selection baseline, not a substitute for the business workflow baseline ([OpenAI's practical guide to building agents](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/)). Keep both comparisons:
+
+1. Does the agent meet the workflow's acceptance condition?
+2. Does it improve on the simplest credible alternative?
+
+If the answer to the first is no, stop or revise. If the answer to the first is yes but the second is no, do not expand merely because the agent works. Keep the simpler system.
+
+## What should the first agent architecture include?
+
+The first architecture should include only the components required to test the proposition. That often means:
+
+- one agent or one fixed workflow;
+- one model endpoint selected for a baseline;
+- a short, versioned instruction set;
+- a small number of documented tools;
+- a controlled data source;
+- a trace and final-state recorder;
+- a deterministic evaluator where possible;
+- a human reviewer for ambiguous or consequential cases.
+
+Do not add memory, multi-agent handoffs, broad retrieval, browser access, production writes, or a full orchestration framework because they sound like features an agent should have. Add them only when removing them would make the test unable to answer the scope question.
+
+Anthropic says that successful implementations often use simple, composable patterns and recommends adding agentic complexity only when simpler systems fall short. Its page also carries a note that the tools described in the 2024 article have changed, so treat the architectural principle as durable and verify any current framework choice separately ([Anthropic's guide to building effective agents](https://www.anthropic.com/engineering/building-effective-agents)).
+
+AWS frames the architecture choice around prompt engineering, retrieval, and agentic AI, and says the agentic PoC must test the agent's ability to reason, plan, and reliably use tools ([AWS Prescriptive Guidance](https://docs.aws.amazon.com/prescriptive-guidance/latest/gen-ai-lifecycle-operational-excellence/dev-architecting.html)). That gives you a useful scope test: if the PoC never needs the model to choose a next step from fresh evidence, it may be a fixed workflow with an LLM step.
+
+### Should the PoC use one agent or multiple agents?
+
+Start with one agent unless the workflow has a concrete reason to separate responsibilities. Multiple agents introduce more prompts, interfaces, state transfer, evaluation cases, and failure paths. They may be justified when different roles have distinct permissions or when the handoff itself is part of the proposition. Otherwise, multi-agent design is a future hypothesis.
+
+This is not an argument that one agent is always better. It is a scope rule: the first PoC should isolate the business question. If the question is “Can the system investigate a support exception safely?” a multi-agent architecture makes it harder to tell whether the answer came from the workflow, the handoff, or the individual agents.
+
+### Should the PoC include memory?
+
+Only if cross-task memory is essential to the workflow proposition. If the task can be evaluated with the request, approved context, and current tool results, leave memory out.
+
+Memory changes the test surface. You now need to decide what is stored, for how long, under whose identity, how it is updated, how it can be corrected, and what happens when it is stale or contaminated. A PoC that does not need those answers should not absorb them.
+
+![Illustration of a minimal AI agent proof of concept architecture with explicit exclusions](/blog/how-to-scope-an-ai-agent-proof-of-concept-ai-agent-poc-minimal-architecture.png)
+
+## How should you scope data, permissions, and side effects?
+
+Treat the permission boundary as a design decision, not a deployment detail. An agent can be technically successful and still be unsuitable because the consequences of a wrong action are too large or too difficult to reverse.
+
+Use a permission ladder:
+
+1. **Synthetic data.** Use fabricated or sanitized cases to test the loop and schemas.
+2. **Read-only sandbox.** Let the system retrieve from a controlled environment with test identities.
+3. **Shadow mode.** Let it observe real or production-like cases and produce recommendations without affecting the live workflow.
+4. **Approval-gated draft.** Let it prepare a proposed write that a person reviews and executes.
+5. **One bounded write.** Add one reversible action with explicit limits, logging, and rollback.
+6. **Broader pilot access.** Consider only after the PoC evidence supports a separate pilot decision.
+
+Most PoCs should stop at level two, three, or four. That is not a weakness. It keeps the experiment focused on usefulness while reducing the cost of an incorrect action.
+
+![Illustration of a staged permission ladder for an AI agent proof of concept](/blog/how-to-scope-an-ai-agent-proof-of-concept-ai-agent-poc-permission-ladder.png)
+
+OpenAI recommends rating tools by read versus write access, reversibility, required permissions, and financial impact, and using those ratings to trigger checks or human escalation ([OpenAI's practical guide to building agents](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/)). NIST's Generative AI Profile is a broader cross-sector resource for managing trustworthiness across design, development, use, and evaluation, which is why governance questions belong in the scope card even for an early experiment ([NIST's Generative AI Profile](https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence)).
+
+### What should the agent be forbidden to do?
+
+Write forbidden actions in operational language. “Be safe” cannot be tested. Examples include:
+
+- do not send external messages;
+- do not change a financial or customer record;
+- do not approve a payment, refund, or access request;
+- do not delete or overwrite data;
+- do not use credentials outside the named test identity;
+- do not infer a missing value when the workflow requires a source;
+- do not continue after a tool reports an authorization or integrity failure;
+- do not answer outside the defined workflow and pretend the result is verified.
+
+For each prohibition, define the evidence that proves it held. A trace should show the attempted or blocked call, the tool policy, the result, and the final state. A human reviewer should not need to infer safety from a polished final message.
+
+### What happens when data is missing or contradictory?
+
+Missing and contradictory data should be first-class cases. Define one of three outcomes:
+
+- ask for the missing input;
+- escalate to the named owner;
+- return an incomplete result that clearly lists the unresolved evidence.
+
+Do not allow the agent to fill a business-critical gap with a plausible guess unless the workflow owner has explicitly defined that behavior and its consequences. A PoC is the right place to discover that the source system does not expose the data the proposed agent needs.
+
+## How do you design the PoC run?
+
+Run the PoC as a sequence of evidence-building stages.
+
+### What are the practical stages?
+
+1. **Write the scope card.** Capture SCOPE, the owner, the baseline, the case matrix, and the exit gate.
+2. **Build the simplest baseline.** Use ordinary automation, a fixed workflow, or one LLM step where credible.
+3. **Freeze the system under test.** Record model endpoint, prompt version, tool definitions, data snapshot, identity, code revision, and evaluator version.
+4. **Run read-only or shadow tests.** Keep side effects outside the live process while you inspect outcomes and traces.
+5. **Review failures by category.** Separate missing data, tool failure, model reasoning error, policy violation, evaluator defect, and unclear requirement.
+6. **Change one boundary at a time.** If you change the prompt, model, tool, data, and evaluator together, you will not know what the result means.
+7. **Assemble the evidence pack.** Keep the case results, traces, final states, reviewer decisions, costs, latency, limitations, and unresolved risks.
+8. **Apply the exit gate.** Continue, revise the question, reduce the scope, or stop.
+
+The exact calendar window is a local planning decision. Do not copy a universal duration from another team. A narrow read-only PoC may answer its question quickly. A workflow with sensitive data, unreliable integrations, or disputed acceptance criteria may need more discovery before a meaningful run is possible.
+
+### What should be frozen during a run?
+
+At minimum, freeze or record:
+
+| Item | Why it matters |
+| --- | --- |
+| Model and endpoint | Behavior and availability can change. |
+| System and task instructions | The agent's authority and decision rules live here. |
+| Tool schemas and permissions | A tool change can alter the failure surface. |
+| Retrieval or data snapshot | The available evidence must be reproducible enough to interpret results. |
+| Test identity | Permissions affect what the agent can see and do. |
+| Code revision | Integrations and evaluators change over time. |
+| Case-set version | A different test set changes the claim. |
+| Budget and stop limits | Unbounded loops can turn a PoC into an uncontrolled experiment. |
+
+The goal is not laboratory perfection. The goal is to prevent a vague statement such as “the agent was 85 percent accurate” from hiding which agent, which data, which cases, and which evaluator produced the number.
+
+### What should you inspect besides the final answer?
+
+Inspect four layers:
+
+1. **Outcome.** Did the intended state or artifact exist?
+2. **Action trace.** Did the agent choose the allowed tools with valid arguments and order?
+3. **Policy behavior.** Did it stop, refuse, or escalate when required?
+4. **User-facing result.** Was the explanation clear enough for the next person to act?
+
+The first three should normally have priority. A convincing answer cannot repair an unauthorized write. A correct final answer that used a forbidden data source still fails the PoC's safety condition.
+
+![Illustration of four evidence layers for reviewing an AI agent proof of concept](/blog/how-to-scope-an-ai-agent-proof-of-concept-ai-agent-poc-evidence-stack.png)
+
+## What should the PoC evidence pack contain?
+
+The evidence pack is the handoff from experimentation to decision. It should let someone who did not watch the demo understand what was tested and what the result supports.
+
+Include:
+
+- the final scope card and its revision history;
+- the workflow owner and technical owner;
+- the baseline description and measurement method;
+- the case set with expected outcomes;
+- the agent, model, prompt, tool, data, identity, and code versions;
+- the permissions and forbidden-action list;
+- result records for every case;
+- tool traces and final environment states where applicable;
+- reviewer verdicts and disagreement notes;
+- cost, latency, retries, and stop-limit observations;
+- unresolved data, security, privacy, or integration risks;
+- known limitations and claims the evidence does not support;
+- the continue, revise, or stop decision;
+- the owner and date for the next review.
+
+This may be a folder of JSON, Markdown, logs, and links. It does not need a dashboard. A dashboard can be useful later, but a clear record is more important than a polished surface.
+
+![Illustration of an AI agent proof of concept evidence pack](/blog/how-to-scope-an-ai-agent-proof-of-concept-ai-agent-poc-evidence-pack.png)
+
+NIST describes its Generative AI Profile as a companion resource for managing trustworthiness across the AI lifecycle. That is a reason to keep risk and limitation records with the technical results, rather than treating governance as paperwork after the experiment ([NIST's Generative AI Profile](https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence)).
+
+## How do you decide whether to continue, revise, or stop?
+
+Write the exit gate before running the PoC. Results should answer a question, not create a new argument about what the team meant to test.
+
+| Decision | Conditions | Next action |
+| --- | --- | --- |
+| **Continue** | The bounded workflow meets the outcome and safety rules, beats or meaningfully complements the baseline, and the remaining risks fit a controlled pilot. | Write a separate pilot plan with ownership, support, monitoring, data handling, and rollout limits. |
+| **Revise** | The workflow is valuable, but the cases, baseline, data, tool contract, or acceptance rule are incomplete or the failure is fixable by reducing scope. | Change one hypothesis, update the scope card, and rerun the affected cases. |
+| **Stop** | A simpler system is good enough, the outcome cannot be verified, required context is unavailable, the risk cannot be contained, or the cost is not justified. | Record the evidence, preserve useful components, and close the PoC. |
+
+Do not treat “continue” as “ship.” A PoC can support a pilot decision while still failing to answer production questions about scale, support, long-run drift, incident response, or organizational adoption.
+
+**A successful PoC can end with a smaller system, a narrower workflow, or a decision not to deploy an agent.**
+
+OpenAI's use-case guidance warns that complex use cases can slow teams down and recommends prioritizing opportunities with high impact and lower effort. That supports a practical stop rule: if the agent adds complexity without changing the business outcome, do not keep it for prestige ([OpenAI's guide to identifying and scaling AI use cases](https://openai.com/business/guides-and-resources/identifying-and-scaling-ai-use-cases/)).
+
+### What is a meaningful continue decision?
+
+A continue decision should name the exact next increment. For example:
+
+- add one approval-gated write for the same case class;
+- test a second approved data source because the first lacks a required field;
+- move from shadow mode to a supervised pilot for one team;
+- compare a lower-cost model against the established baseline;
+- add boundary cases for a known failure category;
+- keep the agent read-only while improving the evaluation harness.
+
+Avoid “scale the agent across the business.” That is a new proposal, not an exit condition.
+
+### What is a meaningful revise decision?
+
+Revise when you can name the mismatch. Common revisions include:
+
+- reduce the workflow to one exception class;
+- remove a tool that adds risk without improving the result;
+- replace a model-controlled step with deterministic validation;
+- improve source data before changing the prompt;
+- make the expected outcome more precise;
+- add a human escalation for missing evidence;
+- split a business decision from a drafting task.
+
+The best revision is often a narrower question. “Can the agent handle all support tickets?” becomes “Can the agent collect the right evidence for refund-related billing exceptions without writing to the ticket system?” That question is easier to test and easier to stop.
+
+### What is a meaningful stop decision?
+
+Stop for a reason that the evidence can defend:
+
+- the workflow follows stable rules and ordinary automation passes;
+- the outcome is subjective and no qualified reviewer can agree on acceptance;
+- the systems do not expose the evidence required for verification;
+- the only route to value requires unrestricted write access;
+- the agent's error cost exceeds the value of its speed or flexibility;
+- the PoC is testing too many components to identify a useful conclusion;
+- the owner cannot commit to operating and reviewing the system.
+
+Stopping protects the organization from turning an unanswered question into a permanent prototype.
+
+![Illustration of an AI agent proof of concept exit gate with continue revise and stop decisions](/blog/how-to-scope-an-ai-agent-proof-of-concept-ai-agent-poc-exit-gate.png)
+
+## Can you copy a one-page AI agent PoC scope template?
+
+Copy this template into the project brief. Keep the blanks until the workflow owner fills them. The structure is the useful part.
+
+```text
+AI agent proof of concept scope card
+
+SINGLE WORKFLOW
+Workflow name:
+Owner:
+Trigger:
+One job in scope:
+Explicitly out of scope:
+Users or reviewers:
+
+CONTAINED CONTEXT
+Approved data sources:
+Data freshness requirement:
+Test identity:
+Read-only tools:
+Write tools, if any:
+External systems:
+Sensitive data handling:
+Stop and escalation conditions:
+Forbidden actions:
+
+OBSERVABLE OUTCOME
+Intended final state or artifact:
+Source of truth:
+Required fields or evidence:
+What counts as a correct escalation:
+
+PROOF SET
+Simplest credible baseline:
+Normal cases:
+Variation cases:
+Missing-data cases:
+Conflict cases:
+Boundary cases:
+Acceptance criteria:
+Safety vetoes:
+Cost and latency measures:
+Versions to record:
+Evidence to retain:
+
+EXIT GATE
+Continue if:
+Revise if:
+Stop if:
+Next owner and date:
+```
+
+This card is deliberately plain. It creates a shared object for the product owner, engineer, security reviewer, and operator. If one line is impossible to fill, that line is a discovery task.
+
+## How should you scope a hypothetical workflow?
+
+Consider a hypothetical accounts-payable exception workflow. The current process receives an invoice, checks a purchase order, looks up vendor information, and decides whether a human should investigate the mismatch. The proposed agent would read the approved records, choose the next read-only check, and prepare a recommendation.
+
+This is an example, not a client result or a test performed by Marius Manolachi.
+
+### What would be in scope?
+
+The SCOPE card could say:
+
+| SCOPE field | Hypothetical decision |
+| --- | --- |
+| Single workflow | Investigate purchase-order and invoice mismatches for one business unit. |
+| Owner | Finance operations lead. |
+| Context | Invoice, purchase order, vendor record, and approved policy excerpt. |
+| Tools | Read invoice, read purchase order, read vendor, read policy. |
+| Outcome | A structured exception recommendation with source references and unresolved questions. |
+| Human role | Finance reviewer approves, rejects, or requests more evidence. |
+| Forbidden actions | No payment, ledger edit, vendor message, or record deletion. |
+| Proof set | Normal mismatch, missing purchase order, conflicting vendor status, duplicate invoice, and out-of-scope payment request. |
+| Baseline | Existing analyst review using the same case set. |
+| Exit gate | Continue only if the recommendation meets the acceptance rule without forbidden actions and improves the comparison enough to justify a supervised pilot. |
+
+Notice what this scope does not include. It does not include payment approval, every business unit, every invoice format, automatic vendor communication, long-term memory, or a claim that the agent will reduce costs. Those may become later questions.
+
+![Illustration of a hypothetical accounts-payable AI agent proof of concept boundary](/blog/how-to-scope-an-ai-agent-proof-of-concept-ai-agent-poc-hypothetical-ap.png)
+
+### What would the first architecture look like?
+
+The first version could be a single agent with four read-only tools and a structured output. A deterministic wrapper would validate required fields, source references, and allowed status values. A human reviewer would judge whether the recommendation supports the next action. The harness would retain the tool trace and final structured result.
+
+If the agent cannot retrieve a required record, it would return an escalation state. If two sources conflict, it would identify the conflict rather than choose a side. If the user asks it to pay an invoice, the system would refuse or route the request.
+
+The architecture is intentionally modest. It tests whether flexible investigation helps. It does not test whether autonomous payment is safe.
+
+### What would the exit decision look like?
+
+Suppose the PoC produces clear recommendations on normal cases but often fails when a purchase order is missing. There are at least three possible decisions:
+
+- revise the scope to the cases with complete source records;
+- add a defined escalation path for missing purchase orders;
+- stop if missing records are common and the source system cannot supply them.
+
+The result does not justify adding more tools automatically. First ask whether the missing record is a data problem, a workflow policy problem, or an agent capability problem. The fix belongs in a different part of the system depending on the answer.
+
+## What should remain out of scope for the first PoC?
+
+Out-of-scope items are not a sign that the team lacks ambition. They are how the experiment keeps a readable conclusion.
+
+Common exclusions include:
+
+- production writes without approval;
+- multiple business units with different policies;
+- every data source available to the organization;
+- a general-purpose assistant alongside the target workflow;
+- model comparison without a fixed case set;
+- multi-agent orchestration before one-agent behavior is understood;
+- persistent memory without a defined memory policy;
+- end-user rollout before an owner and support path exist;
+- claims about regulatory compliance based on a demo;
+- a universal cost or accuracy target copied from another project;
+- a dashboard built before the evidence contract is clear.
+
+For each exclusion, record the condition that could bring it back. For example, “persistent memory is out of scope until the workflow demonstrates that the same job cannot be completed with request-local context.” That turns anti-scope into a decision rule rather than a permanent opinion.
+
+## How do you separate a PoC from a pilot?
+
+A proof of concept asks whether a bounded approach is promising and controllable enough to justify the next step. A pilot asks whether an approved system can operate in a real process with real ownership and controlled consequences.
+
+| Dimension | Proof of concept | Pilot |
+| --- | --- | --- |
+| Main question | Can this approach produce enough evidence? | Can this approved version operate in the intended process? |
+| Data | Synthetic, sanitized, sandbox, or carefully approved shadow data | Real operating data under documented controls |
+| Side effects | None, shadowed, or approval-gated | Controlled actions with rollback and incident handling |
+| Users | Build team and selected reviewers | Named operational users |
+| Evaluation | Foundational cases and boundary cases | Regression suite plus operational quality and support signals |
+| Ownership | Workflow owner and technical owner | Ongoing product, operations, security, and support ownership |
+| Exit | Continue, revise, or stop | Expand, hold, roll back, or retire |
+
+Microsoft's evaluation guidance describes an iterative path from foundational tests and a baseline to broader variation, architecture, edge-case, and continuous evaluation work ([Microsoft's agent evaluation checklist](https://learn.microsoft.com/en-us/agents/agent-evaluation/evaluation-checklist)). That supports the distinction: a PoC should establish a foundation, not claim that the full operational lifecycle is complete.
+
+![Illustration of the difference between an AI agent proof of concept and a pilot](/blog/how-to-scope-an-ai-agent-proof-of-concept-ai-agent-poc-poc-pilot.png)
+
+Do not smuggle pilot requirements into the PoC if they make the first question impossible to answer. Do not omit pilot requirements when asking for production access. The boundary is a change in decision, not a change in branding.
+
+## What should you do when the evidence is inconclusive?
+
+Inconclusive evidence is different from failure. It means the run could not isolate the proposition.
+
+Common causes include:
+
+- the baseline was never measured;
+- the case set contains examples but no expected outcomes;
+- the data snapshot changed during the run;
+- the tool contract returned ambiguous results;
+- the owner disagrees about what counts as correct;
+- the evaluator grades prose but not the underlying state;
+- several architecture changes happened at once;
+- the PoC has no stop limit and generated noisy traces;
+- the test identity had broader or narrower access than intended.
+
+Label the result “inconclusive” and fix the experiment design. Do not turn it into a soft continue because the team has already invested time. A clean inconclusive result is cheaper than a false proof.
+
+### What does the named-source advice add?
+
+The primary sources reinforce a common operating pattern. OpenAI asks teams to define the job, scope the data and tools, establish baselines, and add complexity incrementally. Anthropic argues for simple systems and comprehensive evaluation. AWS connects PoC scope to model-task fit, integration quality, cost, latency, privacy, security, and tool reliability. Microsoft makes the case set and acceptance criteria explicit. NIST supplies a lifecycle risk lens.
+
+The synthesis is not that one vendor's framework wins. It is that a PoC needs business scope, technical boundaries, observable outcomes, evidence, and an exit decision at the same time.
+
+Stanford economist Erik Brynjolfsson is quoted in OpenAI's use-case guide saying, “This is a time when you should be getting benefits [from AI] and hope that your competitors are just playing around and experimenting.” The quote is useful here because it contains a tension: experiment for real benefit, but do not confuse experimentation with a reason to remove boundaries ([OpenAI's guide to identifying and scaling AI use cases](https://openai.com/business/guides-and-resources/identifying-and-scaling-ai-use-cases/)).
+
+**The best PoC scope is small enough to falsify and valuable enough to matter.**
+
+## How do you move from a PoC to a responsible pilot?
+
+Move only the evidence-supported increment. A responsible pilot plan should answer questions the PoC was not required to solve fully:
+
+- Who owns the system after the builders leave?
+- Which users and cases are included?
+- What data handling and access review are complete?
+- What monitoring shows outcome, action, policy, cost, and failure signals?
+- What does a user do when the agent is wrong or unavailable?
+- What happens after a tool failure, timeout, or partial result?
+- How are prompts, models, tools, and policies changed and re-evaluated?
+- What is the rollback or shutdown path?
+- Which claims from the PoC remain unsupported?
+
+OpenAI's business guidance explicitly asks who maintains and improves an agent over time and how the agent should evolve, consolidate, or retire ([A business leader's guide to working with agents](https://cdn.openai.com/business-guides-and-resources/a-business-leaders-guide-to-working-with-agents.pdf)). Make those lifecycle questions part of the handoff, not a promise hidden in a roadmap.
+
+The PoC should leave the pilot smaller than the original idea. It should name the exact workflow, exact users, exact tools, exact acceptance rule, and exact unresolved risks. If it cannot, the next step is more scoping, not broader access.
+
+## What should you do first?
+
+Write the scope card with the workflow owner before you choose a framework. Start with one workflow, one observable result, read-only or shadow access, and a representative proof set. Build the simplest credible baseline. Retain the trace. Agree on the exit gate.
+
+If the workflow is still unclear, read [when to use an AI agent](/blog/when-to-use-an-ai-agent) before you build. If the team is ready to define the cases and release evidence, use [how to evaluate an AI agent](/blog/how-to-evaluate-an-ai-agent). For permission decisions, see [how to give an AI agent least-privilege access to tools](/blog/give-ai-agent-least-privilege-tool-access). If the proposed workflow needs approvals, connect the scope card to [human-in-the-loop AI agents](/blog/human-in-the-loop-ai-agents).
+
+Anthropic's summary is a good closing test: “Success in the LLM space isn't about building the most sophisticated system. It's about building the right system for your needs.” It is a short quote, but it describes the PoC job exactly ([Anthropic's guide to building effective agents](https://www.anthropic.com/engineering/building-effective-agents)).
+
+Scope the question until the evidence can answer it. Then let the evidence decide whether the agent deserves more.

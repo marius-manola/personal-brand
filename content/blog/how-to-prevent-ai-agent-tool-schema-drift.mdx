@@ -1,0 +1,692 @@
+---
+title: 'How to Prevent AI Agent Tool Schema Drift'
+date: '2026-08-18'
+updated: '2026-08-18'
+excerpt: 'Prevent AI agent tool schema drift with one versioned contract, compatibility gates, executable tests, and runtime checks for stale tool definitions.'
+answer: "Prevent AI agent tool schema drift by keeping one versioned contract for each tool, generating every model-facing schema from it, and validating real inputs and outputs in CI. Classify changes as compatible or breaking, pin the agent to a contract fingerprint, and fail closed when the runtime discovers a stale or incompatible tool definition."
+targetQuery: 'how to prevent ai agent tool schema drift'
+queryAliases:
+  - 'AI agent tool schema drift prevention'
+  - 'how to stop tool schema drift in AI agents'
+  - 'AI agent function schema versioning'
+  - 'AI tool contract versioning'
+intent: 'informational / implementation'
+funnel: 'consideration'
+cluster: 'AI agent reliability and tool contracts'
+tags:
+  - 'AI agents'
+  - 'Tool calling'
+  - 'Agent reliability'
+  - 'API design'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-16'
+sources:
+  - 'https://developers.openai.com/api/docs/guides/function-calling'
+  - 'https://developers.openai.com/api/docs/guides/structured-outputs'
+  - 'https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools'
+  - 'https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls'
+  - 'https://modelcontextprotocol.io/specification/2025-11-25/server/tools'
+  - 'https://json-schema.org/understanding-json-schema/reference/object'
+  - 'https://spec.openapis.org/oas/v3.1.1.html'
+  - 'https://learn.microsoft.com/en-us/azure/architecture/microservices/design/api-design'
+  - 'https://learn.microsoft.com/en-us/connectors/custom-connectors/operational-versioning'
+  - 'https://docs.pact.io/faq'
+  - 'https://docs.pact.io/'
+  - 'https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.100-1.pdf'
+faq:
+  - q: 'What is AI agent tool schema drift?'
+    a: 'AI agent tool schema drift is a growing mismatch between the tool definition shown to the model and the contract enforced by the executor or upstream service. It includes changed fields and types, but also changed meanings, outputs, permissions, side effects, descriptions, and availability.'
+  - q: 'Does strict JSON Schema validation prevent tool schema drift?'
+    a: 'No. Strict validation catches many structural mismatches at the input boundary, but it cannot prove that a field still means the same thing, that an output is fresh, or that a tool has the same side effects and permissions. Pair schema validation with contract tests and semantic checks.'
+  - q: 'Should AI agent tools be versioned?'
+    a: 'Version a tool when an existing agent may interpret a request or result differently, or when its side effects, permissions, availability, or completion meaning changes. Additive changes can often remain compatible, but test them against the actual consumer contract before keeping the same version.'
+  - q: 'How do you detect a stale tool schema at runtime?'
+    a: 'Give the approved contract a deterministic fingerprint, bind the runtime executor and model-facing declaration to that fingerprint, and compare it during startup or tool discovery. Refuse to run, refresh the declaration, or route to a compatible adapter when the fingerprints do not match.'
+  - q: 'What should a tool contract test cover?'
+    a: 'Test valid and invalid inputs, representative outputs, error shapes, optional and unknown fields, descriptions and examples where they affect model use, side-effect boundaries, authorization, and postconditions. Replay the same contract against the deployed provider version before promotion.'
+  - q: 'How often should tool schemas be reviewed?'
+    a: 'Review a schema on every change to the tool, provider API, model-facing description, permissions, output mapping, or runtime adapter. Also run a scheduled audit, because upstream APIs and platform defaults can change outside your repository.'
+cover: '/blog/how-to-prevent-ai-agent-tool-schema-drift-hero.png'
+coverAlt: 'Illustration of an AI agent tool contract protected by version, validation, and runtime compatibility gates'
+draft: false
+---
+
+An agent can keep sending perfectly valid JSON and still be wrong. The field may have changed meaning, the result may have a new shape, or the tool may now perform a side effect that the model was never told about.
+
+I treat tool schema drift as a contract problem, not a prompt problem. The model-facing declaration, executor, provider adapter, permissions, and result interpretation must move through the same release gate.
+
+![A high-level illustration of the five contract surfaces that must stay aligned](/blog/how-to-prevent-ai-agent-tool-schema-drift-contract-surfaces.png)
+
+## What is AI agent tool schema drift?
+
+AI agent tool schema drift is the growing mismatch between the contract an agent sees and the contract the system actually enforces. The contract includes more than a JSON object. It includes the tool name, description, input schema, output schema, examples, error behavior, side effects, permissions, availability, and the meaning of success.
+
+OpenAI describes a function tool as a name, description, JSON Schema parameters, and a strictness setting. Anthropic exposes a similar model through a tool name, description, and `input_schema`, with optional input examples. The [OpenAI function-calling guide](https://developers.openai.com/api/docs/guides/function-calling) and [Anthropic tool-definition guide](https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools) document those surfaces separately, but the engineering implication is the same: the tool definition is part of the model's decision context.
+
+MCP makes the boundary explicit with `inputSchema` and optional `outputSchema`. Its [tools specification](https://modelcontextprotocol.io/specification/2025-11-25/server/tools) also distinguishes protocol errors from tool execution errors. That distinction matters because a request can be valid JSON and still fail in the provider, or it can succeed while returning data that your agent interprets incorrectly.
+
+**Tool schema drift is a contract mismatch between what the agent is told, what the executor accepts, and what the provider actually does.**
+
+The word *drift* does not mean that one engineer made a careless edit. It describes a system with multiple copies of a contract that can evolve at different speeds:
+
+| Contract copy | What it controls | Typical drift symptom |
+| --- | --- | --- |
+| Model-facing declaration | What the model may choose and how it formats a call | The model sends an old field or chooses a tool for the wrong reason |
+| Runtime validator | What the executor accepts before calling a service | A request is rejected locally or an unknown field is silently dropped |
+| Provider adapter | How agent arguments map to the upstream API | The request reaches the wrong endpoint or uses a changed parameter |
+| Provider response mapping | What the agent receives after execution | The agent reads a changed field as if it had its old meaning |
+| Permission and side-effect policy | What the tool may read, write, send, or delete | The same tool name now has a wider consequence |
+| Tests and fixtures | What the team believes the contract guarantees | CI passes because it tests an obsolete copy |
+
+The first useful move is to draw those copies. If the same tool schema exists in a prompt template, a TypeScript type, a Python validator, an OpenAPI document, an MCP server, and a provider SDK, you do not yet have one contract. You have several opinions about a contract.
+
+## Why can a valid tool call still be wrong?
+
+Validation answers a narrow question: does this value match this schema? It does not answer whether the schema is current, whether the description is accurate, whether the result is fresh, or whether the operation is still safe for the agent to perform.
+
+The [JSON Schema object reference](https://json-schema.org/understanding-json-schema/reference/object) explains that `additionalProperties: false` rejects properties not declared by the schema. That is useful. It closes one class of input drift. But a closed object can still contain a valid value with the wrong business meaning. A string called `status` can change from a workflow state to a payment state while remaining a string. A field called `id` can switch from a customer identifier to an internal row identifier while passing every type check.
+
+Use five drift classes when reviewing a change:
+
+| Drift class | What changed | Why structural validation misses it | Required control |
+| --- | --- | --- | --- |
+| Shape drift | Field name, type, requiredness, enum, nesting, or output envelope | It does not miss the change if the old payload is rejected, but the failure may happen late | Schema diff and valid/invalid fixture tests |
+| Semantic drift | A field or enum still validates but means something different | JSON Schema has no knowledge of your business meaning | Description review, examples, domain assertions, and version policy |
+| Availability drift | Tool name, endpoint, capability, or authentication path changes | The schema can remain unchanged while the tool disappears or is denied | Discovery check, startup handshake, and permission test |
+| Behavioral drift | Side effects, idempotency, limits, ordering, or error behavior change | The payload shape remains compatible | Provider contract tests and postcondition checks |
+| Result drift | Output fields, freshness, provenance, or error signaling changes | A response can validate while the agent draws a different conclusion | Output contract, sentinel fixtures, and semantic assertions |
+
+This is why strict mode is valuable but incomplete. OpenAI says, “We recommend always enabling strict mode.” In the same documentation, OpenAI describes strict mode requirements such as `additionalProperties: false` and required properties. Follow that recommendation for the structural boundary when the API supports it, then add controls for the boundaries strict mode cannot see.
+
+The practical test is not “does the call parse?” It is “can the deployed agent version still make the same decision, interpret the result the same way, and stay within the same authority boundary?”
+
+## What belongs in a canonical tool contract?
+
+Put the contract in one versioned artifact and generate the vendor-specific declarations from it. The canonical artifact should be understandable to a person and precise enough for validators and tests.
+
+At minimum, record these fields:
+
+| Contract field | What to write down | Why it matters to drift prevention |
+| --- | --- | --- |
+| `name` | Stable identifier used in calls and traces | Renaming can break routing, caches, and historical analysis |
+| `contractVersion` | Version of the agent-facing behavior | Makes breaking changes explicit |
+| `description` | When to use the tool, when not to use it, and what it does not do | Descriptions influence tool selection and can become stale without a type error |
+| `inputSchema` | JSON Schema for arguments | Defines the structural input boundary |
+| `inputExamples` | Valid and invalid representative examples | Shows the model and tests how edge cases are meant to look |
+| `outputSchema` | JSON Schema for successful results and error envelopes | Prevents the executor and agent from assuming different result shapes |
+| `sideEffects` | `none`, `read`, `write`, `send`, `delete`, or a domain-specific level | Keeps risk and approval rules attached to the contract |
+| `permissions` | Resources, methods, tenants, and scopes | Prevents a name or schema change from silently widening authority |
+| `timeouts` and `limits` | Time, page, item, cost, and rate limits | Models and retries need to know what a call can safely consume |
+| `postconditions` | Observable facts that must be true after success | Separates “the provider returned 200” from “the task actually happened” |
+| `errorTypes` | Stable categories and fields for recoverable and terminal errors | Gives the agent a useful recovery path without guessing |
+| `deprecatedAfter` | Date or release after which the version should not be used | Creates a migration deadline |
+
+OpenAPI is useful when the tool wraps an HTTP API because the [OpenAPI specification](https://spec.openapis.org/oas/v3.1.1.html) is designed to describe an interface for both people and computers, and it supports documentation, code generation, and testing. It should not automatically become the agent contract. An HTTP API often exposes more operations, fields, and permissions than one agent task should receive.
+
+The canonical contract is a deliberate projection of the provider API. It tells the agent only what it may use, with the meanings and limits your runtime can enforce.
+
+**A model-facing tool schema is part of the executable interface, so changing its description or examples deserves code-level review.**
+
+## Should you use one source of truth or separate schemas per provider?
+
+Use one semantic source of truth with generated provider projections. Do not force every vendor to accept identical wire formats when their tool APIs differ. Keep the meaning stable, then compile it into the shapes each provider requires.
+
+For example, a single `lookup_customer` contract might generate:
+
+- an OpenAI function with `parameters` and `strict: true`;
+- an Anthropic tool with `input_schema` and a small set of `input_examples`;
+- an MCP tool with `inputSchema`, `outputSchema`, and an error mapping;
+- a local executor validator and provider adapter;
+- a contract fingerprint used by runtime discovery.
+
+The generated artifacts should be checked into build output or emitted during a reproducible build. The source file remains the review surface. A hand-edited provider declaration is a second source of truth and should fail CI if it differs from generated output.
+
+This design separates two things that are often confused:
+
+1. **Semantic contract:** what the tool means and what it is allowed to do.
+2. **Provider encoding:** how a particular model API represents that meaning.
+
+The semantic contract can stay at version 3 while an OpenAI adapter moves from one request format to another. Conversely, a provider API can remain unchanged while you make a breaking semantic change to what `customer_id` means. Those are different version events and should not be hidden behind one library version.
+
+## How should you classify a tool schema change?
+
+Classify changes from the perspective of every deployed consumer, including an agent run that can remain alive across a deployment. Do not label a change compatible only because a new client can use it.
+
+Microsoft’s [API design guidance](https://learn.microsoft.com/en-us/azure/architecture/microservices/design/api-design) gives a useful baseline: adding a response field is generally compatible when clients ignore unknown fields, while removing a field can break clients that expect it. Microsoft’s [operational versioning guidance](https://learn.microsoft.com/en-us/connectors/custom-connectors/operational-versioning) adds the important semantic point that changing the meaning or behavior of an input, output, or operation may be breaking.
+
+Apply that logic to agent tools:
+
+| Change | Default classification | Safe path |
+| --- | --- | --- |
+| Fix a spelling in an internal description without changing meaning | Patch | Regenerate, review the model-facing diff, run selection fixtures |
+| Add an optional response field that the old agent ignores | Minor | Add provider and consumer tests; keep the old field and meaning |
+| Add a new enum value | Potentially breaking | Check whether the old agent handles unknown values; otherwise version |
+| Add a new required input | Breaking | Introduce a new version or an adapter with a default that is semantically safe |
+| Remove an input or output field | Breaking | Deprecate, dual-serve, migrate consumers, then remove |
+| Rename a field | Breaking | Accept both at the adapter boundary, emit the canonical new form, and version the contract |
+| Change a field from one identifier domain to another | Breaking | New version, even if both values are strings |
+| Change a read tool into a write tool | Breaking and security-sensitive | New name or version, permission review, approval policy, and postcondition tests |
+| Change a tool’s error from terminal to retryable | Behavior change | Version or explicitly document the new recovery semantics and test retry limits |
+| Change pagination, freshness, or result ordering | Potentially breaking | Add semantic fixtures and update the result contract |
+| Add a provider-only field that is not exposed to the model | Adapter change | Test the adapter and keep the semantic contract unchanged |
+
+The word *default* matters. Compatibility is a claim about real consumers, not a universal property of a JSON diff. A new optional field may be incompatible with an agent prompt that forwards the entire object to another strict schema. An added enum value may be compatible with one consumer and fatal to another.
+
+**A tool change is breaking when an existing agent version can no longer call it, interpret its result, or rely on its authority and side-effect boundary.**
+
+## What is the DRIFT gate?
+
+The DRIFT gate is my synthesis for moving a tool contract from edit to production. It is not a standard, certification, or benchmark. It is a compact way to force five questions into one release path.
+
+### Declare the contract
+
+Write the semantic contract before writing provider-specific tool definitions. Include input, output, errors, permissions, side effects, limits, and postconditions. If a field has a business meaning, write that meaning in plain language and give a representative example.
+
+The declaration should answer:
+
+- What question does this tool answer?
+- What question must it not answer?
+- What is the source of truth?
+- Which values are identifiers, and in which namespace?
+- What happens if the record is missing or stale?
+- Does the call read, write, send, delete, or trigger another workflow?
+- What evidence proves success?
+
+Do not hide the answer in a model prompt. The prompt can add context, but the executor must enforce the boundary.
+
+### Register a version and fingerprint
+
+Give the contract an explicit version and calculate a deterministic fingerprint over the fields that affect model behavior or execution. Include the normalized name, description, input and output schemas, examples, side effects, permissions, error types, limits, and adapter version. Exclude timestamps, generated file paths, and build IDs that would change without a contract change.
+
+A fingerprint is not a security signature by itself. It is a consistency signal. Sign it or protect its source if an attacker could replace both the contract and the expected fingerprint.
+
+### Inspect compatibility
+
+Compare the proposed contract with the deployed contract. Run a structural diff, then a semantic review. The structural diff catches requiredness, type, enum, property, and nesting changes. The semantic review asks whether the description, examples, freshness, side effects, errors, and authority boundary still mean the same thing.
+
+If the change is breaking, do not make the old version point at the new behavior under the same name. Run both versions or insert a deliberate adapter. Make the migration visible in the deployment plan.
+
+### Freeze the runtime surface
+
+At deployment, bind the agent configuration, generated model-facing schema, executor, provider adapter, and contract fingerprint to the same release. Avoid a runtime that discovers “whatever tool definition is currently available” and then calls an executor from another release.
+
+For long-running tasks, record the contract version in the task checkpoint. A task that started with version 2 should either finish against version 2 or pass through a tested migration step. It should not wake up after a deploy and silently interpret version 3 output as version 2 state.
+
+### Test concrete behavior
+
+Run tests with real request and response examples, not only schema documents. Check invalid input, provider errors, output meaning, postconditions, permissions, and the model-facing declaration. Include at least one fixture that would pass a loose schema but fail a semantic assertion.
+
+Pact’s [consumer-driven contract guidance](https://docs.pact.io/) makes a related distinction: a static schema describes possible states, while a concrete contract records interactions that a consumer actually relies on. For an agent tool, use both. The schema defines the boundary. Concrete fixtures prove that the adapter and provider still honor the boundary.
+
+![A five-step DRIFT gate flowing from contract declaration to behavioral tests](/blog/how-to-prevent-ai-agent-tool-schema-drift-drift-gate.png)
+
+## What should the contract artifact look like?
+
+Here is a compact TypeScript-shaped artifact for a read-only customer lookup. It is deliberately explicit. You can map it to JSON, Python, Go, or a schema registry.
+
+```ts
+export const lookupCustomer = {
+  name: "lookup_customer",
+  contractVersion: 3,
+  description:
+    "Find one customer by an exact customer ID. Use only when the caller has a customer ID. Do not use this tool for fuzzy name search or account changes.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      customer_id: {
+        type: "string",
+        description: "The stable customer ID in the CRM namespace, for example cus_123.",
+      },
+    },
+    required: ["customer_id"],
+    additionalProperties: false,
+  },
+  inputExamples: [{ customer_id: "cus_123" }],
+  outputSchema: {
+    type: "object",
+    properties: {
+      found: { type: "boolean" },
+      customer: {
+        type: ["object", "null"],
+        properties: {
+          id: { type: "string" },
+          display_name: { type: "string" },
+          lifecycle_state: { type: "string", enum: ["active", "paused", "closed"] },
+        },
+        required: ["id", "display_name", "lifecycle_state"],
+        additionalProperties: false,
+      },
+    },
+    required: ["found", "customer"],
+    additionalProperties: false,
+  },
+  sideEffects: "read",
+  permissions: ["crm.customer.read"],
+  limits: { timeoutMs: 3000, maxResults: 1 },
+  errorTypes: ["invalid_customer_id", "not_authorized", "provider_unavailable"],
+  postconditions: [
+    "found is true only when customer is non-null",
+    "customer.id equals the requested customer_id",
+    "lifecycle_state is read from the CRM record returned by this call",
+  ],
+  adapterVersion: 4,
+} as const;
+```
+
+The example follows the shape used by strict OpenAI function schemas: object properties are declared, required fields are listed, and unknown properties are rejected. OpenAI documents these requirements in its [strict-mode section](https://developers.openai.com/api/docs/guides/function-calling). The `type: ["object", "null"]` form is an example of representing a nullable value, not a promise that every provider accepts identical JSON Schema dialect features.
+
+There are two details worth protecting.
+
+First, `customer_id` has a namespace and an invariant. Without that, a later adapter may send an email address or a billing ID because both are strings. Second, the postcondition says what the agent can trust after success. A response with HTTP 200 is not enough if the provider returned a partial record or a stale cache.
+
+## How do you keep provider schemas generated and synchronized?
+
+Treat generated schemas like compiled artifacts. The source contract should be reviewed. The OpenAI, Anthropic, MCP, and local executor representations should be generated, validated, and compared in CI.
+
+A practical repository layout is:
+
+```text
+contracts/
+  lookup-customer.ts          # semantic source of truth
+  lookup-customer.fixtures.ts # valid, invalid, and semantic cases
+generated/
+  openai/lookup_customer.json
+  anthropic/lookup_customer.json
+  mcp/lookup_customer.json
+adapters/
+  crm-v4.ts
+tests/
+  lookup-customer.contract.test.ts
+  tool-surface.snapshot.test.ts
+```
+
+The build should fail when a generated file is stale. It should also fail when a provider projection cannot represent the semantic contract without losing a required field, an error category, a permission, or a side-effect marker.
+
+Do not use the provider schema as the only artifact. It usually omits the things that make an agent safe: whether the tool writes data, what counts as success, whether results are tenant-scoped, and whether an error is safe to retry.
+
+Descriptions and examples deserve a diff too. Anthropic documents that `input_examples` are included alongside a tool schema and must validate against it. That means a changed example is not cosmetic. It changes the model-facing teaching signal and should be reviewed with the same care as a property change.
+
+For OpenAI, the function-calling guide says that a function definition uses JSON Schema for parameters and can be grouped into namespaces. Use stable names and namespaces so a generated surface can be compared by tool identity rather than by array order.
+
+## Which tests catch schema drift before deployment?
+
+Use several small tests with different jobs. A single end-to-end prompt test is too slow, too broad, and too weak at explaining why a contract changed.
+
+### Test the schema itself
+
+Validate the canonical artifact against the JSON Schema dialect you intend to support. Then validate every fixture against the input and output schemas.
+
+Include these cases:
+
+- the smallest valid input;
+- a valid optional value;
+- a missing required field;
+- an unknown field;
+- the wrong identifier namespace;
+- each enum value;
+- an unknown enum value;
+- a provider error envelope;
+- a partial or stale-looking result;
+- a large value at the limit boundary.
+
+The namespace and stale-looking cases are important because they force semantic checks beyond type validation. If all fixtures are structurally obvious, the test suite gives false confidence.
+
+### Test the generated model-facing surface
+
+Serialize the tools exactly as the model provider receives them and store a normalized snapshot. Compare tool identity, descriptions, schema, examples, strictness, and namespace. Normalize object key order, but do not normalize away meaningful array order in examples or enum lists unless order has no semantic effect.
+
+A snapshot is not a substitute for review. Its value is that a description edit, field rename, or provider adapter change becomes visible in the same pull request as the code change.
+
+### Test the provider contract
+
+Run concrete interactions against a local fake, a provider sandbox, or a controlled test tenant. Assert request mapping, response mapping, error categories, authorization, and postconditions.
+
+For `lookup_customer`, a provider contract should prove that:
+
+1. The adapter sends `customer_id` to the correct upstream field.
+2. A missing customer returns `found: false` and `customer: null` rather than a guessed record.
+3. A different tenant cannot be read through the same identifier.
+4. A provider timeout becomes `provider_unavailable`, not an empty successful result.
+5. The returned `customer.id` equals the requested ID.
+
+The fifth check is a semantic invariant. It can catch a mapping bug even when the payload has the expected keys and types.
+
+### Test compatibility against the previous version
+
+Keep the previous contract and its fixtures available during migration. Run the old consumer against the new provider adapter, and the new consumer against the compatible provider version when that combination is meant to work.
+
+Pact documents this as a reason to publish and verify consumer contracts against deployed versions. For a breaking change, use an expand-and-contract sequence:
+
+1. Add the new field or new operation while the old one remains available.
+2. Deploy an adapter that can serve both old and new consumers.
+3. Migrate the agent configuration and active tasks.
+4. Verify that no supported consumer still depends on the old contract.
+5. Remove or disable the old version in a separate release.
+
+Do not compress all five steps into a rename followed by a prompt update. The prompt is not a migration system.
+
+### Test tool selection separately
+
+Schema drift and wrong-tool selection can look identical in a trace. The [wrong-tool diagnosis on this site](/blog/why-does-my-ai-agent-choose-the-wrong-tool) explains why candidate availability, descriptions, schemas, and runtime constraints all matter.
+
+For this page’s narrower problem, test a fixed set of user requests against the generated tool surface. Ask:
+
+- Is the intended tool available?
+- Is the rival tool still distinct in its description?
+- Does the chosen call use the current field names and examples?
+- Does the tool result make the next decision unambiguous?
+
+Use a tool-selection test to detect model-facing drift. Do not present its pass rate as a general model benchmark unless you have documented the model, version, prompt, dataset, number of trials, and limitations.
+
+![A test matrix separating schema validation, provider contracts, semantic invariants, and selection fixtures](/blog/how-to-prevent-ai-agent-tool-schema-drift-test-matrix.png)
+
+## How can a runtime detect a stale tool schema?
+
+CI protects a release. A runtime check protects against deployment mistakes, stale caches, long-lived workers, and an independently updated provider.
+
+Create a canonical representation of the contract and hash it. The exact hashing algorithm matters less than deterministic input. Sort object keys, preserve arrays where order matters, normalize line endings, and exclude timestamps and environment-specific paths.
+
+Conceptually:
+
+```ts
+type ContractBinding = {
+  toolName: string;
+  contractVersion: number;
+  contractFingerprint: string;
+  executorVersion: string;
+  providerAdapterVersion: string;
+};
+
+function assertBinding(
+  expected: ContractBinding,
+  actual: ContractBinding,
+): void {
+  if (expected.toolName !== actual.toolName) {
+    throw new Error("tool name mismatch");
+  }
+  if (expected.contractVersion !== actual.contractVersion) {
+    throw new Error("tool contract version mismatch");
+  }
+  if (expected.contractFingerprint !== actual.contractFingerprint) {
+    throw new Error("stale or incompatible tool contract");
+  }
+}
+```
+
+The important part is not the exception text. It is what happens next. Choose one explicit policy:
+
+| Situation | Safe runtime action |
+| --- | --- |
+| The declaration is older but a compatible adapter is available | Refresh or route through the adapter, then record the migration |
+| The declaration is older and the tool is read-only | Pause the run, refresh the contract, and revalidate the pending call |
+| The declaration is older and the tool writes or sends | Fail closed and require a new run or human approval |
+| The provider fingerprint changed unexpectedly | Stop discovery, alert the owner, and compare the contract before retrying |
+| A long-running task has an old checkpoint | Resume only through a tested migration or finish against the pinned version |
+
+Never “fix” a fingerprint mismatch by accepting every version. That turns the detector into a log statement. The runtime must know which old versions remain compatible and why.
+
+Record the fingerprint in every trace and task checkpoint. When a failure occurs, you want to answer: which tool definition did the model see, which executor ran, which provider adapter mapped the request, and which contract version interpreted the result?
+
+NIST’s [AI Risk Management Framework](https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.100-1.pdf) describes measurement as a function that can analyze, assess, benchmark, and monitor AI risk and related impacts. A contract fingerprint is a small operational measurement. It does not prove safety, but it gives monitoring a concrete identity to compare.
+
+![A runtime fingerprint comparison that stops stale tool discovery](/blog/how-to-prevent-ai-agent-tool-schema-drift-runtime-fingerprint.png)
+
+## How should MCP tool drift be handled?
+
+MCP adds a standard discovery and invocation boundary, but it does not remove the need for contract ownership. The [MCP tools specification](https://modelcontextprotocol.io/specification/2025-11-25/server/tools) defines a tool name, description, `inputSchema`, and optional `outputSchema`. It also defines protocol errors and tool execution errors, including input validation and business-logic errors.
+
+Use MCP discovery as an input to your registry, not as an excuse to skip one. At connection time:
+
+1. Discover the server and record the tool names and schemas.
+2. Normalize the discovered surface into your contract representation.
+3. Compare it with the approved fingerprint for that server and tool.
+4. Check the declared output and error behavior against your adapter.
+5. Expose only the approved version to the agent.
+
+If the server changes its `inputSchema` but keeps the same name, that is a contract change. If it changes its output shape or `isError` behavior, that is also a contract change. If it changes only a server implementation detail with no visible behavior or authority change, it may not require a new semantic version, but the provider contract test should still prove that.
+
+MCP’s error distinction is useful for recovery. A protocol error such as an unknown tool means the agent’s available surface is stale or misconfigured. A tool execution error may be a provider outage, input validation failure, or business rule failure. These should not all be returned as the same generic string, because the agent cannot choose a safe next action from an undifferentiated error.
+
+Treat descriptions as versioned too. A description that changes “read customer” to “find or update customer” is a permission and behavior change even if `inputSchema` stays identical.
+
+![A taxonomy of shape, semantic, availability, behavioral, and result drift](/blog/how-to-prevent-ai-agent-tool-schema-drift-drift-taxonomy.png)
+
+## How do OpenAI and Anthropic tool schemas differ in practice?
+
+The provider encoding differs, so generate the declaration rather than copying it by hand.
+
+OpenAI’s function-calling documentation places the input schema in `parameters` and supports a `strict` setting. Its strict-mode requirements are specific: object parameters must disallow additional properties, and declared properties must be required, with nullable values used when an argument is optional. A change that passes a generic JSON Schema validator may still be rejected by OpenAI strict mode if the generated projection does not satisfy those requirements.
+
+Anthropic’s [tool-use documentation](https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools) uses `input_schema` and supports `input_examples`. Anthropic states that examples are validated against the schema and included alongside it to show concrete patterns. That gives you an additional drift surface: examples can become stale even if the formal schema remains unchanged.
+
+Anthropic’s [tool-call handling guide](https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls) documents `is_error` on tool results. Your canonical error model should preserve that distinction in the provider adapter, rather than flattening every failure into a natural-language message.
+
+The portable rule is simple:
+
+- keep the semantic contract vendor-neutral;
+- generate the provider representation;
+- validate against the provider’s current restrictions;
+- snapshot the exact model-facing surface;
+- test the executor and result mapping independently.
+
+Do not assume that “JSON Schema compatible” means “behaviorally identical across providers.” Dialects, requiredness rules, nullable representations, tool-choice controls, and error envelopes can differ.
+
+![A cross-provider map from one semantic contract to OpenAI, Anthropic, MCP, and executor projections](/blog/how-to-prevent-ai-agent-tool-schema-drift-provider-projections.png)
+
+## Which schema changes deserve a new tool version?
+
+Create a new version when the old agent could make a materially different decision from the same call or result. That includes obvious shape changes, but also quiet meaning changes.
+
+A field rename is easy to recognize. A change from `lifecycle_state: "paused"` to `account_state: "paused"` may look like a harmless rename, but the new field could refer to a different subsystem. A change from “customer found in CRM” to “customer found in a cache” changes freshness and provenance. A change from “send email” to “queue email” changes when the side effect occurs. All three deserve review as behavior or semantic changes.
+
+Use this decision sequence:
+
+1. Can an old valid request still be accepted without a guessed default?
+2. Does every old output field retain its meaning, units, namespace, and freshness guarantee?
+3. Can an old agent still distinguish success, not-found, retryable failure, and terminal failure?
+4. Are side effects, permissions, rate limits, and approval requirements unchanged?
+5. Would a reasonable model choose or explain the tool differently because the description or examples changed?
+6. Can a long-running task that started before deployment interpret the new result safely?
+
+If any answer is “no” or “unknown,” treat the change as breaking until you have evidence otherwise. The cost of a parallel version is visible. The cost of a silent contract mismatch is often paid later as a wrong action that looks like a model mistake.
+
+## What should you do when a provider changes first?
+
+Sometimes the upstream API changes before your repository does. The tool adapter is then the containment point.
+
+First, stop automatic propagation. Do not let a generated client or dynamic discovery update the model-facing schema and executor in one step without review. Capture the upstream contract version, response examples, error examples, and changed documentation.
+
+Second, determine whether the provider change is structural, semantic, behavioral, or availability-related. A removed field is obvious. A provider that starts returning a default currency, a different timezone, a different pagination order, or a different freshness window needs a semantic review.
+
+Third, choose one of three paths:
+
+- adapt the provider back to the approved semantic contract;
+- release a new agent-tool contract version and migrate consumers;
+- disable the tool until the mismatch is understood.
+
+An adapter is useful when the provider’s new wire format has the same meaning. It is not a place to hide a changed business rule. If the provider’s new `status` means something else, map it to a new canonical field or release a new version.
+
+Fourth, replay the old fixtures against the provider. Add a fixture for the discovered change. A green schema validator with no new concrete fixture is not enough.
+
+Finally, record the event. The release note should name the provider version, contract version, adapter version, affected agent versions, migration decision, and rollback path.
+
+![A provider-change response flow that contains drift before it reaches the model-facing tool surface](/blog/how-to-prevent-ai-agent-tool-schema-drift-provider-change-flow.png)
+
+![A release binding that keeps agent configuration, executor, adapter, and checkpoint on one contract fingerprint](/blog/how-to-prevent-ai-agent-tool-schema-drift-release-binding.png)
+
+## How do you monitor schema drift in production?
+
+Monitor the identity and consequences of a tool call, not just its latency and HTTP status.
+
+At minimum, emit these fields in a trace or structured event:
+
+| Signal | Example | Why it matters |
+| --- | --- | --- |
+| `tool.name` | `lookup_customer` | Groups behavior by stable tool identity |
+| `contract.version` | `3` | Shows which semantic contract was in force |
+| `contract.fingerprint` | `sha256:...` | Detects stale or mixed surfaces |
+| `executor.version` | `crm-adapter-4` | Identifies the running implementation |
+| `provider.version` | `crm-api-2026-04` | Ties behavior to the upstream surface |
+| `input.validation` | `passed`, `rejected` | Separates model formatting failures from provider failures |
+| `result.validation` | `passed`, `rejected` | Detects output drift before the next agent step |
+| `error.type` | `provider_unavailable` | Keeps recovery categories useful |
+| `side_effect` | `none`, `write`, `send` | Makes authority visible in traces |
+| `postcondition` | `passed`, `failed`, `unknown` | Separates returned success from verified effect |
+| `task.checkpoint.version` | `2` | Catches old work resuming on a new contract |
+
+Alert on:
+
+- a fingerprint that is not in the approved registry;
+- a tool name discovered with a schema that is not approved;
+- a rising rate of input validation failures after a deploy;
+- output validation failures or new unknown enum values;
+- a change in error categories or retryable behavior;
+- a postcondition failure after a tool reports success;
+- a write or send tool called under a read-only contract;
+- old contract versions still active after their migration deadline.
+
+Keep payload logging proportional to the data. A fingerprint, field-level validation result, and error category may be enough to diagnose drift without storing customer records or secrets. Redact arguments and results by default, and retain only the fields needed to prove the contract and postcondition.
+
+Monitoring tells you that a deployed contract is behaving differently. It does not tell you whether the behavior is acceptable. That decision belongs in the release gate and the owner’s change review.
+
+![Production observability signals for contract version, fingerprint, validation, side effects, and postconditions](/blog/how-to-prevent-ai-agent-tool-schema-drift-observability-signals.png)
+
+## What are the most common failed approaches?
+
+### “The prompt says to use the current schema”
+
+A prompt cannot force an executor or provider to share its version. It also cannot reliably preserve a field’s business meaning across a long-running task. Put the version in code, the registry, the runtime binding, and the checkpoint.
+
+### “The backend type is the source of truth”
+
+The backend type may describe a service response but not the narrower tool surface, model-facing description, permission boundary, error taxonomy, or postconditions. Use the backend schema as an input to the contract, then declare the agent-specific projection.
+
+### “We only need to validate inputs”
+
+Output drift is often worse because the agent can continue with a plausible but wrong result. Validate outputs and assert domain invariants before passing a result to the next step.
+
+### “Adding fields is always safe”
+
+It is often compatible for a client that ignores unknown response fields. It is not automatically safe for a strict downstream schema, an agent that forwards the full object, a prompt that enumerates allowed fields, or a consumer that treats a new enum value as impossible. Test the actual consumers.
+
+### “We can keep the same name and let the model adapt”
+
+That makes migration implicit and makes historical traces ambiguous. Keep a stable name only when the semantic contract remains stable. Otherwise use a new version or a new name with a deliberate compatibility layer.
+
+### “A schema registry solves the problem”
+
+A registry tells you which artifact exists. It does not prove that the executor, provider, permissions, descriptions, examples, and side effects match it. The registry becomes useful when every deployment binds to a registry version and a test result.
+
+### “One end-to-end prompt passed, so the change is safe”
+
+One successful run cannot establish compatibility. The [AI agent evaluation guide on this site](/blog/how-to-evaluate-an-ai-agent) covers representative tasks and release gates. For schema drift, add smaller deterministic checks that tell you exactly which contract boundary moved.
+
+### “Retries will hide the mismatch”
+
+Retries can turn a clear incompatibility into repeated traffic or repeated side effects. Classify schema errors as non-retryable unless a tested adapter can repair them. If a call repeats without progress, use the [agent loop diagnosis guide](/blog/ai-agent-stuck-in-a-loop) to inspect the trace, but fix the contract at the boundary.
+
+## What is a practical rollout sequence?
+
+Start with one read-only tool. It gives you a contained surface where you can learn the process without coupling the first migration to an irreversible side effect.
+
+### Step 1: Inventory the copies
+
+List the prompt declaration, provider payload, local input validator, executor, provider adapter, output parser, fixtures, permission policy, and traces. Name the owner of each copy. If two copies cannot be located, mark the contract incomplete.
+
+### Step 2: Write the semantic contract
+
+Record the name, purpose, non-purpose, input and output meanings, errors, side effects, permissions, limits, and postconditions. Add examples that cover the expected edge cases.
+
+### Step 3: Generate projections
+
+Generate the OpenAI, Anthropic, MCP, and local forms that your system needs. Validate each against its provider rules. Store or reproduce the generated output in CI so hand edits are visible.
+
+### Step 4: Add compatibility tests
+
+Test structural validity, concrete provider interactions, semantic invariants, error mapping, authorization, and the model-facing snapshot. Keep the previous version’s fixtures while a migration is active.
+
+### Step 5: Add the runtime binding
+
+Bind the model-facing declaration, executor, adapter, and fingerprint. Refuse a mismatched write or send tool. For a read-only tool, refresh only through an approved compatibility path.
+
+### Step 6: Release with a migration note
+
+Record the old and new contract versions, change classification, affected consumers, deployment order, verification evidence, and rollback. The note is part of the contract’s operational history.
+
+### Step 7: Watch the new signals
+
+Review validation failures, unknown fields, error categories, postconditions, fingerprints, and old-version activity after release. Link each production anomaly back to a fixture so the test suite grows from evidence.
+
+### Step 8: Expand authority slowly
+
+After the read-only path is stable, apply the same gate to write, send, and delete tools. Keep a separate review for permissions and human approval. A passing schema test does not authorize a new side effect.
+
+![A rollout checklist from inventory through read-only validation and controlled authority expansion](/blog/how-to-prevent-ai-agent-tool-schema-drift-rollout-checklist.png)
+
+## What should the final pre-release checklist contain?
+
+Use this as the release artifact. A checkbox is only complete when it has a file, test result, or review note behind it.
+
+### Contract identity
+
+- [ ] The tool has a stable name and explicit contract version.
+- [ ] The description states when to use the tool and when not to use it.
+- [ ] Input and output schemas are versioned with the semantic contract.
+- [ ] Business identifiers include their namespace and format.
+- [ ] Examples are current and validate against the schema.
+- [ ] Errors have stable categories and documented recovery meaning.
+- [ ] Side effects, permissions, limits, and postconditions are explicit.
+
+### Generated surface
+
+- [ ] Provider-specific declarations are generated from the canonical contract.
+- [ ] OpenAI projections satisfy current strict-mode requirements when strict mode is enabled.
+- [ ] Anthropic projections validate their input examples.
+- [ ] MCP projections declare the approved input and output schemas.
+- [ ] Local executor validation uses the same semantic contract.
+- [ ] Generated output has no unreviewed manual edits.
+
+### Compatibility
+
+- [ ] The change has a structural diff.
+- [ ] A reviewer assessed semantic, availability, behavioral, and result drift.
+- [ ] Additive changes were tested against every real consumer.
+- [ ] Breaking changes have a new version, adapter, or expand-and-contract plan.
+- [ ] Long-running tasks have a safe checkpoint migration or a pinned old runtime.
+- [ ] Deprecation dates and owners are recorded.
+
+### Tests
+
+- [ ] Valid and invalid input fixtures pass or fail as intended.
+- [ ] Output fixtures and domain invariants pass.
+- [ ] Provider request and response mappings pass.
+- [ ] Error and timeout mapping pass.
+- [ ] Authorization and tenant isolation pass.
+- [ ] Model-facing tool snapshots are reviewed.
+- [ ] At least one loose-schema, wrong-meaning case is rejected by a semantic assertion.
+- [ ] The previous contract remains green during migration.
+
+### Runtime and operations
+
+- [ ] Agent, executor, adapter, and tool declaration share a contract fingerprint.
+- [ ] Unknown or mismatched fingerprints have an explicit fail, refresh, or migrate action.
+- [ ] Every trace records contract, executor, and provider versions.
+- [ ] Output validation occurs before the next agent step.
+- [ ] Postconditions are checked for consequential actions.
+- [ ] Alerts cover new validation failures, unknown schemas, drifted fingerprints, and old-version activity.
+- [ ] Payload logs are minimized and sensitive fields are redacted.
+- [ ] Rollback and disable paths have an owner.
+
+If the checklist feels large, begin with one tool and one read-only workflow. The point is to make the contract visible before you automate its distribution.
+
+**A schema registry records versions, but contract tests prove that the running tool still behaves like the version the agent was given.**
+
+## When should you refresh this practice?
+
+Refresh the contract when a model provider changes tool-calling rules, a provider API changes its schema or behavior, an MCP server changes discovery output, a new permission or side effect is added, a runtime cache is introduced, or a production trace shows unknown fields or changed meanings.
+
+Review the operational policy at least every 90 days for vendor and protocol facts. The [production monitoring guide on this site](/blog/how-to-monitor-an-ai-agent-in-production) is the right companion for deciding which trace and alert fields to keep. This page should remain focused on the contract that those traces identify.
+
+Do not wait for a model to make an obviously bad call. The earlier signal is usually smaller: an old field in a request, a new enum value, an unexpected tool fingerprint, a provider error flattened into an empty result, or a description that no longer matches the side effect.
+
+The reliable boundary is clear. Declare one contract, register its version, inspect changes, freeze the runtime surface, and test concrete behavior. Then let the model operate inside a tool surface that your system can still explain.
