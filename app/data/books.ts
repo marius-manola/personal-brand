@@ -18,6 +18,14 @@ export const books: Book[] = [
     coverImage: "/35167685.jpg"
   },
   {
+    title: "The Beginning of Infinity",
+    author: "David Deutsch",
+    description: "",
+    category: "Philosophy & Life",
+    link: "https://en.wikipedia.org/wiki/The_Beginning_of_Infinity",
+    coverImage: "/beginningofinfinity.jpg"
+  },
+  {
     title: "Hackers & Painters",
     author: "Paul Graham",
     description: "",
