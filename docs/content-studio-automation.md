@@ -198,6 +198,8 @@ Gemini Playwright is optional: one signed-in Brave profile, reuse a chat for ~10
 
 Never leave `<!-- visual-slot -->` in MDX. Next.js will fail the production build.
 
+Every published raster is compressed to WebP (max 1600px, quality 75) before git add. The live page maps markdown images through `next/image`, so Vercel also serves AVIF at the requested width. Do not commit the raw 1–3MB PNG that Gemini/Codex emit. `scripts/optimize-blog-images.mjs` is the shared compressor; the worker runs it on every save.
+
 ### Publish
 
 One at a time:

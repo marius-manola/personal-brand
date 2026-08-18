@@ -28,7 +28,7 @@ sources:
   - 'https://www.nist.gov/blogs/caisi-research-blog/insights-into-ai-agent-security-large-scale-red-teaming-competition'
   - 'https://learn.microsoft.com/en-us/agent-framework/concepts/agents/safety'
   - 'https://cdn.openai.com/business-guides-and-resources/a-practical-guide-to-building-agents.pdf'
-cover: '/blog/how-to-prevent-prompt-injection-in-an-ai-agent-prompt-injection-boundaries-hero.png'
+cover: '/blog/how-to-prevent-prompt-injection-in-an-ai-agent-prompt-injection-boundaries-hero.webp'
 coverAlt: 'Editorial diagram showing untrusted content separated from an AI agent action behind authorization and approval boundaries'
 draft: false
 ---
@@ -58,7 +58,7 @@ NIST calls this kind of attack agent hijacking. Its current report describes mal
 
 The important boundary is simple:
 
-![Indirect prompt injection path from external content to an agent proposal stopped by a policy gate](/blog/how-to-prevent-prompt-injection-in-an-ai-agent-indirect-injection-path.png)
+![Indirect prompt injection path from external content to an agent proposal stopped by a policy gate](/blog/how-to-prevent-prompt-injection-in-an-ai-agent-indirect-injection-path.webp)
 
 > Content can inform an agent’s answer. It must not be allowed to grant the agent new authority.
 
@@ -66,7 +66,7 @@ The important boundary is simple:
 
 Here is a practical synthesis for designing an agent. It is not an industry standard. It is a way to inspect where authority enters your system.
 
-![Four-stage flow separating reading untrusted content, reasoning, authorization, and tool execution](/blog/how-to-prevent-prompt-injection-in-an-ai-agent-four-boundary-model.png)
+![Four-stage flow separating reading untrusted content, reasoning, authorization, and tool execution](/blog/how-to-prevent-prompt-injection-in-an-ai-agent-four-boundary-model.webp)
 
 | Boundary | What happens | What the model may do | What it may not do |
 | --- | --- | --- | --- |
@@ -79,7 +79,7 @@ The failure you are trying to prevent is authority leaking from left to right. A
 
 OWASP recommends the same separation in more concrete terms: treat external data as untrusted, use clear boundaries between instructions and data, validate tool calls, and apply least privilege to the tools an agent can use ([OWASP AI Agent Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/AI_Agent_Security_Cheat_Sheet.html)).
 
-![Architecture map showing separate trust zones around user input, retrieval, memory, model, tools, and external services](/blog/how-to-prevent-prompt-injection-in-an-ai-agent-trust-boundary-map.png)
+![Architecture map showing separate trust zones around user input, retrieval, memory, model, tools, and external services](/blog/how-to-prevent-prompt-injection-in-an-ai-agent-trust-boundary-map.webp)
 
 ## 1. Map the agent’s attack surface before changing the prompt
 
@@ -106,7 +106,7 @@ For each tool, record:
 
 This inventory usually reveals the biggest design mistake: an agent has a powerful generic tool when it needs a narrow workflow tool. “Run SQL” is a large authority surface. “Read order status for this authenticated order” is smaller. “Send email” is broad. “Draft a reply for this ticket, without sending” is smaller.
 
-![Comparison of an overpowered agent tool surface with narrowly scoped read-only and write tools](/blog/how-to-prevent-prompt-injection-in-an-ai-agent-least-privilege-tools.png)
+![Comparison of an overpowered agent tool surface with narrowly scoped read-only and write tools](/blog/how-to-prevent-prompt-injection-in-an-ai-agent-least-privilege-tools.webp)
 
 Microsoft’s agent safety guidance treats model-generated tool arguments as untrusted input, just like input to a web API. It recommends allowlists, type and range constraints, bounded strings, path checks, and parameterized queries ([Microsoft](https://learn.microsoft.com/en-us/agent-framework/concepts/agents/safety)).
 
@@ -215,7 +215,7 @@ External send: no
 Expires: 10 minutes
 ```
 
-![Human approval card bound to one exact tool, target, parameter set, data flow, and expiry](/blog/how-to-prevent-prompt-injection-in-an-ai-agent-approval-binding.png)
+![Human approval card bound to one exact tool, target, parameter set, data flow, and expiry](/blog/how-to-prevent-prompt-injection-in-an-ai-agent-approval-binding.webp)
 
 If the model later changes the destination or adds an attachment, the approval must expire and the new action must be checked again. OWASP recommends explicit approval for high-impact or irreversible actions, action previews, autonomy boundaries, audit trails, and the ability to interrupt or roll back where possible ([OWASP](https://cheatsheetseries.owasp.org/cheatsheets/AI_Agent_Security_Cheat_Sheet.html)). Microsoft similarly recommends approval based on side effects, data sensitivity, reversibility, and scope of impact ([Microsoft](https://learn.microsoft.com/en-us/agent-framework/concepts/agents/safety)).
 
@@ -231,7 +231,7 @@ Memory deserves its own boundary. Validate what is stored, isolate it by user or
 
 Do not put secrets in the prompt as a convenience. If a tool needs a credential, let a trusted service use a short-lived credential after authorization. The model should receive the result it needs, not the key that can be replayed elsewhere.
 
-![Layered validation, redaction, destination allowlisting, and tool controls before agent data leaves the system](/blog/how-to-prevent-prompt-injection-in-an-ai-agent-data-egress-controls.png)
+![Layered validation, redaction, destination allowlisting, and tool controls before agent data leaves the system](/blog/how-to-prevent-prompt-injection-in-an-ai-agent-data-egress-controls.webp)
 
 ## 7. Add limits so a successful injection has a small blast radius
 
@@ -270,7 +270,7 @@ Use a test case for each meaningful path:
 | Memory poisoning | Untrusted content attempts to persist a future instruction | Reject, expire, or isolate the memory item | Affect another session |
 | Boundary bypass | Model proposes a valid tool with an invalid resource or parameter | Independent policy denial | Execute the broad or malformed call |
 
-![Adversarial test harness routing prompt-injection cases to pass or veto decisions with retained evidence](/blog/how-to-prevent-prompt-injection-in-an-ai-agent-adversarial-test-matrix.png)
+![Adversarial test harness routing prompt-injection cases to pass or veto decisions with retained evidence](/blog/how-to-prevent-prompt-injection-in-an-ai-agent-adversarial-test-matrix.webp)
 
 For each case, retain the agent version, model endpoint, prompt and tool policy versions, identity, permissions, input fixture, expected outcome, final state, trace, approval or denial event, and cost and runtime limits. Keep fixtures synthetic or sanitized. Never make the test itself capable of spending money or modifying production data.
 

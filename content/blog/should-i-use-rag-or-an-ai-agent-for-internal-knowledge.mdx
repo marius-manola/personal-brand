@@ -37,7 +37,7 @@ faq:
     a: 'Apply the user identity and authorization policy before passages enter model context, preserve source metadata, test users with different access, and provide an abstention path.'
   - q: 'What should the first release of an internal AI assistant do?'
     a: 'The first release should answer or draft from approved sources, show evidence, abstain when evidence is missing, log its path, and keep consequential writes behind explicit human approval.'
-cover: '/blog/should-i-use-rag-or-an-ai-agent-for-internal-knowledge-internal-knowledge-rag-agent-hero.png'
+cover: '/blog/should-i-use-rag-or-an-ai-agent-for-internal-knowledge-internal-knowledge-rag-agent-hero.webp'
 coverAlt: 'A calm editorial diagram contrasts a fixed internal knowledge retrieval path with an agent that can choose retrieval tools and take a bounded next step'
 draft: false
 ---
@@ -58,7 +58,7 @@ The practical sequence is:
 
 `standard RAG -> fixed workflow plus RAG -> agent plus RAG and other tools`
 
-![Three-level architecture ladder from standard RAG to fixed workflow to an agent with retrieval and action tools](/blog/should-i-use-rag-or-an-ai-agent-for-internal-knowledge-internal-knowledge-architecture-ladder.png)
+![Three-level architecture ladder from standard RAG to fixed workflow to an agent with retrieval and action tools](/blog/should-i-use-rag-or-an-ai-agent-for-internal-knowledge-internal-knowledge-architecture-ladder.webp)
 
 Move right only when the job requires the next level. An agent is not an upgrade to RAG. It is an additional control loop with more decisions to secure and evaluate.
 
@@ -135,7 +135,7 @@ The letters stand for:
 4. **Permission:** Can the first version be read-only, scoped, and stopped before a hard-to-reverse side effect?
 5. **Evaluation:** Can someone describe a correct answer, a correct tool path, and a safe stopping condition?
 
-![Five connected checkpoints representing source, complexity, outcome, permission, and evaluation in an architecture decision](/blog/should-i-use-rag-or-an-ai-agent-for-internal-knowledge-scope-decision-test.png)
+![Five connected checkpoints representing source, complexity, outcome, permission, and evaluation in an architecture decision](/blog/should-i-use-rag-or-an-ai-agent-for-internal-knowledge-scope-decision-test.webp)
 
 Run the test in order. Source boundary comes before tool selection because a system cannot be safe if nobody knows which source wins a conflict. Complexity comes before autonomy because a multi-step job does not automatically require model-directed control. Outcome and permission expose the risk of writes. Evaluation tells you whether the proposal can be tested at all.
 
@@ -166,7 +166,7 @@ The source boundary should also define what does not belong. A shared drive may 
 
 Microsoft's [secure multitenant RAG guidance](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/secure-multitenant-rag) makes the security boundary explicit: only data a user is authorized to access should become grounding data. A vector index does not inherit a company's access model by magic. Carry identity into retrieval, filter before context reaches the model, and test the result with users who should see different documents.
 
-![Diagram showing identity and authorization filtering before internal documents are passed as model context](/blog/should-i-use-rag-or-an-ai-agent-for-internal-knowledge-permission-aware-retrieval-boundary.png)
+![Diagram showing identity and authorization filtering before internal documents are passed as model context](/blog/should-i-use-rag-or-an-ai-agent-for-internal-knowledge-permission-aware-retrieval-boundary.webp)
 
 There are two common permission mistakes. The first filters after retrieval. That can expose protected text to an intermediate service or to the model even if the final answer hides the passage. The second applies a broad service account and asks the model to “respect permissions” in a prompt. A prompt is not an authorization system. Enforce the boundary in code or in a source that can prove the filter was applied.
 
@@ -193,7 +193,7 @@ If the answers are stable for every request, code the path. You may still use a 
 
 If the answers change with the evidence and you can define safe stopping conditions, an agent may earn its place. For example, a procurement question might begin in a policy index. If the policy requires a current supplier record, the system then queries a structured database. If the record is missing, the system asks for a supplier ID or escalates. The next tool depends on what the first tool returns.
 
-![Side-by-side comparison of a single-search RAG path and an agent loop that checks multiple retrieval results](/blog/should-i-use-rag-or-an-ai-agent-for-internal-knowledge-single-search-versus-agent-loop.png)
+![Side-by-side comparison of a single-search RAG path and an agent loop that checks multiple retrieval results](/blog/should-i-use-rag-or-an-ai-agent-for-internal-knowledge-single-search-versus-agent-loop.webp)
 
 Do not use document count as a proxy for retrieval complexity. One million well-structured documents in one index can be a search quality problem. Three small systems can be a workflow problem. The difference is whether the system must decide between sources and whether a result changes the next operation.
 
@@ -362,7 +362,7 @@ Consider a 200-person company with policies in a versioned repository. Employees
 
 This is a standard RAG job if the documents are authoritative, the index preserves title and effective date, and user identity controls which documents can be retrieved. The assistant should answer from retrieved text, show the source, and say that it could not find an approved answer when retrieval fails.
 
-![Workflow from an internal policy question through grounded retrieval, abstention, and optional human-approved drafting](/blog/should-i-use-rag-or-an-ai-agent-for-internal-knowledge-internal-policy-assistant-flow.png)
+![Workflow from an internal policy question through grounded retrieval, abstention, and optional human-approved drafting](/blog/should-i-use-rag-or-an-ai-agent-for-internal-knowledge-internal-policy-assistant-flow.webp)
 
 The implementation brief should contain at least these fields:
 
@@ -439,7 +439,7 @@ Baseline to beat:
 Release decision and next review date:
 ```
 
-![Conceptual retrieval tool contract with query and identity filters returning passages and source metadata](/blog/should-i-use-rag-or-an-ai-agent-for-internal-knowledge-retrieval-tool-contract.png)
+![Conceptual retrieval tool contract with query and identity filters returning passages and source metadata](/blog/should-i-use-rag-or-an-ai-agent-for-internal-knowledge-retrieval-tool-contract.webp)
 
 The line “why a simpler option is insufficient” is the most valuable one. If you cannot fill it in, use RAG or ordinary search first. The goal is not to prove that the company needs an agent. It is to avoid building one before the work demands it.
 
@@ -458,7 +458,7 @@ Create a small runbook for failures:
 
 This runbook keeps the team from “fixing” a retrieval problem by giving the agent more tools. A larger tool catalog can hide a source-quality problem and make future failures harder to diagnose.
 
-![Planning artifact surrounded by source ownership, permission, abstention, read-only tool, and owner safeguards](/blog/should-i-use-rag-or-an-ai-agent-for-internal-knowledge-knowledge-pilot-card.png)
+![Planning artifact surrounded by source ownership, permission, abstention, read-only tool, and owner safeguards](/blog/should-i-use-rag-or-an-ai-agent-for-internal-knowledge-knowledge-pilot-card.webp)
 
 ## How do cost, latency, and operations change the choice?
 

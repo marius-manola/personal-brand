@@ -30,7 +30,7 @@ sources:
   - 'https://learn.microsoft.com/en-us/azure/foundry/agents/how-to/memory-usage'
   - 'https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/data-protection-principles/a-guide-to-the-data-protection-principles/data-minimisation/'
   - 'https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/data-protection-principles/a-guide-to-the-data-protection-principles/storage-limitation/'
-cover: '/blog/how-to-design-an-ai-agent-memory-schema-agent-memory-four-way-hero.png'
+cover: '/blog/how-to-design-an-ai-agent-memory-schema-agent-memory-four-way-hero.webp'
 coverAlt: 'A clean editorial diagram showing the fields and validation paths in a scoped AI-agent memory schema'
 draft: false
 ---
@@ -39,7 +39,7 @@ An AI-agent memory schema is a safety boundary, not just a list of fields. If it
 
 The useful design test is: **can this record change a future task safely, and can the system prove what it means, where it came from, and whether it is still valid?** If not, the data belongs in a task checkpoint, a source system, an audit log, or nowhere at all.
 
-![show the four storage decisions without implying a real product UI](/blog/how-to-design-an-ai-agent-memory-schema-task-state-versus-memory.png)
+![show the four storage decisions without implying a real product UI](/blog/how-to-design-an-ai-agent-memory-schema-task-state-versus-memory.webp)
 
 ## How to design an AI agent memory schema
 
@@ -74,7 +74,7 @@ Long-term memory has a different test: if the same kind of task arrives next mon
 
 This distinction also keeps context smaller. LangGraph documents trimming and summarizing histories because long message lists can exceed context limits and can contain stale or distracting material even when they technically fit. OpenAI's Agents SDK provides session-history limits and compaction for the same general problem ([session controls](https://openai.github.io/openai-agents-python/sessions/)). A shorter, selected memory is not a weaker memory. It is easier to inspect.
 
-![contrast a resumable task checkpoint with a cross-task memory record](/blog/how-to-design-an-ai-agent-memory-schema-memory-categories-map.png)
+![contrast a resumable task checkpoint with a cross-task memory record](/blog/how-to-design-an-ai-agent-memory-schema-memory-categories-map.webp)
 
 ## What kinds of information are worth remembering?
 
@@ -124,7 +124,7 @@ An agent often needs to remember where to look, not copy everything it saw. Stor
 
 This preserves a smaller memory while keeping the source current. It also makes correction possible: when the source record changes, the agent can see the new value instead of trusting an old pasted paragraph.
 
-![show the five memory categories feeding a scoped retrieval step](/blog/how-to-design-an-ai-agent-memory-schema-memory-write-validation-boundary.png)
+![show the five memory categories feeding a scoped retrieval step](/blog/how-to-design-an-ai-agent-memory-schema-memory-write-validation-boundary.webp)
 
 ## What should an AI agent not remember?
 
@@ -145,7 +145,7 @@ Privacy adds a second boundary. The [ICO's data-minimisation guidance](https://i
 
 Pseudonymisation is not a magic escape hatch either. The ICO notes that pseudonymised data will usually still permit identification and remains subject to storage limitation. If the agent does not need the data, the cleanest record is often no record.
 
-![show an external-data validation boundary before any memory write](/blog/how-to-design-an-ai-agent-memory-schema-memory-promotion-gates.png)
+![show an external-data validation boundary before any memory write](/blog/how-to-design-an-ai-agent-memory-schema-memory-promotion-gates.webp)
 
 ## Use the Remember, Recompute, Reference, Forget framework
 
@@ -174,7 +174,7 @@ Promote a candidate into durable memory only when all of these questions have a 
 
 If the candidate fails future value, store it as task state or forget it. If it fails provenance, scope, safety, or correction, quarantine it instead of injecting it into the next task.
 
-![show the promotion test as a gated flow from candidate observation to scoped memory](/blog/how-to-design-an-ai-agent-memory-schema-structured-memory-record.png)
+![show the promotion test as a gated flow from candidate observation to scoped memory](/blog/how-to-design-an-ai-agent-memory-schema-structured-memory-record.webp)
 
 ## What should a memory record contain?
 
@@ -213,7 +213,7 @@ Do not place the full record into every prompt. Use the metadata to filter first
 
 Vendor implementations differ. For example, Microsoft Foundry's current memory preview documents item-level create, read, update, list, and delete operations, retention controls, and a `scope` parameter for isolation. It is a concrete product example, and it is explicitly a preview, not a reason to copy one vendor's data model unchanged ([Microsoft Foundry memory usage](https://learn.microsoft.com/en-us/azure/foundry/agents/how-to/memory-usage)).
 
-![explain the fields and boundaries of a structured memory record without fake UI](/blog/how-to-design-an-ai-agent-memory-schema-memory-and-source-of-truth.png)
+![explain the fields and boundaries of a structured memory record without fake UI](/blog/how-to-design-an-ai-agent-memory-schema-memory-and-source-of-truth.webp)
 
 ## How should the agent retrieve memory between tasks?
 
@@ -231,7 +231,7 @@ The scope check is not optional. OWASP recommends memory isolation between users
 
 There is also a practical reason to retrieve selectively. A memory store is not a second system of record. If a customer changes their email address, the CRM or identity system should answer the current question. The memory record might say that the customer once preferred email, but the application must decide whether that preference still applies and whether the current account permits the action.
 
-![show scoped retrieval joining durable memory with current source-of-truth data before action](/blog/how-to-design-an-ai-agent-memory-schema-memory-review-and-forget-loop.png)
+![show scoped retrieval joining durable memory with current source-of-truth data before action](/blog/how-to-design-an-ai-agent-memory-schema-memory-review-and-forget-loop.webp)
 
 ## A checklist for shipping cross-task memory
 

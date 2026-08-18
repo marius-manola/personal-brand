@@ -38,7 +38,7 @@ faq:
     a: 'Recheck the selected tool, normalized arguments, permissions, target identity, and current state in application code immediately before execution. Add an allowlist, dry-run or approval step, idempotency key, and executor-side authorization for consequential operations.'
   - q: 'What should I log when debugging tool routing?'
     a: 'Log the run and turn IDs, model endpoint, available and allowed tools, selected tool, raw and normalized arguments, authorization decision, result status, error code, state version, side effect, and final response. Redact secrets while preserving enough detail to reproduce the decision.'
-cover: '/blog/why-does-my-ai-agent-choose-the-wrong-tool-hero.png'
+cover: '/blog/why-does-my-ai-agent-choose-the-wrong-tool-hero.webp'
 coverAlt: 'A tool-using AI agent choosing between overlapping actions before a clear routing boundary'
 draft: false
 ---
@@ -57,7 +57,7 @@ That interface normally contains a tool name, a description, and an input schema
 
 The first diagnostic question is therefore not “how do I prompt it harder?” It is: **what choices did the model actually see, and what made the chosen one look reasonable?**
 
-![A tool-using agent at a routing junction with several overlapping paths and one clearly bounded route](/blog/why-does-my-ai-agent-choose-the-wrong-tool-inline-1.png)
+![A tool-using agent at a routing junction with several overlapping paths and one clearly bounded route](/blog/why-does-my-ai-agent-choose-the-wrong-tool-inline-1.webp)
 
 ## Is it actually the wrong tool?
 
@@ -121,7 +121,7 @@ Do not use search_orders when an exact order number is already available.
 
 The negative sentence is not magic. It is a test of whether the boundary exists. If you cannot write a clean “use this, not that” rule, the tools may be too similar to expose as separate choices.
 
-![Two overlapping tool cards being separated by explicit use and non-use boundaries](/blog/why-does-my-ai-agent-choose-the-wrong-tool-inline-2.png)
+![Two overlapping tool cards being separated by explicit use and non-use boundaries](/blog/why-does-my-ai-agent-choose-the-wrong-tool-inline-2.webp)
 
 ### O: Is the operation schema doing useful work?
 
@@ -165,7 +165,7 @@ This matters even with MCP. The specification says annotations describing tool b
 
 For a consequential tool, add at least one of these boundaries: a read-only or dry-run mode, an allowlist of callable tools, an idempotency key, a human approval step, or an executor-side recheck. The control should fail closed when the selected tool is outside policy or the target has changed.
 
-![A proposed tool call passing through an authorization and target-validation boundary before execution](/blog/why-does-my-ai-agent-choose-the-wrong-tool-inline-3.png)
+![A proposed tool call passing through an authorization and target-validation boundary before execution](/blog/why-does-my-ai-agent-choose-the-wrong-tool-inline-3.webp)
 
 ## How do you fix the wrong choice?
 
@@ -210,7 +210,7 @@ failure_contract:
 
 The card forces a useful review conversation. What makes this tool different from `search_orders`? Which values are trusted? What does “success” mean? What can safely happen next? If the answers are vague, the model is being asked to infer architecture from labels.
 
-![A compact tool-contract card showing purpose, boundaries, inputs, outputs, and the next allowed action](/blog/why-does-my-ai-agent-choose-the-wrong-tool-inline-4.png)
+![A compact tool-contract card showing purpose, boundaries, inputs, outputs, and the next allowed action](/blog/why-does-my-ai-agent-choose-the-wrong-tool-inline-4.webp)
 
 ## How can you test tool selection without fooling yourself?
 
@@ -230,7 +230,7 @@ For each case, assert the tool name, normalized arguments, candidate set, author
 
 Keep this test focused on selection and routing. If the selected action then repeats without progress, use the [AI agent loop guide](/blog/ai-agent-stuck-in-a-loop). If you are turning these cases into a pre-release gate, use [the AI agent evaluation guide](/blog/how-to-evaluate-an-ai-agent) for the broader release decision.
 
-![A routing test matrix comparing user intent, available tools, expected choice, and blocked side effects](/blog/why-does-my-ai-agent-choose-the-wrong-tool-inline-5.png)
+![A routing test matrix comparing user intent, available tools, expected choice, and blocked side effects](/blog/why-does-my-ai-agent-choose-the-wrong-tool-inline-5.webp)
 
 ## What evidence should you capture from a failing turn?
 
@@ -499,7 +499,7 @@ A second model can be useful in a deliberately tested architecture, but it also 
 
 The final answer may sound correct after the wrong tool returned plausible data. Save the candidate set, selected tool, arguments after validation, result status, and verified effect. Without those fields, you are debugging a story instead of a decision.
 
-![A trace comparison showing the selected tool, validated arguments, result status, and verified effect in one line](/blog/why-does-my-ai-agent-choose-the-wrong-tool-inline-6.png)
+![A trace comparison showing the selected tool, validated arguments, result status, and verified effect in one line](/blog/why-does-my-ai-agent-choose-the-wrong-tool-inline-6.webp)
 
 ## Should you fix it yourself or ask for help?
 
@@ -513,4 +513,4 @@ The shortest reliable rule is this: **make the right tool the clearest available
 
 For the next step, take one real wrong-tool trace and fill in the five WRONG gates. If you cannot answer “what was available?” or “what could safely happen next?”, you have found the repair boundary.
 
-![A repair loop narrowing the tool surface, clarifying the contract, testing the route, and then allowing a guarded execution](/blog/why-does-my-ai-agent-choose-the-wrong-tool-inline-7.png)
+![A repair loop narrowing the tool surface, clarifying the contract, testing the route, and then allowing a guarded execution](/blog/why-does-my-ai-agent-choose-the-wrong-tool-inline-7.webp)

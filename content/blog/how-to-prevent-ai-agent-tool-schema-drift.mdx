@@ -46,7 +46,7 @@ faq:
     a: 'Test valid and invalid inputs, representative outputs, error shapes, optional and unknown fields, descriptions and examples where they affect model use, side-effect boundaries, authorization, and postconditions. Replay the same contract against the deployed provider version before promotion.'
   - q: 'How often should tool schemas be reviewed?'
     a: 'Review a schema on every change to the tool, provider API, model-facing description, permissions, output mapping, or runtime adapter. Also run a scheduled audit, because upstream APIs and platform defaults can change outside your repository.'
-cover: '/blog/how-to-prevent-ai-agent-tool-schema-drift-hero.png'
+cover: '/blog/how-to-prevent-ai-agent-tool-schema-drift-hero.webp'
 coverAlt: 'Illustration of an AI agent tool contract protected by version, validation, and runtime compatibility gates'
 draft: false
 ---
@@ -55,7 +55,7 @@ An agent can keep sending perfectly valid JSON and still be wrong. The field may
 
 I treat tool schema drift as a contract problem, not a prompt problem. The model-facing declaration, executor, provider adapter, permissions, and result interpretation must move through the same release gate.
 
-![A high-level illustration of the five contract surfaces that must stay aligned](/blog/how-to-prevent-ai-agent-tool-schema-drift-contract-surfaces.png)
+![A high-level illustration of the five contract surfaces that must stay aligned](/blog/how-to-prevent-ai-agent-tool-schema-drift-contract-surfaces.webp)
 
 ## What is AI agent tool schema drift?
 
@@ -218,7 +218,7 @@ Run tests with real request and response examples, not only schema documents. Ch
 
 Pact’s [consumer-driven contract guidance](https://docs.pact.io/) makes a related distinction: a static schema describes possible states, while a concrete contract records interactions that a consumer actually relies on. For an agent tool, use both. The schema defines the boundary. Concrete fixtures prove that the adapter and provider still honor the boundary.
 
-![A five-step DRIFT gate flowing from contract declaration to behavioral tests](/blog/how-to-prevent-ai-agent-tool-schema-drift-drift-gate.png)
+![A five-step DRIFT gate flowing from contract declaration to behavioral tests](/blog/how-to-prevent-ai-agent-tool-schema-drift-drift-gate.webp)
 
 ## What should the contract artifact look like?
 
@@ -378,7 +378,7 @@ For this page’s narrower problem, test a fixed set of user requests against th
 
 Use a tool-selection test to detect model-facing drift. Do not present its pass rate as a general model benchmark unless you have documented the model, version, prompt, dataset, number of trials, and limitations.
 
-![A test matrix separating schema validation, provider contracts, semantic invariants, and selection fixtures](/blog/how-to-prevent-ai-agent-tool-schema-drift-test-matrix.png)
+![A test matrix separating schema validation, provider contracts, semantic invariants, and selection fixtures](/blog/how-to-prevent-ai-agent-tool-schema-drift-test-matrix.webp)
 
 ## How can a runtime detect a stale tool schema?
 
@@ -429,7 +429,7 @@ Record the fingerprint in every trace and task checkpoint. When a failure occurs
 
 NIST’s [AI Risk Management Framework](https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.100-1.pdf) describes measurement as a function that can analyze, assess, benchmark, and monitor AI risk and related impacts. A contract fingerprint is a small operational measurement. It does not prove safety, but it gives monitoring a concrete identity to compare.
 
-![A runtime fingerprint comparison that stops stale tool discovery](/blog/how-to-prevent-ai-agent-tool-schema-drift-runtime-fingerprint.png)
+![A runtime fingerprint comparison that stops stale tool discovery](/blog/how-to-prevent-ai-agent-tool-schema-drift-runtime-fingerprint.webp)
 
 ## How should MCP tool drift be handled?
 
@@ -449,7 +449,7 @@ MCP’s error distinction is useful for recovery. A protocol error such as an un
 
 Treat descriptions as versioned too. A description that changes “read customer” to “find or update customer” is a permission and behavior change even if `inputSchema` stays identical.
 
-![A taxonomy of shape, semantic, availability, behavioral, and result drift](/blog/how-to-prevent-ai-agent-tool-schema-drift-drift-taxonomy.png)
+![A taxonomy of shape, semantic, availability, behavioral, and result drift](/blog/how-to-prevent-ai-agent-tool-schema-drift-drift-taxonomy.webp)
 
 ## How do OpenAI and Anthropic tool schemas differ in practice?
 
@@ -471,7 +471,7 @@ The portable rule is simple:
 
 Do not assume that “JSON Schema compatible” means “behaviorally identical across providers.” Dialects, requiredness rules, nullable representations, tool-choice controls, and error envelopes can differ.
 
-![A cross-provider map from one semantic contract to OpenAI, Anthropic, MCP, and executor projections](/blog/how-to-prevent-ai-agent-tool-schema-drift-provider-projections.png)
+![A cross-provider map from one semantic contract to OpenAI, Anthropic, MCP, and executor projections](/blog/how-to-prevent-ai-agent-tool-schema-drift-provider-projections.webp)
 
 ## Which schema changes deserve a new tool version?
 
@@ -510,9 +510,9 @@ Fourth, replay the old fixtures against the provider. Add a fixture for the disc
 
 Finally, record the event. The release note should name the provider version, contract version, adapter version, affected agent versions, migration decision, and rollback path.
 
-![A provider-change response flow that contains drift before it reaches the model-facing tool surface](/blog/how-to-prevent-ai-agent-tool-schema-drift-provider-change-flow.png)
+![A provider-change response flow that contains drift before it reaches the model-facing tool surface](/blog/how-to-prevent-ai-agent-tool-schema-drift-provider-change-flow.webp)
 
-![A release binding that keeps agent configuration, executor, adapter, and checkpoint on one contract fingerprint](/blog/how-to-prevent-ai-agent-tool-schema-drift-release-binding.png)
+![A release binding that keeps agent configuration, executor, adapter, and checkpoint on one contract fingerprint](/blog/how-to-prevent-ai-agent-tool-schema-drift-release-binding.webp)
 
 ## How do you monitor schema drift in production?
 
@@ -549,7 +549,7 @@ Keep payload logging proportional to the data. A fingerprint, field-level valida
 
 Monitoring tells you that a deployed contract is behaving differently. It does not tell you whether the behavior is acceptable. That decision belongs in the release gate and the owner’s change review.
 
-![Production observability signals for contract version, fingerprint, validation, side effects, and postconditions](/blog/how-to-prevent-ai-agent-tool-schema-drift-observability-signals.png)
+![Production observability signals for contract version, fingerprint, validation, side effects, and postconditions](/blog/how-to-prevent-ai-agent-tool-schema-drift-observability-signals.webp)
 
 ## What are the most common failed approaches?
 
@@ -621,7 +621,7 @@ Review validation failures, unknown fields, error categories, postconditions, fi
 
 After the read-only path is stable, apply the same gate to write, send, and delete tools. Keep a separate review for permissions and human approval. A passing schema test does not authorize a new side effect.
 
-![A rollout checklist from inventory through read-only validation and controlled authority expansion](/blog/how-to-prevent-ai-agent-tool-schema-drift-rollout-checklist.png)
+![A rollout checklist from inventory through read-only validation and controlled authority expansion](/blog/how-to-prevent-ai-agent-tool-schema-drift-rollout-checklist.webp)
 
 ## What should the final pre-release checklist contain?
 

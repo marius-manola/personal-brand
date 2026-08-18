@@ -28,7 +28,7 @@ sources:
   - 'https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ai-agents/single-agent-multiple-agents'
   - 'https://docs.cloud.google.com/architecture/choose-design-pattern-agentic-ai-system?hl=en'
   - 'https://www.anthropic.com/engineering/multi-agent-research-system'
-cover: '/blog/test-multi-agent-handoffs-test-multi-agent-handoffs-hero.png'
+cover: '/blog/test-multi-agent-handoffs-test-multi-agent-handoffs-hero.webp'
 coverAlt: 'A failed multi-agent workflow being reconstructed from a bounded checkpoint before a safe resume'
 draft: false
 ---
@@ -51,7 +51,7 @@ An agent is a model-controlled worker that can manage a workflow, choose tools, 
 
 That distinction matters during recovery. If Agent A sends Agent B a paragraph called “research notes,” the orchestrator cannot reliably tell which claims are current, which are opinions, or which actions already happened. If Agent A records a bounded research artifact with source references, freshness, open questions, effects, and a failure state, the orchestrator can validate the checkpoint before the receiver acts again.
 
-![Conceptual diagram of two AI agents exchanging a bounded artifact instead of an unstructured transcript](/blog/test-multi-agent-handoffs-handoff-artifact-test-fixture.png)
+![Conceptual diagram of two AI agents exchanging a bounded artifact instead of an unstructured transcript](/blog/test-multi-agent-handoffs-handoff-artifact-test-fixture.webp)
 
 For this article, a useful recovery checkpoint has six fields:
 
@@ -97,7 +97,7 @@ Do not resume at the last visible message. Draw the dependency graph first. Ask 
 
 OpenAI describes manager and decentralized handoff patterns. Google Cloud describes sequential, parallel, loop, and review or critique patterns. The names differ, but the recovery question is the same: who owns the next decision, and what evidence proves that owner received the last valid state?
 
-![Conceptual architecture map showing sequential, parallel, review, and loop paths with bounded agent handoffs](/blog/test-multi-agent-handoffs-multi-agent-handoff-test-cases.png)
+![Conceptual architecture map showing sequential, parallel, review, and loop paths with bounded agent handoffs](/blog/test-multi-agent-handoffs-multi-agent-handoff-test-cases.webp)
 
 For a sequential workflow, do not ask the receiver to reconstruct the prior step from prose. Resume from a versioned artifact and reject it when its evidence is missing or stale. For a parallel workflow, do not merge outputs by asking a final agent to “pick the best one” without sources, conflict fields, and a defined success condition. Preserve disagreement in the checkpoint and route it deliberately. The more autonomy the pattern has, the more explicit recovery must be.
 
@@ -109,7 +109,7 @@ Suppose a support workflow has one worker that reads a customer account and anot
 
 Microsoft identifies security and compliance boundaries, separation of duties, multiple teams, and planned growth as reasons to use multiple agents. It also warns that every added agent creates more credentials, state transitions, and data-transit points to govern ([Microsoft](https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ai-agents/single-agent-multiple-agents)).
 
-![Conceptual diagram of separate AI agent authority zones connected by a narrow audited handoff](/blog/test-multi-agent-handoffs-agent-authority-test-boundaries.png)
+![Conceptual diagram of separate AI agent authority zones connected by a narrow audited handoff](/blog/test-multi-agent-handoffs-agent-authority-test-boundaries.webp)
 
 The model can propose an action. It should not define its own authority during replay. Enforce these controls in code or policy infrastructure, then record whether the checkpoint still satisfies each boundary:
 
@@ -152,7 +152,7 @@ The values above are a template, not sample production data. Replace them with t
 
 Before resuming, the orchestrator should check required fields, enum values, source freshness, authorization scope, effect records, and consistency with the current workflow state. It should decide whether to continue, compensate, retry, review, or stop. If validation fails, use a defined repair or review path. Do not simply send the invalid response back to the same agent with “try again” and no new evidence.
 
-![Conceptual illustration of an AI agent returning a structured artifact through validation before another agent can consume it](/blog/test-multi-agent-handoffs-handoff-artifact-validation-test.png)
+![Conceptual illustration of an AI agent returning a structured artifact through validation before another agent can consume it](/blog/test-multi-agent-handoffs-handoff-artifact-validation-test.webp)
 
 This is also where the baseline matters. If the proposed checkpoint only repackages a shared conversation and records no independent state or effect, it cannot support safe replay. Compare it with the simplest durable state design and add coordination only when it improves recovery. Anthropic's guidance recommends starting with the simplest design and adding complexity when it demonstrably improves the result ([Anthropic](https://www.anthropic.com/engineering/building-effective-agents)).
 
@@ -192,7 +192,7 @@ Fill this out for one real workflow. Compare the proposed recovery design with t
 | Latency and cost budget |  | What will the recovery attempt consume? |
 | Stop or compensation condition |  | When must the workflow stop or undo an effect? |
 
-![Conceptual comparison worksheet for a multi-agent handoff, showing context, artifact, authority, verification, and failure checks](/blog/test-multi-agent-handoffs-handoff-comparison-test-worksheet.png)
+![Conceptual comparison worksheet for a multi-agent handoff, showing context, artifact, authority, verification, and failure checks](/blog/test-multi-agent-handoffs-handoff-comparison-test-worksheet.webp)
 
 Run the recovery in a controlled order:
 
@@ -219,7 +219,7 @@ Independent researchers can each receive a scoped question and source policy. Th
 
 Role names alone do not justify three agents. Start with a clear repository boundary, tool policy, and checkpoint format. If the implementer crashes after a partial write, the reviewer must see the exact artifact version, repository revision, and write effects. Resume only the uncompleted step. Otherwise a restart may overwrite a valid change or ask a reviewer to approve a state that no longer exists.
 
-![Decision path showing a workflow moving through a handoff contract, validation, conflict handling, and a controlled next action](/blog/test-multi-agent-handoffs-handoff-release-decision-path.png)
+![Decision path showing a workflow moving through a handoff contract, validation, conflict handling, and a controlled next action](/blog/test-multi-agent-handoffs-handoff-release-decision-path.webp)
 
 ## The resume rule
 
@@ -227,6 +227,6 @@ A failed workflow is safe to resume only when its purpose, minimum necessary con
 
 Write one recovery card for the highest-risk boundary first. Exercise missing, stale, conflicting, and out-of-scope state. Block resume on duplicate-action risk, unverified artifacts, or unowned failures. Then decide whether the workflow needs a new checkpoint, a compensating action, or human review.
 
-![Conceptual overview of the layers that make a multi-agent handoff reliable](/blog/test-multi-agent-handoffs-multi-agent-handoff-test-overview.png)
+![Conceptual overview of the layers that make a multi-agent handoff reliable](/blog/test-multi-agent-handoffs-multi-agent-handoff-test-overview.webp)
 
 If a team has a concrete workflow but cannot reconstruct its checkpoints or agree on resume rules, an architecture review or reliability workshop is a sensible next step. It should inspect the workflow, state records, data access, tools, effects, and failure policy. It should not replace the definition of the business outcome or specialist legal and security advice. You can also start with [Marius Manolachi's AI consulting work](/learn-ai) if you need help framing that review.

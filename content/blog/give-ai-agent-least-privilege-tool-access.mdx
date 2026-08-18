@@ -41,7 +41,7 @@ faq:
     a: "Use an explicit step-up path for the specific operation, resource, and time window. Show the reviewer the normalized action and consequence, obtain approval when required, issue the narrow additional grant, retry a limited number of times, and log the decision."
   - q: "What should I test before giving an AI agent write access?"
     a: "Test the permitted action and the denials around it: wrong tenant, wrong record, broader operation, sensitive field, excessive batch, expired or misdirected token, prompt injection, tool combination, missing approval, replayed approval, and changed policy."
-cover: '/blog/give-ai-agent-least-privilege-tool-access-least-privilege-tool-access-hero.png'
+cover: '/blog/give-ai-agent-least-privilege-tool-access-least-privilege-tool-access-hero.webp'
 coverAlt: 'An AI agent tool request passing through identity, scope, policy, and execution boundaries before reaching a business system'
 draft: false
 ---
@@ -83,7 +83,7 @@ Before you connect a tool, write the grant as six fields. This is my synthesis o
 | Data | Which fields, classifications, or volume may cross the boundary? | ticket subject and body, not secrets or payment data |
 | Time and limits | For how long and how much? | 15-minute token, 20 records, 2 calls per task |
 
-![A permission envelope narrowing an AI agent grant across identity, tool, operation, resource, data, and time](/blog/give-ai-agent-least-privilege-tool-access-permission-envelope-six-fields.png)
+![A permission envelope narrowing an AI agent grant across identity, tool, operation, resource, data, and time](/blog/give-ai-agent-least-privilege-tool-access-permission-envelope-six-fields.webp)
 
 The envelope is useful because “read-only access” is still vague. Read-only access to every customer, every field, forever, through a credential that also reaches production is not a small grant. Nor is “the CRM tool” a permission. The operation, target, data, and limits make the boundary testable.
 
@@ -107,7 +107,7 @@ Give the workload its own service account, workload identity, or agent identity.
 
 Microsoft’s Entra Agent ID documentation illustrates the distinction: agent identities have separate role and permission rules, some high-risk directory permissions are blocked, and resource-specific roles or delegated permissions are different choices from tenant-wide application permissions ([Microsoft Entra Agent ID authorization](https://learn.microsoft.com/en-us/entra/agent-id/authorization-agent-id)). The product details are Microsoft-specific. The design lesson is portable: an agent should not inherit every capability of the person who asked a question.
 
-![A separate AI agent identity receiving a narrow credential instead of inheriting a human administrator's access](/blog/give-ai-agent-least-privilege-tool-access-agent-identity-separation.png)
+![A separate AI agent identity receiving a narrow credential instead of inheriting a human administrator's access](/blog/give-ai-agent-least-privilege-tool-access-agent-identity-separation.webp)
 
 For a background job, use a machine identity with a narrowly defined role. For a user-facing task, decide whether the agent needs the user’s bounded data access, an application-owned scope, or a human approval before a write. Write that decision down. “On behalf of the user” is an authorization model, not a reason to pass the user’s bearer token through every tool.
 
@@ -119,7 +119,7 @@ The catalog boundary matters because the model cannot choose a tool it never rec
 
 This is not permission enforcement by itself. A hidden tool can still be called by a forged request, a stale catalog can still expose a newly added capability, and an alternate tool may reach the same data. The allowlist reduces choice; the runtime and downstream service must still deny what is not allowed.
 
-![A catalog gate filtering a broad set of possible agent tools down to a small approved allowlist](/blog/give-ai-agent-least-privilege-tool-access-agent-tool-catalog-gate.png)
+![A catalog gate filtering a broad set of possible agent tools down to a small approved allowlist](/blog/give-ai-agent-least-privilege-tool-access-agent-tool-catalog-gate.webp)
 
 ### 4. Split read, draft, and commit operations
 
@@ -129,7 +129,7 @@ Use explicit verbs and schemas. A draft tool should accept a ticket ID and draft
 
 For a consequential write, require a human approval that is bound to the normalized action, then re-check authorization immediately before execution. Approval is a separate control; it does not make an overpowered credential safe. The current MCP tools specification recommends a human ability to deny tool invocations, while the permission envelope decides whether the agent has the capability in the first place ([MCP tools specification](https://modelcontextprotocol.io/specification/2026-07-28/server/tools)). For the approval boundary itself, see [the guide to human-in-the-loop AI agents](/blog/human-in-the-loop-ai-agents).
 
-![An agent workflow moving from read access to a private draft and stopping before a consequential commit](/blog/give-ai-agent-least-privilege-tool-access-read-draft-commit-boundary.png)
+![An agent workflow moving from read access to a private draft and stopping before a consequential commit](/blog/give-ai-agent-least-privilege-tool-access-read-draft-commit-boundary.webp)
 
 ### 5. Scope the resource and data, not just the API
 
@@ -147,7 +147,7 @@ The current MCP authorization specification says clients should request only sco
 
 If a tool needs more authority, request it for that operation and record why. A failed authorization should become a clear step-up or escalation path, not a reason to silently retry with an administrator token.
 
-![A short-lived token bound to one downstream tool while unrelated services remain outside its scope](/blog/give-ai-agent-least-privilege-tool-access-scoped-token-audience.png)
+![A short-lived token bound to one downstream tool while unrelated services remain outside its scope](/blog/give-ai-agent-least-privilege-tool-access-scoped-token-audience.webp)
 
 ### 7. Enforce the envelope outside the model
 
@@ -157,7 +157,7 @@ Put authorization in three gates:
 2. **Dispatch gate:** before each call, authenticate the caller, normalize arguments, check the six fields, enforce quotas, and classify the effect.
 3. **Credential gate:** make the downstream API, database, filesystem, or MCP server validate the scoped token and resource conditions again.
 
-![Three enforcement gates checking an AI agent tool call at discovery, dispatch, and downstream credential layers](/blog/give-ai-agent-least-privilege-tool-access-three-gate-enforcement-model.png)
+![Three enforcement gates checking an AI agent tool call at discovery, dispatch, and downstream credential layers](/blog/give-ai-agent-least-privilege-tool-access-three-gate-enforcement-model.webp)
 
 A model instruction can explain the policy, but it cannot be the policy engine. Framework guardrails are useful at the dispatch gate. For example, the OpenAI Agents SDK documents tool guardrails that run around each custom function-tool invocation, while agent-level input and output guardrails run at different workflow boundaries ([OpenAI Agents SDK guardrails](https://openai.github.io/openai-agents-python/guardrails/)). The broader point is to check the tool call where the side effect occurs, not only the first user message or final answer.
 
@@ -225,7 +225,7 @@ Do not test only whether the happy path works. Test whether every plausible shor
 - A missing, changed, or expired approval cannot execute the original write.
 - Every allow and deny records the agent identity, user context where relevant, tool, normalized arguments or safe digest, target, policy version, decision, and result.
 
-![A test harness allowing one scoped agent action while blocking wrong tenants, operations, data, tokens, and approvals](/blog/give-ai-agent-least-privilege-tool-access-least-privilege-denial-checklist.png)
+![A test harness allowing one scoped agent action while blocking wrong tenants, operations, data, tokens, and approvals](/blog/give-ai-agent-least-privilege-tool-access-least-privilege-denial-checklist.webp)
 
 The last two checks are especially important. Least privilege is a property of the execution path, not a screenshot of a permission page. NIST’s current identity-and-authorization concept paper names proving authority for a specific action, binding human and agent identities, delegation, and verifiable audit as open design questions for agent systems ([NIST software and AI agent identity and authorization](https://www.nccoe.nist.gov/sites/default/files/2026-02/accelerating-the-adoption-of-software-and-ai-agent-identity-and-authorization-concept-paper.pdf)). That is a useful warning against treating one OAuth consent screen as the finished design.
 

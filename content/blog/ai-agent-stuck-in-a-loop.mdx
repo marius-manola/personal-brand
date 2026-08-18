@@ -27,7 +27,7 @@ sources:
   - 'https://www.anthropic.com/engineering/building-effective-agents'
   - 'https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents'
   - 'https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-agent-spans.md'
-cover: '/blog/ai-agent-stuck-in-a-loop-ai-agent-loop-hero.png'
+cover: '/blog/ai-agent-stuck-in-a-loop-ai-agent-loop-hero.webp'
 coverAlt: 'An AI agent loop stopped at a boundary after repeated tool actions fail to produce progress'
 draft: false
 ---
@@ -53,7 +53,7 @@ That cycle can fail in several places:
 | Handoff | Two agents route the task back and forth | Ownership, a handoff limit, and a terminal owner |
 | Recovery | Each error triggers the same repair | Error classification and a different recovery branch |
 
-![Diagram comparing the main shapes of non-converging AI agent loops](/blog/ai-agent-stuck-in-a-loop-agent-loop-shapes.png)
+![Diagram comparing the main shapes of non-converging AI agent loops](/blog/ai-agent-stuck-in-a-loop-agent-loop-shapes.webp)
 
 Do not diagnose the model before you locate the first repeated boundary. The model may be choosing a reasonable action in response to an unhelpful tool result. Anthropic describes agents as language models using tools based on environmental feedback in a loop, and stresses that toolsets and their documentation need to be designed clearly. A vague tool contract can create a loop even when the model is behaving consistently ([Anthropic: Building effective agents](https://www.anthropic.com/engineering/building-effective-agents)).
 
@@ -73,7 +73,7 @@ For each attempt, ask:
 
 If the answer is no across a bounded window, the runtime should stop or switch to a declared recovery path. That is an engineering rule, not a claim that one universal number of repeats works for every workflow.
 
-![LOOP-R gates for diagnosing and recovering from an AI agent loop](/blog/ai-agent-stuck-in-a-loop-loop-r-framework.png)
+![LOOP-R gates for diagnosing and recovering from an AI agent loop](/blog/ai-agent-stuck-in-a-loop-loop-r-framework.webp)
 
 This distinction matters because retrying can be useful. A network timeout may succeed on the next attempt. A rate-limited provider may recover after backoff. A tool that returns “job still running” may need polling. The runtime should know which cases are retryable, how long to wait, and what evidence ends the wait. The model should not be the only component deciding that.
 
@@ -90,7 +90,7 @@ Then walk backward from the repetition:
 5. **Check the recovery branch.** When the first attempt fails, does the system choose another strategy, ask for missing input, escalate, or repeat the same call?
 6. **Contain before repair.** Stop the live run, cancel pending work where possible, and prevent a repeated write from creating more side effects.
 
-![Trace sequence showing an action fingerprint detecting a repeated effective tool call](/blog/ai-agent-stuck-in-a-loop-repeated-action-fingerprint.png)
+![Trace sequence showing an action fingerprint detecting a repeated effective tool call](/blog/ai-agent-stuck-in-a-loop-repeated-action-fingerprint.webp)
 
 The first repeated boundary is usually more valuable than the last model message. The last message tells you what the agent said. The trace tells you what kept the system moving in circles.
 
@@ -134,7 +134,7 @@ If the model cannot supply the missing value, more retries are not more intellig
 
 **Symptom:** the agent performs the requested action, then keeps checking because the verifier never reports success.
 
-![Architecture diagram connecting an agent action to a verified postcondition and recovery branch](/blog/ai-agent-stuck-in-a-loop-agent-progress-postcondition.png)
+![Architecture diagram connecting an agent action to a verified postcondition and recovery branch](/blog/ai-agent-stuck-in-a-loop-agent-progress-postcondition.webp)
 
 **Likely cause:** the action and the verifier disagree about identifiers, consistency delay, status vocabulary, or the definition of done.
 
@@ -172,7 +172,7 @@ At minimum, define:
 - a termination state that records why the run stopped;
 - a recovery path: retry later, change strategy, ask a person, roll back, or return a partial result.
 
-![Runtime boundary diagram showing turn, time, cost, tool-call, and side-effect budgets](/blog/ai-agent-stuck-in-a-loop-bounded-agent-runtime.png)
+![Runtime boundary diagram showing turn, time, cost, tool-call, and side-effect budgets](/blog/ai-agent-stuck-in-a-loop-bounded-agent-runtime.webp)
 
 The OpenAI Agents SDK exposes `max_turns` and raises `MaxTurnsExceeded` when a run crosses the configured limit. Its guardrail system also exposes tripwires that can stop execution. Those are examples of runtime boundaries; the exact API is not universal ([OpenAI Agents SDK running agents](https://openai.github.io/openai-agents-python/running_agents/), [OpenAI Agents SDK guardrails](https://openai.github.io/openai-agents-python/guardrails/)).
 
@@ -233,7 +233,7 @@ This is an illustrative contract, not a vendor schema. The `status` and `code` l
 
 The tool should not claim success merely because it accepted a request. If the call queues work, return `pending` and an identifier the verifier can poll. If it performs a write, return a durable reference and enough state for a postcondition check. If it fails permanently, say so in a machine-readable way.
 
-![Structured tool result showing status, retry guidance, state version, and the next allowed action](/blog/ai-agent-stuck-in-a-loop-structured-tool-result.png)
+![Structured tool result showing status, retry guidance, state version, and the next allowed action](/blog/ai-agent-stuck-in-a-loop-structured-tool-result.webp)
 
 ## How do you test that the loop is actually fixed?
 
@@ -253,7 +253,7 @@ Build a small matrix with at least these cases:
 
 For each case, assert both the final result and the trace: number of turns, tool calls, repeated fingerprints, state versions, termination reason, and side effects. Anthropic’s agent-evaluation guidance illustrates this broader pattern by giving an agent tools, a task, and an environment, then using tests to verify the resulting state rather than grading only the final prose ([Anthropic: Demystifying evals for AI agents](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)).
 
-![Regression matrix for transient failures, unsafe repeats, stale verification, handoff cycles, and budget exhaustion](/blog/ai-agent-stuck-in-a-loop-loop-regression-matrix.jpg)
+![Regression matrix for transient failures, unsafe repeats, stale verification, handoff cycles, and budget exhaustion](/blog/ai-agent-stuck-in-a-loop-loop-regression-matrix.webp)
 
 After the fix, keep the original failure as a regression case. If the fix is a new tool contract, add a contract test. If the fix is a runtime boundary, add a termination test. If the fix is a missing outcome check, add a postcondition test. A prompt edit without a test is a hope, not a repair.
 

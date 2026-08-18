@@ -26,7 +26,7 @@ sources:
   - 'https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ai-agents/single-agent-multiple-agents'
   - 'https://docs.cloud.google.com/architecture/choose-design-pattern-agentic-ai-system?hl=en'
   - 'https://www.anthropic.com/engineering/multi-agent-research-system'
-cover: '/blog/single-ai-agent-instead-of-multiple-agents-single-ai-agent-instead-of-multiple-agents-hero.png'
+cover: '/blog/single-ai-agent-instead-of-multiple-agents-single-ai-agent-instead-of-multiple-agents-hero.webp'
 coverAlt: 'A single AI agent with shared context beside a bounded multi-agent system with separate tools and a controlled handoff'
 draft: false
 ---
@@ -49,7 +49,7 @@ Do not split because a diagram looks more impressive, because the prompt has sev
 
 OpenAI defines an agent around workflow control and dynamic tool use, while distinguishing it from a single-turn model call that does not control execution ([OpenAI](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/)). A single agent can therefore perform several steps. It can search, inspect a record, call an API, verify a result, and ask for approval without becoming a multi-agent system.
 
-![Conceptual diagram of one AI agent preserving shared task context across several tools](/blog/single-ai-agent-instead-of-multiple-agents-single-agent-context-boundary.png)
+![Conceptual diagram of one AI agent preserving shared task context across several tools](/blog/single-ai-agent-instead-of-multiple-agents-single-agent-context-boundary.webp)
 
 The comparison is also not binary. There is a useful architecture ladder:
 
@@ -69,7 +69,7 @@ If you have not decided whether the workflow needs an agent at all, start with [
 
 The following is my synthesis of the trade-offs in the primary guidance. **SPLIT is not an industry standard, benchmark, or claim of private testing.** It is a forcing function for an architecture review.
 
-![Five conceptual gates for deciding whether an AI agent should be split into multiple agents](/blog/single-ai-agent-instead-of-multiple-agents-split-test-five-gates.png)
+![Five conceptual gates for deciding whether an AI agent should be split into multiple agents](/blog/single-ai-agent-instead-of-multiple-agents-split-test-five-gates.webp)
 
 | Test | Question | Stay with one agent when... | A split becomes plausible when... |
 | --- | --- | --- | --- |
@@ -117,7 +117,7 @@ Use separate agents when the work must cross a boundary that one identity should
 
 Microsoft calls out security and compliance boundaries, including separation of duties, as reasons to start with multiple agents. It also warns that more agents create more credential and data-transit points to govern ([Microsoft](https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ai-agents/single-agent-multiple-agents)).
 
-![Conceptual diagram of two AI agents separated by least-privilege and approval boundaries](/blog/single-ai-agent-instead-of-multiple-agents-agent-least-privilege-boundary.png)
+![Conceptual diagram of two AI agents separated by least-privilege and approval boundaries](/blog/single-ai-agent-instead-of-multiple-agents-agent-least-privilege-boundary.webp)
 
 The important nuance is that “different roles” and “different permissions” are not the same. You can often express a reviewer role inside one agent's workflow. You need a separate architectural boundary when the reviewer must not share the executor's authority, context, or identity.
 
@@ -127,7 +127,7 @@ Parallelism is the cleanest performance reason to use multiple agents. Imagine a
 
 Anthropic reports this as the strong case for its multi-agent research system: breadth-first queries with independent directions benefited from parallel exploration and separate context windows. The same report says the approach uses substantially more tokens and is a poor fit for work with many dependencies, so treat it as an attributed vendor result, not a universal benchmark ([Anthropic](https://www.anthropic.com/engineering/multi-agent-research-system)).
 
-![Conceptual diagram of independent AI agent branches running in parallel before synthesis](/blog/single-ai-agent-instead-of-multiple-agents-agent-parallel-branches.png)
+![Conceptual diagram of independent AI agent branches running in parallel before synthesis](/blog/single-ai-agent-instead-of-multiple-agents-agent-parallel-branches.webp)
 
 Before choosing this pattern, answer three questions:
 
@@ -145,7 +145,7 @@ For example, an internal finance agent might return a validated accounting recor
 
 Google Cloud describes this as context engineering: each specialized agent receives the documentation, history, links, and constraints needed for its task, while the system manages information flow between boundaries ([Google Cloud](https://docs.cloud.google.com/architecture/choose-design-pattern-agentic-ai-system?hl=en)). If you cannot say what context crosses the boundary and how the receiver verifies it, you have not designed a component. You have created a second prompt.
 
-![Conceptual illustration of specialized AI agents exchanging a bounded verifiable artifact](/blog/single-ai-agent-instead-of-multiple-agents-agent-interface-contract.png)
+![Conceptual illustration of specialized AI agents exchanging a bounded verifiable artifact](/blog/single-ai-agent-instead-of-multiple-agents-agent-interface-contract.webp)
 
 ### A single agent has a measured, persistent limit
 
@@ -192,7 +192,7 @@ Fill out this worksheet for the same task set. It is designed to force an archit
 | Owner after launch |  |  |
 | What would make us revert? |  |  |
 
-![Conceptual comparison board for evaluating single-agent and multi-agent architectures](/blog/single-ai-agent-instead-of-multiple-agents-architecture-comparison-worksheet.png)
+![Conceptual comparison board for evaluating single-agent and multi-agent architectures](/blog/single-ai-agent-instead-of-multiple-agents-architecture-comparison-worksheet.webp)
 
 Run the comparison in this order:
 
@@ -219,7 +219,7 @@ A single agent may be adequate for one focused question with a small evidence se
 
 Do not split on labels alone. First test one agent with clear tools, a bounded repository, a patch-review step, and a source-of-truth test suite. Split when the reviewer must have a genuinely different authority or context, or when measured parallel work improves the result. A second agent that repeats the first agent's assumptions is not independence.
 
-![Decision map showing a workflow staying with one AI agent unless evidence justifies a split](/blog/single-ai-agent-instead-of-multiple-agents-agent-decision-path.png)
+![Decision map showing a workflow staying with one AI agent unless evidence justifies a split](/blog/single-ai-agent-instead-of-multiple-agents-agent-decision-path.webp)
 
 ## The decision in one sentence
 

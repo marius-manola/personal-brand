@@ -27,7 +27,7 @@ sources:
   - 'https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ai-agents/single-agent-multiple-agents'
   - 'https://docs.cloud.google.com/architecture/choose-design-pattern-agentic-ai-system?hl=en'
   - 'https://www.anthropic.com/engineering/multi-agent-research-system'
-cover: '/blog/test-multi-agent-handoffs-test-multi-agent-handoffs-hero.png'
+cover: '/blog/test-multi-agent-handoffs-test-multi-agent-handoffs-hero.webp'
 coverAlt: 'Test cases moving through bounded multi-agent handoffs with checks for artifacts, permissions, and failure states'
 draft: false
 ---
@@ -50,7 +50,7 @@ An agent is a model-controlled worker that can manage a workflow, choose tools, 
 
 That distinction matters in a test. If Agent A sends Agent B a paragraph called “research notes,” the harness cannot reliably tell which claims are current, which are opinions, and which actions remain permitted. If Agent A sends a bounded research artifact with source references, freshness, open questions, and a failure state, the test can validate the input before the receiver acts.
 
-![Conceptual diagram of two AI agents exchanging a bounded artifact instead of an unstructured transcript](/blog/test-multi-agent-handoffs-handoff-artifact-test-fixture.png)
+![Conceptual diagram of two AI agents exchanging a bounded artifact instead of an unstructured transcript](/blog/test-multi-agent-handoffs-handoff-artifact-test-fixture.webp)
 
 For this article, a useful handoff has six fields:
 
@@ -96,7 +96,7 @@ Do not test only the happy path. Draw the dependency graph first. Ask whether th
 
 OpenAI describes manager and decentralized handoff patterns. Google Cloud describes sequential, parallel, loop, and review or critique patterns. The names differ, but the testing question is the same: who owns the next decision, and what evidence must the harness prove that owner received?
 
-![Conceptual architecture map showing sequential, parallel, review, and loop paths with bounded agent handoffs](/blog/test-multi-agent-handoffs-multi-agent-handoff-test-cases.png)
+![Conceptual architecture map showing sequential, parallel, review, and loop paths with bounded agent handoffs](/blog/test-multi-agent-handoffs-multi-agent-handoff-test-cases.webp)
 
 For a sequential workflow, do not ask the receiver to reconstruct the prior step from prose. Test that it rejects a missing or stale artifact. For a parallel workflow, do not merge outputs by asking a final agent to “pick the best one” without sources, conflict fields, and a defined success condition. Inject a disagreement and assert that the synthesis keeps or escalates it. The more autonomy the pattern has, the more explicit the test needs to be.
 
@@ -108,7 +108,7 @@ Suppose a support workflow has one worker that reads a customer account and anot
 
 Microsoft identifies security and compliance boundaries, separation of duties, multiple teams, and planned growth as reasons to use multiple agents. It also warns that every added agent creates more credentials, state transitions, and data-transit points to govern ([Microsoft](https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ai-agents/single-agent-multiple-agents)).
 
-![Conceptual diagram of separate AI agent authority zones connected by a narrow audited handoff](/blog/test-multi-agent-handoffs-agent-authority-test-boundaries.png)
+![Conceptual diagram of separate AI agent authority zones connected by a narrow audited handoff](/blog/test-multi-agent-handoffs-agent-authority-test-boundaries.webp)
 
 The model can propose an action. It should not define its own authority. Enforce these controls in code or policy infrastructure, then add a case that attempts to cross each boundary:
 
@@ -148,7 +148,7 @@ The values above are a template, not sample production data. Replace them with t
 
 Before accepting the artifact, the orchestrator should check required fields, enum values, source freshness, authorization scope, and consistency with the current workflow state. The test should assert both rejection and routing. If validation fails, use a defined repair or review path. Do not simply send the invalid response back to the same agent with “try again” and no new evidence.
 
-![Conceptual illustration of an AI agent returning a structured artifact through validation before another agent can consume it](/blog/test-multi-agent-handoffs-handoff-artifact-validation-test.png)
+![Conceptual illustration of an AI agent returning a structured artifact through validation before another agent can consume it](/blog/test-multi-agent-handoffs-handoff-artifact-validation-test.webp)
 
 This is also where the baseline matters. If the proposed interface only repackages a shared conversation and adds no independent authority, context, or execution benefit, the extra boundary may be ceremony. Compare it with the simplest design and keep the boundary only if the cases show a useful improvement. Anthropic's guidance recommends starting with the simplest design and adding complexity when it demonstrably improves the result ([Anthropic](https://www.anthropic.com/engineering/building-effective-agents)).
 
@@ -188,7 +188,7 @@ Fill this out for one real workflow. Compare the proposed boundary with the simp
 | Latency and cost budget |  | What pays for the additional context and model calls? |
 | Reversion condition |  | When do you collapse the boundary or stop the workflow? |
 
-![Conceptual comparison worksheet for a multi-agent handoff, showing context, artifact, authority, verification, and failure checks](/blog/test-multi-agent-handoffs-handoff-comparison-test-worksheet.png)
+![Conceptual comparison worksheet for a multi-agent handoff, showing context, artifact, authority, verification, and failure checks](/blog/test-multi-agent-handoffs-handoff-comparison-test-worksheet.webp)
 
 Run the comparison in a controlled order:
 
@@ -215,7 +215,7 @@ Independent researchers can each receive a scoped question and source policy. Th
 
 Role names alone do not justify three agents. Start with a clear repository boundary, tool policy, and test suite. Split only when the reviewer needs a genuinely different authority or context, or when independent work has a measured benefit. Test that the reviewer receives the intended artifact rather than the implementer's hidden assumptions and permissions. Otherwise it is a second opinion, not an effective control boundary.
 
-![Decision path showing a workflow moving through a handoff contract, validation, conflict handling, and a controlled next action](/blog/test-multi-agent-handoffs-handoff-release-decision-path.png)
+![Decision path showing a workflow moving through a handoff contract, validation, conflict handling, and a controlled next action](/blog/test-multi-agent-handoffs-handoff-release-decision-path.webp)
 
 ## The release rule
 
@@ -223,6 +223,6 @@ A handoff is ready for release only when its purpose, minimum necessary context,
 
 Write one handoff card for the highest-risk boundary first. Test it with missing, stale, conflicting, and out-of-scope inputs. Block release on unauthorized actions, unverified artifacts, or unowned failures. Then decide whether the extra worker has earned its coordination cost.
 
-![Conceptual overview of the layers that make a multi-agent handoff reliable](/blog/test-multi-agent-handoffs-multi-agent-handoff-test-overview.png)
+![Conceptual overview of the layers that make a multi-agent handoff reliable](/blog/test-multi-agent-handoffs-multi-agent-handoff-test-overview.webp)
 
 If a team has a concrete workflow but cannot agree on its test cases or release rules, an architecture review or evaluation workshop is a sensible next step. It should inspect the workflow, representative cases, data access, tools, and failure policy. It should not replace the definition of the business outcome or specialist legal and security advice. You can also start with [Marius Manolachi's AI consulting work](/learn-ai) if you need help framing that review.

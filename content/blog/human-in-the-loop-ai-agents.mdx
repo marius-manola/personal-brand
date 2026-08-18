@@ -28,7 +28,7 @@ sources:
   - 'https://learn.microsoft.com/en-us/agents/center-of-excellence/responsible-ai'
   - 'https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence'
   - 'https://github.com/cloudflare/agents/blob/main/docs/agents/human-in-the-loop.md'
-cover: '/blog/human-in-the-loop-ai-agents-approval-boundary-hero.png'
+cover: '/blog/human-in-the-loop-ai-agents-approval-boundary-hero.webp'
 coverAlt: 'An AI agent action reaching a control boundary that routes it to automatic execution, human review, or a blocked path'
 draft: false
 ---
@@ -68,7 +68,7 @@ For this guide, an **action** is a structured request to a tool with an authenti
 
 That three-part vocabulary prevents a common design error: treating the conversation as the unit of approval. “Approve this conversation” is too broad. A long agent run may contain harmless reads, several drafts, and one high-impact write. The approval should cover the write, not everything the model has said or might say next.
 
-![A four-part map separating training feedback, evaluation review, operational supervision, and pre-execution approval](/blog/human-in-the-loop-ai-agents-hitl-control-types.png)
+![A four-part map separating training feedback, evaluation review, operational supervision, and pre-execution approval](/blog/human-in-the-loop-ai-agents-hitl-control-types.webp)
 
 ## Which AI agent actions need human approval?
 
@@ -154,7 +154,7 @@ Some actions become reviewable only after deterministic policy has narrowed them
 
 This ordering keeps reviewers from serving as schema validators. It also prevents a reviewer from approving something the system must never allow. Human discretion belongs inside the permitted envelope, not above it.
 
-![A decision map routing agent actions through consequence, reversibility, authority, and ambiguity into automatic, approval, human-only, or forbidden paths](/blog/human-in-the-loop-ai-agents-four-path-action-routing.png)
+![A decision map routing agent actions through consequence, reversibility, authority, and ambiguity into automatic, approval, human-only, or forbidden paths](/blog/human-in-the-loop-ai-agents-four-path-action-routing.webp)
 
 ## Where should the approval gate sit?
 
@@ -245,7 +245,7 @@ Second, an approval is not execution. The approved state means only that the rec
 
 Third, retries must be safe. A worker may crash after an external API accepts the request but before the local status becomes executed. The idempotency key should let the executor ask the external system, or safely retry, without duplicating the side effect. Where the target API has no idempotency mechanism, the action needs a more conservative reconciliation strategy and may not be suitable for unattended retry.
 
-![An execution-boundary architecture separating agent proposal, deterministic policy, durable review, executor revalidation, side effect, and audit](/blog/human-in-the-loop-ai-agents-execution-boundary-architecture.png)
+![An execution-boundary architecture separating agent proposal, deterministic policy, durable review, executor revalidation, side effect, and audit](/blog/human-in-the-loop-ai-agents-execution-boundary-architecture.webp)
 
 ### Defend the time between approval and execution
 
@@ -347,7 +347,7 @@ Suppose a proposed customer email has the correct recipient but an unsupported p
 
 Similarly, rejection should be effect-aware. If a reviewer rejects an external message, the agent must not use a generic webhook or a second messaging tool to send the same content. Record the rejected effect class, not only the rejected tool invocation, and route equivalent attempts through policy.
 
-![An approval packet organized around the exact effect, material parameters, before-and-after state, evidence, policy, authority, and expiry](/blog/human-in-the-loop-ai-agents-reviewer-decision-packet.png)
+![An approval packet organized around the exact effect, material parameters, before-and-after state, evidence, policy, authority, and expiry](/blog/human-in-the-loop-ai-agents-reviewer-decision-packet.webp)
 
 ## Copy this parameter-bound approval contract
 
@@ -443,7 +443,7 @@ Serialize that structure with a documented canonical JSON method or an equivalen
 
 The digest input should include everything that can change the authorized effect and exclude values that cannot. A trace ID can stay outside. The executing credential identity, policy version, target version, template version, selected recipients, attachments, and substantive arguments usually belong inside. The exact list is part of the tool's security contract.
 
-![A parameter-binding diagram showing one frozen action digest connecting actor, tool, target version, normalized arguments, policy, reviewer decision, and executor](/blog/human-in-the-loop-ai-agents-exact-action-binding.png)
+![A parameter-binding diagram showing one frozen action digest connecting actor, tool, target version, normalized arguments, policy, reviewer decision, and executor](/blog/human-in-the-loop-ai-agents-exact-action-binding.webp)
 
 ### Make the executor boring
 
@@ -652,7 +652,7 @@ Use this table for each approval-gated action:
 
 Replace the generic setup with concrete, non-sensitive fixtures for the tool. A test passes only when the expected state, absence or presence of the effect, and required evidence all match. Preserve a discovered bypass as a regression case before widening access.
 
-![An adversarial test matrix covering missing approval, parameter mutation, stale state, expiry, role failure, replay, alternate tools, dependency failure, and recovery](/blog/human-in-the-loop-ai-agents-approval-adversarial-tests.png)
+![An adversarial test matrix covering missing approval, parameter mutation, stale state, expiry, role failure, replay, alternate tools, dependency failure, and recovery](/blog/human-in-the-loop-ai-agents-approval-adversarial-tests.webp)
 
 ## How do you keep approval from becoming a bottleneck?
 
@@ -668,7 +668,7 @@ Start with four operating signals:
 | Post-approval failure or rollback | Approval may not bind current state, or execution may be unreliable | Tighten state checks and add regression cases |
 | Bypass attempts and alternate-tool retries | The policy may control a tool name instead of the real-world effect | Group equivalent effects under one policy boundary |
 
-![An operating loop connecting approval outcomes, latency, timeouts, failures, and bypass attempts to evidence review and narrow policy changes](/blog/human-in-the-loop-ai-agents-approval-operations-loop.png)
+![An operating loop connecting approval outcomes, latency, timeouts, failures, and bypass attempts to evidence review and narrow policy changes](/blog/human-in-the-loop-ai-agents-approval-operations-loop.webp)
 
 These are diagnostic measures, not universal targets. A high rejection rate can mean the gate works, the agent proposes bad actions, or the policy sends too much to review. Read the cases before changing the threshold.
 

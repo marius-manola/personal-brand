@@ -46,7 +46,7 @@ faq:
     a: 'Use an explicit waiting or approval state. Persist the exact proposed action, normalized parameters, actor, expiry, and run version before pausing. Resume only after validating that approval still binds to the same action and that permissions and live facts have not changed.'
   - q: 'What is the difference between agent state and agent memory?'
     a: 'State answers where the current run is and what it may do next. Memory is selected information intended to influence future runs. Task checkpoints, durable memory, live system facts, and audit evidence have different owners and retention rules, so do not collapse them into one transcript or vector index.'
-cover: '/blog/how-to-design-an-ai-agent-state-machine-hero.png'
+cover: '/blog/how-to-design-an-ai-agent-state-machine-hero.webp'
 coverAlt: 'Illustration of an AI agent state machine with guarded transitions, checkpoints, and terminal states'
 draft: false
 ---
@@ -63,7 +63,7 @@ The central distinction is between cognition and control. An LLM is useful when 
 
 The [OpenAI Agents SDK running-agents guide](https://openai.github.io/openai-agents-python/running_agents/) describes a loop that calls the model, checks for final output, executes tool calls, follows handoffs, and stops when max_turns is exceeded. That is an agent loop. A state machine gives that loop an explicit outer contract: named states, legal events, validated transitions, persistence boundaries, and terminal outcomes.
 
-![Illustration of an AI agent loop becoming an explicit state machine](/blog/how-to-design-an-ai-agent-state-machine-inline-1.png)
+![Illustration of an AI agent loop becoming an explicit state machine](/blog/how-to-design-an-ai-agent-state-machine-inline-1.webp)
 
 **A reliable AI agent uses the model for bounded judgment and the runtime for control.**
 
@@ -104,7 +104,7 @@ LangGraph makes this distinction explicit in its persistence documentation. A ch
 
 If you place all four categories in one transcript, a later model call has to infer whether a sentence is a current fact, a prior observation, an instruction, or an audit record. That is a control problem disguised as a context problem.
 
-![Illustration of task state, agent memory, live facts, and audit evidence as separate layers](/blog/how-to-design-an-ai-agent-state-machine-inline-2.png)
+![Illustration of task state, agent memory, live facts, and audit evidence as separate layers](/blog/how-to-design-an-ai-agent-state-machine-inline-2.webp)
 
 For a deeper treatment of memory fields and promotion rules, see [How to Design an AI Agent Memory Schema](/blog/how-to-design-an-ai-agent-memory-schema). This article uses that boundary rather than repeating it.
 
@@ -288,7 +288,7 @@ The State Contract Card is the design artifact I use for this page. It is a comp
 
 The card prevents a common failure: writing a graph first and inventing semantics after the graph has already become production behavior.
 
-![Illustration of a State Contract Card for an AI agent state](/blog/how-to-design-an-ai-agent-state-machine-inline-3.png)
+![Illustration of a State Contract Card for an AI agent state](/blog/how-to-design-an-ai-agent-state-machine-inline-3.webp)
 
 ### How many states should an agent have?
 
@@ -435,7 +435,7 @@ The OpenAI Agents SDK documents a serializable RunState as the input used to res
 
 These products differ. The design principle does not: resumption requires a durable cursor and enough recorded state to continue without guessing.
 
-![Illustration of AI agent checkpoint persistence and crash recovery](/blog/how-to-design-an-ai-agent-state-machine-inline-5.png)
+![Illustration of AI agent checkpoint persistence and crash recovery](/blog/how-to-design-an-ai-agent-state-machine-inline-5.webp)
 
 ### What is the durable cursor?
 
@@ -527,7 +527,7 @@ Do not treat a human's “yes” as a reusable permission. If the amount, recipi
 
 For human approval patterns that go deeper into reviewer packets and exact-action binding, see [Human-in-the-Loop AI Agents: Approval Gates That Work](/blog/human-in-the-loop-ai-agents). This page stays focused on where the approval state fits in the machine.
 
-![Illustration of an AI agent approval and commit boundary](/blog/how-to-design-an-ai-agent-state-machine-inline-4.png)
+![Illustration of an AI agent approval and commit boundary](/blog/how-to-design-an-ai-agent-state-machine-inline-4.webp)
 
 ## How do retries, timeouts, and failures become states?
 
@@ -555,7 +555,7 @@ Use a small error taxonomy that maps to a state-machine response:
 
 The taxonomy is an implementation choice, not a universal standard. The point is to make error meaning affect the next state.
 
-![Illustration of AI agent failure classes mapped to bounded recovery paths](/blog/how-to-design-an-ai-agent-state-machine-inline-6.png)
+![Illustration of AI agent failure classes mapped to bounded recovery paths](/blog/how-to-design-an-ai-agent-state-machine-inline-6.webp)
 
 ### What is the retry budget?
 
@@ -606,7 +606,7 @@ START
 
 The join must define what happens when one branch fails, times out, returns stale data, or produces an incompatible schema. “Wait for everything” is not enough if one branch can wait forever.
 
-![Illustration of parallel AI agent state branches with an explicit join](/blog/how-to-design-an-ai-agent-state-machine-inline-7.png)
+![Illustration of parallel AI agent state branches with an explicit join](/blog/how-to-design-an-ai-agent-state-machine-inline-7.webp)
 
 ### What does state isolation mean in parallel work?
 
@@ -865,7 +865,7 @@ Before production, ask:
 
 If the answers are vague, the machine is still a diagram.
 
-![Illustration of an AI agent state machine release and restart test checklist](/blog/how-to-design-an-ai-agent-state-machine-inline-8.png)
+![Illustration of an AI agent state machine release and restart test checklist](/blog/how-to-design-an-ai-agent-state-machine-inline-8.webp)
 
 For the broader agent release process, connect this checklist to [How to Evaluate an AI Agent: A Practical Release Gate](/blog/how-to-evaluate-an-ai-agent). State-machine tests prove control-flow properties. They do not prove that the agent's business answers are useful, fair, or accurate across the full evaluation set.
 

@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import { MDXRemote } from 'next-mdx-remote/rsc';
 import Copyright from '@/app/components/Copyright';
 import { getAllBlogPosts, getBlogPost, prepareBlogMdx } from '@/lib/server/blog.server';
+import { isLocalBlogImage, localBlogImageSize } from '@/lib/server/blog-image';
 
 const SITE_URL = 'https://mariusmanolachi.com';
 
@@ -51,6 +52,25 @@ function withBlogTables(source: string) {
     }
   }
   return output.join('\n');
+}
+
+function BlogImage({ src, alt }: { src?: string; alt?: string }) {
+  if (!src) return null;
+  if (!isLocalBlogImage(src)) {
+    return <img src={src} alt={alt || ''} loading="lazy" decoding="async" />;
+  }
+  const { width, height } = localBlogImageSize(src);
+  return (
+    <Image
+      src={src}
+      alt={alt || ''}
+      width={width}
+      height={height}
+      sizes="(max-width: 832px) 100vw, 768px"
+      quality={70}
+      style={{ width: '100%', height: 'auto' }}
+    />
+  );
 }
 
 function BlogTable({ data }: { data: string }) {
@@ -181,12 +201,24 @@ export default async function BlogPostPage({ params }: PageProps) {
 
           {post.metadata.cover && (
             <figure className="blog-cover">
-              <Image src={post.metadata.cover} alt={post.metadata.coverAlt || ''} width={1600} height={900} sizes="(max-width: 832px) 100vw, 768px" />
+              <Image
+                src={post.metadata.cover}
+                alt={post.metadata.coverAlt || ''}
+                width={localBlogImageSize(post.metadata.cover).width}
+                height={localBlogImageSize(post.metadata.cover).height}
+                sizes="(max-width: 832px) 100vw, 768px"
+                quality={70}
+                priority
+                style={{ width: '100%', height: 'auto' }}
+              />
             </figure>
           )}
 
           <div className="blog-prose">
-            <MDXRemote source={withBlogTables(prepareBlogMdx(post.content))} components={{ BlogTable }} />
+            <MDXRemote
+              source={withBlogTables(prepareBlogMdx(post.content))}
+              components={{ img: BlogImage, Image: BlogImage, BlogTable }}
+            />
           </div>
 
           {post.metadata.faq && post.metadata.faq.length > 0 && (

@@ -38,7 +38,7 @@ faq:
     a: 'Use controlled identities and synthetic fixtures. Write the malicious or misleading record in one session, retrieve it in a later session and a different scope, and verify the write decision, retrieved IDs, authorization result, tool decision, and audit trail against explicit expected outcomes.'
   - q: 'When should a team avoid persistent AI agent memory?'
     a: 'Keep memory off when ownership, isolation, deletion, influence logging, or independent tool authorization is unclear. A stateless agent with explicit context is often easier to reason about than a persistent store that no one can inspect or contain.'
-cover: '/blog/prevent-ai-agent-memory-poisoning-memory-poisoning-security-hero.png'
+cover: '/blog/prevent-ai-agent-memory-poisoning-memory-poisoning-security-hero.webp'
 coverAlt: 'Editorial security diagram showing an AI agent memory write passing through validation, isolation, retrieval, and deletion controls'
 draft: false
 ---
@@ -47,7 +47,7 @@ Persistent memory changes an AI agent's security problem. A malicious instructio
 
 The practical defense is a control loop, not a better memory prompt. Gate writes on provenance and intent, enforce isolation outside the model, inspect memory again at retrieval, and make every record traceable, reversible, and expirable. Then test delayed attacks as seriously as you test ordinary prompt injection.
 
-![Diagram of untrusted inputs passing through an AI-agent memory write-admission gate](/blog/prevent-ai-agent-memory-poisoning-memory-write-admission-gate.png)
+![Diagram of untrusted inputs passing through an AI-agent memory write-admission gate](/blog/prevent-ai-agent-memory-poisoning-memory-write-admission-gate.webp)
 
 ## How do you prevent AI agent memory poisoning?
 
@@ -83,7 +83,7 @@ The threat model should therefore include three times:
 
 If a control exists only at the prompt layer, it is not enough for the write, read, or act boundary.
 
-![Comparison of immediate prompt injection and delayed AI-agent memory poisoning](/blog/prevent-ai-agent-memory-poisoning-prompt-injection-versus-memory-poisoning.png)
+![Comparison of immediate prompt injection and delayed AI-agent memory poisoning](/blog/prevent-ai-agent-memory-poisoning-prompt-injection-versus-memory-poisoning.webp)
 
 ## How should a memory write be gated?
 
@@ -111,7 +111,7 @@ untrusted observation
 
 The model may propose a candidate. It should not silently promote the candidate, choose its access boundary, or decide that a permission is valid. OWASP recommends validation and sanitization of external inputs, structured outputs with schema validation, memory isolation, and least privilege. Those are application controls around the model, not instructions for the model to police itself.
 
-![Flow diagram routing an AI-agent memory candidate to active memory, quarantine, or rejection](/blog/prevent-ai-agent-memory-poisoning-memory-quarantine-write-pipeline.png)
+![Flow diagram routing an AI-agent memory candidate to active memory, quarantine, or rejection](/blog/prevent-ai-agent-memory-poisoning-memory-quarantine-write-pipeline.webp)
 
 ## How do you isolate agent memory safely?
 
@@ -132,7 +132,7 @@ Apply the boundary before semantic search. First filter by authenticated scope a
 
 The same rule applies to multi-agent systems. Output from one agent is untrusted input to the next. A research agent's note should not inherit the permissions of a finance agent merely because both are part of one workflow. Validate the handoff, limit the fields, and give the receiving agent only the memory namespace it needs.
 
-![Architecture diagram showing tenant, user, project, agent, and environment isolation around AI-agent memory](/blog/prevent-ai-agent-memory-poisoning-memory-isolation-boundaries.png)
+![Architecture diagram showing tenant, user, project, agent, and environment isolation around AI-agent memory](/blog/prevent-ai-agent-memory-poisoning-memory-isolation-boundaries.webp)
 
 ## What should happen when poisoned memory is retrieved?
 
@@ -154,7 +154,7 @@ Keep authority separate from context. A memory item may say that a customer once
 
 Log which records influenced a consequential response or action. That makes a delayed incident diagnosable: operators can identify the record, its source, the reader, the policy version, and the action that followed. Without influence logging, deletion may remove the visible symptom while leaving the cause unknown.
 
-![Diagram of security checks applied to AI-agent memory before it enters model context](/blog/prevent-ai-agent-memory-poisoning-memory-retrieval-security-gates.png)
+![Diagram of security checks applied to AI-agent memory before it enters model context](/blog/prevent-ai-agent-memory-poisoning-memory-retrieval-security-gates.webp)
 
 ## How do you make poisoned memory removable?
 
@@ -170,7 +170,7 @@ Keep a narrow audit record for memory operations: create, read, update, quaranti
 
 When an incident occurs, first stop further reads or writes for the affected namespace. Then identify the first suspicious record, its descendants, and actions that used it. Revoke or quarantine the record, restore a known-good version where one exists, and rerun the relevant abuse cases before reopening the path. The recovery procedure is part of the security design.
 
-![Lifecycle diagram showing AI-agent memory quarantine, expiry, deletion, restoration, and audit paths](/blog/prevent-ai-agent-memory-poisoning-memory-lifecycle-rollback.png)
+![Lifecycle diagram showing AI-agent memory quarantine, expiry, deletion, restoration, and audit paths](/blog/prevent-ai-agent-memory-poisoning-memory-lifecycle-rollback.webp)
 
 ## What should you test before enabling persistent memory?
 
@@ -190,7 +190,7 @@ OWASP recommends repeatable adversarial validation before production and after m
 
 The pass condition should be observable. “The model usually ignores the attack” is not a control. Record the expected denial, the actual memory operation, the retrieved IDs, the authorization result, and the final tool decision. If a change touches memory or retrieval, run the old regression cases again.
 
-![Security test loop for AI-agent memory poisoning, retrieval abuse, authorization, and recovery](/blog/prevent-ai-agent-memory-poisoning-memory-poisoning-abuse-test-loop.png)
+![Security test loop for AI-agent memory poisoning, retrieval abuse, authorization, and recovery](/blog/prevent-ai-agent-memory-poisoning-memory-poisoning-abuse-test-loop.webp)
 
 ## How should you model a vendor-neutral memory control record?
 
