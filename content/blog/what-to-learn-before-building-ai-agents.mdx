@@ -1,0 +1,246 @@
+---
+title: "What Should I Learn Before Building AI Agents?"
+date: "2026-08-17"
+updated: "2026-08-17"
+excerpt: "Learn the five foundations for building AI agents: workflows, LLM apps, tool contracts, runtime limits, and tests before choosing a framework."
+answer: "Before building AI agents, learn five things in order: how to model a workflow, how LLM applications handle context and uncertainty, how to design typed tools and APIs, how to enforce permissions and runtime limits outside the model, and how to test both actions and outcomes. You do not need to master model training first."
+targetQuery: "what should i learn before building ai agents"
+queryAliases:
+  - "what to learn before building an ai agent"
+  - "what skills do i need to build ai agents"
+  - "prerequisites for building ai agents"
+  - "how to prepare to build an ai agent"
+intent: "informational / learning"
+funnel: "awareness"
+cluster: "AI agent foundations"
+tags:
+  - "AI agents"
+  - "Learning AI"
+  - "Agent engineering"
+  - "AI foundations"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-15"
+reviewedAt: "2026-08-17"
+sources:
+  - "https://www.anthropic.com/engineering/building-effective-agents"
+  - "https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents"
+  - "https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/"
+  - "https://developers.openai.com/api/docs/guides/function-calling"
+  - "https://openai.github.io/openai-agents-python/running_agents/"
+  - "https://openai.github.io/openai-agents-python/guardrails/"
+  - "https://airc.nist.gov/airmf-resources/airmf/5-sec-core/"
+  - "https://cheatsheetseries.owasp.org/cheatsheets/AI_Agent_Security_Cheat_Sheet.html"
+cover: "/blog/what-to-learn-before-building-ai-agents-ai-agent-learning-path-hero.png"
+coverAlt: "A learning path for AI agent builders moving from workflow boundaries through tools, limits, and tested outcomes"
+draft: false
+---
+
+If you are learning AI agents, the tempting place to start is a framework tutorial. That is usually the wrong first question. An agent is a software system that lets a model choose steps, call tools, inspect results, and continue until it reaches a stopping condition. The useful skill is not memorising a framework's objects. It is understanding the boundaries around that loop.
+
+Before you build a serious agent, learn five layers in this order: **Bound** the workflow, **Understand** the model application layer, **Interface** with tools and data, **Limit** execution, and **Define** evidence of success. I call this the **BUILD readiness map**. It is my synthesis, not an industry standard.
+
+## What should I learn before building AI agents?
+
+Learn enough software engineering to model a workflow, call an API, pass validated JSON, handle failures, and write small tests. Then learn how LLM context and tool calling behave. After that, learn permissions, runtime limits, and evaluation. Leave multi-agent orchestration, long-term memory, fine-tuning, and framework-specific abstractions until a small system shows that you need them.
+
+That order matters because an agent is not just a prompt. Anthropic describes workflows as predefined code paths and agents as systems where the LLM dynamically directs its process and tool use. Its guidance also recommends the simplest solution that can do the job, with complexity added only when it demonstrably improves the result ([Anthropic's distinction between workflows and agents](https://www.anthropic.com/engineering/building-effective-agents)).
+
+## The BUILD readiness map
+
+Use this as a gate, not a vocabulary quiz. You are ready to build a first read-only agent when you can produce the artifact in the last column.
+
+| Step | What to learn | Why it comes before autonomy | Evidence you can produce |
+| --- | --- | --- | --- |
+| **B: Bound** | Workflow modeling, state, source of truth, and done conditions | A model cannot repair a goal that you have not defined | One workflow card with scope, states, and a stop condition |
+| **U: Understand** | Context, instructions, uncertainty, structured outputs, and model limits | You need to know which decisions are probabilistic | A small script that calls a model and validates its output |
+| **I: Interface** | HTTP, JSON, schemas, authentication, errors, and idempotency | Tools turn language into side effects and need real contracts | One typed read tool with test inputs and failure responses |
+| **L: Limit** | Permissions, sandboxing, approvals, time, turns, retries, and cost | The model must not be the only safety boundary | A runtime policy that can stop or deny a run |
+| **D: Define** | Test cases, traces, graders, and outcome checks | A plausible answer is not proof that the system worked | A small suite with expected outcomes and recorded traces |
+
+If one row feels unfamiliar, that is your next learning topic. You do not need to wait until every concept feels academic. Build the smallest artifact, test it, and learn the next layer from a real failure.
+
+## B: Bound the workflow before you write the prompt
+
+Start with the work, not the agent.
+
+Write down one task a person performs today. Describe the input, the source of truth, the decisions, the side effects, and the exact evidence that says “done.” If the workflow has no observable completion state, it is not ready for an autonomous loop. It may still be a good candidate for a single model call or a fixed workflow.
+
+For example, “research competitors” is too broad for a first build. A bounded version might be: “Given five company URLs, extract each company's pricing page URL, record the page date, and return `needs_review` when no current pricing page is found.” Now you can name the inputs, the output schema, the external evidence, and the failure case.
+
+Model the workflow as states, even if you never draw a formal state machine:
+
+1. `received`: the input passed basic validation.
+2. `reading`: the agent may use a read-only retrieval tool.
+3. `proposed`: it has a structured result, but has not changed anything.
+4. `verified`: the result passed deterministic checks.
+5. `needs_review`: the evidence is missing or the next action is outside scope.
+
+The important lesson is that “the model gave an answer” is not a state. A state belongs to the system and should be observable outside the model. This is also why you should define a source of truth before you learn memory. If the agent edits a record, the record is the truth. If it drafts a report, the verified file or human review may be the truth. Conversation history is context, not proof.
+
+If you are still deciding whether the workflow needs agentic behavior at all, use [the separate decision framework for when to use an AI agent](/blog/when-to-use-an-ai-agent). This article starts one step later: you have a workflow worth exploring and need to learn the foundations before you build it.
+
+/blog/what-to-learn-before-building-ai-agents-ai-agent-workflow-boundary.png
+
+## U: Understand the LLM application layer
+
+You do not need to train a foundation model before building a first agent. You do need a working mental model of an LLM application: instructions and data enter a context, the model produces a probabilistic response, your code validates it, and the runtime decides whether to display it, call a tool, ask for clarification, or stop.
+
+Learn these concepts by making a small API call:
+
+- messages and instruction priority;
+- context selection and what information is actually available to the model;
+- structured outputs and schema validation;
+- model uncertainty and the difference between a confident sentence and verified evidence;
+- retries, timeouts, and provider errors;
+- logging inputs and outputs without leaking secrets or personal data.
+
+Do not turn those topics into a theory course. Give the model three inputs that differ by one detail. Inspect what changes. Remove a required field. Return malformed tool data. Then write the validation code that handles the failure.
+
+The goal is not to predict every model response. The goal is to stop treating the response as an instruction that your application must obey. The model proposes language or an action. Your application decides what is valid and what can execute.
+
+/blog/what-to-learn-before-building-ai-agents-ai-agent-llm-application-layer.png
+
+## I: Interface with tools and data
+
+The most transferable agent skill is ordinary software integration. Learn how HTTP requests, JSON, authentication, environment variables, asynchronous work, error codes, and database reads and writes fit together. You can use Python or TypeScript. Pick one and become comfortable enough to read the generated code, change a function, run a test, and understand an exception.
+
+Then learn tool design. A tool needs a narrow purpose, a precise name, a schema, a permission scope, validation, predictable errors, and a statement of what success changes. “Do anything in the CRM” is not a tool contract. `read_customer_by_id` with a validated identifier and a documented `not_found` result is much closer.
+
+OpenAI's current guide groups tools into data, action, and orchestration tools, and recommends standardised, well-documented, tested, reusable definitions ([OpenAI's tool guidance](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/)). Its function-calling documentation also says that `strict: true` makes calls adhere to a function schema rather than relying on best effort, with schema requirements such as required properties and `additionalProperties: false` ([OpenAI function calling](https://developers.openai.com/api/docs/guides/function-calling)). That is a vendor-specific feature, but the general lesson is portable: make the interface explicit and validate at the boundary.
+
+For every tool, learn to answer five questions:
+
+1. What information may it read?
+2. What side effect, if any, may it create?
+3. What arguments are valid, and who validates them?
+4. Which failures are temporary, permanent, or ambiguous?
+5. How can the runtime tell whether the intended change happened?
+
+Learn idempotency before you give an agent a write tool. If the same request arrives twice, a safe write should either produce one effect or make the duplicate visible and recoverable. A model can repeat a call. Your tool should not turn that possibility into duplicate payments, messages, records, or deletions.
+
+/blog/what-to-learn-before-building-ai-agents-ai-agent-tool-contract.png
+
+## L: Limit execution outside the model
+
+Safety is not a prompt-writing topic. It is a systems topic.
+
+Learn to separate read access from write access, restrict tools to the records and operations they need, and put sensitive actions behind an independent policy check or approval. OWASP's AI Agent Security Cheat Sheet recommends least-privilege tools, treating user messages and external data as untrusted, independently validating proposed actions, and enforcing token, cost, retry, and tool-chain limits ([OWASP AI Agent Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/AI_Agent_Security_Cheat_Sheet.html)).
+
+/blog/what-to-learn-before-building-ai-agents-ai-agent-data-trust-boundary.png
+
+For a first project, use no write tools. Add a fake write only after the read path works. Then add a real write behind a dry-run preview and an explicit approval. The policy should inspect the actual tool name, target, and normalised arguments. A sentence in the prompt saying “do not send emails” is not an authorization system.
+
+Also learn runtime control:
+
+- a maximum number of model turns;
+- a maximum wall-clock duration;
+- a maximum number of tool calls and repeated effective actions;
+- a token or spend budget;
+- a cancellation path;
+- a terminal state that records why the run stopped;
+- a recovery path that changes strategy, asks a person, or returns a partial result.
+
+/blog/what-to-learn-before-building-ai-agents-ai-agent-runtime-limits.png
+
+An agent runner is a loop. OpenAI's Agents SDK documentation shows the runner calling the model, executing tool calls or handoffs, and repeating until final output or `max_turns` is reached ([OpenAI Agents SDK running agents](https://openai.github.io/openai-agents-python/running_agents/)). Its guardrail documentation describes checks that can block tool calls before or after execution and tripwires that halt execution when a check fails ([OpenAI Agents SDK guardrails](https://openai.github.io/openai-agents-python/guardrails/)). You do not need that SDK to learn the concept. You need to know where the boundary lives in your own runtime.
+
+## D: Define evidence before you call the agent reliable
+
+Do not wait until production to decide what success means. Write ten small test cases before you add a second tool. Include the normal path, missing input, stale data, a tool error, an untrusted document, a request outside the allowed scope, and a case where the correct result is “I do not have enough evidence.”
+
+For each case, record four things:
+
+| Evidence | Question |
+| --- | --- |
+| Result | Did the user-facing output meet the required format and quality? |
+| Actions | Did the agent call only allowed tools with valid arguments? |
+| Outcome | Did the source-of-truth system reach the intended state? |
+| Limits | Did it stay within its turn, time, cost, and side-effect budget? |
+
+Anthropic's current eval guidance separates a task, trial, grader, transcript, outcome, harness, and evaluation suite. It also points out that the transcript can say “booked” while the environment contains no booking, so the outcome must be checked independently ([Anthropic's evaluation guidance](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)). NIST's AI RMF likewise says AI systems should be tested before deployment and regularly while operating, with repeatable testing and evaluation processes documented ([NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/)).
+
+Start with deterministic checks. Is the ID valid? Is the required field present? Did the record change? Was the tool denied when it should be? Use a model grader only for qualities that are difficult to check with code, and keep examples of what “good” and “bad” mean. Run more than one trial when the output can vary. One successful demo teaches you that the path is possible. It does not tell you how often it works.
+
+When you are ready for a fuller release process, use [the AI agent evaluation release gate](/blog/how-to-evaluate-an-ai-agent). The prerequisite here is smaller: learn to write the first cases and connect each one to an observable result.
+
+/blog/what-to-learn-before-building-ai-agents-ai-agent-evidence-loop.png
+
+## The Agent Builder's Prerequisite Card
+
+/blog/what-to-learn-before-building-ai-agents-agent-builder-prerequisite-card.png
+
+Before choosing a framework, fill in this card. It is deliberately boring. Boring is useful when a model may be allowed to act.
+
+```text
+Workflow:
+User and job:
+Source of truth:
+Inputs and validation:
+Allowed reads:
+Allowed writes: none for the first prototype
+Done when:
+Must ask or stop when:
+Must never do:
+Tool contracts and error classes:
+Turn, time, tool, cost, and side-effect limits:
+Test cases and expected outcomes:
+Trace fields to retain:
+Human escalation owner:
+```
+
+If you cannot fill in “done when,” stop learning frameworks and return to workflow modeling. If you cannot fill in “must never do,” learn permissions and trust boundaries. If you cannot fill in “test cases and expected outcomes,” learn evaluation before you add autonomy.
+
+## A first project that teaches the right things
+
+Build a read-only research agent over a fixed set of public documents. It can answer a narrow question, cite the documents it used, and return `needs_review` when the evidence is missing. It cannot send messages, edit a database, browse without a source policy, or remember information across users.
+
+Build it in four passes:
+
+1. **Single call:** provide a fixed question and a small document set. Ask for a short answer plus a list of source IDs. Validate the output.
+2. **One read tool:** let the model retrieve one document by ID. Log the request, arguments, result, and source ID. Return a structured error for an unknown ID.
+3. **Verified result:** require every answer claim to point to a retrieved source. Reject an answer with no evidence. Add a maximum number of retrieval calls.
+4. **Test and limit:** run the ten cases, repeat the variable cases, inspect traces, and record whether the answer, tool use, and evidence checks passed.
+
+This project teaches the full loop without giving the model a dangerous side effect. It also makes the next learning decision obvious. If retrieval is the problem, learn data and context handling. If arguments are wrong, learn schemas and validation. If the answer is plausible but unsupported, learn outcome checks and evaluation. If the run never stops, learn runtime limits before adding another tool.
+
+## What should I not learn first?
+
+Do not start with a multi-agent architecture, a large memory system, a vector database, or a framework comparison matrix. Those can be useful later, but they hide the parts you need to understand first: the loop, the tool boundary, the source of truth, and the test harness.
+
+Anthropic's agent guidance recommends direct APIs and simple composable patterns when possible, noting that extra abstraction can obscure prompts and responses and make debugging harder ([Anthropic on simple agent design](https://www.anthropic.com/engineering/building-effective-agents)). OpenAI's guide similarly describes a single agent with tools as a manageable starting point and recommends establishing a performance baseline before optimising models for cost or latency ([OpenAI's practical guide](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/)).
+
+You also do not need to learn every detail of transformer training before you can build an application around a model. Learn model training later if you need to fine-tune, serve, benchmark, or research models. For an initial agent, application code, interfaces, boundaries, and evidence will teach you more.
+
+## How much programming do you need?
+
+You need enough to read and modify a small program that:
+
+- loads a secret from an environment variable;
+- sends an HTTP request;
+- parses JSON and validates fields;
+- handles a timeout and a non-success response;
+- calls a tool through a normal function;
+- writes a test and inspects a log.
+
+You do not need to be a senior backend engineer. You do need to understand what the code is doing. If an AI assistant writes the first version, ask it to explain every boundary, then change one part yourself. A generated agent that you cannot debug is a dependency you do not control.
+
+For a non-technical team, a visual builder can be a reasonable learning surface. Keep the same BUILD artifacts: a bounded workflow, explicit tool and data permissions, runtime limits, and test cases. No-code does not remove the need to understand what the system can read, what it can change, and what proves that it succeeded.
+
+## Are you ready to build?
+
+You are ready for a first prototype when you can answer “yes” to these questions:
+
+- Can I name one user, one job, and one source of truth?
+- Can I write the done condition without using “the agent feels confident”?
+- Can I make the first tool read-only and narrow?
+- Can I validate its arguments and classify its errors?
+- Can I stop the run without asking the model nicely?
+- Can I list actions and data that are out of scope?
+- Can I write ten test cases, including failure and refusal cases?
+- Can I inspect a trace and an external outcome?
+
+If you answer “no” to two or more, keep learning before you add autonomy. If you answer “yes” to all eight, build the small read-only project and let its failures choose your next lesson.
+
+You do not need to learn everything before you start. You need to learn the parts that keep a model from becoming an unexamined control system. Start with a bounded workflow, one narrow read tool, one test case at a time, and a stop condition you can verify outside the model.
+
+If you want a personalised sequence, [Marius's AI learning sessions](/learn-ai) can help turn a real workflow into a study plan and a first safe project. Bring the workflow card, not a list of frameworks.
