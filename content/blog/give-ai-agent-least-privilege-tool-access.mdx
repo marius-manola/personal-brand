@@ -1,0 +1,245 @@
+---
+title: 'How Do I Give an AI Agent Least-Privilege Access to Tools?'
+date: '2026-08-17'
+updated: '2026-08-17'
+excerpt: 'A practical way to scope an AI agent’s identity, tools, operations, data, credentials, and time before it can touch a real system.'
+answer: 'Give the agent a separate identity and an allowlisted set of tools. Scope every tool to the smallest operation, resource, data fields, and time or budget it needs. Enforce the decision outside the model at discovery, before execution, and in the downstream service. Start read-only, require approval for consequential writes, and log every decision.'
+targetQuery: 'how do i give an ai agent least-privilege access to tools'
+queryAliases:
+  - 'least privilege ai agent tools'
+  - 'ai agent tool permissions'
+  - 'how to scope ai agent tool access'
+  - 'least privilege access for ai agents'
+intent: 'implementation'
+funnel: 'consideration'
+cluster: 'AI agent security'
+tags:
+  - 'AI agents'
+  - 'AI security'
+  - 'Least privilege'
+  - 'Tool permissions'
+  - 'MCP'
+author: 'Marius Manolachi'
+reviewedAt: '2026-08-17'
+nextReviewAt: '2026-11-15'
+sources:
+  - 'https://docs.cloud.google.com/mcp/ai-security-safety'
+  - 'https://learn.microsoft.com/en-us/entra/agent-id/authorization-agent-id'
+  - 'https://cheatsheetseries.owasp.org/cheatsheets/AI_Agent_Security_Cheat_Sheet.html'
+  - 'https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization'
+  - 'https://modelcontextprotocol.io/specification/2026-07-28/server/tools'
+  - 'https://docs.aws.amazon.com/prescriptive-guidance/latest/mcp-strategies/mcp-governance-strategy.html'
+  - 'https://openai.github.io/openai-agents-python/guardrails/'
+cover: '/blog/give-ai-agent-least-privilege-tool-access-least-privilege-tool-access-hero.png'
+coverAlt: 'An AI agent tool request passing through identity, scope, policy, and execution boundaries before reaching a business system'
+draft: false
+---
+
+The dangerous moment is not when an agent gives a wrong answer. It is when a wrong answer arrives with a credential that can send the email, change the record, or read the whole database.
+
+Least privilege gives the agent only the authority required for one defined job. It does not mean writing “be careful” in the system prompt. It means a separate identity, a small tool allowlist, narrow operations and resources, bounded data access, short-lived credentials, and checks that still hold when the model is confused or manipulated.
+
+## What does least privilege mean for an AI agent?
+
+For an AI agent, least privilege means the runtime can prove that a particular identity is allowed to perform a particular operation on a particular resource, with a particular data scope, for a limited period. The model may propose a tool call. It must not be the authority that grants the call.
+
+OWASP's current agent security guidance recommends the minimum tools required for a task, per-tool permission scoping such as read-only versus write and specific resources, separate tool sets for different trust levels, and explicit authorization for sensitive operations ([OWASP AI Agent Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/AI_Agent_Security_Cheat_Sheet.html)). Google Cloud makes the same design concrete for MCP-connected agents: create an agent identity and grant it only the roles and permissions needed for its tasks ([Google Cloud AI security and safety](https://docs.cloud.google.com/mcp/ai-security-safety)).
+
+The practical test is simple: if the agent can use a tool, ask exactly what prevents it from using that tool on the wrong tenant, record, field, operation, or day. If the answer is “the prompt tells it not to,” you do not have least privilege yet.
+
+If you have not decided whether the workflow needs an agent at all, start with [the decision framework for when to use an AI agent](/blog/when-to-use-an-ai-agent). This guide assumes the answer is yes and focuses on the authority boundary.
+
+## Start with a six-field permission envelope
+
+Before you connect a tool, write the grant as six fields. This is my synthesis of the controls in the sources above, not a named industry standard.
+
+| Field | Question | Narrow example |
+| --- | --- | --- |
+| Identity | Which workload or delegated identity is acting? | `support-drafter-v1`, not the operator’s administrator token |
+| Tool | Which named capability is available? | `tickets.read`, not a general CRM server |
+| Operation | What verb is allowed? | `read`, not `read/write/delete` |
+| Resource | Which objects, tenant, project, folder, or queue can it touch? | `tenant:acme/queue:support` |
+| Data | Which fields, classifications, or volume may cross the boundary? | ticket subject and body, not secrets or payment data |
+| Time and limits | For how long and how much? | 15-minute token, 20 records, 2 calls per task |
+
+![A permission envelope narrowing an AI agent grant across identity, tool, operation, resource, data, and time](/blog/give-ai-agent-least-privilege-tool-access-permission-envelope-six-fields.png)
+
+The envelope is useful because “read-only access” is still vague. Read-only access to every customer, every field, forever, through a credential that also reaches production is not a small grant. Nor is “the CRM tool” a permission. The operation, target, data, and limits make the boundary testable.
+
+Do not turn the six fields into one risk score. A grant with a low volume limit can still be unacceptable if it exposes credentials. Treat forbidden actions, unknown ownership, missing tenant scope, and unreviewable sensitive data as vetoes. For everything else, reduce the envelope until the workflow still works and the residual consequence is tolerable.
+
+## How do I give the agent access step by step?
+
+### 1. Define the one workflow before defining the tools
+
+Write the job in one sentence: “Read new support tickets and save a draft reply.” Do not start with “connect the agent to our CRM.” The first version should have one trigger, one owner, one source of truth, and one measurable outcome.
+
+List the actions the job needs in order. In the example, the agent may need to list eligible tickets, read a ticket, retrieve an approved policy article, and save a private draft. It does not need to send an email, delete a ticket, change an account, export the customer table, or manage CRM users.
+
+This sounds obvious until a general-purpose connector exposes all of those actions at once. OWASP warns that overly permissive tools create opportunities for tool abuse and privilege escalation. AWS likewise recommends access only to the tools, resources, and secrets an agent needs, because unexpected combinations of individually low-privilege tools can create a higher-impact result ([AWS secure access for generative AI agents](https://docs.aws.amazon.com/prescriptive-guidance/latest/security-reference-architecture-generative-ai/gen-auto-agents.html)).
+
+### 2. Create an agent identity, not a copy of a powerful user
+
+Give the workload its own service account, workload identity, or agent identity. Keep it distinct from the human who launches the task. If the agent acts on behalf of a user, preserve the user’s authorization context without handing the model a reusable administrator credential.
+
+Microsoft’s Entra Agent ID documentation illustrates the distinction: agent identities have separate role and permission rules, some high-risk directory permissions are blocked, and resource-specific roles or delegated permissions are different choices from tenant-wide application permissions ([Microsoft Entra Agent ID authorization](https://learn.microsoft.com/en-us/entra/agent-id/authorization-agent-id)). The product details are Microsoft-specific. The design lesson is portable: an agent should not inherit every capability of the person who asked a question.
+
+![A separate AI agent identity receiving a narrow credential instead of inheriting a human administrator's access](/blog/give-ai-agent-least-privilege-tool-access-agent-identity-separation.png)
+
+For a background job, use a machine identity with a narrowly defined role. For a user-facing task, decide whether the agent needs the user’s bounded data access, an application-owned scope, or a human approval before a write. Write that decision down. “On behalf of the user” is an authorization model, not a reason to pass the user’s bearer token through every tool.
+
+### 3. Expose an allowlist, not a toolbox
+
+Make the smallest required tool set discoverable to the model. Keep write and read capabilities separate where possible. Prefer `tickets.read` and `tickets.save_draft` over a single `crm.execute` function with a free-form command or a shell tool with arbitrary access.
+
+The catalog boundary matters because the model cannot choose a tool it never receives. The current MCP tools specification allows a server’s tool list to vary with the authorization presented, including returning only tools permitted by the caller’s scopes ([MCP tools specification](https://modelcontextprotocol.io/specification/2026-07-28/server/tools)). AWS calls the same pattern an allowlist when an LLM drives tool selection and warns that unrestricted interactions can create data exfiltration or confused-deputy scenarios ([AWS system-design guidance](https://docs.aws.amazon.com/prescriptive-guidance/latest/agentic-ai-security/best-practices-system-design.html)).
+
+This is not permission enforcement by itself. A hidden tool can still be called by a forged request, a stale catalog can still expose a newly added capability, and an alternate tool may reach the same data. The allowlist reduces choice; the runtime and downstream service must still deny what is not allowed.
+
+![A catalog gate filtering a broad set of possible agent tools down to a small approved allowlist](/blog/give-ai-agent-least-privilege-tool-access-agent-tool-catalog-gate.png)
+
+### 4. Split read, draft, and commit operations
+
+Treat the first write as a separate permission boundary. Start with reads. Then allow the agent to create a private draft. Only later consider sending, publishing, deleting, paying, changing access, or updating a system of record.
+
+Use explicit verbs and schemas. A draft tool should accept a ticket ID and draft body, validate the ID belongs to the permitted queue, and reject fields that would publish or alter the ticket state. Do not accept a natural-language instruction such as “update the customer however necessary” and hope the tool implementation interprets it safely.
+
+For a consequential write, require a human approval that is bound to the normalized action, then re-check authorization immediately before execution. Approval is a separate control; it does not make an overpowered credential safe. The current MCP tools specification recommends a human ability to deny tool invocations, while the permission envelope decides whether the agent has the capability in the first place ([MCP tools specification](https://modelcontextprotocol.io/specification/2026-07-28/server/tools)). For the approval boundary itself, see [the guide to human-in-the-loop AI agents](/blog/human-in-the-loop-ai-agents).
+
+![An agent workflow moving from read access to a private draft and stopping before a consequential commit](/blog/give-ai-agent-least-privilege-tool-access-read-draft-commit-boundary.png)
+
+### 5. Scope the resource and data, not just the API
+
+An API scope such as `tickets.read` may still cover every tenant and every field. Add resource conditions in the service or policy layer: tenant, project, folder, queue, record owner, environment, or an explicit object ID. Add data conditions too: fields permitted, classification ceiling, maximum rows, export behavior, and redaction rules.
+
+Keep the boundary in deterministic code. The agent can supply `ticket_id`; the server should resolve and authorize that ID. Do not let the model decide that a record “looks like it belongs to this customer” or that a user’s request justifies a cross-tenant lookup.
+
+Google Cloud recommends isolating resources and session state between users, tenants, or agents, and advises restricting permissions on important resources and preventing read-write tool access to production resources through deny policies ([Google Cloud AI security and safety](https://docs.cloud.google.com/mcp/ai-security-safety)). If the job does not need production writes, make the production write impossible for the identity rather than merely discouraged in instructions.
+
+### 6. Issue purpose-bound credentials
+
+Use a credential issued for the agent and the downstream service it needs. Prefer short-lived tokens or a brokered credential over a long-lived API key in the agent’s context. Bind the token to the intended audience, and do not reuse one broad token across unrelated tools.
+
+The current MCP authorization specification says clients should request only scopes necessary for intended operations, supports incremental step-up authorization, and requires servers to validate that a token was issued for that server. It also says MCP servers must not accept or transit unrelated tokens ([MCP authorization specification](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization)). AWS gives the same operational advice for MCP: use explicitly scoped downstream tokens and do not propagate the user’s credentials through the agentic system ([AWS MCP governance strategy](https://docs.aws.amazon.com/prescriptive-guidance/latest/mcp-strategies/mcp-governance-strategy.html)).
+
+If a tool needs more authority, request it for that operation and record why. A failed authorization should become a clear step-up or escalation path, not a reason to silently retry with an administrator token.
+
+![A short-lived token bound to one downstream tool while unrelated services remain outside its scope](/blog/give-ai-agent-least-privilege-tool-access-scoped-token-audience.png)
+
+### 7. Enforce the envelope outside the model
+
+Put authorization in three gates:
+
+1. **Catalog gate:** filter the tools and schemas the model may discover for this agent, user, tenant, and task.
+2. **Dispatch gate:** before each call, authenticate the caller, normalize arguments, check the six fields, enforce quotas, and classify the effect.
+3. **Credential gate:** make the downstream API, database, filesystem, or MCP server validate the scoped token and resource conditions again.
+
+![Three enforcement gates checking an AI agent tool call at discovery, dispatch, and downstream credential layers](/blog/give-ai-agent-least-privilege-tool-access-three-gate-enforcement-model.png)
+
+A model instruction can explain the policy, but it cannot be the policy engine. Framework guardrails are useful at the dispatch gate. For example, the OpenAI Agents SDK documents tool guardrails that run around each custom function-tool invocation, while agent-level input and output guardrails run at different workflow boundaries ([OpenAI Agents SDK guardrails](https://openai.github.io/openai-agents-python/guardrails/)). The broader point is to check the tool call where the side effect occurs, not only the first user message or final answer.
+
+Here is a hypothetical policy artifact for the support-drafter workflow. It is not a deployed configuration or a claimed test result.
+
+```yaml
+agent:
+  id: support-drafter-v1
+  purpose: read tickets and save private draft replies
+  default: deny
+
+identity:
+  principal: workload:support-drafter-v1
+  downstream_tokens:
+    - audience: tickets-api
+      max_lifetime: 15m
+    - audience: knowledge-api
+      max_lifetime: 15m
+
+tools:
+  - name: tickets.read
+    operations: [read]
+    resources: [tenant:acme/queue:support]
+    fields: [id, subject, body, status, language]
+    max_records_per_task: 20
+    approval: never
+
+  - name: knowledge.search
+    operations: [read]
+    resources: [knowledge:approved-support]
+    fields: [title, body, source_url, updated_at]
+    max_results_per_call: 5
+    approval: never
+
+  - name: tickets.save_draft
+    operations: [create]
+    resources: [tenant:acme/queue:support]
+    fields: [ticket_id, draft_body]
+    approval: required
+    external_send: false
+
+forbidden:
+  - email.send
+  - tickets.delete
+  - crm.export
+  - iam.change_permissions
+```
+
+The useful part is not the YAML syntax. It is that a reviewer can point to the identity, exact tools, verbs, resource boundary, fields, expiry, limits, approval rule, and explicit denials. If one value is unknown, stop and resolve it before granting access.
+
+## How do I test that the permission is actually least privilege?
+
+Do not test only whether the happy path works. Test whether every plausible shortcut fails. This checklist is designed to run against the real policy in a sandbox with test identities and non-production data:
+
+- The required read succeeds for an allowed tenant and queue.
+- A tool outside the allowlist is absent from discovery and denied if called directly.
+- The same tool with `write`, `delete`, or `admin` operation is denied.
+- An allowed operation on a different tenant, project, folder, or record is denied.
+- A request for a field above the data classification ceiling is rejected or redacted.
+- A batch above the row, amount, file-size, or call limit is rejected.
+- An expired token is rejected; a token for another audience is rejected.
+- The user’s broader privileges do not widen the agent’s machine identity by accident.
+- A prompt injection inside a document or tool result cannot add a tool or scope.
+- A second tool cannot be combined with the first to reach a forbidden outcome.
+- A missing, changed, or expired approval cannot execute the original write.
+- Every allow and deny records the agent identity, user context where relevant, tool, normalized arguments or safe digest, target, policy version, decision, and result.
+
+![A test harness allowing one scoped agent action while blocking wrong tenants, operations, data, tokens, and approvals](/blog/give-ai-agent-least-privilege-tool-access-least-privilege-denial-checklist.png)
+
+The last two checks are especially important. Least privilege is a property of the execution path, not a screenshot of a permission page. NIST’s current identity-and-authorization concept paper names proving authority for a specific action, binding human and agent identities, delegation, and verifiable audit as open design questions for agent systems ([NIST software and AI agent identity and authorization](https://www.nccoe.nist.gov/sites/default/files/2026-02/accelerating-the-adoption-of-software-and-ai-agent-identity-and-authorization-concept-paper.pdf)). That is a useful warning against treating one OAuth consent screen as the finished design.
+
+Run the checklist again when the model, prompt, tool description, tool implementation, MCP server, identity policy, retrieval source, memory behavior, or approval path changes. Tool definitions are part of the agent’s control surface. A new tool added to a trusted server can change the effective permission envelope even when the agent code did not change.
+
+For the broader release decision, use [the AI agent evaluation release gate](/blog/how-to-evaluate-an-ai-agent) after the authorization tests pass. Least privilege contains the blast radius; it does not prove that the agent completes the workflow correctly.
+
+## What usually goes wrong?
+
+### “The system prompt says not to use the dangerous tool”
+
+Instructions shape behavior; they do not revoke capability. An injected document, a malformed request, a model error, or a future prompt change can still produce the call. Keep the instruction as useful context, but enforce the denial in the catalog, dispatch code, and downstream service.
+
+### “The agent uses the user’s token, so it cannot exceed the user”
+
+This can be a deliberate delegated-access design, but it is not automatically safe. The token may be broader than the task, may persist longer than necessary, and may allow a mistaken agent action the user never intended. Decide explicitly between user-delegated and machine-to-machine access, then scope and audit the downstream token.
+
+### “It is read-only, so it is safe”
+
+Read access can expose secrets, private customer data, or an entire production database. Scope the resource, fields, rows, and egress. If the agent only needs a derived answer, consider a deterministic query tool that returns the minimum data rather than a general database client.
+
+### “We added approval, so the credential can be broad”
+
+Approval fatigue and approval mistakes are real failure modes. Show the reviewer the exact normalized action, target, evidence, and consequence. Bind the decision to a request digest, expire it, and revalidate it in the executor. Keep forbidden actions forbidden even to the approver if the workflow does not permit them.
+
+### “The connector is trusted, so its new tools are trusted”
+
+Review tool additions and changes. The current Google Cloud guidance recommends periodic review of accessible MCP tools and specific tool allowlists, including controls against read-write use on production resources ([Google Cloud AI security and safety](https://docs.cloud.google.com/mcp/ai-security-safety)). Treat a tool catalog as a versioned dependency, not a permanent fact.
+
+### “The logs prove it is secure”
+
+Logs help you reconstruct decisions; they do not prevent an over-privileged call. Give the audit sink its own access policy, avoid copying secrets into logs, and record enough structured context to explain both allowed and denied calls. Then use the failures to trim the envelope.
+
+## When should you keep the agent read-only?
+
+Keep the agent read-only when the workflow has no clear owner, no reliable source of truth, no reversible write path, no safe test environment, or no agreement about which user data it may access. A useful draft or recommendation is better than an autonomous write whose authority nobody can explain.
+
+You can handle a small, stable workflow internally when the team can name the identity owner, write the six-field envelope, enforce it in code, and run the denial checklist. Ask for an architecture or reliability review when the agent crosses multiple systems, tenants, sensitive data classes, or approval domains and the team cannot independently verify the boundary. Marius Manolachi’s one-to-one AI consulting is a fit for working through that concrete workflow, its permissions, and its failure cases; it is not a substitute for your organization’s security or legal approval.
+
+The next step is deliberately small: choose one agent task, remove every tool it does not need, and write the six fields for each remaining call. If you cannot fill in one field without using a wildcard, the agent is not ready for that permission yet.
