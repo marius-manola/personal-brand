@@ -118,7 +118,16 @@ export default async function BlogPostPage({ params }: PageProps) {
         citation: post.metadata.sources,
         image: post.metadata.cover ? `${SITE_URL}${post.metadata.cover}` : undefined,
         url: postUrl,
+        speakable: { '@type': 'SpeakableSpecification', cssSelector: ['.blog-answer'] },
       },
+      ...(post.metadata.faq?.length ? [{
+        '@type': 'FAQPage',
+        mainEntity: post.metadata.faq.map((item) => ({
+          '@type': 'Question',
+          name: item.q,
+          acceptedAnswer: { '@type': 'Answer', text: item.a },
+        })),
+      }] : []),
       {
         '@type': 'BreadcrumbList',
         itemListElement: [
@@ -179,6 +188,18 @@ export default async function BlogPostPage({ params }: PageProps) {
           <div className="blog-prose">
             <MDXRemote source={withBlogTables(prepareBlogMdx(post.content))} components={{ BlogTable }} />
           </div>
+
+          {post.metadata.faq && post.metadata.faq.length > 0 && (
+            <section className="blog-faq" aria-labelledby="faq-heading">
+              <h2 id="faq-heading">Questions people ask next</h2>
+              {post.metadata.faq.map((item) => (
+                <details key={item.q}>
+                  <summary>{item.q}</summary>
+                  <p>{item.a}</p>
+                </details>
+              ))}
+            </section>
+          )}
         </article>
 
         {(newerPost || olderPost) && (

@@ -20,6 +20,7 @@ export interface BlogPostMetadata {
   sources: string[];
   cover?: string;
   coverAlt?: string;
+  faq?: Array<{ q: string; a: string }>;
 }
 
 export interface BlogPost {
@@ -72,6 +73,11 @@ function parsePost(fileName: string): BlogPost {
       sources: Array.isArray(data.sources) ? data.sources.map(String) : [],
       cover: data.cover ? String(data.cover) : undefined,
       coverAlt: data.coverAlt ? String(data.coverAlt) : undefined,
+      faq: Array.isArray(data.faq)
+        ? data.faq
+          .map((item: { q?: unknown; a?: unknown }) => ({ q: String(item?.q || '').trim(), a: String(item?.a || '').trim() }))
+          .filter((item: { q: string; a: string }) => item.q && item.a)
+        : undefined,
     },
     content: content.trim(),
     readingTime: readingTimeFor(content),
