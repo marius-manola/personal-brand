@@ -1,0 +1,232 @@
+---
+title: 'How to Replay a Failed Multi-Agent Workflow Safely'
+date: '2026-08-17'
+updated: '2026-08-17'
+excerpt: 'A practical recovery plan for replaying failed multi-agent workflows from durable checkpoints without repeating actions or hiding uncertainty.'
+answer: 'Replay a failed multi-agent workflow from a durable checkpoint, not from the last chat message. Record task state, handoff artifacts, source versions, tool effects, permissions, retry budget, and ownership; validate the checkpoint before resuming, and stop when replay cannot prove what already happened.'
+targetQuery: 'how to replay a failed multi-agent workflow'
+queryAliases:
+  - 'AI agent workflow replay'
+  - 'replay a failed agent run'
+  - 'recover multi-agent workflow state'
+  - 'resume an AI workflow after a crash'
+intent: 'implementation'
+funnel: 'consideration'
+cluster: 'AI agent reliability'
+tags:
+  - 'AI agents'
+  - 'Architecture'
+  - 'Reliability'
+  - 'Recovery'
+  - 'Orchestration'
+  - 'Multi-agent systems'
+author: 'Marius Manolachi'
+nextReviewAt: '2027-02-13'
+sources:
+  - 'https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/'
+  - 'https://www.anthropic.com/engineering/building-effective-agents'
+  - 'https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ai-agents/single-agent-multiple-agents'
+  - 'https://docs.cloud.google.com/architecture/choose-design-pattern-agentic-ai-system?hl=en'
+  - 'https://www.anthropic.com/engineering/multi-agent-research-system'
+cover: '/blog/test-multi-agent-handoffs-test-multi-agent-handoffs-hero.png'
+coverAlt: 'A failed multi-agent workflow being reconstructed from a bounded checkpoint before a safe resume'
+draft: false
+---
+
+A multi-agent workflow can fail after one worker has written state, called a tool, or handed an artifact to the next worker. Restarting from the last chat message may repeat an external action or hide what already happened. The difficult part is recovery: reconstructing a known checkpoint before anything runs again.
+
+Treat recovery as a state-transition problem, not a prompt-retry problem. Persist the smallest useful context, the structured handoff artifact, tool effects, authority, and failure owner. Validate that record, decide what is safe to replay, and make uncertainty visible to the orchestrator.
+
+## The short answer
+
+Replay a failed multi-agent workflow from a durable checkpoint that answers six questions: what was the receiving agent meant to accomplish, what context was current, what artifact crossed the boundary, what authority was active, which effects already happened, and who owns the failure? Validate that checkpoint before resuming. If the system cannot distinguish completed work from pending work, stop and escalate instead of guessing.
+
+Do not treat the whole conversation as a recovery log. A transcript can contain stale instructions, irrelevant reasoning, secrets, and assumptions that neither agent can verify. Persist current facts, source references, constraints, explicit task state, and tool results instead. Keep permissions and stop rules in the runtime, where a model cannot silently widen them during replay.
+
+This approach matches the broad direction of current guidance from [OpenAI](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/), [Microsoft](https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ai-agents/single-agent-multiple-agents), and [Google Cloud](https://docs.cloud.google.com/architecture/choose-design-pattern-agentic-ai-system?hl=en): orchestration can improve modularity or parallel work, but it adds state, access-control, reliability, and cost obligations that a recovery design must make inspectable.
+
+## Start with a durable recovery checkpoint
+
+An agent is a model-controlled worker that can manage a workflow, choose tools, and recognize completion or failure. It is not merely a model call that returns text. [OpenAI makes this distinction in its agent guidance](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/).
+
+That distinction matters during recovery. If Agent A sends Agent B a paragraph called “research notes,” the orchestrator cannot reliably tell which claims are current, which are opinions, or which actions already happened. If Agent A records a bounded research artifact with source references, freshness, open questions, effects, and a failure state, the orchestrator can validate the checkpoint before the receiver acts again.
+
+![Conceptual diagram of two AI agents exchanging a bounded artifact instead of an unstructured transcript](/blog/test-multi-agent-handoffs-handoff-artifact-test-fixture.png)
+
+For this article, a useful recovery checkpoint has six fields:
+
+| Field | The checkpoint must store | Why it matters |
+| --- | --- | --- |
+| Purpose | The receiver's job and success condition | Prevents replay from widening the original mission. |
+| Context | The minimum facts, references, constraints, and freshness | Rebuilds the task without reviving irrelevant history. |
+| Artifact | The structured output and required fields | Gives the next step something it can validate. |
+| Authority | Tools, data, identities, and forbidden actions | Stops recovery from becoming a privilege escalation. |
+| Effects | Tool calls, writes, approvals, and their results | Separates completed work from work that is safe to repeat. |
+| Failure | Invalid, blocked, stale, incomplete, and retry states | Gives the orchestrator a safe next action instead of another guess. |
+
+This six-field recovery card is my synthesis of the orchestration trade-offs in the primary guidance. It is not an industry standard, benchmark, or report of private testing. Its value is practical: it turns an implicit restart decision into explicit state and ownership.
+
+## Capture the minimum context needed to resume
+
+The receiving agent needs enough information to resume its job, not every token the previous agent saw. Sort candidate context into four buckets and record whether each field was present and current at the checkpoint:
+
+| Context type | Pass it? | Example |
+| --- | --- | --- |
+| Current task state | Yes, if the receiver needs it | The account identifier, requested operation, and current workflow stage. |
+| Evidence and provenance | Yes, as references or bounded excerpts | A document ID, retrieval time, source location, and extracted fact. |
+| Policy and constraints | Yes, when they govern the receiver | Read-only scope, allowed regions, approval requirement, or output schema. |
+| Hidden reasoning and irrelevant history | Usually no | Old failed attempts, private chain-of-thought, and unrelated conversation turns. |
+
+The principle is simple: restore decisions as inspectable artifacts, not as authority. “The researcher says this customer qualifies” is a conclusion. “The account record at time T contains these fields; rule R produced this status; source S was checked” is evidence that a verifier can inspect before deciding whether the next action already happened.
+
+Context reduction is not permission to delete important uncertainty. If a source is missing, a field is stale, or two records conflict, pass that condition explicitly. A short packet that hides uncertainty is more dangerous than a long packet that names it.
+
+Google Cloud describes this work as context engineering in multi-agent systems. Each specialized agent needs the documentation, history, links, and constraints required for its task, while the system controls how information moves between agents ([Google Cloud](https://docs.cloud.google.com/architecture/choose-design-pattern-agentic-ai-system?hl=en)).
+
+## Choose a recovery boundary from the dependency graph
+
+Do not resume at the last visible message. Draw the dependency graph first. Ask whether the next worker needs the previous worker's result, whether branches share mutable state, where an external effect occurred, and where a final decision belongs. Those answers tell you which checkpoint can be trusted.
+
+| Workflow shape | Recovery boundary to define | Failure it should expose |
+| --- | --- | --- |
+| One worker owns the task and uses tools | The last confirmed tool effect | Prevents a restart from repeating an external action. |
+| Known stages depend on one another | The latest valid artifact | Verifies versioning, rejection, and safe stop behavior. |
+| Independent research or classification branches | Each branch's artifact and merge status | Preserves provenance and disagreement during replay. |
+| A task repeats until a condition changes | The last progress marker and external budget | Prevents an endless recovery loop. |
+| A proposed action needs a separate check | The exact approved artifact and action | Stops replay from applying approval to altered input. |
+
+OpenAI describes manager and decentralized handoff patterns. Google Cloud describes sequential, parallel, loop, and review or critique patterns. The names differ, but the recovery question is the same: who owns the next decision, and what evidence proves that owner received the last valid state?
+
+![Conceptual architecture map showing sequential, parallel, review, and loop paths with bounded agent handoffs](/blog/test-multi-agent-handoffs-multi-agent-handoff-test-cases.png)
+
+For a sequential workflow, do not ask the receiver to reconstruct the prior step from prose. Resume from a versioned artifact and reject it when its evidence is missing or stale. For a parallel workflow, do not merge outputs by asking a final agent to “pick the best one” without sources, conflict fields, and a defined success condition. Preserve disagreement in the checkpoint and route it deliberately. The more autonomy the pattern has, the more explicit recovery must be.
+
+## Restore each agent's authority boundary
+
+Different job titles do not create a security boundary, so replaying a role label proves very little. Different identities, data zones, tools, or approval responsibilities can. Restore those controls directly from policy, not from model output.
+
+Suppose a support workflow has one worker that reads a customer account and another that can submit a refund. The second worker should receive the narrow eligibility artifact it needs, not the first worker's unrestricted account context. The runtime should check the refund amount, account, approval state, and identity before calling the financial tool.
+
+Microsoft identifies security and compliance boundaries, separation of duties, multiple teams, and planned growth as reasons to use multiple agents. It also warns that every added agent creates more credentials, state transitions, and data-transit points to govern ([Microsoft](https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ai-agents/single-agent-multiple-agents)).
+
+![Conceptual diagram of separate AI agent authority zones connected by a narrow audited handoff](/blog/test-multi-agent-handoffs-agent-authority-test-boundaries.png)
+
+The model can propose an action. It should not define its own authority during replay. Enforce these controls in code or policy infrastructure, then record whether the checkpoint still satisfies each boundary:
+
+- allowlisted tools and arguments;
+- identity and data scope for each worker;
+- maximum action value, count, or duration;
+- approval requirements for consequential changes;
+- expiry for an artifact or authorization;
+- fail-closed behavior when the policy service is unavailable.
+
+If a receiver needs a permission that the sender did not have, the checkpoint should carry a request for that permission, not smuggle it through copied context. Recovery must prove that old context cannot grant a new permission.
+
+## Validate the checkpoint before resuming
+
+The most important part of a recovery record is the output schema. A checkpoint should contain a typed artifact or a clearly delimited result with status, provenance, effects, and failure reason. The exact format depends on the workflow, but a recovery record might look like this:
+
+```yaml
+handoff:
+  purpose: "Check refund eligibility for the requested account action"
+  input:
+    account_id: "account-identifier"
+    request_id: "request-identifier"
+    policy_version: "policy-reference"
+  output:
+    status: "eligible | ineligible | needs_review | unavailable"
+    evidence: []
+    expires_at: "timestamp"
+  effects:
+    completed: []
+    pending: []
+  authority:
+    tools: ["read_account", "read_refund_policy"]
+    forbidden: ["issue_refund", "change_account"]
+  failure:
+    retryable: false
+    reason: ""
+```
+
+The values above are a template, not sample production data. Replace them with the identifiers, statuses, tools, and effect records your system actually supports. Keep one valid checkpoint and one deliberately broken checkpoint so the recovery validator itself is exercised.
+
+Before resuming, the orchestrator should check required fields, enum values, source freshness, authorization scope, effect records, and consistency with the current workflow state. It should decide whether to continue, compensate, retry, review, or stop. If validation fails, use a defined repair or review path. Do not simply send the invalid response back to the same agent with “try again” and no new evidence.
+
+![Conceptual illustration of an AI agent returning a structured artifact through validation before another agent can consume it](/blog/test-multi-agent-handoffs-handoff-artifact-validation-test.png)
+
+This is also where the baseline matters. If the proposed checkpoint only repackages a shared conversation and records no independent state or effect, it cannot support safe replay. Compare it with the simplest durable state design and add coordination only when it improves recovery. Anthropic's guidance recommends starting with the simplest design and adding complexity when it demonstrably improves the result ([Anthropic](https://www.anthropic.com/engineering/building-effective-agents)).
+
+## Handle conflict, staleness, and missing work
+
+Normal cases are the easy part. A recovery plan becomes useful when it says what happens next after a failure and proves that the receiver does not improvise a new path.
+
+At minimum, distinguish these states:
+
+| State | Meaning | Safe next action |
+| --- | --- | --- |
+| Invalid | The checkpoint violates the contract | Reject it and record the field-level error. |
+| Incomplete | Required evidence or effect history is missing | Request the missing work or escalate. |
+| Stale | The evidence or authorization has expired | Re-read the source or obtain fresh approval. |
+| Conflicting | Two workers return incompatible claims | Preserve both sources and route to a resolver or human. |
+| Blocked | Policy or dependency prevents progress | Stop, explain the blocker, and notify the owner. |
+| Retryable | A transient dependency failed | Retry within an external budget, then fail visibly. |
+
+Do not treat every failed handoff as a model problem. A timeout, revoked credential, changed record, and ambiguous instruction need different recovery responses. Microsoft notes that multi-agent coordination adds state-management and latency concerns; explicit failure states keep that complexity inspectable rather than burying it in another prompt ([Microsoft](https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ai-agents/single-agent-multiple-agents)).
+
+Parallel work deserves extra care during replay. Anthropic reports that its multi-agent research system performed well on breadth-first questions with independent directions, but also used substantially more tokens and was a poor fit for highly dependent work. That is a vendor-reported result for its system, not a transferable benchmark ([Anthropic](https://www.anthropic.com/engineering/multi-agent-research-system)). If branches disagree, the checkpoint must retain competing evidence and the synthesis rule.
+
+## Use this recovery worksheet before resume
+
+Fill this out for one real workflow. Compare the proposed recovery design with the simplest durable state record, then turn each row into a persisted field, validation rule, or review record.
+
+| Field | Checkpoint record | What to verify before resume |
+| --- | --- | --- |
+| Purpose and success condition |  | Can a reviewer tell what the receiver was meant to finish? |
+| Context and source versions |  | Is every restored field necessary, current, and attributable? |
+| Artifact schema |  | Can code validate it without interpreting a paragraph? |
+| Authority and forbidden actions |  | Are tools and identities restored outside the model? |
+| Completed and pending effects |  | Can the runtime distinguish done from safe to repeat? |
+| Failure and retry owner |  | Who acts on invalid, stale, conflicting, or blocked work? |
+| Checkpoint ID and replay key |  | Can the state be reconstructed after a restart? |
+| Conflict rule |  | What happens when workers disagree? |
+| Latency and cost budget |  | What will the recovery attempt consume? |
+| Stop or compensation condition |  | When must the workflow stop or undo an effect? |
+
+![Conceptual comparison worksheet for a multi-agent handoff, showing context, artifact, authority, verification, and failure checks](/blog/test-multi-agent-handoffs-handoff-comparison-test-worksheet.png)
+
+Run the recovery in a controlled order:
+
+1. Freeze the task state, model configuration, tools, permissions, retrieval settings, and code revision recorded at the checkpoint.
+2. Define resume, compensate, retry, review, and stop conditions before inspecting the new run.
+3. Reconcile missing information, conflicting information, tool failures, stale records, and out-of-scope requests.
+4. Record the checkpoint, restored artifact, policy decisions, environment state, and final effect. The final message alone is not enough.
+5. Compare duplicate-action risk, safety, latency, cost, repeatability, debugging effort, and human review burden.
+6. Resume only if the record proves what happened. If it does not, repair the state or escalate instead of adding another worker.
+
+This is a recovery-plan recommendation, not a claim that I ran these cases for you. For broader pre-release evaluation, use [the AI agent release gate](/blog/how-to-evaluate-an-ai-agent). For runtime traces, alerts, and recovery signals, use [the AI agent monitoring guide](/blog/how-to-monitor-an-ai-agent-in-production).
+
+## Three recovery scenarios
+
+### Customer support and account actions
+
+The support worker can read the conversation and account state, then return a proposed action with evidence. If the workflow fails after approval but before the refund call is recorded, the checkpoint must identify the account, amount, approval, and last confirmed effect. The action worker should resume only after the tool layer proves that the refund was not already issued; a changed account ID or amount must be rejected.
+
+### Open-ended research and synthesis
+
+Independent researchers can each receive a scoped question and source policy. Their artifacts should include citations, retrieval time, unresolved conflicts, and confidence limits. If the synthesizer crashes after one branch is accepted, the checkpoint should identify the accepted branch and the missing branches. Resume only the missing work, and preserve disagreement when the evidence does not resolve it.
+
+### Planner, implementer, and reviewer labels
+
+Role names alone do not justify three agents. Start with a clear repository boundary, tool policy, and checkpoint format. If the implementer crashes after a partial write, the reviewer must see the exact artifact version, repository revision, and write effects. Resume only the uncompleted step. Otherwise a restart may overwrite a valid change or ask a reviewer to approve a state that no longer exists.
+
+![Decision path showing a workflow moving through a handoff contract, validation, conflict handling, and a controlled next action](/blog/test-multi-agent-handoffs-handoff-release-decision-path.png)
+
+## The resume rule
+
+A failed workflow is safe to resume only when its purpose, minimum necessary context, verifiable artifact, bounded authority, recorded effects, and owned failure state are present in a durable checkpoint. If recovery carries only a transcript and a new role prompt, it is not a recovery plan yet.
+
+Write one recovery card for the highest-risk boundary first. Exercise missing, stale, conflicting, and out-of-scope state. Block resume on duplicate-action risk, unverified artifacts, or unowned failures. Then decide whether the workflow needs a new checkpoint, a compensating action, or human review.
+
+![Conceptual overview of the layers that make a multi-agent handoff reliable](/blog/test-multi-agent-handoffs-multi-agent-handoff-test-overview.png)
+
+If a team has a concrete workflow but cannot reconstruct its checkpoints or agree on resume rules, an architecture review or reliability workshop is a sensible next step. It should inspect the workflow, state records, data access, tools, effects, and failure policy. It should not replace the definition of the business outcome or specialist legal and security advice. You can also start with [Marius Manolachi's AI consulting work](/learn-ai) if you need help framing that review.
