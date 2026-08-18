@@ -44,15 +44,20 @@ Hard caps used here:
 There are four long-lived or spawned processes. Do not collapse them into one script.
 
 ```
-launchd KeepAlive
-    └── scheduler.mjs          tick every 60s
-            ├── topic-worker.mjs     research a topic bank
-            ├── worker.mjs <id> --queue          write + image, stop at ready
-            ├── worker.mjs <id> --publish-queued publish one ready draft
-            └── worker.mjs <id> --resume-publish retry a failed publish
+launchd KeepAlive (login session)
+    ├── com.mariusmanolachi.content-studio
+    │       └── scheduler.mjs          tick every 60s
+    │               ├── topic-worker.mjs     research a topic bank
+    │               ├── worker.mjs <id> --queue          write + image, stop at ready
+    │               ├── worker.mjs <id> --publish-queued publish one ready draft
+    │               └── worker.mjs <id> --resume-publish retry a failed publish
+    └── com.mariusmanolachi.next-dev
+            └── keep-desk-up.mjs       every 20s
+                    ├── kickstart the scheduler if its pid is dead
+                    └── next dev --turbopack --port 3002
 ```
 
-The Next.js app (`next dev`, often `:3002`) is only the **control surface**. Autopilot does **not** require the dashboard to be open. The dashboard talks to `/api/content-studio/*`, which is local-only.
+Two launchd agents start at login. The scheduler is the factory: it counts today's live posts, writes, images, publishes, pushes `main`, and Vercel deploys. The Next.js app (`http://127.0.0.1:3002/content-studio`) is the **control surface**. Autopilot does **not** need the dashboard open to ship posts, but the desk must come back after a reboot so you can sign in Codex/Gemini and see the lamps. `keep-desk-up.mjs` heals both sides.
 
 ### Isolated Codex
 
@@ -258,24 +263,36 @@ Do **not** implement “daily-batch” as “return immediately if a batch was a
 
 A Node process started from a chat dies when the session dies. Use launchd.
 
-`~/Library/LaunchAgents/com.mariusmanolachi.content-studio.plist`:
+Two agents. Copies live in `.content-studio/` and must also be installed under `~/Library/LaunchAgents/`.
+
+`com.mariusmanolachi.content-studio.plist` — the daily factory:
 
 - `ProgramArguments`: absolute `node` + absolute `scheduler.mjs`
 - `WorkingDirectory`: repo root
-- `RunAtLoad` + `KeepAlive` (`SuccessfulExit: false`)
+- `RunAtLoad` + `KeepAlive` (true, not only on crash)
+- `LimitLoadToSessionType`: `Aqua` (starts when you log into the Mac GUI)
 - `ThrottleInterval`: 15
 - stdout/stderr into `.content-studio/scheduler.log` and `scheduler.err.log`
 - `PATH` must include the same Node as the dashboard
 
+`com.mariusmanolachi.next-dev.plist` — the localhost desk:
+
+- `ProgramArguments`: absolute `node` + absolute `keep-desk-up.mjs`
+- Same `RunAtLoad` / `KeepAlive` / `Aqua`
+- Every 20s: if the scheduler pid is dead, `launchctl kickstart` the factory; if `http://127.0.0.1:3002/content-studio` is down and nothing is bound on 3002, start `next dev --turbopack --port 3002`
+
 On start, the scheduler **SIGTERMs any other scheduler pid** in `scheduler.pid` and stays up. Otherwise two agents fight, or a new one exits 0 because an old one exists.
 
-Reload after editing the scheduler:
+Reload after editing either script:
 
 ```
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.mariusmanolachi.content-studio.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.mariusmanolachi.next-dev.plist
 launchctl kickstart -k gui/$(id -u)/com.mariusmanolachi.content-studio
+launchctl kickstart -k gui/$(id -u)/com.mariusmanolachi.next-dev
 ```
 
-The Next studio can also `ensureScheduler()` on settings GET so opening the dashboard heals a dead agent.
+The Next studio can also `ensureScheduler()` on settings GET so opening the dashboard heals a dead factory via launchctl, not a rogue detached node.
 
 ---
 
@@ -381,7 +398,7 @@ The writer already works. Do this in order.
 4. **Add topic research + claim.** Do not let five writers pick a query.
 5. **Add `publish()`** that stamps today’s date, builds, commits one slug, pushes, verifies live, IndexNow.
 6. **Add `scheduler.mjs`** with the tick order in §7. Keep it dumb and file-based.
-7. **Install launchd KeepAlive.** Prove it survives closing the terminal and a reboot.
+7. **Install both launchd agents** (factory + `keep-desk-up`). Prove a reboot brings back the 60s tick **and** `http://127.0.0.1:3002/content-studio`.
 8. **Add Telegram** for the four stuck states only.
 9. **Cap the day.** Count live posts by Berlin `date:` frontmatter, not by git commit time.
 10. **Quarantine after 3 failures.** Never retry a slug collision.
@@ -390,9 +407,11 @@ Minimum files to recreate the loop:
 
 ```
 .content-studio/scheduler.mjs
+.content-studio/keep-desk-up.mjs
 .content-studio/worker.mjs
 .content-studio/topic-worker.mjs
 .content-studio/com.<name>.content-studio.plist
+.content-studio/com.<name>.next-dev.plist
 lib/content-studio/queue.mjs
 lib/content-studio/topics.mjs
 lib/content-studio/inventory.mjs
@@ -461,9 +480,10 @@ A human should only open the desk to sign Codex in, restock env, or inspect quar
 CODEX_HOME="$PWD/.content-studio/codex-home" \
   /Applications/ChatGPT.app/Contents/Resources/codex login
 
-# Scheduler
+# Scheduler + localhost desk (both start at login)
 launchctl kickstart -k gui/$(id -u)/com.mariusmanolachi.content-studio
-tail -f .content-studio/scheduler.log
+launchctl kickstart -k gui/$(id -u)/com.mariusmanolachi.next-dev
+tail -f .content-studio/scheduler.log .content-studio/next-dev.log
 
 # Manual
 node .content-studio/topic-worker.mjs 12
@@ -495,7 +515,7 @@ Settings file: `.content-studio/settings.json`
 
 You are done when all of these are true without a human in the loop:
 
-- The laptop reboots, launchd starts the scheduler, and a tick runs within a minute.
+- The laptop reboots, launchd starts the scheduler **and** the :3002 desk, and a tick runs within a minute.
 - Five different queries can write at once without clobbering each other.
 - An imaging job does not block a new writer.
 - A ready draft published on Tuesday has `date: Tuesday`.
