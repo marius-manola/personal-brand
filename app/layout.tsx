@@ -57,6 +57,7 @@ const onest = localFont({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://mariusmanolachi.com"),
   title: "Marius Manolachi",
   description: "perpetual learner",
   openGraph: {
