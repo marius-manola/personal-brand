@@ -29,6 +29,16 @@ export interface BlogPost {
   readingTime: number;
 }
 
+export function prepareBlogMdx(source: string): string {
+  return source
+    .replace(
+      /<!--\s*visual-slot:\s*(\S+?)(?:\s*\|\s*purpose:\s*([^]*?))?\s*-->/gi,
+      (_match, imagePath: string, purpose?: string) =>
+        `\n![${String(purpose || 'Article illustration').trim()}](${imagePath})\n`,
+    )
+    .replace(/<!--[\s\S]*?-->/g, '');
+}
+
 function readingTimeFor(content: string): number {
   const words = content
     .replace(/```[\s\S]*?```/g, ' ')

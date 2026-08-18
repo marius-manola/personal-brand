@@ -4,7 +4,7 @@ import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import { MDXRemote } from 'next-mdx-remote/rsc';
 import Copyright from '@/app/components/Copyright';
-import { getAllBlogPosts, getBlogPost } from '@/lib/server/blog.server';
+import { getAllBlogPosts, getBlogPost, prepareBlogMdx } from '@/lib/server/blog.server';
 
 const SITE_URL = 'https://mariusmanolachi.com';
 
@@ -177,7 +177,7 @@ export default async function BlogPostPage({ params }: PageProps) {
           )}
 
           <div className="blog-prose">
-            <MDXRemote source={withBlogTables(post.content)} components={{ BlogTable }} />
+            <MDXRemote source={withBlogTables(prepareBlogMdx(post.content))} components={{ BlogTable }} />
           </div>
         </article>
 

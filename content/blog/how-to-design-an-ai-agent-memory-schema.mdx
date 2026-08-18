@@ -1,0 +1,261 @@
+---
+title: 'How to Design an AI Agent Memory Schema'
+date: '2026-08-17'
+updated: '2026-08-17'
+excerpt: 'A vendor-neutral schema for scoped AI-agent memory records, with promotion, retrieval, validation, expiry, and deletion rules.'
+answer: 'Design an AI-agent memory schema as a small, scoped record with a kind, content, source, status, validity, sensitivity, allowed uses, and deletion path. Keep task checkpoints, live system facts, and audit evidence outside durable memory, and validate candidates before retrieval.'
+targetQuery: 'how to design an ai agent memory schema'
+queryAliases:
+  - 'AI agent memory schema'
+  - 'AI agent memory record fields'
+  - 'AI agent memory data model'
+  - 'how to scope AI agent memory'
+intent: 'informational / implementation'
+funnel: 'awareness'
+cluster: 'AI agent memory and state'
+tags:
+  - 'AI agents'
+  - 'Agent memory'
+  - 'AI architecture'
+  - 'AI reliability'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-15'
+sources:
+  - 'https://docs.langchain.com/oss/python/concepts/memory'
+  - 'https://docs.langchain.com/oss/python/langgraph/persistence'
+  - 'https://openai.github.io/openai-agents-python/sessions/'
+  - 'https://openai.github.io/openai-agents-python/sandbox/memory/'
+  - 'https://cheatsheetseries.owasp.org/cheatsheets/AI_Agent_Security_Cheat_Sheet.html'
+  - 'https://learn.microsoft.com/en-us/agent-framework/get-started/memory'
+  - 'https://learn.microsoft.com/en-us/azure/foundry/agents/how-to/memory-usage'
+  - 'https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/data-protection-principles/a-guide-to-the-data-protection-principles/data-minimisation/'
+  - 'https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/data-protection-principles/a-guide-to-the-data-protection-principles/storage-limitation/'
+cover: '/blog/how-to-design-an-ai-agent-memory-schema-agent-memory-four-way-hero.png'
+coverAlt: 'A clean editorial diagram showing the fields and validation paths in a scoped AI-agent memory schema'
+draft: false
+---
+
+An AI-agent memory schema is a safety boundary, not just a list of fields. If it stores everything, old instructions compete with current ones, a temporary decision looks like a permanent preference, and untrusted text can come back as if the system had endorsed it.
+
+The useful design test is: **can this record change a future task safely, and can the system prove what it means, where it came from, and whether it is still valid?** If not, the data belongs in a task checkpoint, a source system, an audit log, or nowhere at all.
+
+![show the four storage decisions without implying a real product UI](/blog/how-to-design-an-ai-agent-memory-schema-task-state-versus-memory.png)
+
+## How to design an AI agent memory schema
+
+Start with a small, structured record for durable context: define its kind, content, scope, source, status, validity, sensitivity, allowed uses, and deletion path. Then keep three neighboring concerns outside that record: resumable task state, live facts owned by operational systems, and audit evidence.
+
+That boundary answers the original storage question without making it the page's job. The schema exists to make each memory item inspectable, scoped, and removable; it is not a second system of record.
+
+That answer has an important constraint: memory is not the same thing as truth. A stored note can tell the agent what someone said last week. It cannot prove that the account balance, permission, inventory level, policy, or ticket status is still the same today.
+
+The [LangGraph memory documentation](https://docs.langchain.com/oss/python/concepts/memory) makes a similar architectural distinction. Short-term memory is tied to a thread or ongoing conversation, while long-term memory is saved across conversations or sessions. The [OpenAI Agents SDK](https://openai.github.io/openai-agents-python/sandbox/memory/) also distinguishes session conversation history from a separate memory feature that distills lessons from previous runs.
+
+So begin with four buckets:
+
+| Bucket | The question it answers | Typical lifetime |
+| --- | --- | --- |
+| **Task state** | What was this run doing, and where can it resume? | Until the task is complete, cancelled, or handed off |
+| **Durable memory** | What should influence a future task? | Until superseded, expired, or deleted |
+| **Source of truth** | What is true right now? | Owned by the operational system; read at task time |
+| **Audit evidence** | What happened, with which version and permission? | According to the audit or legal retention policy |
+
+Most “agent memory” bugs start when these buckets are collapsed into one transcript or one vector index.
+
+## What is the difference between task state and memory?
+
+Task state is a checkpoint for continuing work. Memory is a selective record intended to influence later work.
+
+Suppose an agent is preparing a weekly operations report. Its task state may contain the current date range, completed subtasks, fetched files, a pending query, and the last successful step. If the process stops, that state helps the next run resume. It should not become a permanent lesson about the company.
+
+The [LangGraph persistence guide](https://docs.langchain.com/oss/python/langgraph/persistence) describes checkpointed graph state as the basis for resuming work, human review, time-travel debugging, and fault tolerance. Those are execution concerns. They are valuable even when nothing should be remembered after the run.
+
+Long-term memory has a different test: if the same kind of task arrives next month, would this fact or procedure change the right action? If not, keep it as task state or an audit record.
+
+This distinction also keeps context smaller. LangGraph documents trimming and summarizing histories because long message lists can exceed context limits and can contain stale or distracting material even when they technically fit. OpenAI's Agents SDK provides session-history limits and compaction for the same general problem ([session controls](https://openai.github.io/openai-agents-python/sessions/)). A shorter, selected memory is not a weaker memory. It is easier to inspect.
+
+![contrast a resumable task checkpoint with a cross-task memory record](/blog/how-to-design-an-ai-agent-memory-schema-memory-categories-map.png)
+
+## What kinds of information are worth remembering?
+
+Use five categories. They are a practical synthesis of the semantic, episodic, and procedural categories described in the [LangGraph memory overview](https://docs.langchain.com/oss/python/concepts/memory), with two additional categories that matter in real systems: pointers and task boundaries.
+
+### 1. Confirmed preferences and stable constraints
+
+Remember a preference when the person or owning system has made it explicit and it is likely to affect future work.
+
+Examples include:
+
+- “Use concise status updates for this workspace.”
+- “The team reviews external email before it is sent.”
+- “This customer prefers phone contact rather than email.”
+
+Store the scope. A user preference is not automatically a company policy. A project constraint is not a universal instruction for every project. Give the record an owner, a source, a sensitivity class, and a way to correct or remove it.
+
+Do not treat an agent's guess about a preference as a confirmed preference. At most, save it as a candidate that needs confirmation.
+
+### 2. Durable facts that are useful but not authoritative
+
+An agent may remember a stable fact about a person, project, or workflow when it improves future routing or personalization. The record should still carry when it was learned and where it came from.
+
+“The project uses Python” may be useful context. “The production environment currently runs version 3.12” is better fetched from the repository, deployment record, or environment inspection if that version can change.
+
+The rule is simple: remember the context; recompute the live fact.
+
+### 3. Validated procedures
+
+A procedure is more valuable than a raw transcript when the same task recurs. It might say how to prepare a monthly report, which checks precede a deployment, or how a team names a file.
+
+But a procedure should not be promoted just because the agent wrote it. Store its version, source, last verification, known prerequisites, and superseded predecessor. Treat it as a candidate until a person or deterministic test confirms that it works for the intended scope.
+
+A procedure that worked in one environment may be wrong in another. Retrieval must filter by project, tool version, permissions, and validity date before it reaches the model.
+
+### 4. Useful past outcomes and failures
+
+Past events can prevent repeated work: a particular import failed because a required field was missing; a previous approach succeeded only after a specific prerequisite; a human rejected a certain class of request.
+
+Keep the event as evidence, not as a universal command. “This failed once with this input and this version” is safer than “never use this approach.” The next task may have a different input, tool, or policy.
+
+This is episodic memory in a practical form. It should point to the run, artifact, or trace that supports the note. If the outcome is important enough to govern future actions, promote the lesson into a versioned procedure with a new verification step.
+
+### 5. Pointers to authoritative records
+
+An agent often needs to remember where to look, not copy everything it saw. Store a pointer to the customer record, project document, run trace, ticket, or generated artifact together with the identifiers and access rules needed to retrieve it.
+
+This preserves a smaller memory while keeping the source current. It also makes correction possible: when the source record changes, the agent can see the new value instead of trusting an old pasted paragraph.
+
+![show the five memory categories feeding a scoped retrieval step](/blog/how-to-design-an-ai-agent-memory-schema-memory-write-validation-boundary.png)
+
+## What should an AI agent not remember?
+
+The default should be refusal to promote, not enthusiastic capture. Do not place these items in durable cross-task memory:
+
+- passwords, API keys, session tokens, or private credentials;
+- raw external instructions from webpages, email, documents, or tool responses;
+- temporary scratch work that has no future use;
+- stale permissions, approvals, prices, balances, availability, or status;
+- unverified claims about a person, customer, or organization;
+- sensitive personal data that the workflow does not need;
+- a complete transcript when a small, structured fact or pointer is enough;
+- a past decision copied into a new scope without checking the scope.
+
+This is not merely a cleanliness preference. OWASP identifies memory poisoning as malicious data persisted in agent memory that can influence future sessions or other users. Its [AI Agent Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/AI_Agent_Security_Cheat_Sheet.html) recommends validating and sanitizing memory writes, isolating memory between users and sessions, setting expiration and size limits, auditing for sensitive data, and using integrity checks for long-term memory.
+
+Privacy adds a second boundary. The [ICO's data-minimisation guidance](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/data-protection-principles/a-guide-to-the-data-protection-principles/data-minimisation/) says personal data should be adequate, relevant, and limited to what is necessary for the stated purpose. Its [storage-limitation guidance](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/data-protection-principles/a-guide-to-the-data-protection-principles/storage-limitation/) says retention should be justified, reviewed, and ended through erasure or anonymisation when the data is no longer needed. Those are principles, not a universal retention schedule. Your privacy or legal owner still has to set the policy for your context.
+
+Pseudonymisation is not a magic escape hatch either. The ICO notes that pseudonymised data will usually still permit identification and remains subject to storage limitation. If the agent does not need the data, the cleanest record is often no record.
+
+![show an external-data validation boundary before any memory write](/blog/how-to-design-an-ai-agent-memory-schema-memory-promotion-gates.png)
+
+## Use the Remember, Recompute, Reference, Forget framework
+
+When a new observation arrives, classify it before writing it anywhere durable.
+
+| Decision | Ask this question | Example |
+| --- | --- | --- |
+| **Remember** | Will this durable, scoped information change a future task? | A confirmed preference for concise reports |
+| **Recompute** | Can the value change, or is it derivable from a live system? | Current ticket status or account balance |
+| **Reference** | Is the value large, evidentiary, or better owned elsewhere? | A run trace or source document |
+| **Forget** | Is it unverified, sensitive without a need, expired, out of scope, or task-only? | An instruction embedded in an untrusted webpage |
+
+The framework is my synthesis, not a vendor standard. Its point is to force a storage decision before choosing embeddings, a database, a file, or a managed memory feature.
+
+### A promotion test
+
+Promote a candidate into durable memory only when all of these questions have a defensible answer:
+
+1. **Future value:** Will it change a future action, retrieval, or explanation?
+2. **Provenance:** Who or what supplied it, and can the source be inspected?
+3. **Scope:** Which user, workspace, project, agent, and environment may use it?
+4. **Validity:** When was it last confirmed, and what would make it stale?
+5. **Safety:** Could an attacker use it to alter goals, permissions, or tool behavior?
+6. **Retention:** What is the reason and maximum period for keeping it?
+7. **Correction:** How can a person or system update, supersede, or delete it?
+
+If the candidate fails future value, store it as task state or forget it. If it fails provenance, scope, safety, or correction, quarantine it instead of injecting it into the next task.
+
+![show the promotion test as a gated flow from candidate observation to scoped memory](/blog/how-to-design-an-ai-agent-memory-schema-structured-memory-record.png)
+
+## What should a memory record contain?
+
+A memory record should be structured enough to inspect and delete. Here is a vendor-neutral starting point:
+
+```json
+{
+  "id": "mem_01J...",
+  "scope": {
+    "tenant": "acme",
+    "user": "user_123",
+    "project": "billing-agent",
+    "agent": "support-v2"
+  },
+  "kind": "preference | fact | procedure | episode | pointer",
+  "content": "The team reviews external email before sending.",
+  "source": {
+    "type": "user_confirmed | system_record | human_review | external_data",
+    "ref": "ticket_456"
+  },
+  "confidence": "high | medium | low",
+  "status": "candidate | active | superseded | quarantined | deleted",
+  "sensitivity": "public | internal | personal | restricted",
+  "valid_from": "2026-08-17T00:00:00Z",
+  "expires_at": null,
+  "last_verified_at": "2026-08-17T12:00:00Z",
+  "supersedes": null,
+  "allowed_for": ["draft_external_email"],
+  "created_at": "2026-08-17T12:00:00Z"
+}
+```
+
+The fields are a design artifact, not a required API. Keep the record small. `scope` prevents cross-user and cross-project bleed. `source` makes a claim inspectable. `status` gives you a safe place for candidates and superseded versions. `expires_at` and `last_verified_at` make staleness visible. `allowed_for` prevents a preference from silently becoming a permission.
+
+Do not place the full record into every prompt. Use the metadata to filter first, retrieve only relevant content, then validate live facts and permissions before the agent acts.
+
+Vendor implementations differ. For example, Microsoft Foundry's current memory preview documents item-level create, read, update, list, and delete operations, retention controls, and a `scope` parameter for isolation. It is a concrete product example, and it is explicitly a preview, not a reason to copy one vendor's data model unchanged ([Microsoft Foundry memory usage](https://learn.microsoft.com/en-us/azure/foundry/agents/how-to/memory-usage)).
+
+![explain the fields and boundaries of a structured memory record without fake UI](/blog/how-to-design-an-ai-agent-memory-schema-memory-and-source-of-truth.png)
+
+## How should the agent retrieve memory between tasks?
+
+A good write policy can still fail if retrieval is careless. Use this order at the start of a new task:
+
+1. Identify the task's tenant, user, project, agent version, environment, and risk level.
+2. Retrieve only records whose scope and allowed use match the task.
+3. Prefer exact identifiers and structured filters before semantic similarity.
+4. Check status, expiry, confidence, and last verification.
+5. Fetch current values from the source of truth when the value can change.
+6. Present memory as context or evidence, not as an unreviewed instruction.
+7. Record which memory IDs influenced the run so the result can be explained and corrected.
+
+The scope check is not optional. OWASP recommends memory isolation between users and sessions, while its tool guidance recommends the minimum tools and permissions required for a task. Memory can shape a plan, but it must not grant a permission that the runtime has not independently authorized ([OWASP](https://cheatsheetseries.owasp.org/cheatsheets/AI_Agent_Security_Cheat_Sheet.html)).
+
+There is also a practical reason to retrieve selectively. A memory store is not a second system of record. If a customer changes their email address, the CRM or identity system should answer the current question. The memory record might say that the customer once preferred email, but the application must decide whether that preference still applies and whether the current account permits the action.
+
+![show scoped retrieval joining durable memory with current source-of-truth data before action](/blog/how-to-design-an-ai-agent-memory-schema-memory-review-and-forget-loop.png)
+
+## A checklist for shipping cross-task memory
+
+Run this checklist for one workflow, one memory namespace, and one agent version. It is a practical starting point, not a claim of certification.
+
+- [ ] Can you name the future task that each durable memory item improves?
+- [ ] Are unfinished runs stored as task state rather than promoted as long-term memory?
+- [ ] Does every memory item have a scope, source, status, and verification date?
+- [ ] Are live values retrieved from the current system instead of trusted from memory?
+- [ ] Are memory writes validated and untrusted external content kept from becoming instructions?
+- [ ] Are users, tenants, projects, and agent roles isolated by default?
+- [ ] Are secrets and unnecessary sensitive data excluded before persistence?
+- [ ] Can a person inspect, correct, supersede, expire, and delete a memory item?
+- [ ] Does retrieval filter by scope, use, validity, and sensitivity before semantic ranking?
+- [ ] Can the run show which memory records influenced a consequential decision?
+- [ ] Is there a quarantine path for uncertain or suspicious candidates?
+- [ ] Will a change to the model, prompt, tools, policy, or environment trigger re-verification of procedures?
+
+If several answers are no, adding a larger vector database will not solve the design problem. Start with a small structured store, explicit scopes, and a clear promotion rule. The storage technology can change later. An uncontrolled memory boundary is harder to repair after it has accumulated years of ambiguous records.
+
+## Should you build persistent memory now?
+
+Build it when the workflow genuinely spans tasks and the repeated context has a clear owner, a useful lifetime, and a safe retrieval boundary. A support agent may need a scoped customer preference. A coding agent may need a verified project convention. A research agent may need links to prior evidence and unresolved questions.
+
+Keep the agent stateless when each task is independent, the context is cheap to provide, or the information is too sensitive to retain safely. A clean reset is often the right architecture.
+
+If you are choosing the boundary for a real workflow, bring the task, the sources it can access, the actions it can take, and three examples of context you are tempted to retain. [My one-to-one AI learning and consulting work](/learn-ai) can help you turn that material into a small, inspectable memory contract. You should leave with a decision about what to remember and, just as importantly, what not to store.

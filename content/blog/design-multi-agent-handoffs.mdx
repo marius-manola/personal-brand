@@ -1,0 +1,227 @@
+---
+title: 'How to Design Multi-Agent Handoffs That Preserve Context'
+date: '2026-08-17'
+updated: '2026-08-17'
+excerpt: 'Design multi-agent handoffs as bounded contracts for context, artifacts, authority, verification, and failure instead of passing loose transcripts between prompts.'
+answer: 'Design each multi-agent handoff as a bounded contract: pass only the context the receiver needs, require a verifiable artifact and explicit failure state, enforce permissions outside the model, and make the orchestrator handle retries, conflicts, and stop conditions. Keep one agent when no boundary or contract improves the workflow.'
+targetQuery: 'how to design multi-agent handoffs'
+queryAliases:
+  - 'multi-agent handoff design'
+  - 'AI agent handoff contract'
+  - 'how should AI agents pass context'
+  - 'multi-agent orchestration handoff'
+intent: 'implementation'
+funnel: 'consideration'
+cluster: 'AI agent architecture'
+tags:
+  - 'AI agents'
+  - 'Architecture'
+  - 'Orchestration'
+  - 'Multi-agent systems'
+author: 'Marius Manolachi'
+nextReviewAt: '2027-02-13'
+sources:
+  - 'https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/'
+  - 'https://www.anthropic.com/engineering/building-effective-agents'
+  - 'https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ai-agents/single-agent-multiple-agents'
+  - 'https://docs.cloud.google.com/architecture/choose-design-pattern-agentic-ai-system?hl=en'
+  - 'https://www.anthropic.com/engineering/multi-agent-research-system'
+cover: '/blog/design-multi-agent-handoffs-design-multi-agent-handoffs-hero.png'
+coverAlt: 'Several AI agents connected by bounded handoffs that carry verified artifacts across context and permission boundaries'
+draft: false
+---
+
+A multi-agent diagram is easy to draw. The difficult part is deciding what one agent is allowed to learn from another, what it must return, and what happens when the handoff is incomplete.
+
+Treat every handoff as an interface contract, not as a transcript transfer. Give the receiving agent the smallest useful context, require a structured artifact, enforce authority outside the model, and make failure visible to the orchestrator. That turns a collection of prompts into a system you can test and replay.
+
+## The short answer
+
+Design a multi-agent handoff around six questions: what is the receiving agent meant to accomplish, what context may it use, what artifact must it return, what authority does it have, how is the result verified, and who owns failure? Write those answers down before connecting the agents.
+
+Do not pass the whole conversation by default. A transcript can contain stale instructions, irrelevant reasoning, secrets, and assumptions that the receiving agent cannot verify. Pass current facts, source references, constraints, and an explicit task instead. Keep permissions and stop rules in the runtime, where the model cannot silently widen them.
+
+This approach matches the broad direction of current guidance from [OpenAI](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/), [Microsoft](https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ai-agents/single-agent-multiple-agents), and [Google Cloud](https://docs.cloud.google.com/architecture/choose-design-pattern-agentic-ai-system?hl=en): orchestration can improve modularity or parallel work, but it adds state, access-control, evaluation, reliability, and cost obligations.
+
+## A handoff is a contract, not a transcript
+
+An agent is a model-controlled worker that can manage a workflow, choose tools, and recognize completion or failure. It is not merely a model call that returns text. [OpenAI makes this distinction in its agent guidance](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/).
+
+That distinction matters at a boundary. If Agent A sends Agent B a paragraph called “research notes,” B must guess which claims are current, which are opinions, and which actions remain permitted. If Agent A sends a bounded research artifact with source references, freshness, open questions, and a failure state, B can validate the input before acting.
+
+![Conceptual diagram of two AI agents exchanging a bounded artifact instead of an unstructured transcript](/blog/design-multi-agent-handoffs-handoff-artifact-contract.png)
+
+For this article, a useful handoff has six fields:
+
+| Field | The contract must state | Why it matters |
+| --- | --- | --- |
+| Purpose | The receiver's job and success condition | Prevents a specialist from improvising a wider mission. |
+| Context | The minimum facts, references, constraints, and freshness | Keeps relevant evidence while limiting accidental data transfer. |
+| Artifact | The structured output and required fields | Gives the next step something it can validate. |
+| Authority | Tools, data, identities, and forbidden actions | Stops a handoff from becoming an unreviewed privilege escalation. |
+| Verification | Checks before the result is accepted | Separates a plausible response from a usable result. |
+| Failure | Invalid, blocked, stale, incomplete, and retry states | Gives the orchestrator a safe next action instead of another guess. |
+
+This six-field handoff card is my synthesis of the orchestration trade-offs in the primary guidance. It is not an industry standard, benchmark, or report of private testing. Its value is practical: it makes the missing decisions visible.
+
+## Decide what context should cross the boundary
+
+The receiving agent needs enough information to do its job, not every token the previous agent saw. Start by sorting candidate context into four buckets:
+
+| Context type | Pass it? | Example |
+| --- | --- | --- |
+| Current task state | Yes, if the receiver needs it | The account identifier, requested operation, and current workflow stage. |
+| Evidence and provenance | Yes, as references or bounded excerpts | A document ID, retrieval time, source location, and extracted fact. |
+| Policy and constraints | Yes, when they govern the receiver | Read-only scope, allowed regions, approval requirement, or output schema. |
+| Hidden reasoning and irrelevant history | Usually no | Old failed attempts, private chain-of-thought, and unrelated conversation turns. |
+
+The principle is simple: pass decisions as inspectable artifacts, not as authority. “The researcher says this customer qualifies” is a conclusion. “The account record at time T contains these fields; rule R produced this status; source S was checked” is evidence that a verifier can inspect.
+
+Context reduction is not permission to delete important uncertainty. If a source is missing, a field is stale, or two records conflict, pass that condition explicitly. A short packet that hides uncertainty is more dangerous than a long packet that names it.
+
+Google Cloud describes this work as context engineering in multi-agent systems. Each specialized agent needs the documentation, history, links, and constraints required for its task, while the system controls how information moves between agents ([Google Cloud](https://docs.cloud.google.com/architecture/choose-design-pattern-agentic-ai-system?hl=en)).
+
+## Choose the orchestration pattern from the dependency graph
+
+Do not choose a manager, peer handoff, or parallel swarm because it is fashionable. Draw the dependency graph first. Ask whether the next worker needs the previous worker's result, whether branches share mutable state, and where a final decision belongs.
+
+| Workflow shape | Suitable pattern | Handoff design concern |
+| --- | --- | --- |
+| One worker owns the task and uses tools | Single agent with runtime controls | Keep the trace and authority in one place. |
+| Known stages depend on one another | Sequential handoffs | Version the artifact at every stage and stop on invalid output. |
+| Independent research or classification branches | Parallel workers plus synthesis | Preserve provenance and make conflicts first-class. |
+| A task repeats until a condition changes | Loop with external limits | Put budgets, progress checks, and stop rules outside the model. |
+| A proposed action needs a separate check | Review or approval boundary | Bind the check to the exact artifact and action being authorized. |
+
+OpenAI describes manager and decentralized handoff patterns. Google Cloud describes sequential, parallel, loop, and review or critique patterns. The names differ, but the design question is the same: who owns the next decision, and what evidence does that owner receive?
+
+![Conceptual architecture map showing sequential, parallel, review, and loop paths with bounded agent handoffs](/blog/design-multi-agent-handoffs-multi-agent-orchestration-patterns.png)
+
+For a sequential workflow, do not ask the receiver to reconstruct the prior step from prose. For a parallel workflow, do not merge outputs by asking a final agent to “pick the best one” without sources, conflict fields, and a defined success condition. The more autonomy the pattern has, the more explicit the contract needs to be.
+
+## Give each agent a real authority boundary
+
+Different job titles do not create a security boundary. Different identities, data zones, tools, or approval responsibilities can.
+
+Suppose a support workflow has one worker that reads a customer account and another that can submit a refund. The second worker should receive the narrow eligibility artifact it needs, not the first worker's unrestricted account context. The runtime should check the refund amount, account, approval state, and identity before calling the financial tool.
+
+Microsoft identifies security and compliance boundaries, separation of duties, multiple teams, and planned growth as reasons to use multiple agents. It also warns that every added agent creates more credentials, state transitions, and data-transit points to govern ([Microsoft](https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ai-agents/single-agent-multiple-agents)).
+
+![Conceptual diagram of separate AI agent authority zones connected by a narrow audited handoff](/blog/design-multi-agent-handoffs-agent-authority-zones.png)
+
+The model can propose an action. It should not define its own authority. Enforce these controls in code or policy infrastructure:
+
+- allowlisted tools and arguments;
+- identity and data scope for each worker;
+- maximum action value, count, or duration;
+- approval requirements for consequential changes;
+- expiry for an artifact or authorization;
+- fail-closed behavior when the policy service is unavailable.
+
+If a receiver needs a permission that the sender does not have, the handoff should carry a request for that permission, not smuggle the permission through copied context.
+
+## Make the output verifiable before it becomes input
+
+The most important part of an interface is the output schema. A handoff should return a typed artifact or a clearly delimited result with a status, provenance, and failure reason. The exact format depends on the workflow, but the contract might look like this:
+
+```yaml
+handoff:
+  purpose: "Check refund eligibility for the requested account action"
+  input:
+    account_id: "account-identifier"
+    request_id: "request-identifier"
+    policy_version: "policy-reference"
+  output:
+    status: "eligible | ineligible | needs_review | unavailable"
+    evidence: []
+    expires_at: "timestamp"
+  authority:
+    tools: ["read_account", "read_refund_policy"]
+    forbidden: ["issue_refund", "change_account"]
+  failure:
+    retryable: false
+    reason: ""
+```
+
+The values above are a template, not sample production data. Replace them with the identifiers, statuses, and tools your system actually supports.
+
+Before accepting the artifact, the orchestrator should check required fields, enum values, source freshness, authorization scope, and consistency with the current workflow state. If validation fails, route to a defined repair or review path. Do not simply send the invalid response back to the same agent with “try again” and no new evidence.
+
+![Conceptual illustration of an AI agent returning a structured artifact through validation before another agent can consume it](/blog/design-multi-agent-handoffs-handoff-validation-gate.png)
+
+This is also where one agent may be enough. If the proposed interface only repackages a shared conversation and adds no independent authority, context, or execution benefit, the extra boundary may be ceremony. Anthropic's guidance recommends starting with the simplest design and adding complexity when it demonstrably improves the result ([Anthropic](https://www.anthropic.com/engineering/building-effective-agents)).
+
+## Design for conflict, staleness, and missing work
+
+Normal cases are the easy part. A handoff becomes operationally useful when it says what happens next after a failure.
+
+At minimum, distinguish these states:
+
+| State | Meaning | Safe next action |
+| --- | --- | --- |
+| Invalid | The artifact violates the contract | Reject it and record the field-level error. |
+| Incomplete | Required evidence or work is missing | Request the missing work or escalate. |
+| Stale | The evidence or authorization has expired | Re-read the source or obtain fresh approval. |
+| Conflicting | Two workers return incompatible claims | Preserve both sources and route to a resolver or human. |
+| Blocked | Policy or dependency prevents progress | Stop, explain the blocker, and notify the owner. |
+| Retryable | A transient dependency failed | Retry within an external budget, then fail visibly. |
+
+Do not treat every failed handoff as a model problem. A timeout, revoked credential, changed record, and ambiguous instruction need different responses. Microsoft notes that multi-agent coordination adds state-management and latency concerns; explicit failure states keep that complexity inspectable rather than burying it in another prompt ([Microsoft](https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ai-agents/single-agent-multiple-agents)).
+
+Parallel work deserves extra care. Anthropic reports that its multi-agent research system performed well on breadth-first questions with independent directions, but also used substantially more tokens and was a poor fit for highly dependent work. That is a vendor-reported result for its system, not a transferable benchmark ([Anthropic](https://www.anthropic.com/engineering/multi-agent-research-system)). If branches disagree, the synthesis step must retain the competing evidence and explain the resolution rule.
+
+## Use this handoff worksheet before implementation
+
+Fill this out for one real workflow. Compare the proposed boundary with the simplest design that could meet the same requirement.
+
+| Field | Proposed handoff | What to verify |
+| --- | --- | --- |
+| Purpose and success condition |  | Can a reviewer tell when the receiver is done? |
+| Context allowed across the boundary |  | Is every field necessary, current, and attributable? |
+| Artifact schema |  | Can code validate it without interpreting a paragraph? |
+| Authority and forbidden actions |  | Are tools and identities enforced outside the model? |
+| Verification step |  | What blocks an unverified result from becoming input? |
+| Failure and retry owner |  | Who acts on invalid, stale, conflicting, or blocked work? |
+| Shared state and replay key |  | Can the handoff be reconstructed after a restart? |
+| Conflict rule |  | What happens when workers disagree? |
+| Latency and cost budget |  | What pays for the additional context and model calls? |
+| Reversion condition |  | When do you collapse the boundary or stop the workflow? |
+
+![Conceptual comparison worksheet for a multi-agent handoff, showing context, artifact, authority, verification, and failure checks](/blog/design-multi-agent-handoffs-handoff-comparison-worksheet.png)
+
+Run the comparison in a controlled order:
+
+1. Freeze the task cases, model configuration, tools, permissions, retrieval settings, and code revision.
+2. Define pass and fail before inspecting results. Include outcome quality, forbidden actions, required approvals, and operating limits.
+3. Exercise normal work, missing information, conflicting information, tool failures, stale records, and out-of-scope requests.
+4. Record the input packet, output artifact, policy decisions, environment state, and final effect. The final message alone is not enough.
+5. Compare context retention, safety, latency, cost, repeatability, debugging effort, and human review burden.
+6. Keep the boundary only if it clears the requirement better than the simpler design. If neither design clears it, repair the requirement, tool, data, or policy instead of adding another worker.
+
+This is an implementation recommendation, not a claim that I ran the tests for you. For pre-release evaluation, use [the AI agent release gate](/blog/how-to-evaluate-an-ai-agent). For runtime traces, alerts, and recovery signals, use [the AI agent monitoring guide](/blog/how-to-monitor-an-ai-agent-in-production).
+
+## Three handoff examples
+
+### Customer support and account actions
+
+The support worker can read the conversation and account state, then return a proposed action with evidence. A separate action worker should receive only the request ID, eligibility result, amount, expiry, and approval state it needs. Its tool layer should reject a different account or amount, even if the model asks for one.
+
+### Open-ended research and synthesis
+
+Independent researchers can each receive a scoped question and source policy. Their artifacts should include citations, retrieval time, unresolved conflicts, and confidence limits. The synthesizer should receive those artifacts, not anonymous paragraphs, and should preserve disagreement when the evidence does not resolve it.
+
+### Planner, implementer, and reviewer labels
+
+Role names alone do not justify three agents. Start with a clear repository boundary, tool policy, and test suite. Split only when the reviewer needs a genuinely different authority or context, or when independent work has a measured benefit. A reviewer that inherits the implementer's assumptions and permissions is a second opinion, not an effective control boundary.
+
+![Decision path showing a workflow moving through a handoff contract, validation, conflict handling, and a controlled next action](/blog/design-multi-agent-handoffs-handoff-controlled-next-action.png)
+
+## The design rule
+
+A good multi-agent handoff carries a purpose, minimum necessary context, verifiable artifact, bounded authority, explicit checks, and an owned failure state. If it carries only a transcript and a new role prompt, it is not an interface yet.
+
+Write one handoff card for the highest-risk boundary first. Test it with missing, stale, conflicting, and out-of-scope inputs. Then decide whether the extra worker has earned its coordination cost.
+
+![Conceptual overview of the layers that make a multi-agent handoff reliable](/blog/design-multi-agent-handoffs-multi-agent-boundary-overview.png)
+
+If a team has a concrete workflow but cannot agree on its boundaries, an architecture review or evaluation workshop is a sensible next step. It should inspect the workflow, representative cases, data access, tools, and failure policy. It should not replace the definition of the business outcome or specialist legal and security advice. You can also start with [Marius Manolachi's AI consulting work](/learn-ai) if you need help framing that review.
