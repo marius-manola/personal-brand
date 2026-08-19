@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Providers } from "./providers";
 import { Analytics } from "@vercel/analytics/next"
+import SiteAnalytics from '@/app/components/SiteAnalytics';
 import localFont from 'next/font/local';
 
 const onest = localFont({
@@ -107,6 +108,7 @@ export default function RootLayout({
       </head>
       <body className={`${onest.variable} font-sans`}>
         <Providers>{children}</Providers>
+        <SiteAnalytics />
         <Analytics/>
       </body>
     </html>

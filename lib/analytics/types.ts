@@ -8,6 +8,9 @@ export type AnalyticsEvent = {
   ms: number;
   ref: string;
   sid: string;
+  country: string;
+  device: string;
+  os: string;
 };
 
 export type CitationRecord = {
@@ -44,6 +47,19 @@ export type ReferrerPoint = {
   ai: boolean;
 };
 
+export type CountryPoint = {
+  code: string;
+  name: string;
+  views: number;
+  lat?: number;
+  lon?: number;
+};
+
+export type DevicePoint = {
+  key: string;
+  views: number;
+};
+
 export type AnalyticsSnapshot = {
   generatedAt: string;
   rangeDays: number;
@@ -58,5 +74,8 @@ export type AnalyticsSnapshot = {
   series: DayPoint[];
   posts: PostPoint[];
   referrers: ReferrerPoint[];
+  countries: CountryPoint[];
+  devices: DevicePoint[];
+  os: DevicePoint[];
   citations: CitationRecord[];
 };

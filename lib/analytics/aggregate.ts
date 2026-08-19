@@ -1,7 +1,27 @@
 import { getAllBlogPosts } from '@/lib/server/blog.server';
 import { isAiReferrer, referrerHost } from './ai-referrers';
+import { CENTROIDS } from './centroids';
 import { analyticsSources, readCitations, readEvents } from './store';
-import type { AnalyticsSnapshot, DayPoint, PostPoint, ReferrerPoint } from './types';
+import type { AnalyticsSnapshot, CountryPoint, DayPoint, DevicePoint, PostPoint, ReferrerPoint } from './types';
+
+const PAGE_TITLES: Record<string, string> = {
+  home: 'Home',
+  about: 'About',
+  'learn-ai': 'Consulting',
+  essays: 'Essays',
+  books: 'Books',
+  projects: 'Projects',
+  stats: 'Stats',
+  blog: 'Blog index',
+};
+
+function countryName(code: string) {
+  try {
+    return new Intl.DisplayNames(['en'], { type: 'region' }).of(code) || code;
+  } catch {
+    return code;
+  }
+}
 
 function berlinDay(iso: string) {
   return new Intl.DateTimeFormat('en-CA', {
@@ -36,6 +56,9 @@ export async function buildSnapshot(rangeDays = 30): Promise<AnalyticsSnapshot> 
 
   const postMap = new Map<string, { views: number; visitors: Set<string>; engagedMs: number; ai: number }>();
   const referrerMap = new Map<string, { views: number; ai: boolean }>();
+  const countryMap = new Map<string, number>();
+  const deviceMap = new Map<string, number>();
+  const osMap = new Map<string, number>();
   const allVisitors = new Set<string>();
 
   for (const event of events) {
@@ -59,6 +82,9 @@ export async function buildSnapshot(rangeDays = 30): Promise<AnalyticsSnapshot> 
       const referrer = referrerMap.get(host) || { views: 0, ai: isAiReferrer(event.ref) };
       referrer.views += 1;
       referrerMap.set(host, referrer);
+      if (event.country) countryMap.set(event.country, (countryMap.get(event.country) || 0) + 1);
+      if (event.device) deviceMap.set(event.device, (deviceMap.get(event.device) || 0) + 1);
+      if (event.os) osMap.set(event.os, (osMap.get(event.os) || 0) + 1);
     } else {
       const ms = Math.max(0, Math.min(event.ms || 0, 120_000));
       point.engagedMs += ms;
@@ -78,7 +104,7 @@ export async function buildSnapshot(rangeDays = 30): Promise<AnalyticsSnapshot> 
   const postPoints: PostPoint[] = [...postMap.entries()]
     .map(([slug, value]) => ({
       slug,
-      title: titles.get(slug) || slug,
+      title: titles.get(slug) || PAGE_TITLES[slug] || slug,
       views: value.views,
       visitors: value.visitors.size,
       engagedMs: value.engagedMs,
@@ -91,6 +117,22 @@ export async function buildSnapshot(rangeDays = 30): Promise<AnalyticsSnapshot> 
     .map(([host, value]) => ({ host, views: value.views, ai: value.ai }))
     .sort((left, right) => right.views - left.views)
     .slice(0, 12);
+
+  const ranked = (map: Map<string, number>): DevicePoint[] =>
+    [...map.entries()].map(([key, views]) => ({ key, views })).sort((a, b) => b.views - a.views);
+
+  const countries: CountryPoint[] = [...countryMap.entries()]
+    .map(([code, views]) => {
+      const pair = CENTROIDS[code];
+      return {
+        code,
+        name: countryName(code),
+        views,
+        lat: pair?.[0],
+        lon: pair?.[1],
+      };
+    })
+    .sort((left, right) => right.views - left.views);
 
   return {
     generatedAt: new Date().toISOString(),
@@ -106,6 +148,9 @@ export async function buildSnapshot(rangeDays = 30): Promise<AnalyticsSnapshot> 
     series,
     posts: postPoints,
     referrers,
+    countries,
+    devices: ranked(deviceMap),
+    os: ranked(osMap),
     citations,
   };
 }

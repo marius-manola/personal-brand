@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { recordEvent } from '@/lib/analytics/store';
+import { countryFromRequest, parseUserAgent } from '@/lib/analytics/ua';
 import type { AnalyticsEventType } from '@/lib/analytics/types';
 
 export const runtime = 'nodejs';
@@ -46,10 +47,11 @@ export async function POST(request: Request) {
   const type = TYPES.has(body.type as AnalyticsEventType) ? body.type as AnalyticsEventType : null;
   const slug = String(body.slug || '').slice(0, 80);
   const path = String(body.path || '').slice(0, 180);
-  if (!type || !SLUG.test(slug) || !path.startsWith('/blog/')) {
+  if (!type || !SLUG.test(slug) || !path.startsWith('/') || path.startsWith('/api') || path.startsWith('/content-studio')) {
     return NextResponse.json({ error: 'invalid' }, { status: 400 });
   }
 
+  const { device, os } = parseUserAgent(request.headers.get('user-agent') || '');
   await recordEvent({
     t: new Date().toISOString(),
     type,
@@ -58,6 +60,9 @@ export async function POST(request: Request) {
     ms: Math.max(0, Math.min(Number(body.ms) || 0, 120_000)),
     ref: String(body.ref || '').slice(0, 300),
     sid: String(body.sid || '').slice(0, 80),
+    country: countryFromRequest(request),
+    device,
+    os,
   });
 
   return new NextResponse(null, { status: 204 });

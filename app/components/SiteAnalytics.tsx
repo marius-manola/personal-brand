@@ -1,11 +1,8 @@
 'use client';
 
 import { useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import { track } from '@vercel/analytics';
-
-type Props = {
-  slug: string;
-};
 
 function sessionId() {
   const key = 'mm_sid';
@@ -18,6 +15,12 @@ function sessionId() {
   } catch {
     return `anon-${Date.now()}`;
   }
+}
+
+function pageSlug(pathname: string) {
+  if (pathname === '/') return 'home';
+  if (pathname.startsWith('/blog/')) return pathname.split('/')[2] || 'blog';
+  return pathname.replace(/^\//, '').replace(/\//g, '-').slice(0, 80) || 'home';
 }
 
 function send(payload: Record<string, unknown>) {
@@ -34,17 +37,21 @@ function send(payload: Record<string, unknown>) {
   });
 }
 
-export default function BlogAnalytics({ slug }: Props) {
+export default function SiteAnalytics() {
+  const pathname = usePathname() || '/';
+
   useEffect(() => {
+    if (pathname.startsWith('/content-studio') || pathname.startsWith('/api')) return;
+    const slug = pageSlug(pathname);
     const sid = sessionId();
-    const path = window.location.pathname;
+    const path = pathname;
     const ref = document.referrer || '';
     let last = Date.now();
     let visible = document.visibilityState === 'visible';
     let left = false;
 
     send({ type: 'view', slug, path, ms: 0, ref, sid });
-    track('article_view', { slug });
+    track('page_view', { slug });
 
     const flush = (type: 'tick' | 'leave') => {
       if (type === 'leave' && left) return;
@@ -77,7 +84,7 @@ export default function BlogAnalytics({ slug }: Props) {
       document.removeEventListener('visibilitychange', onVisibility);
       flush('leave');
     };
-  }, [slug]);
+  }, [pathname]);
 
   return null;
 }
