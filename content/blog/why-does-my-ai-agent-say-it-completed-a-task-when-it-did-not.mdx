@@ -1,0 +1,746 @@
+---
+title: 'Why Does My AI Agent Say It Completed a Task When It Did Not?'
+date: '2026-08-19'
+updated: '2026-08-19'
+excerpt: 'An AI agent can finish its conversation without proving your task happened. Learn to separate a final message from a verified result and add a completion contract.'
+answer: 'Your agent can say “done” because the model’s final response is only the end of its reasoning and tool-calling loop. If the tool result means “accepted,” “no error,” or “I think this worked,” and no independent read verifies the requested state, the model can report completion even when the task is pending, partial, or unchanged.'
+targetQuery: 'why does my ai agent say it completed a task when it did not'
+queryAliases:
+  - 'ai agent says task completed when it failed'
+  - 'ai agent reports success when task is incomplete'
+  - 'ai agent false completion'
+  - 'why does my ai agent say done when nothing happened'
+intent: 'diagnostic informational'
+funnel: 'awareness'
+cluster: 'AI agent problems'
+tags:
+  - AI agents
+  - Reliability
+  - Tool calling
+  - Automation
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-16'
+sources:
+  - 'https://developers.openai.com/api/docs/guides/function-calling'
+  - 'https://openai.github.io/openai-agents-python/running_agents/'
+  - 'https://openai.github.io/openai-agents-python/guardrails/'
+  - 'https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls'
+  - 'https://modelcontextprotocol.io/specification/2025-11-25/server/tools'
+faq:
+  - q: 'Is a final agent response proof that a task completed?'
+    a: 'No. It proves that the model stopped generating, but an authoritative read must confirm the requested external state.'
+  - q: 'What should an agent report when an API accepts a request?'
+    a: 'It should report that the request was accepted or queued, preserve the operation ID, and avoid claiming the final result.'
+  - q: 'Why is an independent readback stronger than a success flag?'
+    a: 'A readback checks the requested postcondition in the source of truth instead of trusting the write path to describe itself.'
+  - q: 'What should an agent say when verification times out?'
+    a: 'It should report that verification is unavailable, preserve the operation reference, and avoid claiming success or failure without evidence.'
+cover: '/blog/why-does-my-ai-agent-say-it-completed-a-task-when-it-did-not-false-completion-boundary-hero.webp'
+coverAlt: 'An AI agent completion message separated from the verified state of a changed record by a proof boundary'
+draft: false
+---
+
+The most unsettling agent failure is not a wrong answer. It is a confident “done” followed by an empty inbox, unchanged record, missing file, or message that never left the system.
+
+That does not necessarily mean the agent lied. Usually, your system has allowed several different events to share one word: completed. The model finished generating a response. A tool was called. An API accepted a request. A worker queued an operation. The requested result became true. Those are different events.
+
+## Why does my AI agent say it completed a task when it did not?
+
+Because the agent’s final message is often based on the tool result and conversation state it can see, not on an independently verified read of the real-world state. In a normal tool-calling flow, the model proposes a call, your application executes it, your application sends the result back, and the model produces a final response or another call. [OpenAI describes this as a multi-step application-and-model loop](https://developers.openai.com/api/docs/guides/function-calling). If your runtime returns “success” for an accepted, partial, or ambiguous result, the model has a plausible reason to write “completed.”
+
+The durable fix is to define the postcondition outside the model, verify it against the authoritative system, and let that verified status control the final message. A prompt can encourage honesty. It cannot turn a model-generated sentence into evidence.
+
+**A final agent message proves that the conversation stopped, not that the requested side effect occurred.**
+
+![A completion message separated from the external state it is supposed to describe](/blog/why-does-my-ai-agent-say-it-completed-a-task-when-it-did-not-completion-state-separation.webp)
+
+## What can “completed” mean in an AI agent?
+
+Start by asking what your system actually means when it sets `completed: true`. A useful incident diagnosis separates these states:
+
+| State | What happened | What it proves | What it does not prove |
+| --- | --- | --- | --- |
+| `final_output` | The model produced a response with no more tool calls | The conversation reached a stopping point | The requested side effect happened |
+| `tool_returned` | A tool returned a result without a transport or protocol failure | The application received a response | The business operation succeeded |
+| `accepted` | A remote API accepted or queued the request | The request entered another system | The final state is already visible |
+| `verified` | A fresh read confirms the requested postcondition | The defined outcome is true at verification time | That it will remain true forever |
+
+This is not just wording. Agent runners use a stopping rule. For example, the OpenAI Agents SDK describes a final output as text of the desired type with no tool calls; it also exposes `final_output` as the result surface for the last agent. [That is a run-completion condition](https://openai.github.io/openai-agents-python/running_agents/), not a universal definition of your business task.
+
+Your agent may have reached `final_output` while your order is still queued, your CRM write was rejected by a business rule, or your file was written to a different path. The user experiences those as “the agent said it happened, but it did not.” The runtime should experience them as different statuses.
+
+**An accepted request is evidence of queue entry, not evidence that the final state is already true.**
+
+## What usually causes false completion?
+
+### The task has no observable postcondition
+
+“Update the customer,” “send the report,” and “clean up the repository” describe intentions. They do not specify what a verifier should inspect.
+
+Before delegating a task, write the result as a fact:
+
+```text
+Task: mark ticket T-104 as resolved.
+Postcondition: the system of record returns status=resolved for ticket T-104,
+with updated_at after this run's start time and the operation_id attached.
+```
+
+If you cannot write the postcondition, the agent has to decide what “good enough” means while it is also trying to perform the work. That is a design gap, not merely a prompt gap.
+
+### The tool reports transport success as business success
+
+A function that returns `{ "ok": true }` may mean only that the function returned normally. It may hide a rejected validation, a no-op, an asynchronous job, or a response that was never checked.
+
+OpenAI’s function-calling guide says the application generates the tool-call output and sends it back to the model; the output can be structured JSON or plain text. [The application therefore controls the evidence the model receives](https://developers.openai.com/api/docs/guides/function-calling). If the adapter turns every normal return into “success,” the model cannot recover the distinction later.
+
+> "The tool call output can either be structured JSON or plain text, and it should contain a reference to a specific model tool call." [OpenAI’s function calling guide](https://developers.openai.com/api/docs/guides/function-calling)
+
+The same problem appears in tool protocols. MCP defines `isError` for tool execution errors and supports structured content plus an optional output schema. It also recommends that clients validate tool results, implement timeouts, and log tool usage. [Those mechanisms make failure visible; they do not create a postcondition automatically](https://modelcontextprotocol.io/specification/2025-11-25/server/tools).
+
+### “Accepted” is being used as “finished”
+
+Email providers, job queues, document processors, and external APIs often separate request acceptance from final work. The tool may have done exactly what it promised: enqueue an operation. The agent then compresses “the request was accepted” into “your task is complete.”
+
+Make that state explicit. Return a durable operation ID and tell the next step what to do:
+
+```json
+{
+  "status": "pending",
+  "operation_id": "op_7f2c",
+  "target": "ticket:T-104",
+  "next_allowed_action": "poll_ticket_status",
+  "safe_to_repeat": false
+}
+```
+
+The model can explain `pending`. It should not be allowed to translate it into `verified` just because the user prefers a shorter answer.
+
+**Only an authoritative read of the requested postcondition can create a verified completion status.**
+
+![A structured tool-result contract carrying status, target, evidence, and next action](/blog/why-does-my-ai-agent-say-it-completed-a-task-when-it-did-not-tool-result-evidence-contract.webp)
+
+### The model is asked to certify its own work
+
+A final answer such as “I updated the record successfully” is a claim generated by the same context that planned the action and interpreted the result. It can be useful communication, but it is not an independent witness.
+
+This is why “Did you actually do it?” is a weak repair. The model will inspect the same transcript and may produce a more careful version of the same inference. Give the verifier a different authority: a database read, filesystem check, API retrieval, test runner, queue status, or human decision. The verifier does not need to be another language model. In many cases, a small deterministic read is the stronger control.
+
+### Errors are swallowed or returned as prose
+
+If a tool catches an exception and returns “The operation may not have completed,” the agent has to interpret a paragraph. If the adapter returns an explicit `failed`, `pending`, or `unknown` status with an error code, it has a safer state to carry forward.
+
+Anthropic’s tool-use documentation requires the client to run the actual tool and return a matching tool result; it also documents an `is_error` field for execution errors. It notes that a server-tool call without its result is not finished yet. [A missing result and an error result should not be silently rewritten as success](https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls).
+
+## How can you use PROOF on one failed run?
+
+Do not start by rewriting the system prompt. Take one trace where the final claim was wrong and walk through these five gates.
+
+### P: Pin the postcondition
+
+Write the smallest externally observable fact that must be true. Include the target identity, expected value, and a freshness condition when stale reads are possible.
+
+Bad: “send the invoice.”
+
+Better: “the billing provider returns invoice `inv_123` with state `sent`, recipient `billing@example.com`, and a provider timestamp after this run began.”
+
+If the desired result is a draft, say draft. If a human must approve it, approval is part of the postcondition. Do not make “message generated” equal “message sent.”
+
+### R: Record execution facts
+
+Save the facts needed to reconstruct the decision:
+
+- the run and turn IDs;
+- the exact model-facing tool set;
+- selected tool and arguments after validation;
+- permission or policy result;
+- raw tool status, error code, and operation ID;
+- timestamps and retry count.
+
+Do not rely on the final prose to reconstruct these facts. The final answer is a view. The trace is the record. If the trace shows that the agent selected an unsuitable action rather than falsely reported one, use the separate [wrong-tool diagnosis](/blog/why-does-my-ai-agent-choose-the-wrong-tool) instead of changing the completion contract.
+
+### O: Observe the source of truth
+
+After a state-changing call, perform a read that answers the postcondition directly. Compare the returned target, state, version, or content hash with what the user asked for.
+
+This check belongs in application code or a trusted workflow step. A model can decide which verifier to ask for, but the executor should own the rule that turns the verifier’s result into `verified`.
+
+### O: Open unresolved states
+
+Do not force every run into success or failure. At minimum, distinguish:
+
+```text
+verified        postcondition observed
+pending         accepted but not yet observable
+failed          operation or verification returned a known failure
+partial         some required conditions passed, others did not
+no_op            operation ran but the requested state did not change
+unknown         verification was unavailable or inconclusive
+```
+
+`unknown` is an honest operational result. It is also useful: it tells the next person to investigate the boundary instead of trusting a polished sentence.
+
+### F: Form the final message from verified state
+
+The agent may explain the result, but it should not invent the result. Pass the verified status back into the final response or have the runtime select a response template.
+
+For a consequential workflow, make this a hard boundary: no `verified` status, no “completed successfully” message. If the verifier is down, report that verification is unavailable and preserve the operation ID for recovery.
+
+![The five PROOF gates turning a model claim into a verified completion status](/blog/why-does-my-ai-agent-say-it-completed-a-task-when-it-did-not-proof-framework-flow.webp)
+
+## Add a completion contract to the executor
+
+Here is a provider-neutral TypeScript sketch. It is an implementation artifact, not a drop-in SDK call. The important design choice is that `verified` is created by `verify`, never by the model’s final text.
+
+```ts
+type CompletionStatus =
+  | 'verified'
+  | 'pending'
+  | 'failed'
+  | 'partial'
+  | 'no_op'
+  | 'unknown';
+
+type Completion<T> = {
+  status: CompletionStatus;
+  operationId?: string;
+  observedAt?: string;
+  evidence?: T;
+  errorCode?: string;
+};
+
+async function executeAndVerify<T>(
+  task: { operationId: string },
+  execute: () => Promise<Completion<unknown>>,
+  verify: () => Promise<Completion<T>>,
+): Promise<Completion<T>> {
+  const execution = await execute();
+
+  if (execution.status === 'failed') return execution as Completion<T>;
+  if (execution.status === 'pending') return execution as Completion<T>;
+
+  const observation = await verify();
+  return {
+    ...observation,
+    operationId: task.operationId,
+  };
+}
+```
+
+In production, add timeouts, authentication, retries, idempotency, and an explicit policy for a verifier that cannot run. The sample deliberately does not retry automatically because retry safety depends on the operation. A repeated payment, email, or record mutation may be worse than a visible `unknown` result.
+
+Your tool contract should also tell the model what each state means. For example:
+
+```yaml
+status: verified | pending | failed | partial | no_op | unknown
+operation_id: durable identifier for this attempt
+target: stable identifier of the object or job
+postcondition: machine-readable condition checked by the verifier
+observed_at: timestamp of the authoritative read
+next_allowed_action: poll | repair | ask_user | none
+safe_to_repeat: true | false | unknown
+```
+
+This is not a universal schema. It is a forcing function for the questions your adapter must answer: what happened, what was observed, what remains possible, and whether repeating the action is safe.
+
+## How do you test the completion boundary?
+
+Test the claim-to-state boundary, not only the final wording. Keep the following matrix as a regression fixture for every important action. It is a test design, not a claimed pass rate.
+
+| Case | Injected condition | Expected runtime status | Allowed user message |
+| --- | --- | --- | --- |
+| No tool call | The model writes “done” without invoking the action | `unknown` or `failed` | Explain that no execution evidence exists |
+| Validation failure | The tool rejects an argument | `failed` | Name the validation problem and next input needed |
+| Queue acceptance | The API returns an operation ID but work is asynchronous | `pending` | Say it was accepted or queued, not completed |
+| Readback mismatch | The write returns normally but the fresh read has the old state | `failed` or `partial` | Say the requested state was not verified |
+| No-op | The target was already in a different allowed state or did not change | `no_op` | Explain what was found and ask whether to continue |
+| Verifier timeout | The action may have run but the source of truth cannot be reached | `unknown` | Say verification is unavailable; preserve the operation ID |
+| Verified change | The authoritative read matches the postcondition | `verified` | Report completion with the target and evidence reference |
+
+Assert at least four things in each case:
+
+1. the tool call and normalized arguments;
+2. the executor’s status, independent of the model’s wording;
+3. the external effect or readback;
+4. the exact final message permitted for that status.
+
+This catches a common integration bug: the runtime correctly records `pending`, but a presentation layer maps every non-error result to a green “completed” badge. Your test should cover that layer too.
+
+**A completion test must check the runtime status and the allowed final message, not only whether the model sounds confident.**
+
+For a broader release gate after this incident is repaired, use [the AI agent evaluation guide](/blog/how-to-evaluate-an-ai-agent). This article’s matrix is narrower: it tests whether a completion claim is earned by evidence.
+
+![A completion test matrix separating tool execution, verification, and the allowed final message](/blog/why-does-my-ai-agent-say-it-completed-a-task-when-it-did-not-completion-test-matrix.webp)
+
+## How does a worked email example expose false completion?
+
+Email is a useful example because people naturally understand the difference between drafting a message, handing it to a mail provider, and seeing evidence that it was sent. An agent can blur those steps when the tool has a friendly name such as `send_email` but returns only a generic acknowledgement.
+
+Suppose the user asks, “Send the revised proposal to Ana and copy the project lead.” The agent calls a mail adapter. The adapter validates the addresses, accepts the payload, and returns this result:
+
+```json
+{
+  "ok": true,
+  "message_id": null,
+  "provider_request_id": "req_4812",
+  "delivery_status": "queued"
+}
+```
+
+That result is useful, but it does not satisfy the user’s natural interpretation of “send.” The request entered a queue. The provider may still reject the message, delay it, or discover that the sender is not authorised. A safe runtime should translate this into `pending`, preserve `req_4812`, and tell the agent what it is allowed to say.
+
+The postcondition needs to match the actual promise. There are at least three reasonable versions:
+
+| User promise | Postcondition | Proof source | Honest status after queue response |
+| --- | --- | --- | --- |
+| Create a draft | A draft exists with the requested recipients and body | Mailbox draft read | `verified` after the draft is read back |
+| Submit a message | Provider returns a durable submission ID for the exact payload | Provider message or submission record | `verified` for submission, not delivery |
+| Deliver a message | Provider reports delivery to the intended mailbox | Delivery event or provider status | `pending` until delivery is observed |
+
+Notice that none of these definitions is “the tool returned without throwing.” The right definition depends on the promise your product makes. If the interface says “I sent it,” a queue identifier may be too weak. If the interface says “I submitted it for delivery,” queue acceptance may be enough, but the message must use that narrower language.
+
+Now consider the bad path. The adapter returns `{ ok: true }`. The model sees no explicit warning and writes, “Done, I sent the proposal to Ana.” The model did not independently inspect a mailbox or delivery event. It simply converted a normal function return into a completed-sounding sentence. The defect lives at the boundary between adapter semantics and presentation semantics.
+
+The repair has two parts. First, return a status with a named meaning. Second, bind each status to an allowed response. For example:
+
+```json
+{
+  "status": "pending",
+  "operation_id": "req_4812",
+  "target": "email:proposal-2026-08-18",
+  "postcondition": "provider accepted the message for processing",
+  "observed_at": "2026-08-18T10:42:18Z",
+  "next_allowed_action": "poll_delivery_status",
+  "safe_to_repeat": false
+}
+```
+
+The response template can then say: “The proposal was accepted by the mail provider and is still being processed. Request ID `req_4812` is available for follow-up. Delivery has not been verified.” That sentence may feel less satisfying than “done,” but it tells the truth and gives the operator a recovery handle.
+
+There is another edge case: the provider returns a message ID, but the message body is truncated or a recipient is missing. This is why verification should compare the important parts of the outcome, not merely the existence of an ID. A useful readback checks the target recipients, sender, subject hash, attachment names, and provider state. You do not need to compare every transport field. You do need to compare the fields that make the user’s request specific.
+
+**For an email action, a provider request ID proves submission evidence only when the provider contract says that it does.**
+
+The same pattern applies to calendar invitations, support replies, payment requests, and outbound notifications. Name the exact promise, record the operation, and verify the state that a human would use to decide whether to continue.
+
+## How do you write a postcondition that can actually be verified?
+
+A good postcondition is concrete enough for a small program to answer with yes, no, or not yet. It identifies the object, the expected state, and any boundary that prevents an old or unrelated result from looking fresh.
+
+Use this five-part form:
+
+```text
+After this run, [authoritative system] must show [target identifier]
+with [expected state or content], subject to [freshness, ownership, or version rule].
+The verifier must return [evidence fields] or an explicit unresolved status.
+```
+
+For a customer record, that might become:
+
+```text
+After this run, the CRM must show account ACC-204 with lifecycle_stage=customer,
+updated_by=agent-run-7f2c, and a version greater than the version observed at start.
+The verifier returns the account ID, lifecycle stage, version, and updated_at timestamp.
+```
+
+For a file operation:
+
+```text
+After this run, /reports/weekly/summary.pdf exists, has the expected SHA-256 hash,
+is owned by the service account, and has a modification time after the run started.
+The verifier returns the path, hash, byte size, and modification time.
+```
+
+For a ticket transition:
+
+```text
+After this run, ticket T-104 has state=resolved, resolution_code=duplicate,
+and an audit event referencing this operation ID. The verifier reads the ticket
+and its audit events from the support system.
+```
+
+Each example answers questions that vague verbs leave open. Which customer? Which file? Which ticket? What does “updated” mean? How do we know the returned object is from this run rather than a stale cache? What evidence is enough to support the final message?
+
+Avoid making the postcondition larger than the user’s promise. If the request is to create a draft, do not require publication. If the request is to change a ticket label, do not quietly add a requirement to notify the customer. Extra checks can make a verifier fail for a reason unrelated to the requested action, which pushes the system toward unsafe overrides.
+
+Freshness deserves special care. A readback of `status=resolved` is weak if the ticket was already resolved yesterday and the write call failed today. Add one of these constraints when the action must be attributable to the current run:
+
+- require a version greater than the starting version;
+- require an audit event containing the operation ID;
+- require `updated_at` after the run start, with a clock tolerance documented;
+- compare a content hash or selected field values before and after the call;
+- use a provider idempotency key that appears in the resulting record.
+
+No single freshness rule works everywhere. Timestamps can be coarse or generated by different clocks. Versions can change for unrelated edits. Audit events can be delayed. Choose the strongest signal the authoritative system exposes, then document its limit.
+
+Ownership is another frequent blind spot. A verifier can find a record with the expected value and still inspect the wrong tenant, environment, project, or user. Include the scope in the postcondition and in the read query. A lookup that says “find the first ticket with state resolved” is not evidence for a request about ticket T-104.
+
+The final design question is what happens when the postcondition is not boolean. Some tasks are intentionally partial. A research agent may save seven of ten requested sources. A migration may update 98 of 100 records before a permission error. Represent the required units and the observed units separately:
+
+```json
+{
+  "status": "partial",
+  "target": "migration:contacts-2026-08",
+  "required": {"records": 100},
+  "observed": {"records_updated": 98, "records_failed": 2},
+  "failed_targets": ["C-18", "C-77"],
+  "next_allowed_action": "repair_failed_targets"
+}
+```
+
+That result can support a precise user message. “Ninety-eight records were updated. Two failed because their region fields were invalid. Nothing was reported as fully complete.” The user can decide whether to repair the two failures or accept the partial result.
+
+## What changes when the action is asynchronous?
+
+Asynchronous work creates a second boundary: the call that starts the work and the observation that proves the work finished. Queues, background workers, document processors, indexing systems, and payment providers all make this distinction visible.
+
+Treat the operation as a small state machine rather than a single function call:
+
+```text
+requested -> accepted -> running -> succeeded
+                         |          |
+                         v          v
+                       failed     partial
+
+accepted or running -> timed_out -> unknown
+```
+
+The exact states can differ, but the rule is stable: acceptance should not jump directly to the terminal state. OpenAI’s tool-calling flow leaves the application responsible for executing the requested function and returning the tool output to the model. Anthropic likewise describes a client running the actual tool and returning a matching result, while a missing result for a server tool is not finished yet. Those protocols describe message exchange. Your workflow still needs a domain-level state for the work that happens after the exchange.
+
+Use a durable operation record with at least these fields:
+
+| Field | Why it matters | Example |
+| --- | --- | --- |
+| `operation_id` | Lets a poller and an operator find the same work | `op_7f2c` |
+| `target` | Prevents a status from being attached to the wrong object | `document:doc-81` |
+| `requested_at` | Anchors freshness and timeout policy | `2026-08-18T10:00:00Z` |
+| `attempt` | Makes retries and duplicate deliveries visible | `2` |
+| `status` | Separates progress from outcome | `running` |
+| `last_observed_at` | Shows whether the read is stale | `2026-08-18T10:02:14Z` |
+| `next_action` | Tells the runtime how to continue safely | `poll` |
+| `safe_to_repeat` | Prevents a blind duplicate mutation | `false` |
+
+The polling rule should be explicit. For example, poll a document processor for up to two minutes, then return `unknown` with the operation ID. Do not let a timeout handler rewrite the state to `failed` unless the provider confirms failure. A timeout means the verifier did not obtain proof in time. It does not tell you whether the external operation finished after the timeout.
+
+Backoff is part of correctness, not only efficiency. Polling too quickly can exhaust a provider limit, while polling forever can leave a conversation hanging. Set a maximum duration, a maximum number of reads, and a clear handoff. If a human can resume the operation later, preserve the exact identifier and the last known status.
+
+There is also a user-interface question. A progress badge that says “completed” because the agent turn ended is misleading even if the backend stores `running`. Render the domain status from the operation record. If the record is `accepted`, the interface should say “Queued” or “Accepted,” not infer a green completion state from the absence of an error.
+
+When the provider has no status endpoint, you may need a separate observation signal. That could be a webhook, an audit log, a read of the target object, or an output file. If no authoritative observation exists, say so in the design review. A product cannot honestly promise verified completion for a side effect it has no way to observe.
+
+**An asynchronous operation needs both a durable operation record and a terminal-state verifier.**
+
+## How should retries, idempotency, and no-ops affect the answer?
+
+Retries are where an honest completion contract can become dangerous if it is too eager. A verifier timeout may tempt the runtime to execute the write again. That is safe for some idempotent updates and unsafe for others. Repeating a payment, sending a second email, creating a duplicate ticket, or appending the same database row can produce a second side effect.
+
+Classify the action before adding automatic retry behavior:
+
+| Action shape | Typical retry risk | Safer control |
+| --- | --- | --- |
+| Set a field to a known value | Usually low, if the write is scoped correctly | Version check or idempotency key |
+| Replace a file with a named version | Medium if readers see partial files | Write a temporary object, verify hash, then rename |
+| Create a new record | High because a second call may duplicate it | Client-generated idempotency key and lookup before create |
+| Send an email or notification | High because delivery may have happened before timeout | Provider idempotency key and delivery lookup |
+| Charge or refund money | Very high | Provider idempotency key, ledger readback, human escalation |
+| Append an event | Depends on consumer semantics | Event ID deduplication and consumer acknowledgement |
+
+The first question after a timeout is not “Should I try again?” It is “Can I determine whether the first attempt already took effect?” If the answer is yes, read first. If the answer is no, consult the operation’s retry policy. The status may remain `unknown` until a human or a provider reconciliation process resolves it.
+
+Idempotency means that repeating the same logical request does not create an additional unintended effect. It does not mean every retry is harmless. The key must be stable across the original request and its retries, and the server must actually use it to deduplicate work. A random key generated for each retry gives the appearance of safety while allowing duplicates.
+
+For a record update, include the expected starting version. The server can reject a stale write instead of silently overwriting a human’s intervening change:
+
+```json
+{
+  "target": "ticket:T-104",
+  "set": {"status": "resolved"},
+  "expected_version": 18,
+  "idempotency_key": "agent-run-7f2c-ticket-T-104-status",
+  "reason": "duplicate"
+}
+```
+
+If the server returns version 19 and a subsequent read shows the requested values, the runtime can return `verified`. If it returns a version conflict, the runtime should return `failed` or `needs_review`, not retry with the new version without deciding whether the user’s requested change still applies.
+
+No-op deserves its own status. Suppose the user asks the agent to mark a ticket resolved, but the ticket is already closed. Calling that success can hide a policy violation. Calling it failure may be too strong if closed is an acceptable terminal state. Define the allowed state set:
+
+```text
+requested state: resolved
+acceptable observed states: resolved, closed
+unacceptable observed states: open, pending, blocked
+```
+
+The verifier can return `no_op` with the observed state and the policy that accepted or rejected it. The final message then has a useful distinction: “The ticket was already closed, so no update was needed.” That is different from “I changed the ticket to resolved.”
+
+Partial work also changes retry behavior. If 98 records succeeded, do not rerun the entire batch unless the operation is designed for safe replay. Store the failed identifiers, create a repair operation, and verify the repaired subset. A single `retry_all` button often turns an understandable partial result into duplicates or conflicting updates.
+
+The final message should expose retry uncertainty when it matters. “The first submission timed out. I could not determine whether the provider accepted it, so I did not submit a second copy.” That response is operationally useful. It protects the user from a duplicate and tells them why the agent stopped.
+
+## What does a failure trace need to show?
+
+A final sentence is a poor incident record. To diagnose false completion, capture the path from user request to verified or unresolved state. The trace should let another engineer answer what the model asked for, what the executor did, what the external system returned, and which rule selected the final message.
+
+At minimum, record:
+
+1. The user request and normalized task definition.
+2. The run ID, turn ID, tenant, actor, and environment.
+3. The model and dated endpoint or version used for the run.
+4. The tools exposed to the model at that turn.
+5. The selected tool and validated arguments, with secrets removed.
+6. The permission or approval decision.
+7. The raw transport result and normalized domain result.
+8. The operation ID, idempotency key, and attempt number.
+9. The verifier query, read timestamp, and observed fields.
+10. The state transition and the response template that was allowed.
+
+Do not log credentials, access tokens, full customer messages, or sensitive records merely because a trace is useful. Redact values while keeping stable hashes or field names that let an investigator compare the request and readback. Trace design is part of the completion boundary because evidence that cannot be safely retained cannot support a later investigation.
+
+A compact trace might look like this:
+
+```json
+{
+  "run_id": "run-7f2c",
+  "target": "ticket:T-104",
+  "requested_postcondition": {
+    "status": "resolved",
+    "reason": "duplicate"
+  },
+  "tool": {
+    "name": "update_ticket",
+    "arguments_hash": "sha256:4a1e",
+    "permission": "allowed"
+  },
+  "execution": {
+    "status": "accepted",
+    "operation_id": "op-18b9",
+    "attempt": 1
+  },
+  "verification": {
+    "status": "mismatch",
+    "observed": {"status": "open", "version": 18},
+    "observed_at": "2026-08-18T10:03:12Z"
+  },
+  "final_status": "failed",
+  "allowed_message": "The ticket was not verified as resolved."
+}
+```
+
+The trace makes the failure legible. The tool did not necessarily lie. It reported acceptance, and the verifier found the ticket unchanged. That may point to a delayed worker, a permission mismatch between write and read credentials, a cache problem, or a wrong target. Each cause needs a different repair.
+
+Compare this with a trace that contains only `assistant: done`. You cannot tell whether the model skipped the tool, called the wrong tool, received a stale result, or whether the write succeeded but the interface displayed the wrong record. Better logs reduce the pressure to make the prompt carry every safety rule.
+
+The trace also supports a useful review question: did the system have enough evidence to choose its final status at the time it chose it? If not, the failure is deterministic even if the external system later reaches the requested state. A late success does not retroactively make an earlier “completed” message accurate.
+
+**A completion incident is diagnosable only when the trace preserves execution facts and verification facts separately.**
+
+## How do you verify different kinds of side effects?
+
+The source of truth changes with the action. A database write, file write, outbound message, and workflow transition each need a different readback. Reusing a generic `ok` check across all of them is a design shortcut that creates false confidence.
+
+### Database or CRM record
+
+Read the record by its stable ID from the same authoritative system that owns the state. Compare the fields in the postcondition, scope, version, and audit event if one exists. Do not treat a successful SQL transaction as proof that a downstream search index, cache, or CRM view has caught up. If the user asked for the system of record to change, verify there first. If they asked for a searchable view to change, that index is part of the postcondition and may remain `pending`.
+
+### File or object storage
+
+Check existence, exact path or object key, byte size, content hash, ownership, permissions, and any required metadata. A process that returns after opening a file has not proved that all bytes were flushed, the final name was published, or another process can read it. For generated reports, write to a temporary key, close and hash the object, then publish the final key only after verification. The copy-paste hash is more useful than a green “saved” flag.
+
+### Email or notification
+
+Verify the provider’s accepted or delivered state at the level your promise requires. Check the recipient set, sender identity, message identifier, and content or attachment references. A provider acceptance event is not the same as an inbox delivery event. A notification system may also accept a message while suppressing it because of policy, recipient preferences, or a duplicate key.
+
+### Calendar event
+
+Read the event by the provider’s event ID and compare the start time, timezone, participants, recurrence, and cancellation state. Calendar systems can return a successful update while normalizing times or dropping unsupported fields. If the user cares about an invitation reaching participants, event creation alone is not enough. You need the provider’s participant or delivery state, if it exposes one.
+
+### Workflow or ticket transition
+
+Read the target object and the audit history. Compare the current state, transition reason, actor, version, and any required side effects such as assignment or notification. A UI badge can be stale, so use the API or database that owns the transition. If multiple states are acceptable, encode that policy rather than making the model improvise.
+
+### External search or indexing
+
+Separate publication from discoverability. A page can exist in storage while a search index still returns the old document. If the user asked to publish a document, verify the publication record. If they asked to make it searchable, poll the index or return `pending` with a recheck time. The agent should not promise an indexing outcome it has not observed.
+
+This catalogue is not a demand for a new verifier service for every small action. For a reversible local change, a direct read may be enough. The point is to match evidence to the user’s actual promise. The more consequential, delayed, or distributed the action, the more explicit the boundary needs to be.
+
+## Which permissions and security checks belong in completion verification?
+
+Verification must use the right authority without becoming a way around it. A readback that uses an administrator credential can show that a record exists while hiding the fact that the acting user could not see or change it. That can produce a technically true but operationally misleading message.
+
+Keep the actor and scope attached to both execution and verification. Ask:
+
+- Did the acting identity have permission to perform the write?
+- Does the verifier read the same tenant, project, region, and environment?
+- Can the verifier see fields that the user or agent is not allowed to see?
+- Does a successful read prove the requested actor’s change, or only an administrator’s current view?
+- Does the final message reveal sensitive evidence that should remain internal?
+
+For a denied write, return `failed` with a policy-safe reason such as `not_authorized` rather than letting the model infer that the object did not exist. For a verifier denial, return `unknown` or `verification_denied` and preserve the operation ID. Do not silently retry with elevated permissions unless an explicit approval policy allows it.
+
+The write and read paths may also have different consistency models. A service account can write to one region while the verifier reads a replica that has not caught up. That is a reason to expose `pending`, not to weaken the postcondition. Record the read location and consistency level when the distinction can affect the answer.
+
+Finally, avoid giving the model raw credentials or unrestricted verifier queries. Let the runtime expose narrow functions such as `get_ticket_completion_evidence(ticket_id, operation_id)`. The verifier should enforce target scope and return only the fields needed for the completion decision. This reduces accidental disclosure and makes the contract easier to audit.
+
+## What copy-paste completion contract can you start with?
+
+Use the following as a starting artifact in a tool specification, design document, or code review. Replace the examples with the states your system actually supports. The words are intentionally strict because vague contracts are what create the false completion boundary.
+
+```yaml
+completion_contract:
+  purpose: "Report a side effect only when its requested postcondition is evidenced."
+  statuses:
+    verified: "The authoritative read matches every required condition."
+    pending: "The request was accepted or is running, but the terminal condition is not observed."
+    failed: "Execution or verification returned a known failure."
+    partial: "Some required conditions passed and at least one required condition did not."
+    no_op: "The operation ran, but the target already satisfied or could not require the requested change."
+    unknown: "The operation may have run, but verification was unavailable or inconclusive."
+  required_fields:
+    - status
+    - target
+    - operation_id
+    - postcondition
+    - observed_at
+    - next_allowed_action
+    - safe_to_repeat
+  rules:
+    - "The model may explain status but may not promote a status to verified."
+    - "The executor assigns verified only after an authoritative read."
+    - "Accepted, queued, or transport_ok never means verified by itself."
+    - "A verifier timeout produces unknown unless the provider confirms failure."
+    - "Retries require an operation-specific idempotency decision."
+    - "The final message names the observed state and keeps the operation ID when unresolved."
+  postcondition_template:
+    target: "stable identifier"
+    expected: "machine-readable state or selected field values"
+    freshness: "version, audit event, timestamp, hash, or documented exception"
+    scope: "tenant, project, user, environment, or other authority boundary"
+  message_templates:
+    verified: "Completed: {target} now satisfies {postcondition}. Evidence observed at {observed_at}."
+    pending: "Accepted but not verified: {target} is {status}. Follow up with {operation_id}."
+    failed: "Not completed: {target} failed verification because {reason}."
+    partial: "Partially completed: {passed} passed and {failed} still need attention."
+    no_op: "No change was needed: {target} is already {observed_state}."
+    unknown: "Completion is unknown: verification was unavailable. Keep {operation_id} for recovery."
+```
+
+Before shipping this artifact, answer six review questions for each state-changing tool:
+
+1. What exact system owns the postcondition?
+2. Which fields prove that the observed target is the requested target?
+3. How do you distinguish a fresh result from an old matching result?
+4. What does a queue response mean in this provider’s contract?
+5. Is a retry safe after a timeout, and who makes that decision?
+6. Which final messages are forbidden for each unresolved state?
+
+If a team cannot answer one of these, leave the status unresolved and make the gap visible. A missing verifier is a product constraint. It is not a reason to let the language model fill in the blank.
+
+## How can you roll out verification without breaking the agent?
+
+Add the boundary in small steps. A large rewrite can hide whether the repair fixed the false claim or simply changed the wording.
+
+Start with one high-value action and one failing trace. Write its postcondition. Add a normalized result type. Add a readback. Then test the presentation layer that turns the result into the final message. Keep the old tool available only if you can observe and compare its behavior; otherwise the two paths may produce different claims for the same state.
+
+Use shadow verification when the action is already live and a read is safe. The runtime can execute the existing write path, run the new verifier, and record whether the old success claim would have matched the new status. Do not display shadow results as user-facing proof until the team has checked false positives, false negatives, read delays, permissions, and cost.
+
+Next, move the status decision into the executor. Let the model receive a structured result, but have code select the terminal message or enforce the allowed vocabulary. An output guardrail can reject a final response that contradicts trusted run facts. It should not be the only verifier, and it should not be another model guessing whether a sentence sounds confident.
+
+Then add the matrix to continuous integration. Run the seven cases from this article plus action-specific cases: stale cache, wrong tenant, duplicate idempotency key, version conflict, partial batch, permission denial, and verifier outage. Assert both the status and the exact message class. A test that checks only a returned JSON object will miss a UI or response formatter that still turns `pending` into “done.”
+
+Set an operational review date for the contract. Provider semantics, SDK hooks, and output schemas can change. The core idea is stable, but the adapter’s interpretation of accepted, failed, and delivered may not be. Review the source documentation and one real trace before changing the status mapping.
+
+Finally, give the user a recovery path. A truthful `unknown` state without an operation ID is still frustrating. Show what can be checked next, who owns the escalation, and whether repeating the request is safe. The goal is not to make every run look successful. The goal is to make every outcome understandable and recoverable.
+
+**A safe rollout verifies one consequential action end to end before generalising the contract to every tool.**
+
+## How can you review one false completion in fifteen minutes?
+
+When an incident is fresh, teams often jump between the prompt, the tool implementation, the vendor dashboard, and the user interface. That creates a story before it creates evidence. Use a short, ordered review so the team can locate the first unsupported transition.
+
+### 1. Write the user’s promise
+
+Copy the original request exactly, then rewrite it as an observable postcondition. Do not begin with the agent’s final sentence. For example:
+
+```text
+Request: “Move the renewal opportunity to Closed Won and record the signed date.”
+Postcondition: opportunity O-88 has stage=Closed Won, signed_date=2026-08-18,
+and an audit event references this run ID.
+```
+
+If the team cannot agree on the postcondition, pause the incident review and resolve that ambiguity first. Two engineers may otherwise mark different outcomes as correct.
+
+### 2. Mark the first unsupported claim
+
+Read the trace in order. Find the first place where the system used a stronger word than the evidence allowed. It may be the adapter turning an HTTP 202 into `success`. It may be the model turning `pending` into “done.” It may be the user interface turning `running` into a green check. Fixing the last sentence alone can leave the earlier semantic mismatch in place.
+
+### 3. Compare before and after state
+
+Record the starting version or selected field values. Read the authoritative object after the action. Compare the requested fields, scope, freshness signal, and audit record. If the readback is unavailable, say `unknown`. Do not fill the gap with an assumption based on the tool response.
+
+### 4. Classify the failure
+
+Use one primary classification:
+
+| Finding | Likely boundary | First repair |
+| --- | --- | --- |
+| No tool call | Planning or execution handoff | Require an execution fact before any success message |
+| Wrong arguments | Tool selection or argument validation | Log normalized arguments and validate target scope |
+| Transport error | Adapter or network | Preserve the error and return `failed` |
+| Accepted but unfinished | Asynchronous workflow | Store the operation ID and return `pending` |
+| Readback mismatch | Side effect, permissions, cache, or wrong target | Inspect the source of truth and version or audit data |
+| Readback unavailable | Verifier, network, or authorization | Return `unknown` and create a recovery path |
+| Correct status, wrong UI text | Presentation layer | Bind display text to the normalized status |
+
+### 5. Add one regression case
+
+Turn the exact incident into a fixture. Keep the request, normalized tool result, verifier result, expected status, and allowed message. Add the smallest missing assertion. If the system claimed completion after an accepted queue response, assert that `pending` cannot render as “completed.” If a stale record passed verification, assert that the next test requires a version or audit event tied to the operation.
+
+### 6. Decide the user recovery path
+
+An incident is not repaired when the next run produces a better sentence. Decide what the current user should do. Can the operation be polled? Is it safe to retry? Does a human need to reconcile the target? Is the operation ID visible to support? Put that answer in the status contract and the interface.
+
+This procedure works because it separates diagnosis from blame. The model may have made a poor inference, but the runtime may also have handed it ambiguous evidence. The provider may have accepted the work, while the verifier read a lagging replica. The user may have asked for a promise the system cannot observe. Find the first boundary where the meaning changed, then repair that boundary.
+
+**The fastest false-completion review starts with the user’s postcondition and ends with a regression fixture, not with a new system prompt.**
+
+## Which fixes help, and which ones do not?
+
+### A better prompt helps only when the evidence already exists
+
+Instructions such as “never claim success unless you verified it” are useful reminders. They can improve the model’s use of a clearly structured status. But they cannot inspect a database the runtime did not read, recover a swallowed exception, or distinguish an accepted queue job from a finished one.
+
+Use the prompt to explain the contract. Enforce the contract in code.
+
+### Strict schemas fix shape, not truth
+
+OpenAI recommends strict mode for making function arguments adhere to a schema. That can stop malformed inputs. It cannot stop a valid call to a function whose implementation returns an inaccurate success flag. [Schema adherence is valuable, but it is not semantic verification](https://developers.openai.com/api/docs/guides/function-calling).
+
+The same distinction applies to MCP output schemas. An output can conform perfectly to `{ status: "verified" }` while the server has assigned that status too early. Validate the shape, then make the authoritative verifier responsible for the value.
+
+**When verification is unavailable, `unknown` is safer than a polished success message.**
+
+![An independent readback checks the state-changing tool call before completion is reported](/blog/why-does-my-ai-agent-say-it-completed-a-task-when-it-did-not-authoritative-readback.webp)
+
+### A final output guardrail is a useful last check
+
+The OpenAI Agents SDK supports output guardrails that run on a final agent output, as well as tool guardrails before and after custom function-tool execution. [Those hooks can reject a forbidden or inconsistent output](https://openai.github.io/openai-agents-python/guardrails/). They are most useful when the guardrail can inspect trusted run facts or a verified completion object.
+
+Do not build a guardrail that only asks another model whether the sentence sounds confident. That may detect tone. It does not establish state.
+
+### A human approval step is not the same as a completion check
+
+Approval is appropriate for sensitive or irreversible actions, and MCP’s current tools guidance recommends a human ability to deny tool invocations for trust and safety. [Use approval when someone must authorize the action](https://modelcontextprotocol.io/specification/2025-11-25/server/tools). Use verification when you need to know whether the action actually produced the requested result. Some workflows need both.
+
+## When should you ask for an architecture review?
+
+Fix the problem internally when one team owns the tool, the source of truth is clear, the side effect is reversible, and you can reproduce the failed trace. Start with one postcondition, one verifier, and the seven-case matrix. Change one boundary at a time.
+
+Ask for a focused reliability review when the operation crosses several systems, the result is asynchronous, permissions differ by tenant or user, a wrong completion claim can send money or messages, or nobody can say which system is authoritative. Bring one failing trace, the tool contract, the expected postcondition, and the readback that contradicted the agent.
+
+Marius’s [one-to-one AI learning and consulting path](/learn-ai) is a reasonable next step for working through that concrete workflow. It is not a substitute for your security, legal, or operational owner. The useful outcome is a smaller, inspectable completion boundary your team can test and maintain.
+
+The short version is simple: an agent saying “done” proves that it produced a final message. It proves the task only when an authority outside that message confirms the postcondition.
+
+![An executor deciding between verified, pending, failed, partial, no-op, and unknown outcomes](/blog/why-does-my-ai-agent-say-it-completed-a-task-when-it-did-not-completion-status-router.webp)
+
+![An honest unknown state preserves the operation reference when verification is unavailable](/blog/why-does-my-ai-agent-say-it-completed-a-task-when-it-did-not-honest-unknown-state.webp)
