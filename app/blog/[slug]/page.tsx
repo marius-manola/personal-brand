@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import { MDXRemote } from 'next-mdx-remote/rsc';
 import Copyright from '@/app/components/Copyright';
+import BlogCallCard from '@/app/components/BlogCallCard';
 import { getAllBlogPosts, getBlogPost, prepareBlogMdx } from '@/lib/server/blog.server';
 import { isLocalBlogImage, localBlogImageSize } from '@/lib/server/blog-image';
 
@@ -160,6 +161,8 @@ export default async function BlogPostPage({ params }: PageProps) {
 
   return (
     <div className="blog-shell">
+      <div className="blog-article-layout">
+      <BlogCallCard />
       <main className="blog-main blog-article-main">
         <script
           type="application/ld+json"
@@ -259,6 +262,7 @@ export default async function BlogPostPage({ params }: PageProps) {
           </div>
         </footer>
       </main>
+      </div>
     </div>
   );
 }

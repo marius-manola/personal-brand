@@ -7,7 +7,6 @@ import { NumberTicker } from '@/components/ui/number-ticker';
 import { AnimatedShinyText } from '@/components/ui/animated-shiny-text';
 import LinkedInQuote from '@/app/components/LinkedInQuote';
 import PhotoStrip from '@/app/components/PhotoStrip';
-import SpotlightGroup from '@/app/components/SpotlightGroup';
 import QualifyForm from '@/app/components/QualifyForm';
 import {
   fit,
@@ -15,8 +14,7 @@ import {
   hero,
   offer,
   includesNote,
-  packages,
-  ratesNote,
+  pricing,
   contactEmail,
   prep,
   profileLink,
@@ -227,27 +225,14 @@ export default function LearnAI() {
                 </div>
               </section>
 
-              {/* 4 · rates */}
+              {/* 4 · how it's priced — no public rate card */}
               <section className="lp-section">
                 <div className="lp-rail">
-                  <h2 className="section-label">rates</h2>
-                  <p className="lp-rail-note">1:1, one hour at a time</p>
+                  <h2 className="section-label">{pricing.label}</h2>
+                  <p className="lp-rail-note">{pricing.railNote}</p>
                 </div>
                 <div className="lp-content">
-                  {/* SpotlightGroup publishes the cursor position to the whole group, so
-                      the glow is one light crossing all three cards rather than a
-                      per-card effect that stops at each border. */}
-                  <SpotlightGroup className="price-grid">
-                    {packages.map((pkg) => (
-                      <div className="price-card" key={pkg.name}>
-                        <span className="price-name">{pkg.name}</span>
-                        <span className="price-amount">{pkg.price}</span>
-                        <span className="price-rate">{pkg.rate}</span>
-                      </div>
-                    ))}
-                  </SpotlightGroup>
-
-                  <p className="mt-5 page-body">{ratesNote}</p>
+                  <p className="page-body">{pricing.intro}</p>
                   <p className="mt-4 text-[0.95rem] leading-relaxed text-[hsl(var(--muted-foreground))]">
                     {includesNote}
                   </p>

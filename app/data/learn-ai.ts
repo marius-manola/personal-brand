@@ -1,8 +1,7 @@
 // /learn-ai content module.
 //
-// Follows the app/data/home.ts convention: every word of copy, every price, and
-// every link lives here as typed data so the page component stays layout-only.
-// When rates go up, edit `packages` here and nothing else.
+// Follows the app/data/home.ts convention: every word of copy and every link
+// lives here as typed data so the page component stays layout-only.
 //
 // This page is deliberately terse — a standalone landing page, not an essay.
 // Keep every string short enough to scan; that density is the design.
@@ -159,40 +158,22 @@ export const youGet: string[] = [
   'People who already use it daily and want to be genuinely good at it.',
 ];
 
-export interface Package {
-  /** "One session" carries the hours, so there's no separate hours field. */
-  name: string;
-  price: string;
-  rate: string;
-}
-
-// "Rates", not "packages" — packages implies a funnel, rates is what someone who
-// does this work charges. No tier is flagged as recommended; `ratesNote` below does
-// that job in a sentence instead of a badge.
-//
-// Introductory pricing, set deliberately low to get the first clients and the first
-// testimonials, with the intention of raising it once there's demand to turn away.
-// The ladder is still the argument: $150 for a single hour, down to $100 an hour if
-// you commit to eight.
-export const packages: Package[] = [
-  { name: 'One session', price: '$150', rate: '$150 / hour' },
-  { name: 'Four sessions', price: '$500', rate: '$125 / hour' },
-  { name: 'Eight sessions', price: '$800', rate: '$100 / hour' },
-];
-
-export const ratesNote = 'Most people start with one and go from there.';
+export const pricing = {
+  label: 'how it works',
+  railNote: 'per project',
+  intro:
+    'Work is scoped per project, not from a public rate card. We start with a free discovery call, then agree the work for you or your company.',
+};
 
 // One sentence rather than a checklist of deliverables. Both halves are promises you
 // have to keep, so keep them modest.
 export const includesNote =
-  'Every session comes with a short written recap and your next steps, and you can ask me questions between sessions.';
+  'Every engagement comes with a short written recap and your next steps, and you can ask me questions between sessions.';
 
 export const guarantee =
-  'If the first hour isn’t worth what you paid, I refund the rest. No forms, no argument.';
+  'If the first session isn’t useful, we stop. No forms, no argument.';
 
-// Deliberately vague on purpose: a published hourly rate would anchor a company at
-// individual rates. Training a team is different work and gets priced on the call.
-export const teamsNote = 'Teams are priced differently. Tell me in the form.';
+export const teamsNote = 'Companies and teams are welcome. We scope that on the same call.';
 
 // Only the disqualifiers, and only ones that are true. "If you already ship with
 // these tools daily" was removed: a developer shipping code every day still has
