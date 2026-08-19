@@ -1,0 +1,626 @@
+---
+title: 'How to Design Idempotent Tools for AI Agents'
+date: '2026-08-19'
+updated: '2026-08-19'
+excerpt: 'Design idempotent AI-agent tools that survive retries, crashes, and lost responses with keys, fingerprints, durable claims, replayed outcomes, and reconciliation.'
+answer: 'Design each side-effecting tool around a stable logical-operation key, a canonical request fingerprint, and a durable execution record. Atomically claim the key before the effect, replay the stored outcome for an identical retry, reject a changed payload, and return an explicit pending or unknown state when the first attempt may still be running.'
+targetQuery: 'how to design idempotent tools for ai agents'
+queryAliases:
+  - 'idempotent tools for AI agents'
+  - 'agent tool idempotency design'
+  - 'how to make AI agent tools safe to retry'
+  - 'idempotency key for agent tools'
+intent: 'implementation'
+funnel: 'consideration'
+cluster: 'AI agent reliability'
+tags:
+  - 'AI agents'
+  - 'Tool design'
+  - 'Agent reliability'
+  - 'Distributed systems'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-16'
+sources:
+  - 'https://www.rfc-editor.org/rfc/rfc9110.html'
+  - 'https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/'
+  - 'https://docs.stripe.com/api/idempotent_requests?lang=curl'
+  - 'https://docs.aws.amazon.com/ec2/latest/devguide/ec2-api-idempotency.html'
+  - 'https://modelcontextprotocol.io/specification/2025-11-25/schema'
+  - 'https://developers.openai.com/api/docs/guides/function-calling'
+  - 'https://platform.claude.com/docs/en/agents-and-tools/tool-use/how-tool-use-works'
+  - 'https://www.postgresql.org/docs/18/sql-insert.html'
+faq:
+  - q: 'Can an AI-agent tool be idempotent if it uses POST?'
+    a: 'Yes. HTTP method semantics do not decide the whole tool contract. A POST-based create can be made replay-safe with a caller-owned key, a stored fingerprint, durable claim, and authoritative result.'
+  - q: 'Should the model generate the idempotency key?'
+    a: 'Usually no. Application code should derive the key from the workflow, tenant, environment, and step so a retry can recover the same logical operation across model turns and worker restarts.'
+  - q: 'What should a tool return after a timeout?'
+    a: 'Return an explicit unknown or in-flight state. Poll or reconcile using the operation key and receipt before attempting another side effect. Never treat a timeout as proof that nothing happened.'
+  - q: 'How long should an idempotency key be retained?'
+    a: 'Retain it longer than the maximum retry delay, queue delay, recovery time, and late-delivery window that your business accepts. The correct period is a contract decision, not a universal cache setting.'
+  - q: 'Does idempotency replace authorization?'
+    a: 'No. Recheck the current actor, tenant, target, approval, and version precondition before an effect. Idempotency prevents duplicate intent from duplicating an effect; authorization decides whether the effect is allowed.'
+cover: '/blog/how-to-design-idempotent-tools-for-ai-agents-idempotent-agent-tools-hero.webp'
+coverAlt: 'A clean editorial diagram showing one AI-agent tool request passing through an operation key, durable claim, effect boundary, and replayed result'
+draft: false
+---
+
+An AI agent can make the same tool call twice without either call looking obviously broken. A worker may time out after the payment, ticket, or message was created. The model may see a missing result and propose the call again. A workflow may resume from the last checkpoint and repeat the step.
+
+Designing for idempotency means making that repetition safe at the tool’s execution boundary. The model can propose an action, but your application owns the call, the authorization, the side effect, and the record of what happened. OpenAI and Anthropic both describe tool use this way: the model emits a structured request and application code executes it and returns a result ([OpenAI function calling](https://developers.openai.com/api/docs/guides/function-calling), [Anthropic tool use](https://platform.claude.com/docs/en/agents-and-tools/tool-use/how-tool-use-works)).
+
+![Timeline showing an external effect committing before the AI agent receives its response](/blog/how-to-design-idempotent-tools-for-ai-agents-idempotent-agent-tools-failure-window.webp)
+
+## What does idempotent mean for an AI-agent tool?
+
+An idempotent tool has the same intended external effect when the same logical operation is delivered more than once. That does not mean every byte of every response is identical, and it does not mean the system has no logs or audit entries for the repeated delivery. RFC 9110 defines idempotency in terms of the intended effect on the server and explicitly allows separate logging for each request ([RFC 9110, section 9.2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.2)).
+
+For an agent tool, ask a narrower question:
+
+> If the executor receives this operation again because the first response was lost, what additional business effect occurs?
+
+If the answer is “a second charge,” “another email,” or “a second ticket,” the tool is not safe to retry as designed. If the answer is “the same ticket is returned and no new ticket is created,” the tool has an idempotency contract.
+
+That contract is about the effect, not just the HTTP verb. `PUT` and `DELETE` are idempotent by HTTP semantics, while `POST` is not automatically idempotent. But an agent-facing tool may sit above a database, queue, email provider, or payment API. You must define the behavior of that whole operation, including downstream effects, callbacks, audit records, and delayed work.
+
+Idempotency also differs from authorization. Authorization asks whether the agent may perform an action. Idempotency asks whether this particular logical action has already been accepted. A tool needs both checks.
+
+## Why do agent tools need stronger retry semantics?
+
+The dangerous failure is not “the request failed.” It is “the request may have succeeded, but the caller cannot tell.” The sequence looks like this:
+
+1. The model emits `create_ticket`.
+2. Your executor validates the arguments and calls the ticket service.
+3. The ticket service commits the ticket.
+4. The connection drops before the executor receives the response.
+5. The agent or worker retries `create_ticket`.
+
+Without a durable identity for the operation, step 5 is a new create. The agent has no reliable way to infer that the first call completed. AWS describes this exact retry problem in decomposed workflows: retries are useful only when the service call can be repeated without producing an additional side effect ([AWS Builders’ Library](https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/)).
+
+Tool-calling runtimes make the ambiguity normal. The model sees a tool schema and returns a structured call. It does not see your implementation or know whether a network timeout occurred after the side effect. That is why “the prompt says only call this once” is not an idempotency design. The prompt influences a proposal; the executor decides whether the proposal can safely run.
+
+The first design decision is therefore not which retry library to use. It is what your system means by “the same operation.”
+
+## How can REPLAY frame a side-effecting tool?
+
+The following is my implementation framework for reviewing a tool. It keeps the model-facing schema, the execution record, and the downstream effect in one conversation.
+
+| Step | Question | Required design decision |
+| --- | --- | --- |
+| **R - Record** | What logical operation is being attempted? | Give it a stable operation key owned by the workflow or application. |
+| **E - Encode** | Which input values define that operation? | Canonicalize the material arguments and store a request fingerprint. |
+| **P - Persist** | Where is the claim made durable? | Enforce uniqueness and concurrency at a durable store, not in process memory. |
+| **L - Label** | What can a retry safely learn? | Return `applied`, `replayed`, `in_flight`, `rejected`, or `unknown`. |
+| **A - Authorize** | Is this retry still allowed now? | Recheck identity, permissions, target, and preconditions before the effect. |
+| **Y - Yield** | What happens when the outcome cannot be proved? | Poll, reconcile against the system of record, or require human handling. |
+
+This is not a promise of exactly-once execution. It is a way to make duplicate delivery produce one business effect, or to stop safely when the system cannot establish that property.
+
+**An idempotency key identifies one logical operation; a request fingerprint proves what that operation contained.**
+
+> “the intended effect on the server of multiple identical requests”
+>
+> - [RFC 9110, Section 9.2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.2)
+
+### R: Record the logical operation
+
+Generate the operation key in application code from a stable business or workflow identity. A useful shape is:
+
+```text
+operation_key = tenant_id + ":" + workflow_id + ":" + step_id
+```
+
+The exact format is up to you. The important rules are scope, uniqueness, and meaning:
+
+- A retry of the same workflow step reuses the key.
+- A deliberate “send again” request gets a new key.
+- The key is namespaced by tenant, tool, environment, or other boundary that changes the effect.
+- The key does not contain an email address, secret, or other sensitive value. Stripe recommends high-entropy keys and warns against using personal identifiers as keys ([Stripe idempotent requests](https://docs.stripe.com/api/idempotent_requests?lang=curl)).
+
+Do not rely on a model-generated tool-call ID as the business operation key. A new model turn or a resumed worker may produce a new call ID for the same intended step. The executor has better context: the run, workflow step, approved action, and target.
+
+### E: Encode the exact request identity
+
+A key says “this operation.” A fingerprint says “these were the parameters for that operation.” Store both.
+
+Suppose `send_invoice` receives the same key first with invoice `inv_42` and later with `inv_43`. Replaying the first result would be wrong, but executing the second request under the old key would also be wrong. Return a conflict and perform neither new effect. AWS and Stripe both document this parameter-mismatch protection for reused idempotency identifiers ([AWS EC2 idempotency](https://docs.aws.amazon.com/ec2/latest/devguide/ec2-api-idempotency.html), [Stripe idempotent requests](https://docs.stripe.com/api/idempotent_requests?lang=curl)).
+
+Fingerprint a canonical representation of the material request, not the raw JSON string. Decide how your canonicalizer handles object key order, omitted defaults, whitespace, numeric formats, and fields that must be ignored. Include the tool version if a version change can alter the effect. Exclude the operation key itself from the fingerprint.
+
+```text
+fingerprint = SHA256(canonical_json({
+  tool: "tickets.create",
+  tool_version: "2026-08-18",
+  tenant_id: "acme",
+  queue: "support",
+  subject: "Refund request",
+  body: "..."
+}))
+```
+
+Hashing is not a substitute for an operation key. Two legitimate ticket creations can have identical arguments. They still need different keys. The key identifies intent; the fingerprint prevents accidental reuse of that intent.
+
+### P: Persist the claim and effect at a deliberate boundary
+
+The idempotency record must survive a process restart and coordinate concurrent workers. An in-memory set is a cache, not a correctness mechanism.
+
+A minimal record might contain:
+
+```yaml
+operation_key: acme:run_827:step_03
+tool_name: tickets.create
+tool_version: 2026-08-18
+request_fingerprint: sha256:...
+status: pending | applied | failed_permanent | unknown
+effect_reference: ticket_1042
+response_body: { ...safe structured result... }
+created_at: 2026-08-18T10:00:00Z
+expires_at: 2026-08-25T10:00:00Z
+```
+
+Enforce a unique constraint on the operation key within its scope. PostgreSQL documents that `ON CONFLICT DO UPDATE` produces an atomic insert-or-update result, including under high concurrency ([PostgreSQL `INSERT`](https://www.postgresql.org/docs/18/sql-insert.html)). A provider-neutral approach is:
+
+1. Validate and authorize the incoming request.
+2. Atomically insert a `pending` record, or load the existing record.
+3. If the existing fingerprint differs, return `idempotency_key_reused_with_different_request`.
+4. If the existing status is `applied`, return the stored result with `replayed`.
+5. If another worker owns `pending`, return `in_flight` or use a status-poll operation. Do not immediately perform the effect again.
+6. If this worker owns the claim, call the downstream effect with the same operation key when the downstream API supports idempotency.
+7. Store the authoritative effect reference and safe response before returning `applied`.
+
+The hard case is the boundary between step 6 and step 7. If the downstream call succeeds and your process crashes before recording `applied`, you do not know whether the effect happened. A second call is safe only if the downstream service also deduplicates on the same key, or if you can query an authoritative receipt and reconcile before retrying. If neither is possible, return `unknown` and route the operation to reconciliation. Do not pretend that a local idempotency table can make a non-idempotent downstream API safe.
+
+![Concurrent tool calls converging on one durable operation claim instead of creating duplicate effects](/blog/how-to-design-idempotent-tools-for-ai-agents-idempotent-agent-tools-durable-claim.webp)
+
+### L: Label outcomes instead of returning “success” or “error”
+
+The agent needs to know what it may do next. A vague error invites a fresh attempt with the same side effect. Return a small structured result:
+
+```json
+{
+  "status": "applied | replayed | in_flight | rejected | unknown",
+  "operation_key": "acme:run_827:step_03",
+  "effect_reference": "ticket_1042",
+  "safe_to_repeat": false,
+  "next_action": "none | poll | reconcile | ask_for_approval",
+  "retry_after_seconds": 5
+}
+```
+
+This shape is illustrative, not a vendor schema. The semantics matter more than the names:
+
+- `applied`: this executor performed the effect and recorded the result.
+- `replayed`: the operation was already applied; return the stored result without another effect.
+- `in_flight`: another worker owns the claim; poll or wait.
+- `rejected`: validation, authorization, or fingerprint mismatch; retrying unchanged is not useful.
+- `unknown`: the effect may have happened, but the system cannot prove the outcome; reconcile before retrying.
+
+You may choose to return the same HTTP status and body on a replay, as Stripe does for a stored idempotent result. Or you may expose `replayed` in a structured field while preserving the business result. Pick a stable contract and document it for the model and the executor.
+
+### A: Authorize and revalidate before the effect
+
+An idempotency hit is not an authorization bypass. A user can lose access between the first attempt and a retry. A record can move to another tenant. An approval can expire. The executor should recheck the current actor, tool, target, precondition, and approval immediately before the side effect.
+
+MCP exposes `idempotentHint` as a useful description of a tool, but the specification calls annotations hints and says clients must not trust them from untrusted servers ([MCP schema](https://modelcontextprotocol.io/specification/2025-11-25/schema)). Treat the hint as metadata for a trusted registry, not as proof. The implementation and downstream authorization remain the source of truth.
+
+This is also where optimistic concurrency belongs. For an absolute update such as “set ticket status to `closed`,” idempotency may protect against duplicate delivery while a version or `updated_at` precondition protects against overwriting a newer human change. Those are separate guarantees.
+
+### Y: Yield to reconciliation when the outcome is uncertain
+
+There are three useful recovery paths:
+
+1. **Replay:** the idempotency record or downstream service has the original result. Return it.
+2. **Poll:** the operation is still running. Ask a status tool for the same operation key rather than launching another effect.
+3. **Reconcile:** the record is `unknown`. Query the authoritative system of record by operation key, receipt, or business reference. If you cannot establish the result, stop and hand the case to an operator.
+
+The last path is not a failure of the design. It is an honest response to a system that cannot atomically coordinate its local record with an external side effect. A tool that returns `unknown` is safer than one that guesses.
+
+## Which tool effect class should you use before adding idempotency keys?
+
+Not every tool needs the same mechanism. Classify the intended effect first.
+
+| Tool class | Example | Retry design |
+| --- | --- | --- |
+| Read | `get_ticket` | Retry if reads are acceptable; document whether freshness or audit logging changes the result. |
+| Natural idempotent state change | `set_ticket_status(closed)` | Repeat the same target and value, but use a version precondition if stale writes matter. |
+| Key-based create or command | `create_ticket`, `charge_card`, `send_invoice` | Require a caller-owned operation key, fingerprint, durable claim, and replayable receipt. |
+| Non-idempotent increment or append | `increment_balance`, `append_note` | Redesign as a keyed command, absolute update, or explicit one-shot operation with reconciliation. |
+| Irreversible or externally visible action | `delete_account`, `send_message` | Use key-based deduplication plus authorization, approval where appropriate, and an authoritative receipt. |
+
+“Delete by ID is idempotent” can be true for the target’s final state, yet false for the whole system if every repeated delete emits a webhook, audit event, or notification. Define the intended effect broadly enough to include side effects your business cares about.
+
+## What should a provider-neutral tool contract contain?
+
+Use this as a design artifact before wiring a tool into an agent. The fields are deliberately explicit so a reviewer can challenge a wildcard.
+
+```yaml
+name: tickets.create
+purpose: Create one support ticket for one logical workflow step.
+use_when:
+  - The workflow has a validated customer and a new issue to record.
+do_not_use_when:
+  - The agent is checking whether an existing ticket exists.
+  - The user is asking to send the same message again.
+effect_class: key_based_idempotent
+operation_key:
+  supplied_by: application
+  scope: tenant + environment + workflow_id + step_id
+  reused_for_retry: true
+request_fingerprint:
+  fields: [tool_version, tenant_id, queue_id, subject, body]
+  mismatch_result: rejected
+storage:
+  unique_record: operation_key
+  statuses: [pending, applied, failed_permanent, unknown]
+responses:
+  replay: return the stored ticket reference and business result
+  in_flight: return status polling instructions; do not create again
+  unknown: require reconciliation before another create
+downstream:
+  idempotency_key: operation_key
+  receipt: ticket_id or provider request reference
+security:
+  recheck_authorization: immediately before effect
+  approval: required for queues marked sensitive
+retention:
+  rule: longer than the maximum retry and late-arrival window
+```
+
+The contract belongs next to the tool implementation and should be versioned with it. If a new version changes what counts as the same effect, it should not silently reuse old fingerprints.
+
+## How should you test idempotency before production?
+
+Do not test only two successful calls. Inject failures at the boundaries where a caller loses knowledge of the outcome. The following checklist is a release artifact, not a claim that these tests have been run for your system.
+
+| Scenario | Expected result | Evidence to keep |
+| --- | --- | --- |
+| Same key, same fingerprint, first call succeeds | One effect; second call returns the original result | One effect reference and two trace entries |
+| Same key, same fingerprint, first response is lost | Retry replays or downstream deduplicates | Fault location plus receipt |
+| Process crashes after downstream success but before local completion | Recovery finds the downstream receipt or returns `unknown`; no blind second effect | Reconciliation trace |
+| Two workers submit the same key concurrently | One owns `pending`; the other waits or replays | Unique-constraint and worker traces |
+| Same key with changed material arguments | Reject with a mismatch; perform no new effect | Stored and incoming fingerprints |
+| Same arguments with a new logical operation key | A new operation is allowed if policy permits it | Two distinct operation records |
+| Authorization is revoked between attempts | Retry is denied even if the key exists | Authorization decision and no new effect |
+| Key arrives after retention expires | Behavior follows the documented late-arrival policy; do not silently duplicate | Expiration and reconciliation record |
+| Downstream returns a delayed job | Return `in_flight` and poll by the operation key | Job receipt and status transitions |
+| Tool result is malformed or incomplete | Mark the outcome as failed or unknown; never infer success from a timeout | Raw-safe response and classification |
+
+The pass condition is stronger than “the agent eventually says it worked.” For each side-effecting tool, prove that the same key and fingerprint cannot create two business effects, that a changed fingerprint cannot borrow the old key, and that an ambiguous outcome stops at reconciliation. Keep the original failure as a regression case.
+
+For the broader agent release decision, connect this checklist to [the AI agent evaluation release gate](/blog/how-to-evaluate-an-ai-agent). For runtime traces and alerts, use [the production monitoring guide](/blog/how-to-monitor-an-ai-agent-in-production). Those pages solve adjacent jobs; this tool contract is the effect-level prerequisite.
+
+## What usually goes wrong?
+
+### “We hash the arguments, so duplicates are impossible”
+
+The same arguments can represent two legitimate actions. Hashes detect accidental payload changes; they do not identify business intent. Use a new operation key for a new action and a fingerprint to catch misuse of an existing key.
+
+### “The model will remember not to call it twice”
+
+Model behavior is not a durable concurrency or transaction mechanism. The executor must own the claim, status, and side effect. Tool descriptions can state that a tool replays a prior result, but the implementation has to enforce it.
+
+### “We write the idempotency row first, then call the API”
+
+That prevents some races but creates a new failure: the row may say `pending` forever, or the process may crash after the downstream effect and before the row is finalized. Add leases, status polling, downstream idempotency, or reconciliation. Do not treat a local `pending` row as proof that nothing happened.
+
+### “The key expires after a convenient short window”
+
+The window must cover your maximum retry delay, worker recovery time, queue delay, and plausible late delivery. A late duplicate after expiry can become a new effect. Retention is part of the business contract, not just cache cleanup. Stripe’s documented 24-hour behavior is a provider-specific example, not a universal default.
+
+### “The downstream API is not idempotent, but our wrapper is”
+
+A wrapper cannot guarantee safe replay across an external side effect it cannot observe or deduplicate. If the downstream API lacks an idempotency key, use a provider-supported receipt or reconciliation query, redesign the action, put it behind an outbox or worker that owns its own deduplication, or require human handling for the uncertain case.
+
+### “Idempotent means safe”
+
+It does not. A repeated request can be idempotent and still be authorized for the wrong tenant, target the wrong record, expose sensitive data, or overwrite a newer change. Keep permission checks, approval gates, version preconditions, and postcondition verification separate.
+
+## When should you keep a tool non-automatic?
+
+Keep a side-effecting tool behind approval or manual reconciliation when you cannot identify a stable logical operation, cannot persist the claim durably, cannot retrieve an authoritative receipt, or cannot make the downstream effect deduplicate. That is especially important for payments, external messages, access changes, and irreversible deletion.
+
+Handle a small, well-scoped tool internally when the team can write the operation key and fingerprint rules, enforce the unique claim in code, test ambiguous failure points, and name the owner of reconciliation. An architecture or reliability review is a sensible next step when the tool crosses several systems or tenants and the team cannot prove where the effect boundary lives. Marius Manolachi’s AI consulting work can help structure that review around one concrete workflow, its tool contract, and its failure cases; it does not replace your security, legal, or payment-provider approval.
+
+Start with one write tool. Write down its effect class, operation-key scope, fingerprint fields, stored response, mismatch behavior, and unknown-outcome path. Then inject a timeout after the downstream commit. If the system can recover the original result without creating a second effect, you have the beginning of an idempotent tool. If it cannot, fix that boundary before giving the agent another write capability.
+
+## What should an operation key identify?
+
+An operation key should identify one intended business action, not one model response, HTTP request, or process attempt. That distinction is what lets a recovered worker recognize a retry after the model has produced a new tool-call ID.
+
+Take a workflow that handles a refund request. The workflow may have a run ID, a step ID, a customer ID, a payment ID, and a provider request ID. These identifiers do different jobs. The run ID locates the conversation. The step ID identifies the logical action inside that run. The payment ID identifies the target. The provider request ID identifies one call at a downstream boundary. The idempotency key should connect the first two, with enough scope to prevent a collision across tenants and environments.
+
+```text
+operation_key = tenant_id + ":" + environment + ":" + workflow_id + ":" + step_id
+```
+
+The key must be stable across the failures you intend to recover. If a worker can restart, the key must be recoverable from durable workflow state. If two workers can run the same step, both must derive the same key. If a user intentionally asks for a second refund, the application must create a new step or explicit repeat intent instead of silently reusing the old key.
+
+Do not use a timestamp as the key. Timestamps make retries look like new work. Do not use the raw prompt. Small wording changes can produce the same business action, while the same prompt can apply to different accounts. Do not use only the target record ID. A customer may legitimately create several tickets or make several payments against one record.
+
+Scope the key at the narrowest boundary that changes the meaning of the effect. A tenant prefix prevents one customer from learning about another customer's operation. An environment prefix stops a staging call from colliding with production. A tool name or version prefix helps separate two implementations whose effects are not interchangeable. Avoid putting secrets or personal data in the visible key. Use an opaque, high-entropy component when a public transport or log can expose the value. Stripe recommends high-entropy idempotency keys and warns against personal identifiers as keys ([Stripe idempotent requests](https://docs.stripe.com/api/idempotent_requests?lang=curl)).
+
+The key also needs a documented reuse rule. Write down answers to four questions before you implement the tool:
+
+1. Which application event creates the key?
+2. Which retries reuse it?
+3. Which user action creates a new key?
+4. Which tenant, environment, tool, or version boundaries are part of its scope?
+
+If a reviewer cannot answer those questions from the workflow state, the tool has no reliable operation identity yet. Fix the workflow record before you add a retry loop.
+
+**The safest retry is one that can recover its operation key from durable workflow state without asking the model to remember it.**
+
+## How should you compute a canonical request fingerprint?
+
+The fingerprint answers a different question from the key. It asks whether the material request on this attempt matches the request that first claimed the operation. That lets the executor distinguish a safe replay from a bug that reused a key for a different action.
+
+Canonicalization matters because equivalent objects can have different byte representations. JSON object key order may vary. An omitted optional field may mean the same default as an explicit value. Whitespace may be irrelevant in a subject but meaningful in a message body. A number encoded as `10` may not be equivalent to `10.0` for every downstream API. You must decide these rules for each tool instead of assuming that a generic JSON serializer captures business meaning.
+
+Start with a material-field list. Include every value that can change the external effect, such as tenant, target, amount, currency, destination, message body, queue, tool version, and approval context. Exclude transport details such as trace IDs, retry counters, received-at timestamps, and the operation key itself. Include a version when a code or schema change could reinterpret an old payload.
+
+For text fields, decide whether normalization is safe. Trimming a ticket subject may be fine if the downstream system trims it too. Lowercasing an email address may be correct for an address field but wrong for a case-sensitive username. Never normalize just to make hashes match. Match the downstream effect's semantics, then document the decision in the tool contract.
+
+```json
+{
+  "tool": "tickets.create",
+  "tool_version": "2026-08-19",
+  "tenant_id": "acme",
+  "queue_id": "support",
+  "subject": "Refund request",
+  "body": "Customer reports a duplicate charge."
+}
+```
+
+Hash the canonical representation with a collision-resistant digest, then store the algorithm and representation version alongside the digest. A digest is a comparison aid, not a proof that two requests are safe to merge. Keep enough structured data, or a protected copy of the canonical request, to investigate a mismatch without logging secrets. Treat a mismatch as a conflict. Never choose the newer payload because it looks more current.
+
+The fingerprint should be calculated before the durable claim. That allows a request with an invalid shape to fail without creating a misleading pending record. It should also be recalculated on every retry. Do not trust a fingerprint supplied by the model or client without recomputing it from validated arguments.
+
+A good mismatch response tells the executor what happened without echoing sensitive details. It can include the operation key, the stored request version, the incoming request version, and a next action such as `inspect_operation`. It should not include a full payment amount, message body, or customer record unless the caller is authorized to see it.
+
+## Where should the durable idempotency record live?
+
+Put the record in a store that survives process restarts and can enforce uniqueness when calls race. A local variable, process mutex, or best-effort cache can reduce duplicate work in one process, but none of them establishes a business guarantee across workers. The durable record is the coordination point for the executor, not just an audit log.
+
+The minimum record needs the scoped operation key, tool identity, request fingerprint, current status, timestamps, and enough result data to replay safely. For a create operation, store the created resource reference. For a payment, store the provider receipt and business result. For a message, store the provider message ID and delivery state if the provider supplies one. Avoid storing an unbounded copy of a sensitive tool response just because replay is convenient.
+
+```sql
+CREATE TABLE tool_operations (
+  tenant_id text NOT NULL,
+  operation_key text NOT NULL,
+  tool_name text NOT NULL,
+  tool_version text NOT NULL,
+  request_fingerprint text NOT NULL,
+  status text NOT NULL,
+  effect_reference text,
+  response_json jsonb,
+  lease_until timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (tenant_id, operation_key)
+);
+```
+
+The primary key expresses the main invariant: one tenant cannot have two durable claims for the same operation key. PostgreSQL documents atomic insert-or-update behavior for `ON CONFLICT DO UPDATE`, including concurrent cases when no independent error occurs ([PostgreSQL INSERT](https://www.postgresql.org/docs/18/sql-insert.html)). Other databases have different syntax, but the property is the same. Let the datastore resolve the race.
+
+Do not perform a read followed by a separate insert and call that a claim. Two workers can both observe no row, both decide they own the operation, and both execute the effect. Use a unique constraint, conditional insert, compare-and-set, or transactional lock with a clearly bounded lease.
+
+The record status needs to separate ownership from outcome. `pending` can mean a worker owns the claim, but it must not mean the external effect is absent. A lease can let another worker recover a crashed owner, yet lease expiry cannot prove that the old owner did not reach the downstream service. Recovery must query the provider or system of record before trying again.
+
+**A pending record coordinates workers, but it does not prove that an external effect did not happen.**
+
+Keep the transaction boundary visible in design documents. If the database commits the pending row and the downstream call happens later, the system has a gap. If the downstream system supports the same operation key, pass it through. If it does not, record the gap as an unknown-outcome risk and build reconciliation around a provider receipt, business reference, or outbox consumer.
+
+## What should the executor do on a first call and a retry?
+
+The executor should be a small state machine with one path for validation, one atomic claim, one effect boundary, and explicit recovery states. The model can request a tool, but the executor decides whether the call is valid, authorized, new, replayable, in flight, or unknown. OpenAI and Anthropic both document the application as the component that executes a structured tool request and returns its result to the model ([OpenAI function calling](https://developers.openai.com/api/docs/guides/function-calling), [Anthropic tool use](https://platform.claude.com/docs/en/agents-and-tools/tool-use/how-tool-use-works)).
+
+Use this sequence for a new call:
+
+1. Authenticate the caller and validate the tool arguments.
+2. Derive the scoped operation key in application code.
+3. Canonicalize material arguments and compute the fingerprint.
+4. Atomically insert a pending operation or load the existing operation.
+5. Compare the incoming fingerprint with the stored fingerprint.
+6. Recheck authorization, approval, target version, and relevant business preconditions.
+7. Execute the effect with the operation key when the downstream system supports it.
+8. Store the authoritative effect reference and replay-safe response.
+9. Return an explicit status to the agent and record a trace for humans.
+
+The existing-record branch must be deterministic. An applied record returns the stored business result with `replayed`. A different fingerprint returns `rejected`. A pending record owned by another live worker returns `in_flight` and a polling instruction. An expired lease enters recovery, not immediate re-execution. An unknown record returns `unknown` and directs the caller to reconciliation.
+
+```text
+if invalid(arguments) or not authorized(actor, target):
+    return rejected
+
+key = derive_operation_key(workflow, step, tenant, environment)
+fingerprint = hash(canonicalize(material_arguments))
+record = claim_or_load(key, fingerprint)
+
+if record.fingerprint != fingerprint:
+    return rejected
+if record.status == "applied":
+    return replayed(record.response)
+if record.status == "pending" and not owns_claim(record):
+    return in_flight(poll_key=key)
+if record.status == "unknown":
+    return unknown(reconcile_key=key)
+
+recheck_authorization_and_preconditions()
+effect = call_downstream(key, validated_arguments)
+save_applied_result(key, effect.receipt, safe_response(effect))
+return applied(effect)
+```
+
+The pseudocode leaves out transaction syntax on purpose. The correctness question is not whether the code looks compact. It is whether every transition has a recoverable meaning. A reviewer should be able to point to the line that prevents a changed payload, the line that prevents concurrent ownership, and the line that prevents a blind retry after a lost response.
+
+Return a structured tool result instead of a vague natural-language error. Keep fields such as `status`, `operation_key`, `effect_reference`, `safe_to_repeat`, and `next_action` stable. If the model receives `unknown`, tell it not to issue the same side effect again. Give it a status or reconciliation tool that uses the same key. A long explanation in the tool description is useful, but it is not enforcement.
+
+## How should asynchronous jobs and queues preserve idempotency?
+
+An asynchronous tool has two effect boundaries. The first accepts or schedules work. The second performs the work. Making only the first request idempotent does not automatically make the worker idempotent.
+
+Suppose `generate_invoice` accepts a request and puts a job on a queue. The API can deduplicate repeated submissions by operation key, but a queue redelivery can still run the consumer twice. Put the operation key on the job envelope and make the consumer claim the same durable operation record before it sends, charges, or writes. If the queue offers delivery attempts or message IDs, keep them as delivery telemetry. They are not a substitute for the business operation key.
+
+An outbox can close one common gap between a local database update and message publication. In one database transaction, write the business state and an outbox entry containing the operation key. A publisher can safely deliver the outbox entry more than once if the consumer deduplicates by that key. The outbox does not make a third-party email provider idempotent. It only makes the handoff from the local transaction to the message publisher recoverable.
+
+For a delayed provider job, distinguish acceptance from completion. `accepted` means the provider owns a job. `in_flight` means the final business effect is not yet known. Store the provider job ID and poll by the operation key or provider receipt. Do not let the agent create a second job because the first job is slow.
+
+Webhooks need their own deduplication record because providers may retry delivery. Use the provider event ID for webhook delivery deduplication, then use the business operation key to validate that the event belongs to the expected operation. These are related identities, not interchangeable identities. A provider can send two distinct event IDs for one business operation, and one delivery event can be retried several times.
+
+The queue contract should answer three questions: can the same job be delivered twice, can the consumer query the effect, and what happens if the consumer crashes after the effect but before acknowledgment? If the answer to the second question is no, the consumer must not promise automatic replay for a non-idempotent effect. Route the uncertain state to reconciliation.
+
+## How should key retention and expiration work?
+
+Retention determines whether a late duplicate is a replay or a new business action. Set it from the real delivery window, not from the default expiration of a cache product.
+
+List every delay that can happen between the original call and a duplicate: model retry backoff, queue redelivery, worker restart, network partition, human retry, provider timeout, scheduled job delay, and disaster recovery. Add the time required to locate and reconcile an uncertain operation. The retention period should cover the longest accepted path, with a documented margin.
+
+Stripe documents a provider-specific 24-hour pruning behavior for idempotency keys ([Stripe idempotent requests](https://docs.stripe.com/api/idempotent_requests?lang=curl)). That is an example of one provider contract. It is not a safe default for a ticketing system, payment workflow, or message operation whose late-arrival window is longer.
+
+When a record expires, choose one of three explicit policies. You can reject a late duplicate and ask for a new, reviewed operation. You can keep a compact tombstone that remembers the old key and fingerprint without retaining the full response. Or you can require a reconciliation query before accepting the late request. What you should not do is delete the record and silently treat the next delivery as new.
+
+Retention has privacy and cost consequences. Store the smallest result needed for replay. Encrypt sensitive fields, restrict access, and define deletion rules that do not erase the operational identity while an effect can still arrive. A tombstone with a digest and effect reference may be enough after the full response expires.
+
+Document the late-arrival behavior in the tool schema or executor contract. The agent does not need to see every retention detail, but the application must make the rule predictable. If a key is expired, return a distinct result such as `expired_operation` rather than a generic server error. That lets a human or workflow decide whether a new key is justified.
+
+**Key expiration is part of the business effect contract because a late duplicate can become a new action after the record disappears.**
+
+## How should tool versions and schema changes affect replay?
+
+A tool version is part of request identity whenever a version can alter the effect. Changing a default queue, tax calculation, recipient selection, or downstream endpoint can make an old fingerprint ambiguous. Replaying an old stored result remains safe, but reinterpreting an old pending record under new code may not be safe.
+
+Include a tool contract version in the fingerprint or store it as a separate field that participates in the match. When you make a non-material change, such as an internal log field, you can keep the same version. When you change the meaning of an argument or its default, publish a new version and define how old operations are recovered.
+
+A new version should not blindly reuse a key created by an old version. It can first query the old operation record and replay its authoritative result. If it needs to continue work, it should use a migration path that names the old effect and creates a new operation only when the business meaning requires a second effect.
+
+Schema evolution also affects canonicalization. Adding an optional field with a default can make two payloads semantically equivalent, but only if the downstream service applies the same default. Removing a field can make an old request impossible to reconstruct. Keep a canonicalization version and test old payloads against new code before deployment.
+
+The tool description should expose the behavior that matters to the model. Say whether a repeated call returns the original result, whether a pending call must be polled, and whether a mismatch requires a new user decision. Do not promise that the model can safely repeat a call merely because the protocol metadata says a tool is idempotent. MCP exposes `idempotentHint`, but its schema describes annotations as hints that clients must not trust from untrusted servers ([MCP schema](https://modelcontextprotocol.io/specification/2025-11-25/schema)). The implementation remains authoritative.
+
+## What failure modes should you inject before production?
+
+Test the knowledge gaps, not only the happy path. The most valuable fault is one that makes the caller unsure whether the effect happened. Inject it at the boundary where the downstream system commits and the executor records the result.
+
+Start with a test matrix for one concrete tool. Use a fake downstream service that can record an effect, delay its response, drop the response, return a provider receipt, and simulate a duplicate request. Keep the effect counter separate from the executor response so a green tool result cannot hide a duplicate.
+
+| Fault or race | Expected contract | What to inspect |
+| --- | --- | --- |
+| Same key and fingerprint twice | One effect, then replay | One effect reference and two request traces |
+| Response dropped after downstream commit | Replay by downstream key or reconcile by receipt | No blind second call |
+| Process crash after pending claim | Recovery discovers ownership and outcome | No permanent pending record without an owner path |
+| Two workers claim concurrently | One owner, one in-flight or replay result | Unique constraint and lease trace |
+| Same key with changed amount or target | Reject without a new effect | Stored and incoming fingerprints |
+| New key with same arguments | New effect only when the user intent is new | Explicit workflow event |
+| Permission revoked before retry | Reject before the effect | Current authorization decision |
+| Key arrives after retention | Follow documented late-arrival policy | Tombstone, rejection, or reconciliation |
+| Downstream returns a delayed job | Store provider job ID and poll | No duplicate job submission |
+
+Run concurrency tests with different timing, not just simultaneous function calls. Pause one worker after it claims the operation, let a second worker arrive, then release the first. Pause after the downstream effect and before local completion. Kill the worker. Restart it. The sequence should lead to replay or reconciliation, not a second business effect.
+
+Keep the failure case as a regression test with the operation key, fingerprint, downstream receipt, and final state. Avoid logging full customer messages or payment data. A test that proves one effect but leaks sensitive request bodies is not ready to copy into a production harness.
+
+For broader release criteria, connect this matrix to [the AI agent evaluation release gate](/blog/how-to-evaluate-an-ai-agent). For runtime traces, connect operation status and effect references to [the production monitoring guide](/blog/how-to-monitor-an-ai-agent-in-production). Those pages address release and observability; this matrix checks the side-effect boundary directly.
+
+## How can you review an existing tool without rewriting it first?
+
+Begin with the effect, then trace backward to the agent call. A short review can expose an unsafe retry path before the team changes frameworks or adds another orchestration layer.
+
+Ask the owner to fill in this worksheet:
+
+| Review question | Evidence to request | Red flag |
+| --- | --- | --- |
+| What business effect occurs? | A sentence and the downstream system | The answer is only “the API call succeeds” |
+| What identifies the logical action? | Workflow record and key derivation | A model call ID or timestamp is the only identity |
+| Which fields define sameness? | Canonicalization code and tests | Raw JSON hashing with no field policy |
+| Where is the claim unique? | Constraint or compare-and-set operation | In-memory map or read-then-insert |
+| What is stored for replay? | Effect reference and safe response | Only a boolean success flag |
+| What means in flight? | Lease, poll operation, and owner trace | Immediate retry after any timeout |
+| What means unknown? | Receipt lookup and reconciliation owner | A generic 500 or “try again” |
+| How is permission rechecked? | Current actor, tenant, target, approval | Trust in the first authorization decision |
+| When can the key expire? | Retry and late-delivery analysis | A convenient short cache TTL |
+| How is the claim tested? | Fault-injection and concurrency tests | Two successful calls only |
+
+The red flags are design gaps, not proof of duplicate effects. Ask for a trace of one real or synthetic operation and mark each transition: proposed, validated, claimed, sent, committed, acknowledged, replayed, or reconciled. If the trace jumps from “sent” to “success” without a receipt, the tool probably cannot distinguish an error from an unknown outcome.
+
+Review the tool schema as well. Its name and description should state the effect, required operation context, fields that are material, and safe next action after `in_flight` or `unknown`. A schema that says “create a ticket” but hides whether the caller supplies an operation key invites the model to invent one. A schema that accepts a key but does not document mismatch behavior leaves the executor and model with different assumptions.
+
+Finish the review with one decision: automate, automate with approval, or keep manual until reconciliation exists. Do not make that decision from the model's apparent reliability. Make it from the effect boundary, evidence of recovery, and cost of a duplicate.
+
+## What would a complete create-ticket tool contract look like?
+
+Consider a support workflow that asks an agent to create one ticket for a validated customer issue. The tool creates a record in a ticket service and returns a ticket ID. A timeout after creation is plausible, so the contract must cover the service call and the local operation record.
+
+The application creates this key when the workflow enters the “record issue” step:
+
+```text
+acme:production:run_827:record_issue
+```
+
+The same key is reused when the worker restarts or when the model emits a replacement tool call for the same step. A user request to open a second ticket creates a new workflow step and therefore a new key. The executor scopes lookup by tenant and environment so a key from a test tenant cannot find a production operation.
+
+The fingerprint includes `tool_version`, `tenant_id`, `queue_id`, `subject`, and `body`. It excludes the trace ID, model name, received-at time, and retry count. If the same key arrives with a different body, the executor returns `rejected` and asks the workflow to inspect the original operation. It does not update the original ticket and does not create another one.
+
+The first worker inserts `pending` under a unique constraint. It checks current permission and the ticket service's duplicate-prevention option, then calls the service with the same operation key. The service returns `ticket_1042`. The worker stores that receipt and a response containing the ticket ID, then marks the operation `applied`.
+
+If the response is lost after the ticket service creates `ticket_1042`, a retry finds either the local `applied` record or the provider's receipt for the same key. It returns `replayed` and `ticket_1042`. If the local row is still pending and the provider cannot be queried yet, it returns `in_flight` with a status operation. If the provider may have created the ticket but no receipt can be found, it returns `unknown` and sends the case to reconciliation. The agent must not call `tickets.create` again with a new key just because the first response disappeared.
+
+A human reviewer can then answer a practical question: was one ticket created for this issue? The answer is visible in the effect reference and trace. The retry count may be two or twenty, but the business effect remains one. Logging each attempt is fine. RFC 9110 distinguishes the intended effect from the fact that requests can still be logged separately ([HTTP Semantics](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.2)).
+
+This example also shows what idempotency does not solve. It does not decide whether the subject contains prompt injection. It does not prove the customer is allowed to see the ticket. It does not stop a human from intentionally opening a second ticket with a new key. Keep input validation, authorization, approval, version checks, and duplicate prevention as separate controls.
+
+## What should you copy into a tool design review?
+
+Use this compact artifact as the first page of a review. Replace every bracketed value with a concrete answer. An unanswered field is a decision to make, not a harmless omission.
+
+```yaml
+name: tickets.create
+purpose: Create one ticket for one validated workflow step.
+effect_class: key_based_create
+operation_key:
+  derived_by: application
+  scope: tenant + environment + workflow_id + step_id
+  reused_for_retry: true
+  new_key_requires: explicit_new_business_intent
+request_fingerprint:
+  canonical_fields: [tool_version, tenant_id, queue_id, subject, body]
+  algorithm: SHA-256
+  mismatch: rejected_without_effect
+claim:
+  durable_store: tool_operations
+  unique_by: [tenant_id, operation_key]
+  statuses: [pending, applied, in_flight, rejected, unknown]
+effect:
+  downstream_key: operation_key
+  authoritative_receipt: ticket_id
+recovery:
+  applied: replay_stored_result
+  pending: poll_or_recover_owner
+  unknown: reconcile_before_retry
+security:
+  recheck_authorization: immediately_before_effect
+  verify_target_version: true
+retention:
+  rule: longer_than_max_retry_and_late_delivery_window
+tests:
+  - duplicate_same_key
+  - lost_response_after_commit
+  - concurrent_claim
+  - changed_fingerprint
+  - revoked_authorization
+  - expired_key
+owner:
+  reconciliation: [team or person]
+  next_review: [date]
+```
+
+Read it from top to bottom with someone who owns the downstream system. The person responsible for the ticket service should confirm that `operation_key` reaches the provider or that the receipt lookup is real. The security owner should confirm that a replay does not bypass current authorization. The operations owner should accept the unknown-outcome queue and its response time.
+
+If the artifact cannot be completed, limit the tool's permissions or keep the effect behind an approval step. Marius Manolachi's AI consulting work can help a team map one workflow, its tool contract, and its failure cases. The useful starting point is one effect boundary with a named owner, not a promise that a framework will provide exactly-once behavior.
+
+Start with one write tool. Define its operation identity, fingerprint, durable claim, outcome states, authorization check, downstream receipt, retention rule, and fault tests. Then deliberately lose the response after the downstream commit. If the system can recover the original result without making a second effect, the design is ready for a broader review. If it cannot, the unknown state has shown you exactly where the next engineering work belongs.
+
+![Six-stage framework connecting operation recording, request encoding, durable claim, outcome labeling, authorization, and reconciliation](/blog/how-to-design-idempotent-tools-for-ai-agents-idempotent-agent-tools-replay-framework.webp)
+![Four tool-effect classes compared from read operations through key-based commands to non-idempotent actions](/blog/how-to-design-idempotent-tools-for-ai-agents-idempotent-agent-tools-effect-classes.webp)
+![A changed request fingerprint rejected before it can reuse an existing operation key](/blog/how-to-design-idempotent-tools-for-ai-agents-idempotent-agent-tools-fingerprint-mismatch.webp)
+![Tool execution states branching into applied, replayed, in-flight, rejected, and unknown recovery paths](/blog/how-to-design-idempotent-tools-for-ai-agents-idempotent-agent-tools-outcome-states.webp)
+![Fault-injection test points around a downstream commit leading to replay, polling, or reconciliation](/blog/how-to-design-idempotent-tools-for-ai-agents-idempotent-agent-tools-fault-injection.webp)
