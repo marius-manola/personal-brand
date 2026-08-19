@@ -1,0 +1,1046 @@
+---
+title: 'How to Version Prompts for AI Agents in Production'
+date: '2026-08-19'
+updated: '2026-08-19'
+excerpt: 'Version prompts like deployable behavior: pin the full runtime identity, test changes, promote by environment, trace every run, and keep rollback one pointer away.'
+answer: 'Version prompts as immutable release artifacts, not editable text. Store the prompt, variable and output contracts, model assumptions, tool and policy versions, tests, owner, and change note together. Promote a tested version through staging to production with a movable pointer, record that identity on every run, and roll back the pointer when behavior regresses.'
+targetQuery: 'how to version prompts for AI agents in production'
+queryAliases:
+  - 'AI agent prompt versioning'
+  - 'production prompt version control'
+  - 'how to manage prompts in production'
+  - 'version system prompts for AI agents'
+intent: 'implementation'
+funnel: 'consideration'
+cluster: 'AI agent reliability and operations'
+tags:
+  - 'AI agents'
+  - 'AI reliability'
+  - 'AI operations'
+  - 'Prompt engineering'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-17'
+sources:
+  - 'https://developers.openai.com/api/docs/guides/prompt-engineering'
+  - 'https://openai.github.io/openai-agents-js/guides/models/'
+  - 'https://docs.langchain.com/langsmith/manage-prompts'
+  - 'https://docs.langchain.com/langsmith/manage-prompts-programmatically'
+  - 'https://mlflow.org/docs/latest/genai/prompt-version-mgmt/manage-prompt-lifecycles-with-aliases/'
+  - 'https://mlflow.org/docs/latest/genai/prompt-registry/index.html'
+  - 'https://cloud.google.com/vertex-ai/generative-ai/docs/samples/generativeaionvertexai-prompt-list-prompt-version'
+  - 'https://cloud.google.com/vertex-ai/generative-ai/docs/samples/generativeaionvertexai-prompt-restore-version'
+  - 'https://learn.microsoft.com/en-us/azure/foundry-classic/concepts/prompt-flow'
+  - 'https://airc.nist.gov/airmf-resources/playbook/manage/'
+  - 'https://www.nist.gov/itl/ai-risk-management-framework'
+  - 'https://developers.openai.com/api/reference/resources/evals/methods/delete'
+cover: '/blog/how-to-version-prompts-for-ai-agents-in-production-prompt-versioning-hero.webp'
+coverAlt: 'Illustration of an AI agent prompt moving through review, evaluation, promotion, traceability, and rollback controls'
+faq:
+  - q: 'Should prompts be versioned in Git or in a prompt registry?'
+    a: 'Use Git when prompts should ship with code review, typed builders, tests, and application deployment. Use a registry when you need centralized promotion, aliases, UI editing, or runtime retrieval. In both cases, require immutable versions, environment pointers, evaluation evidence, and a run record that stores the exact resolved version.'
+  - q: 'What should be included in an AI agent prompt version?'
+    a: 'Include the prompt messages and template variables, variable schema, output contract, model and generation assumptions, tool and policy versions, retrieval or memory contract, owner, change note, tests, evaluation results, and release status. The text alone cannot explain a behavior change when the surrounding runtime also changes.'
+  - q: 'Should production use the latest prompt version?'
+    a: 'No. Production should resolve a named environment pointer such as production to a specific immutable version. A latest pointer is useful for development or explicitly controlled experiments, but it makes an unreviewed change capable of altering live behavior without a clear promotion event.'
+  - q: 'How do you roll back a prompt used by an AI agent?'
+    a: 'Move the production pointer back to the last known-good immutable version, invalidate or bypass any stale prompt cache, verify the resolved version in a canary run, and record the rollback reason. Keep the failed version and its traces for diagnosis instead of deleting it.'
+  - q: 'How often should production prompts be evaluated?'
+    a: 'Run the relevant regression and safety cases for every behavior-changing prompt release, then use staged traffic and production monitoring after promotion. Rerun broader suites when the model, tools, retrieval, memory, policies, output schema, or agent orchestration changes with the prompt.'
+  - q: 'How do you version prompts in a multi-agent system?'
+    a: 'Give every agent prompt its own immutable identity, then version the workflow manifest that names the participating prompt versions, handoff contracts, tools, and policies. Record both the local prompt version and the workflow version on each run so a handoff regression can be attributed to the right boundary.'
+draft: false
+---
+
+Prompt edits look small in a diff. Their effects often aren't.
+
+Add one sentence and an agent may choose a different tool. Remove one example and its output contract may become unreliable. Change a variable name and a template can render incomplete instructions. If the prompt is fetched from a shared service, the behavior can change while the application binary stays exactly the same.
+
+That makes prompt versioning a release problem. The useful question is not “which text is newest?” It is “which complete behavior definition produced this run, who approved it, and how quickly can we return to the last known-good one?”
+
+![Illustration of a prompt change travelling through review, evaluation, deployment, and rollback](/blog/how-to-version-prompts-for-ai-agents-in-production-prompt-versioning-deployment-flow.webp)
+
+## How should you version prompts for AI agents in production?
+
+Version prompts as immutable release artifacts, not editable text. Store the prompt, variable and output contracts, model assumptions, tool and policy versions, tests, owner, and change note together. Promote a tested version through staging to production with a movable pointer, record that identity on every run, and roll back the pointer when behavior regresses.
+
+This is the core answer. The rest of the article turns it into a working system.
+
+The framework I use here is **PIVOT**:
+
+| Letter | Control | Question it answers |
+| --- | --- | --- |
+| **P** | Prompt identity | Which immutable prompt artifact did the agent resolve? |
+| **I** | Inputs and contracts | Which variables, tools, output schema, policies, and context assumptions travelled with it? |
+| **V** | Verification | Which cases, graders, and human decisions allowed the version to advance? |
+| **O** | Operations | How is the version promoted, canaried, cached, disabled, or rolled back? |
+| **T** | Traceability | Can a production run be joined to the exact behavior identity and its release event? |
+
+PIVOT is an original synthesis, not a vendor standard. It gives a small team one checklist for the parts that are otherwise scattered across a source repository, prompt platform, evaluation dashboard, feature-flag service, and log store.
+
+**A production prompt version is a behavior contract, not a paragraph of text.**
+
+OpenAI's current guidance makes one especially useful point for teams starting from saved prompt objects: “Store production prompts in your application code instead of creating reusable prompt objects.” The same guidance recommends typed inputs, representative fixtures, tests, evaluation checks, and deployment-based rollout with feature flags when staged releases are needed ([OpenAI prompt engineering](https://developers.openai.com/api/docs/guides/prompt-engineering)). That is one valid operating model. Other platforms provide registries and environment pointers. The portable principles are immutability, evidence, explicit promotion, and traceability.
+
+## What counts as a prompt version?
+
+A prompt version is one immutable snapshot of the instructions and the assumptions that make those instructions meaningful.
+
+At minimum, it contains:
+
+1. The ordered messages or instruction template.
+2. The variables accepted by the template and their types.
+3. The output contract, including a schema or required fields when the agent feeds another step.
+4. The model and generation settings the prompt expects.
+5. The tools, tool descriptions, and policy constraints visible to the model.
+6. The retrieval, memory, or context contract the prompt assumes.
+7. The owner, change reason, review status, and evidence links.
+
+If you version only the string, you can answer “what words changed?” You cannot reliably answer “what behavior changed?” A prompt that says `summarize the ticket` behaves differently when the model, tool list, retrieved policy, output schema, or user variables differ.
+
+The exact boundary depends on your architecture. A prompt registry might store only messages and variables while your deployment system owns models and tools. That is acceptable if the prompt record carries references to those external versions and the run record captures their resolved values. A field can live in another system and still belong in the behavior identity.
+
+### Is a prompt version the same as an application release?
+
+No. A prompt version and an application release have different lifecycles, even when your team ships them in one commit.
+
+An application release may change routing, authentication, persistence, tool execution, or a UI. A prompt release may change instructions or examples while using the same runtime. They should be independently identifiable so a trace can distinguish these cases:
+
+| Situation | Prompt identity | Application identity | What the trace should show |
+| --- | --- | --- | --- |
+| Code and prompt changed together | `support-agent-p17` | `app-2026.08.19.2` | Both changed in one release |
+| Prompt promoted without code deploy | `support-agent-p18` | `app-2026.08.19.1` | Same app, new prompt pointer |
+| Model changed under the same prompt | `support-agent-p18` | `app-2026.08.19.1` | Prompt unchanged, model identity changed |
+| Tool schema changed | `support-agent-p18` | `app-2026.08.19.3` | Prompt and tool contract must be compared |
+| Runtime resolved a cached prompt | `support-agent-p18` | `app-2026.08.19.1` | Cache state and resolved version are visible |
+
+Treating every change as one opaque “agent version” makes rollback slower. Treating every field as independently mutable makes diagnosis impossible. The practical compromise is a composed runtime identity with stable component IDs.
+
+## Why is prompt text alone not enough?
+
+Prompt text is the most visible part of an agent's behavior, but it is only one input to the model call.
+
+Consider this instruction:
+
+```text
+You are a support agent. Resolve eligible refund requests and escalate exceptions.
+```
+
+That sentence does not tell you:
+
+- whether “eligible” comes from a policy tool or a retrieved document;
+- whether the agent may call `create_refund` or only propose a refund;
+- what the tool arguments look like;
+- whether the model must emit a structured decision;
+- whether an approval is required above a threshold;
+- whether the request includes verified customer identity;
+- whether the agent can read internal notes;
+- which model interprets the instruction;
+- what happens when the policy tool times out.
+
+Those details may be explicit in code. They may be in a tool schema. They may be injected at runtime. They still determine the behavior of the prompt.
+
+MLflow's current Prompt Registry documentation makes the boundary concrete by supporting model configuration alongside a prompt version and linking prompt use with tracing, evaluation, and monitoring ([MLflow Prompt Registry](https://mlflow.org/docs/latest/genai/prompt-registry/index.html)). OpenAI's Agents SDK similarly exposes a prompt configuration with a `promptId`, a `version`, and `variables` ([OpenAI Agents SDK models](https://openai.github.io/openai-agents-js/guides/models/)). These are vendor-specific interfaces, but they point to the same design requirement: the prompt needs a stable identity and the runtime needs to record what it resolved.
+
+### Which surrounding inputs should be versioned with the prompt?
+
+Use this rule: version with the prompt anything that can make a reviewer interpret the prompt differently or make the agent take a different action.
+
+That usually includes the following.
+
+| Component | Version it? | Why |
+| --- | --- | --- |
+| System or developer messages | Yes | They define the agent's identity, rules, and task policy. |
+| Few-shot examples | Yes | Examples change behavior even when the main instruction stays the same. |
+| Variable schema | Yes | A renamed, optional, or retyped variable can change rendered instructions. |
+| Output schema | Yes | Downstream code may reject, reinterpret, or dangerously default malformed output. |
+| Model name and pinned deployment | Record | Model behavior is part of the run identity, even if the prompt is unchanged. |
+| Temperature and other generation settings | Record | Settings can change variance and output shape. |
+| Tool definitions and policy | Reference and test | Tool descriptions affect selection, arguments, and available actions. |
+| Retrieved context | Version the retriever or corpus; hash sensitive payloads | The prompt may be constant while its evidence changes. |
+| Memory contract | Reference and test | Memory fields can add instructions or stale facts. |
+| Guardrails and approvals | Reference and test | They constrain effects outside the model response. |
+| Application code | Record | Rendering, routing, and tool execution can change behavior around the prompt. |
+
+This table is a design recommendation, not a claim that every system needs one monolithic artifact. Separate ownership can be healthy. The important part is that a release record names the dependencies and the evaluation harness tests the combination that will run.
+
+![Illustration of a prompt version surrounded by model, variables, output, tools, retrieval, policy, and code dependencies](/blog/how-to-version-prompts-for-ai-agents-in-production-prompt-version-dependency-contract.webp)
+
+## Should prompts live in Git, a prompt registry, or both?
+
+Choose the control plane based on who needs to edit prompts, how quickly you need to promote them, and whether your application must build from a local, reviewable snapshot.
+
+### When is Git the right source of truth?
+
+Git is a strong default when:
+
+- prompts are maintained by engineers who already use pull requests;
+- prompt changes should be reviewed with code and tests;
+- the application should compile or package a known prompt snapshot;
+- you need offline development or a simple self-hosted workflow;
+- deployment should be the only path that changes production behavior.
+
+OpenAI currently recommends code-managed prompts for new prompt-engineering work, with typed inputs, fixtures, tests, evaluation checks, and normal deployment processes ([OpenAI prompt engineering](https://developers.openai.com/api/docs/guides/prompt-engineering)). This approach is easy to understand: a commit contains the prompt builder, the tests, and the code that consumes its output.
+
+Git does not automatically solve prompt operations. You still need a runtime ID, a release note, a prompt-specific diff, an evaluation record, and a way to canary or roll back a prompt without confusing it with an application rollback. A file in a repository is versioned. A production run is traceable only if the deployed application records which file revision it resolved.
+
+### When is a prompt registry useful?
+
+A registry is useful when prompts need a central promotion workflow or more direct collaboration between engineers and domain experts. It can provide:
+
+- immutable history;
+- named environment pointers;
+- a UI for comparison and review;
+- tags or aliases;
+- remote retrieval;
+- lineage to traces and evaluations;
+- controlled permissions for promotion.
+
+LangSmith documents commits, staging and production environments, commit tags, access controls, and rollback history ([LangSmith manage prompts](https://docs.langchain.com/langsmith/manage-prompts)). MLflow documents immutable versions, side-by-side diffs, aliases, and production-oriented switching without hard-coding a version number ([MLflow prompt lifecycle](https://mlflow.org/docs/latest/genai/prompt-version-mgmt/manage-prompt-lifecycles-with-aliases/)). Google Vertex AI examples show listing and retrieving a specific prompt version and restoring a previous version into a new latest version ([Google Cloud prompt versions](https://cloud.google.com/vertex-ai/generative-ai/docs/samples/generativeaionvertexai-prompt-list-prompt-version), [Google Cloud restore prompt version](https://cloud.google.com/vertex-ai/generative-ai/docs/samples/generativeaionvertexai-prompt-restore-version)).
+
+The risk is that remote retrieval can turn a prompt edit into an untracked deployment. If application code loads `support-agent:latest`, and someone moves `latest` in a UI, production behavior has changed even though the application artifact did not. That can be a reasonable development pattern. It is a poor production default unless the promotion event, permission, cache, and trace behavior are explicit.
+
+### Is the best answer Git plus a registry?
+
+Often, yes, but only if ownership is clear.
+
+A practical hybrid looks like this:
+
+1. Store the canonical prompt template, manifest, test cases, and change note in Git.
+2. Build or publish an immutable registry version from the reviewed commit.
+3. Promote the registry version with an environment pointer.
+4. Record both the Git commit and registry version in the release record.
+5. Record the resolved registry version in every run.
+
+This gives engineers a reviewable source and operators a controlled deployment handle. It also gives you two rollback paths, so name the authority for each. If the registry pointer says production is `p18` but the application bundle contains `p17`, which one wins? Decide before an incident. My recommendation is that the runtime logs and exposes the resolved version, while the release controller rejects ambiguous configuration.
+
+**Use immutable versions for history and mutable pointers for environments.**
+
+### What should you avoid?
+
+Avoid three weak defaults:
+
+1. **Editing a shared string in place.** You lose the before state or make it difficult to prove which text ran.
+2. **Using `latest` in production without an audited promotion event.** The name hides which version is active.
+3. **Copying prompt text into several agents.** The text can drift while the filenames stay similar.
+
+The goal is not to make every edit slow. The goal is to make the fast path safe and the exceptional path visible.
+
+## What should a prompt version manifest contain?
+
+Start with a manifest that is specific enough to release and small enough to review. The following fields are a good baseline.
+
+| Field | Required purpose |
+| --- | --- |
+| `id` | Human-readable logical name, stable across versions. |
+| `version` | Immutable artifact identifier. A number, semantic label, or content hash can work. |
+| `status` | Draft, candidate, staging, production, retired, or blocked. Status should not mutate the version text. |
+| `owner` | Person or team accountable for behavior and review. |
+| `change` | Short reason, expected effect, and linked issue or incident. |
+| `messages` | The ordered prompt content or a reference to the canonical content. |
+| `variables` | Names, types, requiredness, validation, and safe rendering rules. |
+| `output` | Schema, required fields, parse behavior, and refusal or escalation shape. |
+| `model` | Model identifier, deployment, and relevant generation settings. |
+| `tools` | Tool contract versions, permission profile, and tool-use expectations. |
+| `context` | Retrieval, memory, and external context assumptions. |
+| `safety` | Forbidden actions, approval requirements, sensitive-data handling, and abuse cases. |
+| `tests` | Regression, capability, policy, and contract cases that must run. |
+| `evidence` | Evaluation run IDs, human review, rollout notes, and incident links. |
+| `createdAt` | Creation time. |
+| `release` | Promotion history and environment pointers, usually stored separately. |
+
+Do not overload `status` with environment. A version can be approved for production while production still points to another version. The environment pointer answers “what is active here?” The version status answers “what do we know about this artifact?”
+
+### How should you name versions?
+
+Pick one scheme and make it boring.
+
+Three workable options are:
+
+| Scheme | Example | Strength | Weakness |
+| --- | --- | --- | --- |
+| Monotonic version | `support-agent/42` | Easy to read and order | Does not explain content or branch history by itself |
+| Semantic behavior version | `support-agent/2.3.0` | Communicates intended magnitude of change | Teams argue about whether a prompt edit is major or minor |
+| Content or commit ID | `support-agent/9f4c2d1` | Strong reproducibility and collision resistance | Less friendly in incident conversations |
+
+I prefer a logical name plus an immutable ID, for example `support-agent@p042` with a stored Git commit or content hash. The friendly number is for humans. The underlying hash is for identity checks.
+
+Do not reuse an ID after editing the content. Do not delete a version because it failed. Mark it blocked or retired and preserve its evaluation and production evidence. A bad version is part of the history that explains why the good version exists.
+
+## How should environment pointers and promotion work?
+
+Separate **artifact identity** from **environment assignment**.
+
+An immutable version never changes. An environment pointer can move from one immutable version to another.
+
+```text
+support-agent@p041  ─────┐
+support-agent@p042  ─────┼──> staging
+support-agent@p043  ─────┘
+
+support-agent@p041  ─────> production
+```
+
+The pointer is the release decision. It should have its own record:
+
+```yaml
+environment: production
+prompt_id: support-agent
+from_version: p041
+to_version: p042
+approved_by: support-platform
+approved_at: 2026-08-19T09:30:00Z
+evaluation_run: eval-2026-08-19-184
+rollout: 10-percent-canary
+rollback_to: p041
+reason: "Clarify when duplicate refund requests require escalation"
+```
+
+LangSmith's documentation describes staging and production as environments attached to specific commits, with a history that can be used to roll back ([LangSmith manage prompts](https://docs.langchain.com/langsmith/manage-prompts)). MLflow's documentation describes aliases such as `production` that point to a chosen immutable version and can be switched for rollback or A/B testing ([MLflow prompt lifecycle](https://mlflow.org/docs/latest/genai/prompt-version-mgmt/manage-prompt-lifecycles-with-aliases/)). Those systems use different names. The control shape is the same.
+
+### Should a pointer be mutable by an application?
+
+Usually, no. Let a release controller or deployment system move `staging`, `canary`, and `production`. The application should read the pointer, resolve it to an immutable version, and expose the result in its run record.
+
+An application may choose a variant deliberately for an experiment, but that choice needs an explicit experiment ID, assignment rule, and stop condition. “We sometimes load the newest prompt” is not an experiment. It is hidden configuration drift.
+
+### What permissions should promotion require?
+
+Keep editing and promotion separate where the consequence justifies it.
+
+- A domain expert can propose a prompt change.
+- An engineer or evaluator can run the required suite.
+- A service owner can approve the release.
+- A release controller can move the environment pointer.
+- An incident operator can execute an emergency rollback.
+
+The smallest team may combine roles, but the release record should still name the actor and the evidence. NIST's AI RMF Playbook asks teams to maintain a database of system changes, their reasons, how they were tested and deployed, and version-history metadata. It also connects post-deployment monitoring with incident response, recovery, and change management ([NIST AI RMF Playbook, Manage 4.1](https://airc.nist.gov/airmf-resources/playbook/manage/)).
+
+## How should you classify a prompt change before testing it?
+
+Do not use one test suite for every edit. Classify the changed surface first, then choose the smallest suite that can detect the likely regression. Expand the suite when the change crosses a risk boundary.
+
+Here is a practical change-impact matrix.
+
+| Changed surface | Typical effect | Minimum test | Rollout treatment |
+| --- | --- | --- | --- |
+| Typo, wording, or tone | Response phrasing or interpretation may shift | Representative regression cases and output review | Staging, then canary if the agent acts externally |
+| Few-shot example | Model may imitate a new pattern | Regression plus cases near the example's domain | Canary and compare quality and refusal signals |
+| Variable name or type | Rendering or missing input | Template contract and rendering tests | Block until all callers pass |
+| Output schema | Parser or downstream action may break | Schema, parser, and end-to-end state tests | No automatic rollout until consumers pass |
+| Tool description | Tool selection or arguments may change | Tool-choice and forbidden-action cases | Canary with side effects disabled or approval-gated |
+| Safety rule | Allowed behavior or refusal boundary changes | Policy, abuse, and human review cases | Security owner approval and narrow rollout |
+| Retrieved context format | Evidence boundaries may shift | Retrieval fixtures and injection cases | Canary with representative context |
+| Memory instruction | Prior facts may influence behavior | Memory read, write, isolation, and forgetting cases | Rollout only with trace inspection |
+| Model or deployment | Broad behavior may shift | Full regression and stability suite | Treat as a system release even if text is unchanged |
+
+The classification is analysis, not an industry standard. Its purpose is to stop a team from calling a tool-description edit “just copy.” Tool descriptions are part of the agent's action surface, so the right test may be closer to an integration and security test than to a writing review.
+
+### Which changes require a full evaluation suite?
+
+Run the full suite when a change affects:
+
+- permissions, approvals, or forbidden actions;
+- output schemas or tool arguments;
+- model family, model deployment, or significant generation settings;
+- retrieval, memory, context assembly, or prompt injection boundaries;
+- multi-agent handoffs or workflow transitions;
+- a known incident or a high-consequence task;
+- a prompt used by several workflows with different risk profiles.
+
+OpenAI's current prompt guidance says to add representative fixtures, tests, and evaluation checks before changing production prompts. Microsoft's Prompt flow documentation similarly describes variants, evaluation, deployment, and production monitoring as one lifecycle ([OpenAI prompt engineering](https://developers.openai.com/api/docs/guides/prompt-engineering), [Microsoft Prompt flow](https://learn.microsoft.com/en-us/azure/foundry-classic/concepts/prompt-flow)). The practical lesson is not “run every test on every comma.” It is “make the scope of evidence match the scope of behavior that can change.”
+
+For the mechanics of a broader agent release gate, use [How to Evaluate an AI Agent](/blog/how-to-evaluate-an-ai-agent). Prompt versioning should feed that gate with a stable candidate identity. It should not replace the gate.
+
+![Illustration of a prompt change-impact matrix routing wording, schema, tools, safety, and model changes into different test gates](/blog/how-to-version-prompts-for-ai-agents-in-production-prompt-change-impact-matrix.webp)
+
+## What should you test before promoting a prompt version?
+
+The test suite should combine deterministic checks with judgment where judgment is actually needed.
+
+### 1. Contract tests
+
+Contract tests make sure the prompt can be assembled and consumed.
+
+Check that:
+
+- every required variable is present;
+- unknown variables are rejected or handled deliberately;
+- values are escaped and delimited safely;
+- the rendered prompt remains within the intended size and structure;
+- the model call uses the expected roles and message order;
+- the response schema is valid;
+- downstream parsers handle refusals, partial results, and tool errors;
+- the prompt manifest references available model, tool, and policy versions.
+
+These tests are cheap and should run on every change. They catch many “prompt problems” before a model is called.
+
+### 2. Regression cases
+
+Regression cases represent behavior the agent already handles. Each case should have a clear pass rule, not merely a preferred answer.
+
+For an agent that triages support tickets, a case might assert:
+
+- the ticket category is one of the allowed labels;
+- the agent reads the order before proposing a refund;
+- a duplicate refund is never created;
+- the escalation reason is present when policy is ambiguous;
+- private internal notes are not included in the customer response.
+
+Keep the old version as the baseline. Compare the candidate with the baseline on the same fixtures and configuration. A candidate that improves one case and breaks a critical one is not “better overall” until the team makes an explicit risk decision.
+
+### 3. Capability cases
+
+Capability cases explore a behavior you want to add or improve. They answer, “Can the candidate do the new thing?” They do not protect old behavior.
+
+For example, a new prompt might teach the agent to recognize a partial shipment. A capability case verifies the new classification and the correct handoff. It should be separate from a regression case for duplicate refunds.
+
+This distinction matters because a candidate can pass the new case while silently regressing ordinary cases. Keep capability and regression results visible as separate columns.
+
+### 4. Policy and abuse cases
+
+Policy cases test hard boundaries:
+
+- attempts to override system rules;
+- requests to use a tool outside the agent's scope;
+- unverified identity;
+- malicious content in retrieved documents;
+- prompt data that includes instructions unrelated to the user's task;
+- requests that would expose private information;
+- attempts to bypass an approval state.
+
+The expected result is often a denial, escalation, or no-op. Do not grade these cases only by response politeness. Assert the absence of the forbidden action and the state that must remain unchanged.
+
+### 5. Stability cases
+
+Run repeated trials for cases where variance matters. Vary harmless wording, input order, missing optional fields, tool latency, and relevant context. Record the number of trials, the model and configuration, and the pass definition.
+
+Do not present a pass rate from an unrecorded experiment as a universal benchmark. The result belongs to the exact prompt, model, configuration, fixtures, and date that produced it.
+
+### 6. Human review
+
+Use human review for ambiguity, domain nuance, and model graders that need calibration. A human should not be forced to inspect every ordinary case if deterministic checks can do it, but high-risk cases deserve a clear owner with authority to block promotion.
+
+The release record should link to the evaluation run, not paste a summary such as “looks good.” A summary is useful. The underlying cases are what make the decision auditable.
+
+### What does a prompt evaluation record need to say?
+
+At minimum:
+
+```yaml
+evaluation_id: eval-2026-08-19-184
+candidate:
+  prompt_id: support-agent
+  prompt_version: p042
+  application_version: app-2026.08.19.1
+  model: provider/model-deployment-7
+  tools_version: tools-18
+  policy_version: refund-policy-6
+dataset: support-regression-2026-08
+cases: 148
+trials_per_case: 3
+graders:
+  - contract-check
+  - state-check
+  - policy-veto
+  - calibrated-response-review
+baseline: support-agent@p041
+decision: approved-for-canary
+reviewed_by: support-platform
+reviewed_at: 2026-08-19T09:15:00Z
+known_limits:
+  - "Does not include live payment provider failures"
+  - "Human review sampled 30 open-ended responses"
+```
+
+OpenAI's Evals API supports log-based data sources filtered by metadata such as `prompt-version=v2`, which illustrates why prompt identity should be attached to evaluation and production records ([OpenAI Evals API reference](https://developers.openai.com/api/reference/resources/evals/methods/delete)). The field names in the example are my recommendation. They are not an OpenAI schema.
+
+## How do you connect a prompt version to every agent run?
+
+Resolve the prompt once at the start of a meaningful run, then record the resolved identity beside the application, model, tools, policies, and context references.
+
+Do not rely on reconstructing the version later from a timestamp or a deployment ID. Timestamps are not identities. A prompt pointer can move between two requests. A cache can serve different values across processes. A model can be routed by feature flag. Capture what actually ran.
+
+A useful runtime record includes:
+
+```ts
+type AgentBehaviorIdentity = {
+  agentId: string;
+  workflowVersion: string;
+  promptId: string;
+  promptVersion: string;
+  promptSource: 'git' | 'registry' | 'provider';
+  promptContentHash: string;
+  model: string;
+  generationConfigHash?: string;
+  toolsVersion: string;
+  policyVersion: string;
+  retrievalVersion?: string;
+  memorySchemaVersion?: string;
+  applicationVersion: string;
+  environment: 'development' | 'staging' | 'canary' | 'production';
+};
+```
+
+The content hash is useful as a guard against a broken registry or cache. If the resolved body does not match the expected hash for `promptVersion`, fail closed or route to a safe fallback, depending on the workflow. Do not silently continue with content that has the right label but the wrong bytes.
+
+For a deeper run-level contract, see [How to Monitor an AI Agent in Production](/blog/how-to-monitor-an-ai-agent-in-production). The prompt version belongs in the runtime section of the record, not buried in an unsearchable string inside a model request.
+
+### What if the prompt is assembled dynamically?
+
+Record both the template identity and the resolved input identities.
+
+For example:
+
+```json
+{
+  "promptId": "support-agent",
+  "promptVersion": "p042",
+  "templateHash": "sha256:abc123",
+  "variables": {
+    "locale": "en-GB",
+    "policyRef": "refund-policy-6",
+    "customerTier": "standard"
+  },
+  "retrieval": {
+    "index": "support-policy",
+    "snapshot": "2026-08-19T08:00:00Z",
+    "documentIds": ["refund-policy-6"]
+  }
+}
+```
+
+Do not log raw customer prompts or retrieved documents by default. Store references, hashes, redacted excerpts, or encrypted payloads according to your privacy and retention requirements. The purpose of versioning is reproducibility, not unlimited data collection.
+
+![Illustration of a runtime record joining prompt template, resolved variables, retrieval snapshot, and privacy-safe hashes](/blog/how-to-version-prompts-for-ai-agents-in-production-prompt-runtime-identity.webp)
+
+### What about system messages supplied by the model provider?
+
+Treat them as an external dependency and record the provider, model, endpoint, and dated configuration that your integration uses. You may not be able to hash or reproduce every provider-side component. That is a limitation to state, not a reason to omit the provider identity.
+
+If a provider changes a model behind a stable name, your prompt version may remain unchanged while the behavior identity changes. This is why the model field cannot be reduced to “same prompt.” Re-run the relevant evaluations when the provider's model deployment or behavior contract changes.
+
+## How should you stage, canary, and promote a prompt?
+
+Use a promotion path that limits blast radius and creates evidence at each step.
+
+### Step 1: Build the candidate
+
+Create an immutable candidate from the reviewed source. Render the prompt with representative variables. Calculate a content hash. Validate tool, policy, output, and model references.
+
+### Step 2: Run pre-release checks
+
+Run contract tests, regression cases, capability cases, and safety cases according to the change-impact matrix. Compare the candidate with the current production version. Save the evaluation ID in the candidate record.
+
+### Step 3: Promote to staging
+
+Move the staging pointer. Run the agent in a sandbox or with side effects disabled. Exercise real integrations where possible, but use test identities and isolated data.
+
+### Step 4: Canary the candidate
+
+Route a defined slice of traffic or a defined set of low-risk tasks to the candidate. The slice needs an assignment rule that remains stable long enough to compare outcomes. Record the candidate version on every run.
+
+If the agent takes external actions, begin with shadow mode, read-only tools, approval gates, or a narrow cohort. The right canary for a research assistant is not automatically the right canary for a payment agent.
+
+### Step 5: Compare the candidate with the baseline
+
+Compare outcome, action, policy, operating, and user signals:
+
+| Signal | What to compare |
+| --- | --- |
+| Outcome | Verified task completion, state correctness, escalation, correction, and abandonment |
+| Actions | Tool choice, arguments, denied calls, unnecessary steps, and handoffs |
+| Policy | Forbidden action attempts, approvals, privacy failures, and refusal quality |
+| Operations | Latency, tokens, retries, timeouts, and cost inputs |
+| User signal | Reopens, edits, overrides, complaints, and sampled review |
+
+Do not collapse these into one score when a safety signal can veto the release. A small quality gain is not a trade for a new unauthorized action unless the owner explicitly accepts that risk and changes scope.
+
+### Step 6: Move the production pointer
+
+Promote only after the release record contains the candidate version, evaluation evidence, canary window, decision owner, rollout rule, and rollback target. The pointer move should be an observable event.
+
+Microsoft's Prompt flow documentation describes a lifecycle that moves from experimentation to evaluation and refinement, then production deployment and monitoring, with production information feeding later iterations ([Microsoft Prompt flow](https://learn.microsoft.com/en-us/azure/foundry-classic/concepts/prompt-flow)). That loop is more durable than any particular portal feature.
+
+### What should stop a canary?
+
+Define stop conditions before the canary starts. Examples include:
+
+- any forbidden action;
+- missing or invalid output on a critical case;
+- approval bypass;
+- verified outcome regression beyond the owner's threshold;
+- cost, latency, or retry budget breach;
+- missing prompt identity in a production trace;
+- cache serving a version different from the release record;
+- a material user complaint or security incident.
+
+The thresholds are workflow-specific. A high-risk agent may stop on one critical policy failure. A low-risk drafting agent may tolerate a small quality difference while a human reviews output. Record the rule so the decision does not change after seeing a flattering score.
+
+![Illustration of staging, canary, production promotion, stop conditions, and a rollback pointer](/blog/how-to-version-prompts-for-ai-agents-in-production-prompt-promotion-rollback.webp)
+
+## How do you roll back a prompt safely?
+
+Rollback means returning the environment pointer to a known-good immutable version and verifying that all runtime layers resolve it.
+
+The basic sequence is:
+
+1. Declare the incident or regression and freeze further promotion.
+2. Identify the active version and the last known-good version from the release history and traces.
+3. Move the production pointer back to the known-good version.
+4. Invalidate or bypass prompt caches according to the retrieval system's semantics.
+5. Run a canary using the rollback target and verify its resolved content hash.
+6. Confirm that new production runs record the rollback target.
+7. Preserve the failed version, traces, evaluation evidence, and release event.
+8. Turn the failure into a regression case before editing again.
+
+LangSmith documents rollback by updating an environment pointer to a previous commit, while Google Vertex AI documents restoring a prompt version into a new latest version rather than editing history in place ([LangSmith rollback](https://docs.langchain.com/langsmith/manage-prompts), [Google Cloud restore prompt version](https://cloud.google.com/vertex-ai/generative-ai/docs/samples/generativeaionvertexai-prompt-restore-version)). The exact mechanics differ, so test them before an incident.
+
+### Should rollback recreate the old version or point to it?
+
+For normal operations, point the environment back to the existing immutable version. Recreating the text as a new version can be useful when a provider's registry only supports restore-as-new or when you need to attach a remediation note, but it should preserve the link to the original known-good identity.
+
+If the old version depended on a removed tool, changed model, or deleted policy record, prompt rollback alone may not restore behavior. This is why the prompt version must reference its dependencies and why rollback is a system operation, not a text operation.
+
+### What if prompts are cached?
+
+Define cache behavior as part of the release design.
+
+You need to know:
+
+- whether an exact version can be cached indefinitely;
+- whether environment aliases are cached with a time-to-live;
+- how a pointer move invalidates caches;
+- how to force a fresh fetch;
+- whether each process resolves the same version;
+- what happens when the registry is unavailable.
+
+MLflow's documentation distinguishes version-based loading from alias-based loading and documents different cache behavior because immutable versions can be cached more safely than moving aliases ([MLflow Prompt Registry](https://mlflow.org/docs/latest/genai/prompt-registry/index.html)). LangSmith also documents prompt caching and a way to bypass the cache for a fresh fetch ([LangSmith programmatic prompts](https://docs.langchain.com/langsmith/manage-prompts-programmatically)). Use those as examples, not assumptions about every platform.
+
+If a rollback depends on waiting for a five-minute cache expiration, that delay belongs in the incident runbook. If a high-risk agent cannot tolerate stale configuration, use version-pinned retrieval or an explicit cache invalidation path.
+
+![Illustration of prompt cache states showing pinned versions, moving aliases, stale workers, and invalidation](/blog/how-to-version-prompts-for-ai-agents-in-production-prompt-cache-boundaries.webp)
+
+## Which prompt-versioning failure modes should you expect?
+
+Most failures are not caused by a missing version number. They are caused by a missing boundary around the version.
+
+### Failure mode 1: The team versions the text but not the variables
+
+The prompt file is committed, but the application silently renames `customer_context` to `context`. The rendered request loses a critical section. The diff looks like “no prompt change,” so the incident is misdiagnosed.
+
+Fix it with variable schemas, rendering tests, and a manifest hash that covers the template and variable contract.
+
+### Failure mode 2: A production alias points to `latest`
+
+An editor publishes a new version. Production picks it up through a background fetch. There is no release record, no canary, and no obvious deployment event.
+
+Fix it by using `production` as a pointer to an immutable version, moving that pointer through a controlled promotion event. Keep `latest` for development or an explicit experiment.
+
+### Failure mode 3: The app logs the prompt name but not the version
+
+An incident trace says `support-agent` ran. That name has twenty versions. The team cannot reproduce the behavior.
+
+Fix it by recording logical ID, resolved version, content hash, source, and environment at run start. Make missing identity a monitoring signal.
+
+### Failure mode 4: A prompt rollback leaves a changed tool or model
+
+The text returns to p041, but the tool schema is now v19 rather than v18. The model deployment changed. The old prompt expects a field that no longer exists.
+
+Fix it by recording the full behavior identity and validating dependency compatibility before pointer moves.
+
+### Failure mode 5: A prompt registry becomes a bypass around code review
+
+Remote editing is convenient, so the registry UI becomes the real source of truth. Engineers stop seeing prompt changes in pull requests. Tests run only after incidents.
+
+Fix it by choosing one authoritative authoring path or synchronizing registry versions to a reviewed manifest. A registry can improve collaboration. It should not erase accountability.
+
+### Failure mode 6: The test suite checks only prose quality
+
+The candidate sounds better, but it calls a write tool without approval. The evaluator rewards wording while the workflow becomes less safe.
+
+Fix it by grading state, actions, policy, limits, and response quality separately. For a release-gate model, see [How to Evaluate an AI Agent](/blog/how-to-evaluate-an-ai-agent).
+
+### Failure mode 7: The team treats an output-schema edit as a wording edit
+
+One field changes from `needs_escalation` to `escalate`. The model still answers fluently. The runtime reads a missing field as false and performs the wrong action.
+
+Fix it with schema compatibility checks, downstream contract tests, and a major change classification for output contracts.
+
+### Failure mode 8: Cached processes disagree
+
+Half of the workers load p041 and half load p042. The aggregate metrics hide the split, and an operator cannot tell whether a failure belongs to the candidate.
+
+Fix it by recording the version per run, exposing resolved versions in health or debug views, and using a bounded cache policy with an explicit rollout window.
+
+### Failure mode 9: A prompt is shared by agents with different risk
+
+A wording change is safe for a read-only research agent but unsafe for a refund agent that has write access. The shared prompt gets promoted once for both.
+
+Fix it by giving each workflow a distinct manifest or by requiring each consumer to pass its own evaluation and promotion gate. Shared text does not imply shared release risk.
+
+### Failure mode 10: A failed version is deleted
+
+Deletion removes the evidence needed to understand the regression. The team later recreates a similar version and repeats the failure.
+
+Fix it by retaining immutable history, marking versions retired or blocked, and linking them to failed evaluations and incidents.
+
+**Rollback is only safe when the old prompt's dependencies are still compatible.**
+
+## How do you version prompts in a multi-agent system?
+
+Use two layers of identity:
+
+1. **Agent prompt identity.** Which prompt version controlled each agent's local behavior?
+2. **Workflow identity.** Which set of agents, handoff contracts, tools, policies, and routing rules formed the end-to-end workflow?
+
+Suppose a research workflow has a planner, retriever, analyst, and writer. A run may record:
+
+```yaml
+workflow_id: quarterly-research
+workflow_version: w12
+agents:
+  planner: planner@p07
+  retriever: retriever@p14
+  analyst: analyst@p22
+  writer: writer@p09
+handoff_contracts:
+  planner_to_retriever: handoff@h03
+  analyst_to_writer: handoff@h05
+tools_version: tools@t31
+policy_version: policy@safe-research-4
+```
+
+If the writer becomes verbose, inspect the writer prompt and its context contract. If the analyst hands over an incomplete artifact, inspect the analyst prompt and the handoff contract. If the planner routes the wrong task, inspect the workflow version and planner prompt together.
+
+Do not create one giant prompt version for the entire multi-agent system unless the runtime truly deploys it as one artifact. Separate agent identities give you more precise diagnosis. The workflow version records the composition.
+
+For the handoff boundary itself, see [How to Design Multi-Agent Handoffs That Preserve Context](/blog/design-multi-agent-handoffs). Prompt versioning supplies the identity. The handoff contract supplies the data and authority boundary.
+
+### Can multiple agents share one prompt version?
+
+They can share a version when they share the same role, variables, output contract, tools, policy, and risk treatment. If one consumer has different tools, permissions, or downstream effects, use a distinct manifest or a consumer-specific compatibility record.
+
+The question is not whether the text is identical. The question is whether the release decision is identical. If two consumers cannot share a pass rule, they should not share one production pointer.
+
+## How should you handle dynamic context and memory?
+
+Version the rules for context assembly separately from the context values themselves.
+
+A prompt may say “use the customer policy” while a retriever chooses which policy document to include. The stable thing to version is the retrieval contract:
+
+- source or index identity;
+- document selection rules;
+- ranking or filtering configuration;
+- freshness requirement;
+- maximum context budget;
+- delimiter and provenance format;
+- injection handling;
+- redaction policy.
+
+The run should retain enough evidence to identify the context without storing unnecessary sensitive content. Use document IDs, versions, timestamps, hashes, or approved redacted excerpts.
+
+Memory needs the same separation. Version the memory schema and read or write policy. Do not assume that the prompt version alone explains a response when a memory record changed.
+
+For an agent that uses durable memory, a run identity might include:
+
+```json
+{
+  "promptVersion": "account-agent@p31",
+  "memorySchemaVersion": "memory@v4",
+  "memoryReadPolicyVersion": "memory-read@v2",
+  "memorySnapshot": "tenant-42:2026-08-19T09:00:00Z",
+  "retrievalPolicyVersion": "retrieval@v8",
+  "contextBudget": 12000
+}
+```
+
+The values are illustrative. They are not measured settings or a recommendation for a universal token budget.
+
+## What should you do when the model changes but the prompt does not?
+
+Treat the model change as a behavior release. Keep the prompt version stable if its content and contract are unchanged, but create a new runtime or model configuration identity and run the relevant evaluations.
+
+This separation answers two different questions:
+
+- Did the prompt change?
+- Did the agent behavior change because the model or configuration changed?
+
+If you bump the prompt version for every model change, you lose the ability to attribute the difference. If you never update any identity because “the prompt is the same,” you lose reproducibility.
+
+Use a composed ID such as:
+
+```text
+agent=refund-agent
+prompt=p042
+model=provider-model-7
+tools=t18
+policy=refund-policy-6
+app=2026.08.19.1
+```
+
+When the model provider changes a stable endpoint behind the scenes, record the endpoint and dated deployment metadata that your integration exposes. If the provider cannot expose a stable revision, document that limitation and use monitoring plus re-evaluation to catch behavior drift.
+
+## Is semantic versioning useful for prompts?
+
+It can be, but do not let the label replace a change-impact decision.
+
+Semantic versioning is useful when your team agrees what constitutes a breaking change:
+
+- a major change can alter tool use, safety behavior, or output contracts;
+- a minor change can add a supported behavior without breaking consumers;
+- a patch change can correct wording without changing the contract.
+
+Language-model behavior is not a conventional library API. A one-word edit can change tool selection. A large rewrite can leave behavior unchanged. Use semantic labels as communication, not as proof.
+
+My preferred release record has both:
+
+```yaml
+prompt_id: refund-agent
+version: 3.2.0
+immutable_ref: sha256:9f4c2d1...
+change_class: safety-rule
+```
+
+The label tells a human what the team intended. The immutable reference tells the runtime what bytes to load.
+
+## What is the smallest workable process for a small team?
+
+You do not need a platform migration to start. A small team can use this six-part process:
+
+1. Put every production prompt in a named file or builder with one owner.
+2. Add a manifest with an immutable version, variables, output contract, model, tools, policy, tests, and change note.
+3. Run contract and regression tests in CI or a release script.
+4. Store a `production` pointer in a protected configuration record.
+5. Log the resolved prompt version and behavior identity with every agent run.
+6. Keep one known-good rollback target and test the rollback path before you need it.
+
+That process works in Git alone. As the team grows, a registry can add centralized promotion, UI diffing, aliases, and lineage. Do not add a service before you have agreed on the fields and decisions the service must preserve.
+
+### Can a prompt file be the versioned artifact?
+
+Yes, if the file is immutable after commit and the release references the commit or content hash. Keep the manifest beside it. A file called `support_prompt_v2.txt` is weaker than a logical prompt ID plus a release record because filenames can be copied, overwritten, or loaded incorrectly.
+
+### When should a registry become worth it?
+
+A registry becomes more useful when:
+
+- several teams share prompts;
+- non-engineers need controlled editing;
+- promotion must be separated from application deployment;
+- you need environment aliases and rollback history;
+- prompt lineage must join evaluations and traces;
+- the number of prompts makes repository browsing difficult.
+
+The registry should reduce operational risk, not become a second ungoverned source of truth.
+
+## What should the copy-paste prompt manifest look like?
+
+Use this as a starting point. Replace fields with your real contracts and make the release script validate them.
+
+```yaml
+id: support-agent
+version: p042
+immutable_ref: sha256:replace-with-content-or-manifest-hash
+owner: support-platform
+created_at: 2026-08-19T08:30:00Z
+
+change:
+  summary: "Clarify duplicate-refund escalation and preserve customer-facing refusal"
+  class: safety-rule
+  issue: SUP-1842
+  expected_effect: "No second refund is created when a prior refund exists"
+
+messages:
+  - role: system
+    content: |
+      You are a support agent. Use verified records and the refund policy.
+      Never create a second refund for an already refunded order.
+      Escalate when the policy or identity evidence is incomplete.
+  - role: developer
+    content: |
+      Return a structured decision. Do not expose internal notes to the customer.
+
+variables:
+  - name: customer_request
+    type: string
+    required: true
+    max_length: 4000
+  - name: locale
+    type: string
+    required: true
+    allowed: [en-GB, en-US]
+
+output:
+  schema_ref: support-decision@v6
+  required: [decision, reason, customer_message]
+  decisions: [resolve, escalate, refuse]
+  invalid_output: escalate
+
+model:
+  provider: provider-name
+  deployment: model-deployment-name
+  generation_config_ref: generation@v3
+
+tools:
+  contract_ref: support-tools@v18
+  allowed: [read_order, read_refund_history, create_refund, escalate_case]
+  approval_required: [create_refund]
+
+context:
+  policy_ref: refund-policy@v6
+  retrieval_ref: support-retrieval@v8
+  memory_ref: support-memory@v2
+
+safety:
+  forbidden_actions:
+    - create_refund_when_existing_refund_count_is_positive
+    - expose_internal_notes
+    - bypass_identity_verification
+  required_approvals:
+    - create_refund
+
+tests:
+  contract_suite: support-contract@v12
+  regression_suite: support-regression@2026-08
+  policy_suite: support-policy@v9
+  minimum_decision: approved-for-canary
+
+evidence:
+  evaluation_run: eval-2026-08-19-184
+  human_review: review-2026-08-19-22
+  rollback_target: p041
+```
+
+This artifact is intentionally explicit. You might store the messages in separate files, use JSON Schema instead of YAML, or let a registry own the version ID. The fields still force the important questions into the review.
+
+## What should the release checklist look like?
+
+Use this checklist before moving a prompt pointer.
+
+### Identity
+
+- [ ] The logical prompt ID is stable.
+- [ ] The candidate has a new immutable version.
+- [ ] The content or manifest hash was calculated.
+- [ ] The release record names the Git commit or registry version.
+- [ ] No existing version was edited in place.
+
+### Contracts
+
+- [ ] Variables are typed, validated, and rendered safely.
+- [ ] Output schema and downstream consumers are compatible.
+- [ ] Tool and policy references resolve to known versions.
+- [ ] Retrieval and memory assumptions are named.
+- [ ] Model and generation configuration are recorded.
+
+### Evidence
+
+- [ ] The change class is documented.
+- [ ] Required contract, regression, capability, and policy cases passed.
+- [ ] Known failures were added to the regression suite.
+- [ ] Human review is recorded where the risk requires it.
+- [ ] The candidate was compared with the current production baseline.
+
+### Promotion
+
+- [ ] Staging resolves the intended immutable version.
+- [ ] The canary cohort or assignment rule is defined.
+- [ ] Side effects are isolated, approval-gated, or limited to the risk-appropriate scope.
+- [ ] Stop conditions are written before the canary.
+- [ ] Production has a named rollback target.
+
+### Traceability
+
+- [ ] Every run records prompt ID and resolved version.
+- [ ] Every run records model, app, tool, and policy identities.
+- [ ] Cache behavior is known and tested.
+- [ ] Missing or mismatched identity creates an alert or safe failure.
+- [ ] The release event can be joined to traces and evaluation results.
+
+### Recovery
+
+- [ ] The pointer rollback command is documented.
+- [ ] Cache invalidation or version pinning is tested.
+- [ ] The rollback target remains compatible with its dependencies.
+- [ ] Incident owners know where failed prompt versions and traces live.
+- [ ] A confirmed production failure will become a regression case.
+
+## What does good prompt versioning look like in an incident?
+
+Imagine the support agent begins escalating ordinary duplicate-refund cases instead of resolving them. A useful incident record lets the operator answer these questions within minutes:
+
+1. Which prompt version was active when the error started?
+2. Did the production pointer move, or did the application deploy?
+3. Were all workers resolving the same version?
+4. Did the model, tool contract, policy, retrieval index, or memory schema change?
+5. Did the candidate pass the duplicate-refund regression case?
+6. Which exact tool actions occurred in the failing runs?
+7. Is p041 still compatible with the current tool and policy versions?
+8. Can the operator move production back and verify a fresh resolved hash?
+
+If the answer to the first three is “we don't know,” the failure is not only a prompt-quality issue. It is a release-control issue.
+
+NIST's guidance is useful here because it connects monitoring with change history, incident response, recovery, and documentation of how a change was tested and deployed ([NIST AI RMF Playbook](https://airc.nist.gov/airmf-resources/playbook/manage/)). Prompt versioning is one concrete way to make that record actionable.
+
+## How does prompt versioning fit with agent observability?
+
+Prompt versioning and observability answer different questions:
+
+- Versioning says what could run and what was approved.
+- Observability says what ran, what it did, and what happened in the environment.
+
+The two systems must share identifiers. A release record without traces cannot explain impact. A trace without a resolved prompt version cannot explain cause.
+
+At minimum, add these fields to your agent run record:
+
+```json
+{
+  "run_id": "run-9281",
+  "agent_id": "support-agent",
+  "prompt_id": "support-agent",
+  "prompt_version": "p042",
+  "prompt_hash": "sha256:abc123",
+  "workflow_version": "w12",
+  "model": "provider/model-deployment-7",
+  "tools_version": "tools-18",
+  "policy_version": "refund-policy-6",
+  "environment": "production",
+  "release_event": "release-2026-08-19-31"
+}
+```
+
+The full record should also contain the task, actions, approvals, errors, operating limits, and verified effect. That is why prompt versioning belongs beside the production monitoring contract in [How to Monitor an AI Agent in Production](/blog/how-to-monitor-an-ai-agent-in-production).
+
+**A prompt change without a traceable run identity is an unmeasured production deployment.**
+
+## What should you review every 90 days?
+
+Prompt versioning pages have a high freshness risk because vendors change APIs, model behavior, registry semantics, and caching. Review the article and your implementation when:
+
+- the model provider changes a prompt API or deprecates saved prompt objects;
+- the prompt registry changes alias, tag, cache, or rollback behavior;
+- the agent adopts a new model, tool, retrieval system, or memory schema;
+- a prompt incident reveals a missing manifest field;
+- a new regulator, standard, or internal policy changes evidence requirements;
+- the application begins using prompts in a new risk class;
+- the environment pointer or deployment control changes.
+
+NIST notes that the AI RMF 1.0 is being revised, which is another reason to treat the framework references as guidance to recheck rather than permanent implementation law ([NIST AI RMF](https://www.nist.gov/itl/ai-risk-management-framework)).
+
+Do not rewrite the whole process on every vendor update. Recheck the stable controls first: immutable identity, explicit promotion, evidence, runtime trace, dependency compatibility, and rollback.
+
+## What should you do first?
+
+If you have no prompt release process today, do these three things this week:
+
+1. Inventory every production prompt and give each one a logical ID and owner.
+2. Add prompt version, model, tool, policy, and application identity to the agent run record.
+3. Make the next prompt change go through an immutable candidate, a small regression suite, a protected production pointer, and a tested rollback.
+
+Then expand the manifest as failures teach you what is missing. The process becomes valuable when it helps a person answer a real incident question, not when it contains the most fields.
+
+For the runtime boundaries around those prompts, continue with [How to Design an AI Agent State Machine](/blog/how-to-design-an-ai-agent-state-machine). For the pre-release evidence, use [How to Evaluate an AI Agent](/blog/how-to-evaluate-an-ai-agent). Prompt versioning is the connective tissue between the two: it gives the candidate a stable identity and gives production behavior a history.
+
+The standard to aim for is simple. Every live run should tell you which prompt ran, every production change should have an owner and evidence, and every failed release should be reversible without rewriting history.
+
+![Illustration of the final prompt versioning checklist connecting identity, evidence, promotion, traceability, and recovery](/blog/how-to-version-prompts-for-ai-agents-in-production-prompt-versioning-checklist.webp)
