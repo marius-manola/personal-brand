@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import { MDXRemote } from 'next-mdx-remote/rsc';
 import Copyright from '@/app/components/Copyright';
 import BlogCallCard from '@/app/components/BlogCallCard';
+import BlogAnalytics from '@/app/components/BlogAnalytics';
 import { getAllBlogPosts, getBlogPost, prepareBlogMdx } from '@/lib/server/blog.server';
 import { isLocalBlogImage, localBlogImageSize } from '@/lib/server/blog-image';
 import { sameAs } from '@/app/data/about';
@@ -181,6 +182,7 @@ export default async function BlogPostPage({ params }: PageProps) {
           <Link href="/">Marius Manolachi</Link>
         </nav>
 
+        <BlogAnalytics slug={post.slug} />
         <article>
           <header className="blog-article-header">
             <div className="blog-post-meta">
