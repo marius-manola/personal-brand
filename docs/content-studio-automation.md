@@ -448,7 +448,7 @@ These are not style notes. They are the reasons the first versions did not run u
 
 **EEXIST overwrite only if the title matches.** A different title on the same slug is a different post. Quarantine.
 
-**Studio ESLint can block publish.** The production build used to lint gitignored studio files. Ignore those paths, or set `ignoreDuringBuilds` when `NEXT_DIST_DIR=.next-content-studio-build`.
+**Studio ESLint or TypeScript can block publish.** The production verify-build used to typecheck gitignored studio files, so a dashboard typing nit stopped every live post. ESLint ignores those paths. `tsconfig.json` excludes `app/content-studio`, `app/api/content-studio`, and `lib/content-studio`. Set `ignoreDuringBuilds` when `NEXT_DIST_DIR=.next-content-studio-build`. If a slug is already tracked on `main`, skip a second publish so yesterday’s date is not restamped to today.
 
 **Build into a side dist dir.** `NEXT_DIST_DIR=.next-content-studio-build` so verify-build does not kill `next dev`.
 
