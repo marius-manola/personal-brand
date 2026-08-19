@@ -1,0 +1,792 @@
+---
+title: 'How to Handle Rate Limits in an AI Agent'
+date: '2026-08-19'
+updated: '2026-08-19'
+excerpt: 'Handle AI agent rate limits with shared admission control, bounded retries, jitter, durable waits, and clear decisions to queue, degrade, or stop.'
+answer: 'Handle rate limits in an AI agent outside the model loop: classify the limit, reserve shared request and token capacity, honor Retry-After, use capped exponential backoff with jitter, and cap retries per task. Queue background work durably, degrade only through a checked fallback, and stop with a clear partial result when the retry or task budget is exhausted.'
+targetQuery: 'how to handle rate limits in an AI agent'
+queryAliases:
+  - 'AI agent rate limits'
+  - 'how to handle AI agent API rate limits'
+  - 'AI agent API throttling'
+  - 'how to stop rate limit errors in an AI agent'
+intent: 'informational / implementation'
+funnel: 'consideration'
+cluster: 'AI agent reliability'
+tags:
+  - 'AI agents'
+  - 'AI reliability'
+  - 'AI operations'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-17'
+sources:
+  - 'https://developers.openai.com/api/docs/guides/rate-limits'
+  - 'https://developers.openai.com/cookbook/examples/how_to_handle_rate_limits'
+  - 'https://platform.claude.com/docs/en/api/rate-limits'
+  - 'https://platform.claude.com/docs/en/api/errors'
+  - 'https://ai.google.dev/gemini-api/docs/rate-limits'
+  - 'https://ai.google.dev/gemini-api/docs/troubleshooting'
+  - 'https://www.rfc-editor.org/rfc/rfc6585'
+  - 'https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/'
+  - 'https://platform.openai.com/docs/api-reference/backward-compatibility?lang=ruby'
+faq:
+  - q: 'Should an AI agent retry every 429 error?'
+    a: 'No. Retry only when the provider indicates temporary throttling and the task still has retry time and budget. Daily quotas, spend caps, invalid requests, permission errors, and unsupported models need a different action such as queueing for a reset, changing configuration, or escalating.'
+  - q: 'What is the best backoff for an AI agent rate limit?'
+    a: 'Use the provider Retry-After value when it is present, treating it as a minimum wait. Otherwise use capped exponential backoff with random jitter, a maximum attempt count, and a task deadline so several agents cannot retry forever or in sync.'
+  - q: 'Should rate-limit handling happen inside the prompt?'
+    a: 'No. The runtime should classify errors, enforce shared admission control, schedule waits, track retry budgets, and decide when to stop. The model can explain a delayed task or choose among approved degraded actions, but it should not control quota enforcement.'
+  - q: 'Should I queue an AI agent task after a rate limit?'
+    a: 'Queue background work when the expected wait fits the task deadline and the queue is durable and bounded. For an interactive request, return a clear delayed or partial result when the wait would exceed the user timeout instead of holding an unbounded worker open.'
+  - q: 'Can a second model provider solve AI agent rate limits?'
+    a: 'Sometimes, but a fallback moves the request to another quota and may change quality, privacy, cost, residency, or tool behavior. Check those policies before switching, and never use a fallback to repeat an irreversible tool call unless the action is idempotent or its outcome is known.'
+  - q: 'How do I test rate-limit handling in an AI agent?'
+    a: 'Inject controlled 429 responses for request and token limits, missing and malformed Retry-After values, queue saturation, worker restarts, exhausted retries, and fallback rejection. Assert that the agent does not exceed its attempt budget, lose its checkpoint, duplicate a side effect, or claim success.'
+cover: '/blog/how-to-handle-rate-limits-in-an-ai-agent-rate-control-loop.webp'
+coverAlt: 'Illustration of an AI agent rate-limit control loop routing work through admission, backoff, queue, and stop states'
+draft: false
+---
+
+An agent can be correct and still fail because it asks for too much capacity at the wrong moment. One user request may turn into several model calls, tool calls, retrieval requests, and retries. A burst that looks small at the product level can be large at the API boundary.
+
+The fix is not a longer instruction telling the agent to slow down. Put a runtime control layer around the agent. It should know which limit was hit, decide whether waiting can help, coordinate competing work, save the task before waiting, and stop when continuing is no longer safe.
+
+![Illustration of an AI agent rate-limit control loop with bounded recovery paths](/blog/how-to-handle-rate-limits-in-an-ai-agent-rate-control-loop.webp)
+
+## How should you handle rate limits in an AI agent?
+
+Handle rate limits in the runtime, not in the prompt. The runtime should classify the response, reserve shared capacity before a call, honor `Retry-After`, use capped exponential backoff with jitter, and enforce a retry budget per task. Background work can move to a durable bounded queue. Interactive work may need a partial response or a clear delay. A fallback model or tool is an option only after its quota, quality, privacy, cost, and side-effect rules pass a check.
+
+That sequence gives you a useful operating rule:
+
+1. **Read** the status, error code, headers, provider, model or tool, and limiting scope.
+2. **Admit** the next call only when it fits the shared request, token, concurrency, and task budgets.
+3. **Time** a retry from `Retry-After` when available. Otherwise use bounded exponential backoff with jitter.
+4. **Exit** to a queue, a checked degraded path, a partial result, a failed state, or human review when the deadline or retry budget is exhausted.
+
+I call this the RATE loop: Read, Admit, Time, Exit. It is a small decision framework, not a library. You can implement it in a worker, gateway, workflow engine, or service wrapper. The important part is that every agent shares the same contract.
+
+**Rate-limit handling belongs in deterministic runtime code that can stop work, not in an instruction the model may interpret differently on each run.**
+
+The rest of this guide works through the parts that make the rule operational. It also includes a vendor-neutral Python controller. That controller is scaffolding, not a drop-in production package. You must connect it to your provider SDK, durable queue, distributed limiter, metrics, authentication, and task store.
+
+## What does a rate limit actually limit?
+
+A rate limit is a constraint on some unit of work over some scope and time pattern. The phrase sounds singular, but an agent normally meets several limits at once.
+
+OpenAI documents limits across dimensions such as requests per minute, requests per day, tokens per minute, tokens per day, images per minute, and audio minutes per minute. The first exhausted dimension can block the call. OpenAI also says limits can be defined at organization and project level, vary by model, and be shared by some model families ([OpenAI's rate-limit guide](https://developers.openai.com/api/docs/guides/rate-limits)).
+
+Anthropic describes its Messages API limits in requests per minute, input tokens per minute, and output tokens per minute for each model class. Its documentation says the API uses a token-bucket algorithm, which continuously replenishes capacity up to a maximum instead of waiting for a fixed window to reset ([Anthropic's rate-limit documentation](https://platform.claude.com/docs/en/api/rate-limits)).
+
+Google's Gemini API documentation lists requests per minute, tokens per minute, and requests per day. It says the limits are applied per project rather than per API key and can depend on the model and usage tier ([Google's Gemini rate-limit documentation](https://ai.google.dev/gemini-api/docs/rate-limits)).
+
+Those details matter because each dimension calls for a different control.
+
+| Limit dimension | What it constrains | Typical symptom | First control |
+| --- | --- | --- | --- |
+| Requests per minute | Number of calls | Many short agent steps fail in a burst | Request pacing and concurrency |
+| Input tokens per minute | Context entering the provider | Large retrieved documents or long histories fail | Admission by estimated tokens and context reduction |
+| Output tokens per minute | Generated output capacity | Many long responses compete for quota | Output caps, pacing, and task priority |
+| Requests per day | Aggregate daily calls | Retries do not recover the same day | Queue until reset or stop the workload |
+| Spend or billing cap | Account or project cost | The provider rejects even a low-rate request | Operator action, budget policy, or approved alternate path |
+| Concurrent requests | In-flight work | Workers time out or receive overload errors | Semaphore, queue, and deadline |
+| Tool-specific quota | A destination API or datastore | The model is available but its action fails | Per-tool limiter and tool-specific recovery |
+| Tenant or user quota | One customer or identity | One tenant starves everyone else | Per-tenant admission and fairness |
+| Local worker capacity | Your own process or service | Memory, connection, or queue pressure | Local concurrency cap and load shedding |
+
+Do not reduce every problem to requests per minute. An agent that makes two calls containing a large transcript may hit a token limit while another agent making twenty tiny calls may hit request rate first. A single global limiter with one counter hides that difference.
+
+Your first design artifact should be a limit map. For each provider or tool, record the unit, scope, response signal, reset signal, whether the limit is temporary, and the action that can actually fix it.
+
+![Illustration of the rate-limit surfaces surrounding an AI agent](/blog/how-to-handle-rate-limits-in-an-ai-agent-limit-surfaces.webp)
+
+## Which part of an AI agent can hit a rate limit?
+
+The model provider is only one surface. A useful agent limit map has at least six surfaces.
+
+### The model or inference provider
+
+The model call may be limited by request count, input tokens, output tokens, context size, usage tier, project, organization, or model family. The agent may call the same provider several times for planning, tool selection, tool-result interpretation, and final composition. Count the whole run, not just the user-facing response.
+
+Do not assume a model fallback is free capacity. A second model can have a different quota, a different token price, different input limits, and a different response shape. A fallback is a new provider policy branch.
+
+### The embedding or retrieval provider
+
+Retrieval may call an embedding model, a search endpoint, a reranker, and a vector store. If one of those calls fails, the main model may still be available. If your wrapper labels every error as an LLM failure, the agent may retry the wrong operation and consume more model capacity without improving retrieval.
+
+Track the operation name in every rate-limit event. `agent.model.generate`, `retrieval.embed`, `retrieval.search`, and `crm.create_ticket` should not collapse into one generic `agent.retry` metric.
+
+### Destination tools
+
+An agent that writes to Slack, a CRM, an email service, a payment system, or a project tracker inherits each destination's limits. Tool calls often have their own request quotas and concurrency rules. A model retry cannot fix a tool that is still refusing the action.
+
+The tool layer also creates a side-effect problem. If the first request reached the destination but the response was lost, retrying blindly may create a duplicate. Rate-limit handling must be paired with an idempotency or outcome-check rule for any write. That is why a rate-limit controller should return a structured decision to the workflow instead of silently rerunning a function.
+
+### Datastores and queues
+
+The agent can hit a database connection pool, a cache, a vector store write rate, or a queue visibility limit. These failures may return `429`, `503`, a vendor-specific error, or a timeout. Classify the actual signal and keep the store's recovery rule separate from the model's.
+
+### Your own concurrency
+
+You can exceed your service's safe capacity before the vendor limit. An async worker pool that starts too many tasks can create memory pressure, connection starvation, long queues, and a larger burst when a provider becomes available again. Your local semaphore is part of rate-limit handling because it controls how much work reaches every downstream surface.
+
+### Tenant, user, and priority scopes
+
+One customer may submit a batch that consumes a shared project quota. If every task enters the same queue with equal priority, a noisy tenant can delay interactive work. Put the limiting scope in the key used by your limiter: perhaps `provider:model:project`, `provider:model:project:tenant`, and `tool:workspace` are different buckets.
+
+The question is not only “Can this call run?” It is “Which other work will this call make wait?”
+
+## How do you tell a temporary throttle from a problem that retries cannot fix?
+
+Start with the provider response, not the model's explanation. HTTP `429` has a specific meaning in the standard. RFC 6585 says, “The 429 status code indicates that the user has sent too many requests in a given amount of time,” and notes that a response may include `Retry-After` ([RFC 6585, Section 4](https://www.rfc-editor.org/rfc/rfc6585)).
+
+That definition does not mean every error carrying a 429 status should be retried forever. The response can represent a temporary request or token throttle, a daily quota, a spend limit, an acceleration limit, or a provider-specific condition. The body, headers, account state, and task deadline matter.
+
+Use a decision table like this before you write retry code.
+
+| Signal | Can waiting help? | Default action | Do not do |
+| --- | --- | --- | --- |
+| Temporary 429 with `Retry-After` | Usually | Wait at least the stated time, add bounded jitter, then retry if budget remains | Retry immediately or ignore the header |
+| 429 with a reset header but no `Retry-After` | Often | Schedule after the reset estimate, with a cap and task deadline | Treat the reset as exact forever |
+| Daily quota or exhausted allowance | Not until reset or operator change | Persist and schedule later, reduce workload, or ask for an increase | Spend retries during the same exhausted period |
+| Spend cap or billing restriction | No | Stop and route to an operator or approved billing path | Loop because the status is 429 |
+| 400 malformed request | No | Fix validation or prompt/tool serialization | Retry the same payload |
+| 401 or 403 authentication/permission | No | Repair credentials or permission configuration | Switch keys repeatedly |
+| 408 timeout | Sometimes | Retry only if the operation is safe and the task budget remains | Repeat an unknown side effect blindly |
+| 5xx or overload error | Often | Use bounded backoff, provider guidance, and a task deadline | Treat every 5xx as a permanent rate limit |
+| Tool-specific quota error | Depends on tool | Apply the tool's policy and preserve model context | Retry the whole agent run from the beginning |
+| Queue or local capacity full | No immediate | Reject, defer, or shed load according to priority | Accept unbounded work |
+
+OpenAI's current guide documents `Retry-After` as the minimum number of seconds to wait before retrying a temporary rate-limit error when present. It also warns that `Retry-After` does not mean quota, billing, or other errors requiring user action will be solved by retrying ([OpenAI's rate-limit guide](https://developers.openai.com/api/docs/guides/rate-limits)). Google gives a similar boundary in its troubleshooting guidance: retry transient errors such as `429`, `408`, and `5xx`, but do not retry `400` or `403` because those indicate request or permission problems ([Google's Gemini troubleshooting guide](https://ai.google.dev/gemini-api/docs/troubleshooting)).
+
+Normalize provider responses into your own small internal type. For example:
+
+```text
+LimitSignal {
+  provider: "openai" | "anthropic" | "google" | "tool-name"
+  operation: "model.generate" | "tool.call" | "retrieval.search"
+  scope: "project" | "organization" | "tenant" | "tool-account" | "local"
+  kind: "temporary" | "period-quota" | "spend" | "permission" | "invalid" | "overload" | "unknown"
+  retryable: true | false
+  retry_after_seconds: number | null
+  reset_at: timestamp | null
+  request_id: string | null
+}
+```
+
+The agent should consume this normalized signal. It should not need to know whether Anthropic calls its header `retry-after`, OpenAI calls it `Retry-After`, or a tool uses a vendor-specific reset field.
+
+**A 429 is a signal to classify, not a command to retry.**
+
+If the response does not provide enough information to classify safely, choose the conservative path. Preserve the run, surface the error, and avoid repeating an unknown write. Unknown is not the same as temporary.
+
+## Should you retry, queue, degrade, or stop?
+
+Choose the action by combining four variables: the error class, the task type, the expected wait, and the remaining budget.
+
+| Task situation | Preferred action | Why |
+| --- | --- | --- |
+| Interactive and expected wait is shorter than the user deadline | Bounded in-process wait | The user may receive a normal answer without creating a new task |
+| Interactive and expected wait exceeds the deadline | Return a clear delayed or partial result | Holding a worker open makes latency and capacity worse |
+| Background and expected wait fits the task deadline | Durable queue with a scheduled retry | Work can survive a process restart |
+| Background and queue is full | Reject or defer upstream | An unbounded queue converts a burst into an outage |
+| Temporary throttle with safe read operation | Retry with backoff and jitter | The call has a reasonable chance after capacity returns |
+| Write operation with unknown outcome | Check outcome or require idempotency before retry | The first call may have succeeded |
+| Daily quota exhausted | Schedule after reset or stop the batch | More attempts consume time without changing capacity |
+| Approved alternate provider is healthy and policy-compatible | Degrade through the approved route | The task can continue without hiding a policy change |
+| No safe fallback or budget | Stop and explain what remains | A visible partial failure is safer than false completion |
+
+An agent should return a structured result when it cannot continue. A useful result includes `status`, `completed_steps`, `remaining_steps`, `retry_at`, `limit_surface`, `attempts_used`, and `next_action`. That gives the orchestrator and the user a choice. A plain “rate limit error” throws away the information needed to resume.
+
+Do not make the language model choose among arbitrary recovery mechanisms. Give it a bounded set of states such as `WAITING_FOR_CAPACITY`, `DEGRADED`, `NEEDS_OPERATOR`, and `FAILED_RETRY_EXHAUSTED`. The runtime selects the state from the normalized signal and policy. The model can write the user-facing explanation inside that state.
+
+The right recovery path also depends on whether the operation reads or writes.
+
+- A read can often be repeated if its request is safe and the result has no irreversible effect.
+- A write needs an idempotency key, a provider-side idempotency contract, an outcome query, or a persisted record of what was sent.
+- A multi-step task needs a checkpoint so a rate-limited step does not restart every completed step.
+
+For the difference between execution state and durable memory, see [How to Design an AI Agent State Machine](/blog/how-to-design-an-ai-agent-state-machine). Here the narrow rule is enough: save the task's progress before a wait or retry boundary.
+
+![Illustration of AI agent rate-limit recovery decisions](/blog/how-to-handle-rate-limits-in-an-ai-agent-recovery-decision-matrix.webp)
+
+## How should backoff use Retry-After and jitter?
+
+Backoff controls when the next attempt may enter the shared system. It should satisfy three rules:
+
+1. Never retry before the provider's stated minimum wait.
+2. Spread clients so they do not wake and retry together.
+3. Stop when the task deadline, attempt count, or retry budget says stop.
+
+If `Retry-After` is present, calculate:
+
+```text
+wait = min(max(retry_after, 0) + jitter, maximum_wait)
+```
+
+Treat the header value as a minimum. A small random delay after it prevents a group of workers that received the same reset signal from forming a second burst. Cap the total wait so a malformed or surprising header cannot hold a worker indefinitely.
+
+If the provider gives no usable wait signal, use a bounded exponential schedule:
+
+```text
+base = min(max_wait, initial_wait * (2 ** attempt))
+wait = random value between base * 0.5 and base * 1.5
+```
+
+The exact multiplier is a policy choice. The requirements are more important than a magic number: the delay grows, the value is randomized, and the sum of waits fits the task deadline.
+
+The OpenAI Cookbook recommends random exponential backoff and explains that unsuccessful requests still count toward the per-minute limit. It also shows a maximum retry count in its examples ([OpenAI's rate-limit cookbook](https://developers.openai.com/cookbook/examples/how_to_handle_rate_limits)). AWS's retry guidance makes the same broader point from a distributed-systems perspective: retries add load to a struggling dependency, so timeout and retry behavior must be designed together ([AWS Builder Center's retry guidance](https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/)).
+
+### Why fixed sleep fails
+
+A fixed two-second sleep is easy to write and easy to synchronize. If fifty workers receive a 429 at roughly the same time, they can all wake together, repeat the request, and receive another 429. The sleep did not reduce the shared burst. It only moved it.
+
+### Why immediate retry fails
+
+Immediate retry spends more of the same quota that just rejected the request. When unsuccessful requests count toward a per-minute limit, a tight loop can make recovery less likely. It also consumes worker time and may create duplicate writes.
+
+### Why unbounded exponential backoff fails
+
+An uncapped delay can exceed the task deadline, hold a worker longer than the user expects, or make a queue item invisible until its lease expires. A cap is necessary, but the cap should lead to a state transition. When the cap or deadline is reached, schedule durable work, return a partial result, or stop. Do not simply reset the attempt counter.
+
+### How should SDK retries interact with your outer loop?
+
+Check the SDK behavior before adding your own retry decorator. OpenAI says its official SDKs automatically retry eligible rate-limit errors and honor `Retry-After` for standard API calls. Anthropic says its official SDKs retry transient failures with exponential backoff by default, twice by default, and honor `retry-after`. Gemini's troubleshooting guide describes automatic retry behavior in its official SDKs for transient errors, including 429 and 5xx responses ([OpenAI](https://developers.openai.com/api/docs/guides/rate-limits), [Anthropic](https://platform.claude.com/docs/en/api/errors), and [Google](https://ai.google.dev/gemini-api/docs/troubleshooting)).
+
+This creates a common failure mode: the SDK retries three times, the agent wrapper retries five times, and the queue retries the task three times. The operator thinks the task had three retries. The provider sees up to forty-five attempts.
+
+Choose one owner for each layer:
+
+| Layer | Owns | Should not duplicate |
+| --- | --- | --- |
+| Provider SDK | A short request-level retry policy | Workflow-level resumption |
+| Agent wrapper | Normalized error and per-call budget | Hidden SDK retries without accounting |
+| Workflow or queue | Task deadline, checkpoint, and resumption | In-process sleeps after a task is durable |
+| User-facing service | Admission, priority, and overload response | Infinite queue acceptance |
+
+Record the attempt count at every layer or disable lower-level retries when you need a single visible policy. The policy must describe attempts as the provider sees them, not only as your top-level worker sees them.
+
+**A retry budget must count attempts across SDK, agent, and queue layers or it is not a real budget.**
+
+## How do you stop one agent from consuming shared quota?
+
+Use admission control before the call. A retry handler reacts after the provider has rejected work. An admission controller reduces avoidable rejections by pacing requests and reserving the scarce unit.
+
+At minimum, admission should check:
+
+- estimated input tokens and allowed output tokens;
+- request capacity for the target model or tool;
+- current concurrency for the shared scope;
+- the task's remaining time and retry budget;
+- tenant or priority policy;
+- whether a second attempt would exceed the run's budget;
+- whether the operation is safe to repeat.
+
+### What should a reservation mean?
+
+A reservation is a short-lived claim that a call may consume capacity. It is not a guarantee that the provider will accept the request, because your estimate can be wrong and other systems can share the quota. It is still useful. Without a reservation, ten agents can all observe the same remaining capacity and start at once.
+
+For request limits, reserve one request slot. For token limits, reserve an estimate based on the input and maximum output. Release unused capacity when the response reports actual usage, if your limiter supports it. Keep a small safety margin because provider accounting may include tokens or operations your local estimate does not see.
+
+### Where should the limiter live?
+
+A single process can use an in-memory semaphore and token bucket. Multiple workers need shared coordination through a service, a datastore, or a gateway that all workers actually use. A per-process limiter only controls each process. It does not control the project total.
+
+The key should match the limit scope. If a provider limits a project, a limiter keyed only by `agent_id` is wrong. If a tool limits one workspace, a global limiter may unnecessarily starve other workspaces. Store the scope with the event so a later operator can see why a request waited.
+
+### How should priority work?
+
+Priority is a policy, not a hidden side effect. Define which work gets capacity when the queue is full:
+
+1. Safety or recovery work that prevents a known bad state.
+2. Interactive tasks with a clear user deadline.
+3. Contractual or scheduled work with a fixed completion window.
+4. Bulk enrichment, indexing, analytics, and other deferrable work.
+
+Priority does not mean high-priority tasks bypass all controls. They still need a per-task limit, a fair share, and a terminal path. Otherwise one “urgent” task can make an incident worse.
+
+### What is the queue rule?
+
+Bound the queue by acceptable delay. If the service can process ten items per minute and a user will wait at most two minutes, accepting hundreds of queued interactive tasks is dishonest. Reject or offer an asynchronous handoff when the queue would exceed the service promise.
+
+The queue should carry a task ID, not a copy of the whole agent transcript in an opaque blob. The task store can hold the checkpoint, while the queue item holds the next-attempt time, priority, attempt count, deadline, and a reference to the checkpoint.
+
+## What should an agent save before it waits?
+
+Save enough state to resume the current task without replaying completed work. A rate limit often arrives halfway through a run, after the agent has already gathered information or completed safe reads.
+
+Before scheduling a wait, persist:
+
+| Field | Purpose |
+| --- | --- |
+| `task_id` and `run_id` | Reconnect the queue item to the workflow |
+| `workflow_version` | Prevent a new code version from misreading old state |
+| `current_step` | Identify the exact operation that needs capacity |
+| `completed_steps` | Avoid replaying successful work |
+| `pending_operation` | Describe the exact model or tool call still needed |
+| `normalized_limit_signal` | Preserve provider, scope, kind, and reset information |
+| `attempts_used` and `retry_budget_remaining` | Enforce a bounded policy after restart |
+| `next_attempt_at` and `task_deadline` | Give the scheduler a time policy |
+| `idempotency_key` or outcome-check reference | Protect writes from duplicate execution |
+| `user_visible_status` | Explain the delay without claiming completion |
+
+Do not save a provider key, full sensitive prompt, or tool secret in the queue item unless your data policy explicitly allows it. Store references to protected records and log a redacted event. The rate-limit event should be useful without becoming a new data leak.
+
+When the worker restarts, it should recover the task from the checkpoint, re-check the current limit state, and validate that the pending operation is still legal. The provider may have recovered, the task may have expired, or the model may have changed. A queue resume is a new admission decision, not an unconditional continuation.
+
+For a broader control contract around persisted state, [How to Design an AI Agent State Machine](/blog/how-to-design-an-ai-agent-state-machine) goes deeper. For this query, the practical boundary is simple: never put a task to sleep without a durable record of what it may do next.
+
+![Illustration of an AI agent rate-limit checkpoint and durable queue record](/blog/how-to-handle-rate-limits-in-an-ai-agent-checkpoint-queue.webp)
+
+## When should you degrade or switch providers?
+
+Degradation is a product decision with technical consequences. It is not a synonym for “call a cheaper model.”
+
+A fallback can be reasonable when:
+
+- the primary provider has a temporary limit and the task is time-sensitive;
+- the alternate provider has confirmed capacity;
+- the alternate model meets the task's quality and context requirements;
+- sending the input to the alternate provider is allowed by privacy, residency, and contract rules;
+- the output schema and tool semantics are compatible;
+- the fallback has its own request, token, cost, and retry budget;
+- the task has not already performed an irreversible side effect;
+- the user or policy allows a degraded result.
+
+A fallback is usually safer for a bounded read, classification, draft, or explanation than for a payment, deletion, permission change, or external message. For side effects, separate decision from execution. A fallback can propose an action, but the same deterministic commit gate should validate the final parameters and outcome.
+
+### What is graceful degradation?
+
+Graceful degradation means changing the promised result in a known way. Examples include:
+
+- return a shorter summary instead of a full report;
+- process the highest-priority records and queue the rest;
+- skip an optional enrichment tool while preserving the core answer;
+- ask the user to confirm a delayed asynchronous task;
+- return the data already gathered and identify what remains unverified.
+
+The user should be able to tell the difference between complete, partial, delayed, and failed. If the agent returns a polished answer after skipping a required verification step, it has not degraded gracefully. It has hidden a failure.
+
+### What should the model be told?
+
+The model can receive a structured runtime result such as:
+
+```json
+{
+  "status": "waiting_for_capacity",
+  "operation": "crm.search",
+  "retry_at": "2026-08-19T12:04:00Z",
+  "completed_steps": ["classify_request", "load_account"],
+  "remaining_steps": ["search_recent_cases", "write_draft"],
+  "user_message_policy": "explain_delay_without_claiming_completion"
+}
+```
+
+The model may turn that into a natural explanation. It should not edit `status`, invent a completed step, or choose an unapproved alternate provider. Those are runtime fields.
+
+### How should cost fit into the decision?
+
+Rate-limit pressure and spending pressure can reinforce each other. A retry can consume more tokens, a fallback can cost more, and a long queue can keep workers alive. Keep a separate rate-limit budget and cost budget, but make the decision see both.
+
+The existing [How to Set a Budget for an AI Agent](/blog/how-to-set-a-budget-for-an-ai-agent) covers the wider cost contract. For rate-limit recovery, add retry and waiting work to the task ledger. A retry that costs nothing in application code can still consume provider tokens, tool charges, worker time, and queue capacity.
+
+![Illustration of an AI agent degradation and fallback policy](/blog/how-to-handle-rate-limits-in-an-ai-agent-fallback-policy.webp)
+
+## How do you budget retries without creating a new loop?
+
+Give each task a retry budget measured in attempts, time, and capacity. One number is not enough.
+
+```text
+retry_budget = min(
+  maximum_attempts,
+  floor(remaining_task_time / minimum_safe_wait),
+  remaining_request_or_token_budget,
+  provider_or_workflow_policy_limit
+)
+```
+
+This is a decision aid, not a universal formula. The controller should refuse a retry when any term is exhausted.
+
+Track at least three counters:
+
+1. **Call attempts.** How many provider or tool requests actually left the service.
+2. **Task retries.** How many times the workflow resumed the pending step after a failure or wait.
+3. **Queue deliveries.** How many workers claimed the same task, including redeliveries after a crash.
+
+If you only count the first counter, a queue can redeliver the same task repeatedly. If you only count task retries, hidden SDK attempts can multiply provider load. If you only count queue deliveries, a single delivery can contain many calls.
+
+### Should the retry budget reset after success?
+
+Reset the per-step attempt counter after a meaningful successful response, not after any HTTP response. A 200 response with an error event inside a stream, a partial tool result, or an application-level failure may not be success. Define success at the operation boundary.
+
+Keep the run-level budget intact. Otherwise an agent can reset its local counter after every small step and still consume unbounded total capacity.
+
+### What does retry exhaustion look like?
+
+Retry exhaustion is a terminal decision for the current path. It can transition to:
+
+- `WAITING_FOR_RESET` when a durable scheduler can try after a known period;
+- `NEEDS_OPERATOR` when billing, permission, or quota action is required;
+- `DEGRADED` when an approved reduced path remains;
+- `PARTIAL` when the completed work is useful but incomplete;
+- `FAILED_RETRY_EXHAUSTED` when no safe path remains.
+
+Never route exhaustion back to the original planner with the same context and no new constraint. That is how a rate-limit problem becomes an agent loop.
+
+**A rate-limited task needs a terminal state that explains what remains; “try again” is not a recovery policy.**
+
+![Illustration of an AI agent retry budget bounded by attempts, time, and capacity](/blog/how-to-handle-rate-limits-in-an-ai-agent-retry-budget.webp)
+
+## What should you log and measure?
+
+Rate-limit handling is difficult to improve when every failure looks like “API error.” Record one structured event for every denied, delayed, retried, queued, degraded, and exhausted operation.
+
+Use fields such as:
+
+```json
+{
+  "event": "agent_capacity_decision",
+  "task_id": "redacted-or-internal-id",
+  "run_id": "internal-run-id",
+  "operation": "model.generate",
+  "provider": "provider-name",
+  "model_or_tool": "model-or-tool-name",
+  "scope": "project-or-tenant",
+  "signal_kind": "temporary",
+  "http_status": 429,
+  "provider_code": "rate_limit_error",
+  "request_id": "provider-request-id",
+  "retry_after_seconds": 12,
+  "reset_at": null,
+  "attempt": 2,
+  "sdk_attempts": 1,
+  "queue_delivery": 1,
+  "estimated_input_tokens": 4200,
+  "estimated_output_tokens": 800,
+  "decision": "scheduled_retry",
+  "next_attempt_at": "2026-08-19T12:04:00Z",
+  "task_deadline": "2026-08-19T12:10:00Z"
+}
+```
+
+Redact prompts, tool arguments, customer data, secrets, and response content according to your data policy. A request ID is often more useful for provider support than a copied prompt. OpenAI's API reference lists request and rate-limit headers such as remaining requests, remaining tokens, and reset values, so capture them when the provider supplies them ([OpenAI API reference](https://platform.openai.com/docs/api-reference/backward-compatibility?lang=ruby)).
+
+### Which metrics matter?
+
+Measure by provider, operation, model or tool, scope, tenant, and task type. Useful metrics include:
+
+- rate-limit events per minute and per completed task;
+- percentage of calls admitted, rejected locally, and rejected remotely;
+- retry attempts per task and per provider;
+- queue depth, age, and oldest item;
+- scheduled wait duration and actual wait duration;
+- percentage of tasks that complete after a retry;
+- partial, degraded, escalated, and exhausted outcomes;
+- token and request headroom at admission;
+- fallback usage, fallback rejection, and fallback quality review;
+- duplicate-side-effect or unknown-outcome incidents;
+- task deadline misses caused by capacity waits.
+
+The leading signal is often not the 429 count. It is queue age, headroom, or retry share increasing while completed throughput stays flat. A system can report few 429s because the local admission gate is already rejecting work. That is a capacity event too.
+
+For the wider trace and alert contract, see [How to Monitor an AI Agent in Production](/blog/how-to-monitor-an-ai-agent-in-production). This page adds a narrower measurement rule: every capacity decision must be traceable to the exact operation and limiting scope.
+
+## What does a copy-paste rate-limit controller look like?
+
+The following Python artifact shows the core logic without tying the article to one provider SDK. It parses a numeric or HTTP-date `Retry-After`, falls back to jittered exponential backoff, and returns a decision instead of retrying forever.
+
+It deliberately leaves four integrations to the application: the provider call, the durable task store, the distributed limiter, and the provider-specific error normalizer. That boundary is a feature. A generic decorator cannot know whether a tool write succeeded, whether a project quota is exhausted, or whether a fallback is allowed.
+
+```python
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
+import random
+from typing import Mapping, Optional
+
+
+@dataclass(frozen=True)
+class LimitSignal:
+    provider: str
+    operation: str
+    kind: str                 # temporary, period_quota, spend, invalid, permission, overload
+    retryable: bool
+    retry_after_seconds: Optional[float] = None
+    reset_at: Optional[datetime] = None
+    request_id: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class RetryPolicy:
+    initial_seconds: float = 1.0
+    maximum_seconds: float = 60.0
+    maximum_attempts: int = 4
+    jitter_ratio: float = 0.25
+
+
+def parse_retry_after(
+    headers: Mapping[str, str],
+    now: Optional[datetime] = None,
+) -> Optional[float]:
+    """Return a non-negative wait in seconds, or None when unusable."""
+    value = next(
+        (v for k, v in headers.items() if k.lower() == "retry-after"),
+        None,
+    )
+    if value is None:
+        return None
+
+    try:
+        return max(0.0, float(value.strip()))
+    except ValueError:
+        pass
+
+    try:
+        retry_at = parsedate_to_datetime(value)
+        if retry_at.tzinfo is None:
+            retry_at = retry_at.replace(tzinfo=timezone.utc)
+        current = now or datetime.now(timezone.utc)
+        return max(0.0, (retry_at - current).total_seconds())
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def backoff_seconds(
+    signal: LimitSignal,
+    attempt: int,
+    policy: RetryPolicy,
+    headers: Mapping[str, str] | None = None,
+) -> float:
+    """Choose a bounded wait. attempt is zero-based before the next call."""
+    provider_wait = signal.retry_after_seconds
+    if provider_wait is None and headers:
+        provider_wait = parse_retry_after(headers)
+
+    if provider_wait is not None:
+        base = min(policy.maximum_seconds, max(0.0, provider_wait))
+    else:
+        base = min(
+            policy.maximum_seconds,
+            policy.initial_seconds * (2 ** max(0, attempt)),
+        )
+
+    spread = base * policy.jitter_ratio
+    return min(policy.maximum_seconds, max(0.0, random.uniform(base - spread, base + spread)))
+
+
+def decide_retry(
+    signal: LimitSignal,
+    attempt: int,
+    task_deadline: datetime,
+    policy: RetryPolicy,
+    headers: Mapping[str, str] | None = None,
+    now: Optional[datetime] = None,
+) -> dict:
+    """Return a runtime decision. The caller owns sleeping and persistence."""
+    current = now or datetime.now(timezone.utc)
+    if not signal.retryable:
+        return {"decision": "stop", "reason": signal.kind}
+    if attempt >= policy.maximum_attempts:
+        return {"decision": "stop", "reason": "retry_budget_exhausted"}
+
+    wait = backoff_seconds(signal, attempt, policy, headers)
+    if current.timestamp() + wait >= task_deadline.timestamp():
+        return {"decision": "stop", "reason": "task_deadline_too_close"}
+
+    return {
+        "decision": "schedule_retry",
+        "wait_seconds": wait,
+        "attempt": attempt + 1,
+        "provider": signal.provider,
+        "operation": signal.operation,
+        "request_id": signal.request_id,
+    }
+```
+
+There are several deliberate limitations.
+
+- The code does not call `sleep`. The workflow decides whether the wait belongs in a user request or a durable queue.
+- The code does not classify provider errors. The adapter must produce a `LimitSignal` from the real response.
+- The code does not reserve shared capacity. Put a distributed admission check before the provider call.
+- The code does not know whether a tool write is safe to repeat. The operation contract must decide that.
+- The code uses random jitter for a single process. A production fleet still needs shared rate awareness.
+- The code stops on a nonretryable signal. The workflow may instead route a spend or permission problem to an operator state.
+
+That is the shape a copy-paste artifact should have: explicit inputs, visible decisions, bounded behavior, and clear integration seams.
+
+![Illustration of a vendor-neutral AI agent rate-limit controller](/blog/how-to-handle-rate-limits-in-an-ai-agent-controller-artifact.webp)
+
+## How does a worked example behave?
+
+Consider a fictional support agent that classifies an incoming request, reads the customer's account, searches recent cases, drafts a response, and optionally creates a follow-up ticket. The numbers below are illustrative arithmetic, not a reported system measurement.
+
+Assume the run has:
+
+- a ten-minute task deadline;
+- four maximum provider call attempts for the current pending step;
+- a separate limit of one ticket-write attempt unless an outcome check proves the first request did not arrive;
+- a shared project request budget controlled by an admission service;
+- a reduced path that returns a draft without creating a ticket;
+- a durable queue for work that can wait.
+
+### First path: the search call receives a temporary 429
+
+The agent has completed classification and account lookup. The search call returns 429 and `Retry-After: 8`. The adapter normalizes the event as `temporary`, `retryable: true`, `operation: crm.search`, and `scope: workspace`.
+
+The runtime persists the checkpoint. It does not re-run classification or account lookup. It calculates a wait of at least eight seconds plus a small jitter, checks the task deadline, and schedules the pending search. Before the next attempt, the admission layer checks the current workspace quota again.
+
+If the search succeeds, the task continues. The wait is recorded as capacity latency, not hidden inside model latency.
+
+### Second path: the provider returns a daily quota error
+
+The same task receives a response that says the daily allowance is exhausted. The status may still look like a rate-limit error, but the signal is `period_quota`, not a short temporary throttle.
+
+The runtime stores the checkpoint and schedules it only if the reset time fits the task deadline and the product promises asynchronous completion. Otherwise it returns a delayed result that says the account quota is exhausted and identifies what work remains. It does not spend four in-process retries to discover the same fact.
+
+### Third path: the ticket write has an unknown outcome
+
+The model has drafted a response and asks the tool to create a follow-up ticket. The destination times out. The agent cannot tell whether the write happened.
+
+This is not a normal retry decision. First, query by the idempotency key or an external reference. If the ticket exists, record the outcome and continue. If the destination confirms that it does not exist, one controlled retry may be allowed. If neither is possible, stop before creating a duplicate and ask for human review.
+
+### Fourth path: the primary model is rate limited and fallback is allowed
+
+The product policy permits a smaller alternate model for drafting only. The runtime checks that the alternate has capacity, supports the required context, can receive the data under the same privacy policy, and is not already above its own task budget. It switches only the draft step. It does not replay the ticket write or change the required validation step.
+
+The user-facing result labels the draft as produced through a degraded path if that distinction matters to the product. The event records why the path changed.
+
+### Fifth path: the queue is full
+
+The search is retryable, but the background queue is already at its bounded depth. The runtime rejects or defers the task based on priority. It does not add another item just because the provider might recover later. The user receives a clear asynchronous or capacity response.
+
+The example shows why “retry 3 times” is not a complete policy. The same status family can lead to a short wait, a durable reset, an outcome check, a fallback, or a rejection. The operation, scope, deadline, and state decide the path.
+
+![Illustration of a worked AI agent rate-limit recovery sequence](/blog/how-to-handle-rate-limits-in-an-ai-agent-worked-example.webp)
+
+## What are the common rate-limit failure modes?
+
+Most incidents are not caused by an absent `try` statement. They come from a control boundary that exists in the wrong place or does not account for the rest of the system.
+
+### The retry storm
+
+Every worker catches the same error and retries on the same schedule. The provider sees a larger synchronized burst. Add jitter, centralize admission, and make the retry delay visible to the scheduler.
+
+### The hidden SDK multiplication
+
+The SDK retries twice, the agent wrapper retries four times, and the queue redelivers three times. A task with “four retries” creates many more provider calls. Make one layer own the request policy and make every lower layer report attempts.
+
+### The prompt-only limiter
+
+The system message says “respect API limits,” but the model does not see accurate shared usage and cannot enforce a hard stop. Move enforcement to code. Let the model explain a runtime decision rather than define one.
+
+### The one-bucket mistake
+
+The service tracks only requests per minute and misses input-token, output-token, tool, daily, tenant, or concurrency limits. Build the limit map and key buckets by actual scope.
+
+### The quota loop
+
+The agent retries a daily quota or spend cap because the code only checks HTTP status. Classify the error kind and route to reset scheduling or operator action.
+
+### The queue that never stops growing
+
+Every rejected task is accepted into an in-memory queue. A process restart loses work, and a longer outage consumes memory. Persist important work, bound queue depth, and reject new work when the service promise is no longer true.
+
+### The replayed side effect
+
+A timeout or 429 arrives after a write may have reached the destination. The whole agent run restarts and sends the write again. Split reads and writes, use idempotency or outcome checks, and store the pending operation.
+
+### The fallback that changes the contract
+
+The fallback model receives data it should not receive, lacks the context window, or returns a different tool schema. A provider switch is not invisible. Check policy, quality, data, cost, and output compatibility first.
+
+### The false success
+
+The agent returns “done” after a required step failed or was skipped. Use explicit completion criteria and a partial state. A rate-limit error is not a reason to let the model improvise a completed outcome.
+
+### The stale reset assumption
+
+The worker stores a reset time and waits without rechecking. Another tenant consumes the recovered capacity, the limit changes, or the task expires. Treat stored reset data as a scheduling hint and repeat admission at execution time.
+
+**A good rate-limit policy makes waiting, partial completion, and failure explicit user-visible outcomes.**
+
+## How should you test rate-limit handling before production?
+
+Test the control layer as a workflow, not only the exception handler. A passing unit test for `backoff_seconds` does not prove the queue persists work or the agent avoids a duplicate write.
+
+Use a test matrix with controlled provider and tool responses.
+
+| Test case | Injected condition | Expected result |
+| --- | --- | --- |
+| Temporary request throttle | 429 plus numeric `Retry-After` | Wait at least the header value, add bounded jitter, and retry only within budget |
+| HTTP-date header | 429 plus valid date | Convert to a non-negative wait and cap it |
+| Bad header | 429 plus malformed `Retry-After` | Use fallback backoff, log the parse failure, and keep the cap |
+| Missing header | 429 without wait signal | Use capped exponential backoff and recheck admission |
+| Token throttle | Provider says token dimension is exhausted | Reduce or defer based on token policy, not only request count |
+| Daily quota | Provider says period allowance is exhausted | Schedule after reset or stop; do not burn short retries |
+| Spend or billing error | Provider requires operator action | Route to operator or policy state |
+| Invalid input | 400 or equivalent | Stop and surface validation failure without retry |
+| Permission error | 403 or equivalent | Stop and repair configuration, not credentials by cycling |
+| SDK retry enabled | Provider SDK retries internally | Verify outer attempt count includes internal attempts |
+| Queue full | Admission queue at maximum depth | Reject or defer according to priority |
+| Worker restart | Process dies after checkpoint and before wait | Recover one task with the same attempt and idempotency data |
+| Unknown write outcome | Tool times out after a possible commit | Query outcome or escalate; never blind-replay |
+| Deadline expiry | Wait would pass task deadline | Return partial, delayed, or failed state without sleeping |
+| Fallback unavailable | Alternate provider rejects or lacks capacity | Return to queue or stop; do not chain fallbacks forever |
+| Concurrent workers | Many tasks hit the same limit together | Shared limiter keeps the configured scope below its dispatch policy |
+
+For each test, assert both the external call count and the internal state. A test that sees a final error but does not inspect the checkpoint can miss lost work. A test that sees a final success but does not inspect side-effect count can miss duplicates.
+
+### What should a failure injection harness record?
+
+Record the provider or tool adapter, response status and body code, headers, task ID, run ID, operation, configured SDK retries, outer retry policy, queue delivery count, expected action, actual action, and final state. Keep credentials and user data out of fixtures.
+
+Do not report synthetic pass rates as production reliability. The purpose of the harness is to prove control behavior under known conditions. Real capacity and provider availability still need monitoring after release.
+
+### What is the release gate?
+
+I would not release the agent until every recovery branch has an owner and a visible end state:
+
+- Who owns a spend or quota increase?
+- What happens to work that can wait for an hour?
+- What does the user see when a task is partial?
+- Where is the checkpoint stored?
+- How does a worker restart recover the item?
+- Which layer owns retries?
+- How are provider SDK attempts counted?
+- Which writes have idempotency or outcome checks?
+- Which fallback paths are approved?
+- What metric triggers load shedding?
+
+If the answer to any of these is “the agent will figure it out,” the runtime contract is incomplete.
+
+## How should you keep this policy current?
+
+Review provider behavior on a schedule and after any material change to the agent. The high-risk facts are easy to identify:
+
+- model and tool limits;
+- tier, project, organization, and tenant scope;
+- SDK retry defaults;
+- error codes and header names;
+- reset and `Retry-After` semantics;
+- output and context limits;
+- fallback model or provider availability;
+- queue and worker timeouts;
+- cost and data handling rules.
+
+The `nextReviewAt` date for this article is 2026-11-17 because provider details can change quickly. At review time, re-open the primary documentation rather than trusting a copied quota table. The article's framework is intended to survive those changes because it relies on normalized signals and explicit policy, not on one provider's current numbers.
+
+When you update the provider adapter, run the failure matrix again. A header rename or SDK retry change can alter the number of attempts without changing your application code.
+
+![Illustration of an AI agent rate-limit policy review checklist](/blog/how-to-handle-rate-limits-in-an-ai-agent-review-checklist.webp)
+
+## What is the practical rule to take into production?
+
+Do not start with a retry decorator. Start with a limit map and a decision contract.
+
+Every call should pass through a shared admission check, return a normalized signal on failure, honor the provider's wait guidance, and spend from a bounded retry budget. Every wait should have a checkpoint and a deadline. Every fallback should have an explicit policy. Every exhausted path should say what completed and what remains.
+
+If you do those things, a rate limit becomes a controlled state transition. It may still delay the user, reject a batch, or require a quota increase. That is acceptable. The system is telling the truth, preserving work, and protecting shared capacity.
+
+If you only add retries, you have taught the agent how to ask the same question more times. That is not rate-limit handling. It is a slower failure.
