@@ -1,0 +1,856 @@
+---
+title: 'How to Validate AI Agent Inputs Before a Run'
+date: '2026-08-19'
+updated: '2026-08-19'
+excerpt: 'Validate an AI agent run envelope for shape, meaning, authority, policy, and cost before the model or tools see it.'
+answer: 'Validate an AI agent input in five gates before creating the run: structure, context, ownership, policy, and economics. Parse and bound the data, verify references and freshness, check identity and scope, screen untrusted content, and enforce budgets. Then allow, repair, clarify, hold, or reject the request with a recorded reason.'
+targetQuery: 'how to validate AI agent inputs before a run'
+queryAliases:
+  - 'AI agent input validation'
+  - 'validate agent inputs before execution'
+  - 'AI agent pre-run validation'
+  - 'agent input guardrails'
+intent: 'informational / implementation'
+funnel: 'consideration'
+cluster: 'AI agent reliability'
+tags:
+  - 'AI agents'
+  - 'AI reliability'
+  - 'AI security'
+  - 'Building'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-17'
+sources:
+  - 'https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html'
+  - 'https://cheatsheetseries.owasp.org/cheatsheets/AI_Agent_Security_Cheat_Sheet.html'
+  - 'https://cheatsheetseries.owasp.org/cheatsheets/LLM_Prompt_Injection_Prevention_Cheat_Sheet.html'
+  - 'https://json-schema.org/draft/2020-12/json-schema-validation'
+  - 'https://openai.github.io/openai-agents-js/guides/guardrails/'
+  - 'https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/'
+  - 'https://docs.aws.amazon.com/prescriptive-guidance/latest/agentic-ai-security/best-practices-input-validation.html'
+  - 'https://www.anthropic.com/engineering/advanced-tool-use'
+  - 'https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence'
+faq:
+  - q: 'What should be validated before an AI agent starts?'
+    a: 'Validate the run envelope, not only the prompt. Check required fields, types, sizes, enum values, referenced records and documents, tenant and user authority, policy constraints, untrusted content, freshness, and limits for time, tokens, tools, retries, and spend. Record the result before creating the run.'
+  - q: 'Should input validation happen before the model call?'
+    a: 'Yes for checks that can block a run or prevent unnecessary cost and side effects. Deterministic parsing, authorization, reference checks, size limits, and hard policy rules belong before the model call. Model-based screening can be one layer, but it should not be the only authority for access or irreversible actions.'
+  - q: 'Is JSON Schema enough to validate an AI agent input?'
+    a: 'No. JSON Schema is useful for structure, types, required fields, bounds, and allowed values. Application code must still validate meaning, record existence, tenant ownership, freshness, permissions, cross-field rules, and whether free-form content is allowed for the task.'
+  - q: 'What should happen when an agent input fails validation?'
+    a: 'Return a typed validation result with a stable code, safe explanation, owner, and next action. Repair harmless canonical forms, ask for missing or ambiguous information, hold high-risk work for review, refresh stale references when safe, and reject requests that violate authority, policy, or hard limits.'
+  - q: 'Can pre-run validation prevent prompt injection?'
+    a: 'It can reduce risk by screening and separating untrusted content before inference, but it cannot guarantee prevention. Keep natural-language content in a data field, enforce authorization in application code, and validate tool calls again before execution. Prompt screening is one layer, not an access-control decision.'
+  - q: 'How often should AI agent input validation rules be reviewed?'
+    a: 'Review high-risk rules whenever the model, prompt, tools, retrieval sources, permissions, or workflow changes, and on a short calendar cycle. This article schedules a 90-day review because SDK behavior and threat guidance can change. Re-run adversarial and regression cases after material changes.'
+cover: '/blog/how-to-validate-ai-agent-inputs-before-a-run-ai-agent-input-validation-hero.webp'
+coverAlt: 'Illustration of an AI agent run envelope passing through five pre-run validation gates'
+draft: false
+---
+
+An agent can fail before it has done anything intelligent. The request may name the wrong tenant, point to a deleted document, exceed the allowed batch size, or contain instructions that should remain data rather than become authority.
+
+I treat that boundary as a separate engineering problem. The agent should not receive a raw prompt and discover the rules while it is already spending tokens or calling tools.
+
+![Illustration of a raw agent request becoming a typed run envelope before model execution.](/blog/how-to-validate-ai-agent-inputs-before-a-run-ai-agent-input-validation-envelope.webp)
+
+## How do you validate AI agent inputs before a run?
+
+Validate a versioned run envelope in five gates before creating the run: structure, context, ownership, policy, and economics. Parse and bound the data, verify references and freshness, check identity and requested scope, screen untrusted content, and enforce limits. Then return one of five decisions: allow, repair, clarify, hold, or reject.
+
+That is the practical answer. The rest of the work is deciding what each word means in your system.
+
+I call the gate **SCOPE**:
+
+| Gate | Question | Typical checks | Failure owner |
+| --- | --- | --- | --- |
+| **Structure** | Is the envelope shaped correctly? | Required fields, types, schema version, bounds, enums, encoding, and payload size | API or platform team |
+| **Context** | Does the request refer to real and sufficiently fresh things? | Record existence, document version, tenant match, source timestamp, and dependency availability | Data or workflow owner |
+| **Ownership** | Is this requester allowed to ask for this run and scope? | Authentication, tenant, role, workflow entitlement, data scope, and side-effect class | Identity or application owner |
+| **Policy** | Is the content and requested behavior allowed? | Untrusted-content markers, prompt-injection screening, privacy rules, high-risk categories, and approval requirements | Security, policy, or domain owner |
+| **Economics** | Can the run operate within its limits? | Maximum input size, estimated model calls, time, retries, tools, concurrency, and spend | Platform or finance owner |
+
+SCOPE is my synthesis for this article, not a published standard. It is useful because it keeps five questions separate. A valid JSON object can still refer to the wrong customer. An authenticated user can still ask for a disallowed action. A safe request can still be too large to process within its budget.
+
+**An AI agent should receive a validated run envelope, not a raw prompt.**
+
+The gate belongs before the run is admitted. That does not mean every check runs in one synchronous function. A cheap structural check can happen at the API edge. A reference lookup can happen in a short preflight worker. A high-risk authorization check can happen again just before a side effect. “Before a run” describes the control point, not a single file.
+
+## What counts as an input before an AI agent starts?
+
+An input is every piece of data that can influence the run's plan, context, authority, or side effects. The user message is only one input surface.
+
+Map the surfaces before writing validators:
+
+| Input surface | Example | Why it needs its own rule |
+| --- | --- | --- |
+| User request | “Summarize the latest renewal risks for account 4821” | It may be ambiguous, oversized, or contain instructions unrelated to the task. |
+| API payload | `{ "accountId": "4821", "mode": "summary" }` | A client can omit, forge, or mutate fields after client-side validation. |
+| Scheduled job | A nightly task for all open cases | The schedule may outlive a permission or business-rule change. |
+| Event or webhook | `invoice.paid` from a billing system | The event may be duplicated, delayed, replayed, or signed for another tenant. |
+| Uploaded document | A PDF, spreadsheet, or issue description | The content can be stale, malicious, malformed, or far larger than expected. |
+| Retrieved context | A web page, email, knowledge-base article, or database row | Retrieved content is data to inspect, not automatically an instruction to obey. |
+| Memory or prior state | A saved preference or previous plan | Stored content may have a different owner, version, or trust level. |
+| Handoff | A structured task passed from one agent to another | The receiving agent must validate the sender, schema, scope, and provenance. |
+| Tool result used as context | A CRM response or search result | The result can be partial, stale, or shaped differently after an API update. |
+
+OWASP's agent security guidance explicitly includes user messages, documents, and API responses in the set of external inputs that should be validated and sanitized. It also warns against passing unsanitized data between agents ([OWASP AI Agent Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/AI_Agent_Security_Cheat_Sheet.html)).
+
+This mapping changes the design. If you validate only the HTTP request, a document imported five minutes later can bypass the policy. If you validate only the first user message, a retrieved email can introduce a new instruction after the run starts. Each trust-boundary crossing needs a control, even when the control is lighter than the initial preflight.
+
+The first useful artifact is not code. It is a one-page input inventory:
+
+```text
+surface: uploaded_document
+owner: knowledge-platform
+trust: untrusted_data
+allowed_influence: facts_for_summary
+forbidden_influence: tool choice, permissions, approval state
+checks: file type, size, malware scan, source access, freshness, injection screen
+recheck_before: retrieval and any write action
+```
+
+If your team cannot fill in `allowed_influence`, the agent is not ready for a broad input channel. You do not yet know what the content is allowed to change.
+
+![Illustration of multiple AI agent input surfaces converging on an admission boundary.](/blog/how-to-validate-ai-agent-inputs-before-a-run-ai-agent-input-surfaces.webp)
+
+## What should an AI agent input contract require?
+
+Define a contract for the run before you define the prompt. The contract should make invalid states difficult to express and unsafe states impossible to admit silently.
+
+A useful run envelope has these parts:
+
+1. **Identity.** `runId`, `tenantId`, `requesterId`, source system, and correlation ID.
+2. **Intent.** A controlled task type such as `summarize_account`, `draft_reply`, or `classify_ticket`.
+3. **Raw input.** The original user or upstream content retained under the correct privacy policy.
+4. **Normalized input.** Canonical dates, IDs, whitespace, encoding, and field names used by the agent.
+5. **References.** IDs, URLs, files, or records the agent is expected to use.
+6. **Provenance.** Who supplied each reference, when it was observed, its version or hash, and its trust classification.
+7. **Requested scope.** Tenant, account, records, tools, data classes, and side-effect level.
+8. **Limits.** Maximum duration, model calls, tool calls, retries, concurrency, tokens, and spend.
+9. **Policy result.** The checks run, their versions, findings, and any required approval.
+10. **Decision.** `allow`, `repair`, `clarify`, `hold`, or `reject`, with a reason and timestamp.
+
+The run ID and correlation ID are not decoration. They let you join the validation event to model calls, tool calls, approvals, and final outcomes later. Do not use a user-provided string as your internal run ID without generating or verifying it.
+
+The normalized form deserves special care. Keep the raw input for audit and debugging where retention permits, but do not let every downstream component parse it independently. One canonicalization function should turn the accepted envelope into a stable representation. Otherwise the API, validator, prompt builder, and tool layer can disagree about whether a date, path, ID, or scope is valid.
+
+The contract also needs a version. A field called `account` might mean an account number in one release and an internal UUID in another. Put `inputSchemaVersion` and `policyVersion` in the envelope. A queued run should not be interpreted by a newer validator without an explicit compatibility decision.
+
+JSON Schema is a good fit for the structural portion of this contract. The 2020-12 validation vocabulary defines assertion keywords for requirements such as types, properties, array contents, and bounds ([JSON Schema Validation](https://json-schema.org/draft/2020-12/json-schema-validation)). But the schema is not the whole contract. It cannot know whether account `4821` belongs to the authenticated tenant or whether the account was closed five minutes ago.
+
+![Illustration of the SCOPE pre-flight gate for AI agent input validation.](/blog/how-to-validate-ai-agent-inputs-before-a-run-ai-agent-scope-gates.webp)
+
+## Should a failed input be rejected, repaired, clarified, held, or refreshed?
+
+Choose the outcome from the failure's risk and reversibility. Do not return one generic “invalid input” response for every problem.
+
+| Decision | Use when | Example | Required record |
+| --- | --- | --- | --- |
+| **Allow** | The envelope is valid for this run and no extra approval is needed | A known task type, valid references, authorized read-only scope | Accepted envelope and checks passed |
+| **Repair** | A deterministic, lossless normalization can make the input canonical | Trim whitespace, normalize a Unicode form, parse a strict ISO date supplied in an accepted alternate form | Original value, repair function version, normalized value |
+| **Clarify** | The user or upstream system must choose among plausible meanings | Two account IDs, missing date range, unclear destructive intent | Safe question, expiry, and no run creation |
+| **Hold** | The request may be valid but needs a human, a fresh dependency, or a high-risk decision | Payment instruction waiting for approval, stale policy source, unusually broad export | Pending reason, owner, expiry, and resume conditions |
+| **Reject** | The request violates the contract, authority, policy, or hard resource limit | Cross-tenant record, forbidden action, malformed signature, size limit exceeded | Stable error code, safe message, security event if appropriate |
+
+The decision is part of the product experience. A missing date is not the same as an unauthorized export. The first should help the requester complete the task. The second should avoid revealing which protected resource exists.
+
+Use repair only when the transformation is deterministic and does not change the user's intent. Lowercasing an email address may be acceptable in some systems, but silently changing a customer name or rewriting free-form instructions is not the same kind of repair. If a person could reasonably disagree with the transformation, ask for clarification.
+
+Use hold when the issue is not bad data but unresolved authority or dependency state. A high-risk request can be valid and still require a human approval. A reference can be real and still too old for a financial action. A hold should have an owner and expiry; otherwise it becomes a queue where work disappears.
+
+**Every rejected agent input should carry a repair path, not only a red error.**
+
+For security-sensitive failures, the repair path should be safe. Do not tell an attacker that `tenantId=acme` exists but the requested record is outside it. Return a general authorization failure to the requester and keep the detailed reason in an access-controlled event.
+
+![Illustration of five AI agent input validation outcomes: allow, repair, clarify, hold, and reject.](/blog/how-to-validate-ai-agent-inputs-before-a-run-ai-agent-validation-decisions.webp)
+
+## Which checks should happen before the model call?
+
+Run deterministic checks first, then context checks, then model-assisted screening only where it adds signal. A useful sequence is:
+
+1. Decode and parse the transport.
+2. Validate the envelope schema.
+3. Canonicalize safe representations.
+4. Enforce size and count limits.
+5. Authenticate the caller or verify the event signature.
+6. Authorize the tenant, task type, data scope, and requested side-effect class.
+7. Resolve references and check existence, access, version, and freshness.
+8. Classify untrusted text and attachments.
+9. Apply cross-field business rules.
+10. Compute the run budget and decide the admission outcome.
+11. Persist the validation report and create the run only if admitted.
+
+The order is not sacred. A webhook signature may need checking before JSON parsing if the signature covers the raw bytes. A malware scan may happen asynchronously for a large file. A data-retention rule may block storage before you record the full raw input. The principle is to put cheap, high-confidence, high-blast-radius checks early and to make exceptions explicit.
+
+### What is the minimum structural gate?
+
+The minimum gate should reject malformed data before the application constructs a prompt. It should check:
+
+- object versus array versus scalar type;
+- required properties and nullability;
+- string, number, and array bounds;
+- enum membership for controlled choices;
+- date and identifier syntax;
+- maximum nesting and total serialized size;
+- unknown fields where accepting them could hide a typo or smuggle metadata;
+- the schema dialect and version;
+- encoding and invalid character handling.
+
+OWASP recommends allowlisting authorized values, normalization, minimum and maximum lengths, and server-side enforcement in its input-validation guidance ([OWASP Input Validation Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html)). This is ordinary application security, but it matters more when a malformed value can influence a tool plan.
+
+Do not let a client-side form be your security boundary. The browser can improve the experience, but an attacker, integration, or old client can call the server directly. The server or trusted admission service must validate the final envelope.
+
+### What is the semantic gate?
+
+Semantic validation asks whether the fields make sense together and in the current system. Examples:
+
+- `startDate` precedes `endDate`;
+- a `taskType` is compatible with the supplied references;
+- an uploaded file belongs to the requested tenant;
+- a customer record is active enough for the chosen workflow;
+- `dryRun: false` is allowed only when the requester has write authority;
+- `includeSensitiveData: true` requires a role and a redaction policy;
+- a batch of 500 records does not exceed the workflow's maximum;
+- a document version has not changed since the requester selected it;
+- a requested output format is supported by the destination tool.
+
+These checks often need an external read. That does not make them model work. Put them in a small, deterministic admission service or a preflight worker with explicit timeouts and a clear stale-data policy.
+
+### What is the provenance gate?
+
+Provenance answers where a value came from and how much authority it carries. A user instruction, an account record, a retrieved web page, a previous agent summary, and a policy document should not all arrive as anonymous strings.
+
+Carry provenance as metadata:
+
+```json
+{
+  "field": "requested_action",
+  "value": "send_email",
+  "source": "user_message",
+  "trust": "untrusted_data",
+  "observedAt": "2026-08-19T09:30:00Z",
+  "allowedInfluence": ["draft_content"],
+  "forbiddenInfluence": ["grant_permission", "skip_approval"]
+}
+```
+
+The agent can use the value without treating it as a system instruction. This is a design aid, not a magical defense. The runtime still needs to enforce the forbidden actions.
+
+## How do you validate free-form text without pretending to sanitize it?
+
+Treat free-form text as content with a declared role, not as a trusted command. Validate what you can: encoding, size, character normalization, attachment type, and permitted content channel. Then classify or isolate the text according to the task.
+
+OWASP states, “Allowlist validation involves defining exactly what IS authorized, and by definition, everything else is not authorized.” ([OWASP Input Validation Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html)) That is straightforward for an enum. It is harder for a paragraph because the allowed content is broad. Do not respond by building a denylist of a few phrases and calling the problem solved.
+
+The same OWASP guidance recommends normalization and character-category controls for free-form Unicode text, while warning that validation is not a complete output-encoding or cross-site-scripting defense. AWS similarly recommends sanitizing and normalizing in application code before sending content to an inference engine and says prompts and model guardrails should not be the only defense ([AWS Prescriptive Guidance](https://docs.aws.amazon.com/prescriptive-guidance/latest/agentic-ai-security/best-practices-input-validation.html)).
+
+Use separate fields for separate roles:
+
+```text
+user_goal: the task the requester wants completed
+reference_content: documents or records to inspect
+policy_context: rules supplied by the application
+runtime_instruction: trusted instructions owned by the application
+```
+
+Do not concatenate all four into one unlabelled block. The model may still misunderstand them, but clear boundaries reduce ambiguity and make the trace inspectable.
+
+Screen for prompt injection when untrusted content can influence planning, tool choice, or sensitive output. The screen can be a rules-based detector, a model classifier, a provider guardrail, or several layers. Keep its result as a signal with a version, confidence or category where available, and an action. Do not turn a classifier score into an authorization decision by itself.
+
+A safe policy looks like this:
+
+| Content finding | Read-only research | Drafting | Write or external side effect |
+| --- | --- | --- | --- |
+| No finding | Allow with provenance | Allow with provenance | Allow only if authority and tool checks pass |
+| Suspicious instruction in a document | Isolate and continue only if the task can ignore instructions | Hold or request review | Block until reviewed |
+| Attempt to reveal system or secret data | Refuse the affected operation | Refuse the affected operation | Block and record a security event |
+| Ambiguous user intent | Ask a clarifying question | Ask before committing | Require clarification and possibly approval |
+
+![Illustration of untrusted retrieved content separated from AI agent policy and authorization.](/blog/how-to-validate-ai-agent-inputs-before-a-run-ai-agent-untrusted-content.webp)
+
+OWASP's prompt-injection guidance recommends layered defenses and validation before untrusted input reaches the model, but a prompt screen cannot decide whether a person is allowed to export a dataset. That is why Policy and Ownership are separate SCOPE gates.
+
+## How do you use JSON Schema without confusing syntax with meaning?
+
+Use JSON Schema to make the structural contract executable, then add application validators for semantics and authority. Keep the two layers visible in code and in the review report.
+
+A compact structural schema might look like this:
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/schemas/agent-run-envelope-1.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["tenantId", "requesterId", "taskType", "goal", "limits"],
+  "properties": {
+    "tenantId": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "requesterId": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "taskType": {
+      "type": "string",
+      "enum": ["summarize_account", "draft_reply", "classify_ticket"]
+    },
+    "goal": { "type": "string", "minLength": 1, "maxLength": 4000 },
+    "references": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "id"],
+        "properties": {
+          "kind": { "type": "string", "enum": ["account", "document", "ticket"] },
+          "id": { "type": "string", "minLength": 1, "maxLength": 160 }
+        }
+      }
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["maxSteps", "maxToolCalls"],
+      "properties": {
+        "maxSteps": { "type": "integer", "minimum": 1, "maximum": 50 },
+        "maxToolCalls": { "type": "integer", "minimum": 0, "maximum": 30 }
+      }
+    }
+  }
+}
+```
+
+`additionalProperties: false` is a deliberate choice for a small envelope. It makes a misspelled `requesterId` fail rather than disappear into an ignored field. For extensible events, use a versioned extension object instead of accepting arbitrary top-level keys.
+
+The schema's `format` behavior deserves a warning. JSON Schema 2020-12 distinguishes format annotation from format assertion, and implementations may not perform full semantic validation for every format by default ([JSON Schema Validation](https://json-schema.org/draft/2020-12/json-schema-validation)). An `email` or `date-time` annotation is not proof that an account exists, that a link is safe to fetch, or that a timestamp is fresh enough for a payment.
+
+Anthropic makes the same boundary concrete in its tool-use guidance: JSON Schema handles structure, types, required fields, and allowed enums, but does not express every usage pattern, parameter combination, or API convention ([Anthropic advanced tool use](https://www.anthropic.com/engineering/advanced-tool-use)). Add named semantic functions such as `checkReferenceOwnership`, `checkTaskCompatibility`, and `checkFreshness` instead of stuffing every business rule into an opaque schema.
+
+**Schema validation can prove shape, but only application checks can prove meaning.**
+
+Do not use a schema validator as a security boundary if the library is configured to coerce unexpected types, ignore unknown properties, skip formats, or accept a different dialect than the contract declares. Pin the dialect, configure strict behavior intentionally, and write tests for the library settings you depend on.
+
+![Illustration of JSON Schema structure checks paired with semantic application validation.](/blog/how-to-validate-ai-agent-inputs-before-a-run-ai-agent-schema-semantics.webp)
+
+## How do you validate IDs, files, and external references?
+
+Validate references in four steps: syntax, existence, authority, and freshness. A syntactically valid ID can still be wrong for the run.
+
+### Syntax
+
+Check the identifier's expected shape and length. If the system uses opaque IDs, do not infer meaning from a prefix unless the prefix is part of a documented contract. Reject path traversal characters when a value could reach a file operation. Do not let a client select an arbitrary server file path.
+
+### Existence
+
+Ask the owning system whether the reference exists. Handle not-found, timeout, and permission-denied as different outcomes. A timeout is usually not evidence that a record does not exist. It may be a hold or retryable failure.
+
+### Authority
+
+Check that the reference belongs to the tenant and data scope authorized for this requester and task. Never rely on the model to notice that a record belongs to another customer. The validator should obtain the identity and scope from trusted application state, not from the user's natural-language claim.
+
+### Freshness
+
+Define freshness by field and consequence. A cached product description may be acceptable for a draft. An account balance or entitlement may need a read at admission and another read before a write. Store `observedAt`, source version, and freshness policy in the envelope.
+
+A reference check should return an evidence object:
+
+```json
+{
+  "reference": { "kind": "account", "id": "acct_4821" },
+  "exists": true,
+  "tenantMatch": true,
+  "authorized": true,
+  "sourceVersion": "account-v7",
+  "observedAt": "2026-08-19T09:34:12Z",
+  "freshUntil": "2026-08-19T09:39:12Z"
+}
+```
+
+The `freshUntil` value is a policy decision, not a property of the database. A five-minute window can be reasonable for a read-only summary and reckless for a high-value transfer. NIST's Generative AI Profile frames risk management as context-dependent and emphasizes that evaluation and deployment controls should match the use case, so do not use one freshness number for every workflow ([NIST AI RMF Generative AI Profile](https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence)).
+
+For files, add content-type verification, maximum size, decompression limits, malware scanning where appropriate, and a parser that fails closed. A filename ending in `.pdf` is not proof of the file's content. Store the file outside the prompt builder and pass the agent a controlled reference plus extracted content that has a trust label.
+
+![Illustration of an AI agent reference check for ownership and freshness.](/blog/how-to-validate-ai-agent-inputs-before-a-run-ai-agent-reference-freshness.webp)
+
+## Where should guardrails run in a multi-step agent?
+
+Put admission controls before the first model call, then place checks at every boundary where new input or authority enters. Pre-run validation is the first gate, not the last one.
+
+OpenAI's Agents SDK documents three relevant locations. Input guardrails run on the initial user input. Output guardrails run on the final agent output. Tool guardrails run on every function-tool invocation, before and after execution ([OpenAI Agents SDK guardrails](https://openai.github.io/openai-agents-js/guides/guardrails/)). That boundary distinction is important for handoffs: an agent-level input guardrail may run only on the first agent, while a tool guardrail can protect each tool call.
+
+The SDK also documents a latency and safety trade-off. Parallel input guardrails can minimize latency, but the model may already have consumed tokens or run tools before a later tripwire. Blocking execution runs the guardrail before the model call, preventing model and tool work when the guardrail blocks ([OpenAI Agents SDK guardrails](https://openai.github.io/openai-agents-js/guides/guardrails/)).
+
+**A pre-run guardrail is a cost control only when it executes before model and tool work.**
+
+Use the blocking mode for hard admission checks: malformed envelopes, missing authorization, forbidden task types, over-limit payloads, and known disallowed content. Consider parallel screening for low-latency, low-blast-radius cases where early model work is acceptable, but record that it is optimistic execution rather than a strict preflight.
+
+In a multi-agent workflow, define the boundaries explicitly:
+
+```text
+external request
+  -> ingress validation
+  -> run admission
+  -> manager agent
+  -> handoff contract validation
+  -> specialist agent
+  -> tool input validation
+  -> tool execution
+  -> tool output validation
+  -> final output validation
+```
+
+Each arrow is a place where data can cross from one owner or trust level to another. Do not assume that a passed handoff remains safe because the originating agent was trusted. Validate the handoff as a new input and bind it to the parent run, tenant, scope, and policy version.
+
+This is also where the existing [multi-agent handoff design guide](/blog/design-multi-agent-handoffs) becomes relevant. That guide owns the context-transfer contract. The present article owns the admission check that decides whether the proposed handoff may start.
+
+![Illustration of guardrails placed across AI agent workflow boundaries.](/blog/how-to-validate-ai-agent-inputs-before-a-run-ai-agent-guardrail-boundaries.webp)
+
+## Which checks should be deterministic, and which can use a model?
+
+Use deterministic code whenever the rule has a crisp, testable answer. Use a model as a bounded classifier or reviewer when the input is genuinely semantic and the consequences of a mistake are controlled.
+
+| Check | First grader | Why | Do not delegate blindly |
+| --- | --- | --- | --- |
+| Required field, type, range, enum | Code | Reproducible and fast | Coercion can hide malformed data |
+| Signature, tenant, role, permission | Trusted identity and policy code | Authorization must be independent of model preference | A model can explain a denial but cannot grant authority |
+| Reference existence and freshness | Owning service plus policy code | The source system owns the fact | A model cannot make a stale record current |
+| Prompt-injection signal | Rules, classifier, or provider guardrail | Natural language needs semantic screening | A pass is not proof that no attack exists |
+| Intent classification | Model plus bounded schema | Language interpretation is useful here | Limit the allowed labels and handle uncertainty |
+| Ambiguity detection | Model or rule set plus clarification flow | The system may need to ask a human | Never silently choose a destructive interpretation |
+| Budget estimate | Code and provider metadata | Limits must be enforceable | Do not trust the model's estimate of its own future calls |
+| Final approval | Human or policy engine | High-risk judgment needs explicit authority | Do not hide approval inside a prompt |
+
+OpenAI's practical guide recommends rating tools by access, reversibility, permissions, and financial impact, then using those ratings to pause or escalate high-risk functions ([OpenAI practical guide to building agents](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/)). This is a useful downstream control, but the same dimensions help at admission. A request for a read-only summary and a request to send money may share a user message shape but should not share a risk threshold.
+
+For model-based checks, define the output contract:
+
+```json
+{
+  "label": "allow | suspicious | ambiguous | disallowed",
+  "reasonCode": "string",
+  "evidenceSpans": ["string"],
+  "confidence": 0.0,
+  "recommendedAction": "allow | clarify | hold | reject"
+}
+```
+
+Then validate the classifier output with code. A model that emits `approved: true` has not approved anything. The runtime should map the label to a policy decision and enforce that decision.
+
+Treat confidence as a routing signal, not as a universal probability of safety. Its calibration depends on the model, labels, examples, and task. Keep representative benign and adversarial cases in a regression suite. AWS recommends standardized test datasets, baseline security metrics, continuous testing, and separate suites for multi-turn, context-poisoning, and cross-agent risks ([AWS Prescriptive Guidance](https://docs.aws.amazon.com/prescriptive-guidance/latest/agentic-ai-security/best-practices-input-validation.html)).
+
+## What should a validation failure look like?
+
+Make failures stable, specific, and safe to expose. A caller should know what to do next, while an attacker should not learn protected system facts.
+
+Use a shape like this:
+
+```json
+{
+  "decision": "clarify",
+  "code": "REFERENCE_AMBIGUOUS",
+  "message": "Choose one account before starting this task.",
+  "field": "references[0].id",
+  "safeDetails": {
+    "allowedKinds": ["account"],
+    "maxChoices": 1
+  },
+  "owner": "requester",
+  "retryable": true,
+  "expiresAt": "2026-08-19T10:00:00Z",
+  "validationVersion": "run-input-2026-08-19.1"
+}
+```
+
+Keep internal detail separate:
+
+```json
+{
+  "internalReason": "Two supplied IDs resolve to different tenants",
+  "securityEvent": false,
+  "traceFields": {
+    "tenantCandidates": ["tenant_a", "tenant_b"],
+    "resolverVersion": "accounts-v4"
+  }
+}
+```
+
+The external message should not reveal tenant existence or internal identifiers. The internal record should not put raw secrets into logs. OWASP warns against logging sensitive data such as personal information and credentials in plain text and recommends structured decision metadata for high-risk actions ([OWASP AI Agent Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/AI_Agent_Security_Cheat_Sheet.html)).
+
+Define a code vocabulary that reflects the routing decision:
+
+| Code family | Example codes | Default route |
+| --- | --- | --- |
+| Structure | `MISSING_FIELD`, `INVALID_TYPE`, `INPUT_TOO_LARGE` | Requester or integration repair |
+| Context | `REFERENCE_NOT_FOUND`, `REFERENCE_STALE`, `DEPENDENCY_TIMEOUT` | Data owner, refresh, or hold |
+| Ownership | `TENANT_MISMATCH`, `SCOPE_DENIED`, `ROLE_REQUIRED` | Identity or requester, with safe response |
+| Policy | `UNTRUSTED_DIRECTIVE`, `POLICY_BLOCK`, `APPROVAL_REQUIRED` | Security, policy, or human reviewer |
+| Economics | `TOO_MANY_ITEMS`, `BUDGET_EXCEEDED`, `CONCURRENCY_LIMIT` | Platform owner or narrower request |
+
+Do not use HTTP 400 for every failure if the run is asynchronous. Persist the validation outcome as an event that can be measured and correlated. A spike in `REFERENCE_STALE` might mean an upstream sync is broken. A spike in `TENANT_MISMATCH` might mean an integration is misconfigured or under attack.
+
+![Illustration of AI agent validation failures routed to the right owners.](/blog/how-to-validate-ai-agent-inputs-before-a-run-ai-agent-failure-routing.webp)
+
+## How do you keep pre-run validation from becoming the new bottleneck?
+
+Make the first layer small, cache only facts with a clear freshness policy, and choose an asynchronous hold when a dependency cannot answer safely within its budget.
+
+Separate checks by cost:
+
+| Cost tier | Checks | Typical handling |
+| --- | --- | --- |
+| Immediate | Parse, schema, bounds, enum, raw size, signature format | Run synchronously at ingress |
+| Short lookup | Identity, tenant scope, reference existence, policy version | Run synchronously with tight timeouts or in a preflight queue |
+| Expensive | File scan, retrieval, model classifier, large-batch projection | Hold or run in an admission worker with explicit status |
+| Recheck | Live balance, permission, approval binding, tool arguments | Run immediately before the side effect |
+
+Do not “optimize” a slow check by removing it from the security path without writing down the replacement. Cache a reference lookup with `observedAt` and `expiresAt`, not just a boolean called `isValid`. Cache a policy decision only if the policy version and scope are part of the cache key.
+
+Bound the validator itself. It should have a maximum input size, maximum number of references, maximum lookup fan-out, and deadline. Otherwise an attacker can turn validation into a denial-of-service path with a request that contains thousands of IDs or deeply nested structures.
+
+Prefer a single reference batch endpoint over one network request per item when the owning system supports it. Keep the batch maximum explicit. If the reference service times out, return `DEPENDENCY_TIMEOUT` and decide whether the workflow can hold. Do not convert a timeout into “not found” because that creates false denials and can produce confusing retries.
+
+Measure admission separately from agent execution:
+
+- validation latency by gate and outcome;
+- validation failure rate by code and source;
+- accepted versus held versus rejected runs;
+- model and tool work spent on inputs later found invalid;
+- reference lookup timeout rate;
+- false-positive review rate for policy classifiers;
+- percentage of high-risk actions revalidated before execution.
+
+These are operational measures, not claims of a universal success target. Set thresholds from your workflow's risk and service-level needs.
+
+## What does a practical pre-run validator look like?
+
+The following TypeScript artifact shows the separation I want: structural validation, semantic checks, policy screening, and budget admission return a decision. The functions that talk to identity, records, or a classifier are interfaces. Replace them with your own services and test them in isolation.
+
+```ts
+type Decision = "allow" | "repair" | "clarify" | "hold" | "reject";
+
+type RunInput = {
+  tenantId: string;
+  requesterId: string;
+  taskType: "summarize_account" | "draft_reply" | "classify_ticket";
+  goal: string;
+  references?: Array<{ kind: "account" | "document" | "ticket"; id: string }>;
+  dryRun?: boolean;
+  limits: { maxSteps: number; maxToolCalls: number };
+};
+
+type Finding = {
+  gate: "structure" | "context" | "ownership" | "policy" | "economics";
+  code: string;
+  message: string;
+  decision: Exclude<Decision, "allow">;
+  retryable: boolean;
+};
+
+type Dependencies = {
+  authorize: (input: RunInput) => Promise<{ allowed: boolean; code?: string }>;
+  resolveReferences: (input: RunInput) => Promise<Array<{
+    exists: boolean;
+    tenantMatch: boolean;
+    authorized: boolean;
+    fresh: boolean;
+  }>>;
+  screenText: (goal: string) => Promise<{
+    label: "clear" | "suspicious" | "ambiguous" | "disallowed";
+  }>;
+};
+
+function structuralFindings(input: RunInput): Finding[] {
+  const findings: Finding[] = [];
+  if (!input.tenantId || !input.requesterId || !input.goal) {
+    findings.push({
+      gate: "structure",
+      code: "MISSING_REQUIRED_FIELD",
+      message: "A required run field is missing.",
+      decision: "clarify",
+      retryable: true,
+    });
+  }
+  if (input.goal.length > 4000) {
+    findings.push({
+      gate: "structure",
+      code: "GOAL_TOO_LARGE",
+      message: "Shorten the task description before starting.",
+      decision: "repair",
+      retryable: true,
+    });
+  }
+  if (input.limits.maxSteps < 1 || input.limits.maxSteps > 50) {
+    findings.push({
+      gate: "economics",
+      code: "INVALID_STEP_LIMIT",
+      message: "The requested step limit is outside the allowed range.",
+      decision: "reject",
+      retryable: true,
+    });
+  }
+  return findings;
+}
+
+function chooseDecision(findings: Finding[]): Decision {
+  if (findings.length === 0) return "allow";
+  if (findings.some((f) => f.decision === "reject")) return "reject";
+  if (findings.some((f) => f.decision === "hold")) return "hold";
+  if (findings.some((f) => f.decision === "clarify")) return "clarify";
+  return "repair";
+}
+
+export async function admitRun(
+  input: RunInput,
+  deps: Dependencies,
+): Promise<{ decision: Decision; findings: Finding[] }> {
+  const findings = structuralFindings(input);
+  if (findings.length > 0) {
+    return { decision: chooseDecision(findings), findings };
+  }
+
+  const authorization = await deps.authorize(input);
+  if (!authorization.allowed) {
+    findings.push({
+      gate: "ownership",
+      code: authorization.code ?? "SCOPE_DENIED",
+      message: "The requester is not authorized for this run.",
+      decision: "reject",
+      retryable: false,
+    });
+  }
+
+  const references = await deps.resolveReferences(input);
+  for (const reference of references) {
+    if (!reference.exists) {
+      findings.push({
+        gate: "context",
+        code: "REFERENCE_NOT_FOUND",
+        message: "A referenced record could not be resolved.",
+        decision: "clarify",
+        retryable: true,
+      });
+    } else if (!reference.tenantMatch || !reference.authorized) {
+      findings.push({
+        gate: "ownership",
+        code: "REFERENCE_SCOPE_DENIED",
+        message: "A reference is outside the permitted scope.",
+        decision: "reject",
+        retryable: false,
+      });
+    } else if (!reference.fresh) {
+      findings.push({
+        gate: "context",
+        code: "REFERENCE_STALE",
+        message: "Refresh the referenced data before starting.",
+        decision: "hold",
+        retryable: true,
+      });
+    }
+  }
+
+  const screen = await deps.screenText(input.goal);
+  if (screen.label === "disallowed" || screen.label === "suspicious") {
+    findings.push({
+      gate: "policy",
+      code: "UNTRUSTED_DIRECTIVE",
+      message: "The task needs a policy review before it can run.",
+      decision: "hold",
+      retryable: true,
+    });
+  } else if (screen.label === "ambiguous") {
+    findings.push({
+      gate: "policy",
+      code: "GOAL_AMBIGUOUS",
+      message: "Clarify the requested action before starting.",
+      decision: "clarify",
+      retryable: true,
+    });
+  }
+
+  return { decision: chooseDecision(findings), findings };
+}
+```
+
+This is intentionally incomplete. It does not implement a JSON Schema library, authentication, a database transaction, a malware scanner, a prompt-injection classifier, or a provider-specific guardrail. Those omissions are the point of the artifact: the admission boundary must name its dependencies rather than imply that one function can solve them.
+
+In real code, persist the accepted envelope and validation report atomically with run creation. If the process crashes between “validation passed” and “run created,” you need an idempotency key or an admission record that can be resumed. Otherwise a client retry can create two runs from one request.
+
+The artifact also shows a conservative precedence rule. A reject beats a hold, a hold beats clarification, and clarification beats repair. You may choose another policy, but write it down. Without precedence, a request that is both cross-tenant and stale can be accidentally routed to a refresh job, which is the wrong owner and a possible information leak.
+
+## How do you test input validation before production?
+
+Test the validator as a decision system, not only as a schema parser. For each case, assert the decision, finding code, owner, data access, and whether a run record was created.
+
+Start with this matrix:
+
+| Case | Expected decision | What it proves |
+| --- | --- | --- |
+| Valid read-only request with current references | Allow | Normal admission path works |
+| Missing required field | Clarify | The requester gets a safe next action |
+| Unknown task type | Reject | The model cannot invent a capability |
+| Extra top-level field | Reject or explicit extension path | Typos and metadata smuggling do not disappear |
+| Goal at maximum length | Allow | Boundary is intentional |
+| Goal one character over limit | Repair or reject | The limit is enforced consistently |
+| Reference does not exist | Clarify | Not-found is distinct from timeout |
+| Reference belongs to another tenant | Reject | Authorization is independent of model behavior |
+| Reference is stale for a write action | Hold | Freshness follows consequence |
+| Valid user request with suspicious document text | Hold or isolate | Untrusted content cannot silently become authority |
+| Ambiguous destructive request | Clarify | The system does not guess intent |
+| Max tool calls set to zero for a tool-required task | Reject or repair | Task and budget are semantically compatible |
+| Duplicate request with same idempotency key | Reuse prior decision | Retries do not create duplicate runs |
+| Reference service timeout | Hold | Availability failure is not false “not found” |
+| Policy version changes after admission | Revalidate or block | Old decisions do not outlive their policy blindly |
+
+For each test, record:
+
+- the exact input envelope and schema version;
+- the authenticated test identity and tenant;
+- reference fixtures and their observed timestamps;
+- classifier or guardrail version, if used;
+- expected decision and finding code;
+- whether model or tool work occurred;
+- the safe external response and internal audit event.
+
+The test suite should include benign and malicious cases. A filter that blocks every imperative sentence is not useful if users legitimately ask an agent to “ignore the old draft and use the approved version.” AWS recommends separate test suites for benign scenarios and malicious vectors, including multi-turn attacks, context poisoning, and cross-agent propagation ([AWS Prescriptive Guidance](https://docs.aws.amazon.com/prescriptive-guidance/latest/agentic-ai-security/best-practices-input-validation.html)).
+
+Use mutation tests for the envelope. Remove a required field, change a tenant, swap a reference, add an unknown key, increase the array count, alter the policy version, or make the input stale. The validator should produce the expected failure rather than quietly coerce the mutation.
+
+Test the negative space too. What happens when the dependency is slow? What happens when the classifier is unavailable? What happens when the validator itself throws? A validator failure should not fall through to the model. Route it to an explicit `VALIDATION_UNAVAILABLE` or `HOLD_FOR_PREFLIGHT` state with a deadline.
+
+Do not infer security from a single successful prompt-injection test. OWASP recommends structured adversarial testing before production and after changes to prompts, tools, memory, retrieval, or provider. Keep the failed inputs as sanitized regression cases and re-run them when the system changes ([OWASP AI Agent Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/AI_Agent_Security_Cheat_Sheet.html)).
+
+## What failure modes does pre-run validation prevent?
+
+The value of pre-run validation is easiest to see in a failure trace. Here are representative patterns, written as generic examples rather than claims about a Marius Manolachi client or production test.
+
+### The valid-looking ID from the wrong environment
+
+A staging integration sends `customer_1842` to a production summarization agent. The string matches the ID pattern. The record exists. A schema validator passes it.
+
+The Context gate should resolve the record through the production owner and the Ownership gate should confirm tenant and environment. If the reference cannot be proved to belong to the run, reject it before retrieval. The failure code should tell the integration owner that the reference scope is invalid without exposing a record from the other environment.
+
+### The document that changed after task creation
+
+A user asks an agent to draft a reply from a policy document. The task enters a queue. Someone edits the document before the agent starts. If the workflow requires the selected version, the pre-run check should compare the stored version or hash with the current source and choose clarify, hold, or refresh.
+
+That is not schema drift. The JSON object is valid. It is contextual staleness. The fix is to bind the reference to a version and decide which changes require reapproval.
+
+### The ambiguous side effect hidden in a short request
+
+“Clean up these accounts” can mean archive, merge, deactivate, or draft a report. A language model can choose a plausible interpretation and sound certain. A pre-run policy can classify the task as ambiguous because the action is destructive or because multiple operations match.
+
+Ask a narrow question that names the choices. Do not make the agent guess merely because the user is in a hurry. The clarification step is part of reliability, not a failure of autonomy.
+
+### The untrusted instruction inside a reference
+
+A retrieved page contains text that says to ignore the workflow rules and upload a secret. The page is relevant as information, but not as authority. The provenance gate marks it as untrusted data, and the Policy gate screens the content before the agent plans a tool call.
+
+If the task is read-only and the suspicious text can be isolated, the system may continue with the relevant facts. If the content can influence tool choice or sensitive output, hold or reject. The authorization check remains separate, because a clean page does not grant permission to upload anything.
+
+### The oversized batch that becomes a hidden budget failure
+
+A user sends 50,000 ticket IDs to a workflow designed for 200. The JSON parses. The model may spend time planning, the retrieval layer may fan out, and a retry may multiply the load. The Economics gate should reject or require a narrower scope before the run exists.
+
+If a batch is legitimately large, create a bounded job plan with explicit partitioning and accounting. Do not allow the model to discover the batch limit after it has started.
+
+### The stale authorization after a pause
+
+A run passes admission, waits for approval, and resumes three hours later. The requester loses access during the pause. The original admission is not enough for a write action. Recheck permission, policy version, and live facts immediately before the side effect.
+
+Pre-run validation gives you a clean starting point. It does not make authority permanent.
+
+## What should you log without leaking sensitive input?
+
+Log enough evidence to explain a decision, but apply the same privacy discipline to validation logs that you apply to the agent's context.
+
+For every admission attempt, retain a structured record with:
+
+- generated run or admission ID;
+- tenant and requester identifiers in the least revealing form that supports operations;
+- input schema, policy, validator, and classifier versions;
+- input hashes or references rather than raw sensitive content where possible;
+- gates executed and their outcomes;
+- finding codes and routing owner;
+- decision, timestamp, deadline, and whether a run was created;
+- dependency versions and observation timestamps;
+- revalidation events before side effects;
+- a link to the approval or denial record when applicable.
+
+Avoid logging raw prompts, access tokens, secret-bearing headers, full documents, or unredacted personal data. If you need the raw content for a controlled incident review, store it in a restricted system with a retention policy and an audit trail. The validation event can contain a content hash and a secure reference.
+
+The log should answer three questions:
+
+1. What did the system believe it was asked to do?
+2. Which evidence made the request eligible or ineligible?
+3. What changed between admission and any later side effect?
+
+If the answer requires reconstructing state from an unstructured transcript, the validator is not carrying enough metadata. If the answer exposes the entire user document to every operator, the log is carrying too much.
+
+## When is pre-run validation not enough?
+
+It is not enough whenever new data, authority, or side-effect opportunity appears after admission. Keep at least four downstream controls:
+
+1. **Tool input validation.** Validate the actual arguments the model proposes, not only the original goal. A valid request can lead to an invalid or overbroad tool call.
+2. **Authorization at execution.** Check permission and scope at the service that performs the side effect. The agent runtime should not be the only enforcement point.
+3. **Tool output validation.** Verify that the returned data matches the expected shape and trust level before feeding it back into context.
+4. **Output and outcome validation.** Check the final response and, where possible, the actual environment state. A message saying “done” is not proof that the change happened.
+
+OpenAI's agent guidance describes guardrails as one part of a layered design and says they should be coupled with authentication, authorization, access controls, and standard software security measures ([OpenAI practical guide to building agents](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/)). OWASP likewise recommends least privilege, human review for high-risk actions, monitoring, structured adversarial testing, and separation of decision from execution ([OWASP AI Agent Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/AI_Agent_Security_Cheat_Sheet.html)).
+
+Use the existing [least-privilege tool access guide](/blog/give-ai-agent-least-privilege-tool-access) for the permission design itself. Use the [AI agent evaluation guide](/blog/how-to-evaluate-an-ai-agent) when you need to test the system across representative cases before release. The pre-run gate is the admission contract that connects those concerns.
+
+There is also an architectural limit. If the workflow is a fixed sequence with deterministic inputs and outputs, you may not need an agent. A validator can make an agent safer, but it cannot make model-directed behavior necessary. The site's [decision framework for when to use an AI agent](/blog/when-to-use-an-ai-agent) is the right next read when the system boundary is still undecided.
+
+## What is the final pre-run validation checklist?
+
+Before you admit a run, verify the following:
+
+### Contract
+
+- Does the envelope have a versioned schema?
+- Are required fields, types, bounds, enums, nesting, and unknown-field behavior explicit?
+- Is raw input separated from normalized input?
+- Are input surfaces inventoried beyond the user message?
+
+### Context
+
+- Do all references exist or have a clear pending state?
+- Do references belong to the requested tenant and data scope?
+- Are version and freshness rules defined per workflow?
+- Are files checked for type, size, parsing, and decompression risk?
+- Are source timestamps and trust classifications carried into context?
+
+### Ownership
+
+- Is the requester authenticated through a trusted channel?
+- Is the task type allowed for the requester and tenant?
+- Is the requested data scope narrower than or equal to the authorized scope?
+- Is the side-effect class explicit?
+- Will permission be rechecked before a write or irreversible action?
+
+### Policy
+
+- Is free-form content marked as data rather than authority?
+- Are prompt-injection and malicious-content checks layered?
+- Are sensitive data and retention rules applied before storage and logging?
+- Does ambiguity route to a question rather than a guess?
+- Does high-risk work route to a human or policy decision?
+
+### Economics
+
+- Are input size, reference count, steps, model calls, tool calls, retries, time, and spend bounded?
+- Does a timeout become an explicit hold or retryable failure rather than a false success?
+- Is the validator itself rate-limited and bounded?
+- Can duplicate requests reuse an admission decision safely?
+
+### Evidence
+
+- Is every gate versioned and recorded?
+- Does the finding include a stable code and owner?
+- Can an operator explain why the request was admitted without reading secrets?
+- Are rejected and held cases included in regression tests?
+- Is the next review date set for changing SDK and security guidance?
+
+![Illustration of an AI agent pre-run validation checklist.](/blog/how-to-validate-ai-agent-inputs-before-a-run-ai-agent-pre-run-checklist.webp)
+
+If the answer to one of these is no, narrow the agent's scope until you can answer it. A smaller admitted envelope is easier to test, monitor, and explain than a flexible input channel that hides its own assumptions.
+
+The practical sequence is simple: validate the envelope, record the decision, create the run only after admission, and revalidate wherever the run gains new authority or reaches a side effect. That is how an AI agent starts with known boundaries instead of discovering them in production.
