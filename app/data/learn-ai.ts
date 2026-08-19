@@ -16,8 +16,9 @@ export const calendarUrl = 'https://cal.com/mariusmanola/30min';
 // a lead always has some way to reach you. Not a delivery target.
 export const contactEmail = process.env.LEAD_CONTACT_EMAIL || 'mariusmanola@gmail.com';
 
-// Shown in the hero badge and the closing panel. Set to 0 to hide both.
-export const spotsOpen = 5;
+// Shown in the hero badge, the closing panel, and the blog call card. Set to 0 to hide.
+export const spotsOpen = 3;
+export const spotsNote = spotsOpen > 0 ? `Only ${spotsOpen} spots left this month` : '';
 
 // Sits beside the availability chip in the hero. People want to see who they'd be
 // handing $300 to before they read anything else.

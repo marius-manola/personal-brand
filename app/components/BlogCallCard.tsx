@@ -1,5 +1,5 @@
 import Image from 'next/image';
-import { calendarUrl } from '@/app/data/learn-ai';
+import { calendarUrl, spotsNote } from '@/app/data/learn-ai';
 
 export default function BlogCallCard() {
   return (
@@ -14,15 +14,16 @@ export default function BlogCallCard() {
             className="blog-call-photo"
           />
           <div>
-            <p className="blog-call-kicker">AI consulting</p>
+            {spotsNote ? <p className="blog-call-kicker">{spotsNote}</p> : null}
             <p className="blog-call-name">Marius Manolachi</p>
           </div>
         </div>
         <h2>The first call is free</h2>
         <p>
-          I consult on using AI at a serious level, on your actual work. I have
-          taught 109,753 students on Udemy, spoken at the OECD on AI and education,
-          led a workshop at Orange, and I build with Claude Code, Codex, and the rest every day.
+          Most people use AI at a fraction of what it can do. I take you the
+          rest of the way, on the work in front of you, the same way I do with
+          Fortune 500 companies. About 110,000 students taught. OECD. I build
+          with these tools every day.
         </p>
         <a
           href={calendarUrl}
@@ -30,7 +31,7 @@ export default function BlogCallCard() {
           target="_blank"
           rel="noopener noreferrer"
         >
-          Book a free first call
+          Book the first call
         </a>
       </div>
     </aside>

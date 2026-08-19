@@ -24,6 +24,7 @@ import {
   qualifier,
   quietLinks,
   spotsOpen,
+  spotsNote,
   teamsNote,
   usageChoices,
   testimonial,
@@ -108,7 +109,7 @@ export default function LearnAI() {
                     <span className="spots-badge">
                       <span className="spots-dot" aria-hidden="true" />
                       <AnimatedShinyText className="mx-0 max-w-none text-[hsl(var(--muted-foreground))]">
-                        {spotsOpen} spots open this month
+                        {spotsNote}
                       </AnimatedShinyText>
                     </span>
                   )}
@@ -274,7 +275,7 @@ export default function LearnAI() {
                   <QualifyForm
                     heading={qualifier.heading}
                     intro={qualifier.intro}
-                    spotsNote={spotsOpen > 0 ? `${spotsOpen} spots open this month` : undefined}
+                    spotsNote={spotsNote || undefined}
                     fields={qualifier.fields}
                     projectChoices={projectChoices}
                     usageChoices={usageChoices}
