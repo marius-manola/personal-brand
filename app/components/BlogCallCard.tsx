@@ -20,9 +20,9 @@ export default function BlogCallCard() {
         </div>
         <h2>The first call is free</h2>
         <p>
-          I consult on using AI at a serious level, on your actual work. I&apos;ve
-          taught about 110,000 people, spoken at the OECD on AI and education,
-          and I build with Claude Code, Codex, and the rest every day.
+          I consult on using AI at a serious level, on your actual work. I have
+          taught 109,753 students on Udemy, spoken at the OECD on AI and education,
+          led a workshop at Orange, and I build with Claude Code, Codex, and the rest every day.
         </p>
         <a
           href={calendarUrl}

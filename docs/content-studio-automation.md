@@ -33,8 +33,8 @@ Hard caps used here:
 | Parallel writers | 5 | Isolated Plus account + long jobs |
 | Parallel imagers | separate pool | Images must not steal writer slots |
 | Live publishes at once | 1 | One git lock, one Vercel deploy |
-| Word band | 6,000–10,000, aim 7,000 | Gate fails under 6k |
-| Images | 8–12 | Hero + in-article rasters |
+| Word band | 900–8,000, stop when the job is done | Gate fails under 900 or padded length |
+| Images | 3–8 | Hero + in-article rasters |
 | Retries per job | 3, 5 minutes apart | Then quarantine, start a new post |
 
 ---
@@ -179,13 +179,14 @@ Required artifacts: `idea.md`, `research.md`, `post.mdx`, `review.md`, `manifest
 
 Deterministic gate (must fail the job, not warn):
 
-- 6,000–10,000 body words (strip code fences, images, raw URLs)
-- at least 8 question H2s
-- excerpt 100–170 chars, Quick Answer ≤ 60 words
-- 5+ HTTPS sources, FAQ 3–8, 4+ pull-statements, one verbatim quote
-- ≥2 internal `/blog/` links
-- no `<!--`, no em dashes, no AI cliches
-- 8–12 image requests, hero first, unique `__HERO_IMAGE__` / `__INLINE_IMAGE_n__`
+- 900–8,000 body words (strip code fences, images, raw URLs); never pad
+- at least 4 H2s, each a real subproblem
+- excerpt 100–170 chars, Quick Answer 25–80 words
+- 3+ HTTPS sources (prefer 5), optional FAQ
+- original contribution (table, procedure, or template) plus one locked firsthand fact
+- ≥1 internal `/blog/` link
+- no `<!--`, no em dashes, no AI cliches, no banned entity claims
+- 3–8 image requests, hero first, unique `__HERO_IMAGE__` / `__INLINE_IMAGE_n__`
 - collision check against taken work
 
 If the gate fails, Codex repairs in a loop. If it still fails after the repair budget, **do not publish**. Mark `failed`.
@@ -356,7 +357,7 @@ title: 'Query words first, <=72 chars'
 date: 'YYYY-MM-DD'          # stamped on publish day
 updated: 'YYYY-MM-DD'
 excerpt: '100-170 chars'
-answer: '<=60 words, complete'
+answer: '25-80 words, complete'
 author: 'Marius Manolachi'
 targetQuery: 'the one query'
 queryAliases: []
@@ -364,8 +365,8 @@ intent: informational|diagnostic|implementation|commercial
 funnel: awareness|consideration|decision
 cluster: '...'
 tags: []
-sources: ['https://...']    # >= 5
-faq: [{ q, a }]             # 3-8
+sources: ['https://...']    # >= 3, prefer 5
+faq: [{ q, a }]             # optional, 0-8
 cover: '/blog/<slug>-...png'
 coverAlt: '...'
 draft: false
@@ -374,8 +375,8 @@ draft: false
 Live page must render:
 
 - Quick Answer (speakable)
-- FAQ + FAQPage JSON-LD
-- Article JSON-LD
+- FAQ when present, plus FAQPage JSON-LD only then
+- Article JSON-LD with Person author pointing at /about
 - internal links that actually exist
 
 Also:
@@ -440,7 +441,7 @@ These are not style notes. They are the reasons the first versions did not run u
 
 **`git add content/blog` is a footgun.** Unpublished siblings ride along. Add one slug.
 
-**Word count must be a hard fail.** Luna will happily ship ~3k. The gate counts body words after stripping images and URLs. Under 6,000 → repair or fail. Do not publish. Aim 7,000. Require 8+ question H2s so expansion is new sections, not padded paragraphs.
+**Padding must be a hard fail.** The gate counts body words after stripping images and URLs. Under 900 → repair or fail. Over 8,000 without being original research → fail. Do not publish filler. Length follows the reader job.
 
 **Collision excepts the current slug.** Otherwise a job cannot repair its own post.
 

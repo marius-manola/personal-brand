@@ -7,6 +7,7 @@ import Copyright from '@/app/components/Copyright';
 import BlogCallCard from '@/app/components/BlogCallCard';
 import { getAllBlogPosts, getBlogPost, prepareBlogMdx } from '@/lib/server/blog.server';
 import { isLocalBlogImage, localBlogImageSize } from '@/lib/server/blog-image';
+import { sameAs } from '@/app/data/about';
 
 const SITE_URL = 'https://mariusmanolachi.com';
 
@@ -132,7 +133,12 @@ export default async function BlogPostPage({ params }: PageProps) {
         description: post.metadata.excerpt,
         datePublished: post.metadata.date,
         dateModified: post.metadata.updated || post.metadata.date,
-        author: { '@type': 'Person', name: post.metadata.author, url: `${SITE_URL}/about` },
+        author: {
+          '@type': 'Person',
+          name: post.metadata.author,
+          url: `${SITE_URL}/about`,
+          sameAs,
+        },
         mainEntityOfPage: postUrl,
         articleSection: post.metadata.cluster,
         keywords: post.metadata.tags,
