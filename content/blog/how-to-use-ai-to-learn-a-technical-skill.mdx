@@ -1,0 +1,861 @@
+---
+title: 'How to Use AI to Learn a Technical Skill'
+date: '2026-08-20'
+updated: '2026-08-20'
+excerpt: 'Use AI as a tutor, practice designer, reviewer, and retrieval partner while proving that you can perform a technical skill without it.'
+answer: 'Use AI as a tutor and reviewer, not as the person doing the work. Define one observable skill, ask AI to map prerequisites and give a small exercise, attempt it without the solution, then request hints and critique. Finish by rebuilding or explaining the result without AI. For safety-critical or fast-changing work, verify primary documentation and qualified human review.'
+targetQuery: 'how to use AI to learn a technical skill'
+queryAliases:
+  - 'using AI to learn technical skills'
+  - 'how can AI help me learn a technical skill'
+  - 'AI-assisted technical learning'
+intent: 'informational / how-to'
+funnel: 'awareness / consideration'
+cluster: 'team capability'
+kind: 'satellite'
+sourceableAtom: 'A technical-skill AI session is complete only when the learner has made an artifact, recorded an error or correction, and passed an unassisted recall or transfer check.'
+tags:
+  - 'AI learning'
+  - 'Technical skills'
+  - 'Learning'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-18'
+sources:
+  - 'https://doi.org/10.1126/science.1152408'
+  - 'https://doi.org/10.1037/0033-295X.100.3.363'
+  - 'https://jamanetwork.com/journals/jamanetworkopen/fullarticle/2789268'
+  - 'https://www.nature.com/articles/s41598-025-97652-6'
+  - 'https://pmc.ncbi.nlm.nih.gov/articles/PMC12232635/'
+  - 'https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.600-1.pdf'
+  - 'https://www.unesco.org/en/articles/guidance-generative-ai-education-and-research'
+faq:
+  - q: 'Can AI teach me a technical skill without a course?'
+    a: 'It can support a large part of the learning loop, especially explanations, practice design, hints, feedback, and review. It cannot replace a real environment, primary documentation, independent practice, or expert review when the work is consequential. Use a course or tutor when you need a sequenced curriculum, accountability, or a reliable answer key.'
+  - q: 'How do I learn coding with AI without copying code?'
+    a: 'State the behavior you need, attempt a small implementation first, and ask for one hint at a time. Run the code, inspect the failure, and ask for a diagnosis before asking for a patch. Then close the answer, rebuild the core idea from memory, and change one requirement to test transfer.'
+  - q: 'How do I know whether AI helped me learn or just finish?'
+    a: 'Check whether you can explain the important decision, reproduce the result in a fresh file or environment, diagnose a changed version of the problem, and name the source or test that verifies the answer. If you can only recognize the AI output, you have evidence of exposure, not independent skill.'
+cover: '/blog/how-to-use-ai-to-learn-a-technical-skill-hero-learning-loop.webp'
+coverAlt: 'Illustration of an AI-assisted technical skill learning loop from goal to independent transfer'
+draft: false
+---
+
+Most people use AI to remove the difficult part of learning. They ask for the explanation, the code, the fix, and the summary. The result feels smooth. It also leaves them unsure what they can do alone.
+
+I want a harder standard. Use AI to shorten the path to a useful attempt, not to remove the attempt. The difference matters because technical skill lives in decisions, errors, and recovery, not in recognizing a polished answer.
+
+## What is the best way to use AI to learn a technical skill?
+
+Use AI in a loop that moves from a defined capability to an independent check: map the skill, learn one concept, attempt a small task, ask for the smallest useful hint, produce an artifact, record a correction, verify important facts, and repeat the task without AI.
+
+The completion rule for this article is simple:
+
+> A technical-skill AI session is complete only when you have made a small artifact, recorded an error or correction, and passed an unassisted recall or transfer check.
+
+That rule is my contribution here. It is a practical evidence record, not a measured law. It gives you a way to distinguish three states that chat interfaces blur together:
+
+| What happened | What you can honestly claim |
+| --- | --- |
+| You read an explanation and it made sense | You gained exposure and may have improved your mental model. |
+| AI produced a result that you can run | You have assisted performance. The system may work, but your independent skill is unknown. |
+| You made, corrected, verified, and transferred the work | You have useful evidence that you can perform this slice of the skill. |
+
+The last row does not mean mastery. It means the session ended with evidence instead of a pleasant feeling. Retrieval research shows why that distinction matters. In experiments on vocabulary learning, repeated testing improved delayed recall more than repeated studying, while learners' predictions were not reliable indicators of later performance. ([Karpicke and Roediger, *Science*](https://doi.org/10.1126/science.1152408))
+
+AI is especially good at creating explanations, examples, questions, and feedback quickly. It is not automatically good at protecting the learner from seeing the answer too soon. A 2025 field experiment with nearly 1,000 high-school mathematics students found that unrestricted GPT-4 access improved performance on assisted practice but could hurt performance when access was removed; the learning-oriented tutor used hints and teacher-provided problem information to reduce that problem. ([Generative AI without guardrails can harm learning](https://pmc.ncbi.nlm.nih.gov/articles/PMC12232635/))
+
+The rest of the guide turns that evidence into a working routine.
+
+![Illustration of the three evidence pieces that show a learner practiced a technical skill](/blog/how-to-use-ai-to-learn-a-technical-skill-evidence-record.webp)
+
+## What should you define before opening an AI chat?
+
+Define a behavior you can observe and a piece of evidence that would prove it. “Learn Python” is a subject. “Write a Python script that reads a CSV, validates three fields, and reports invalid rows” is a capability.
+
+This first move prevents the AI from giving you a tour of a topic with no destination. It also makes it possible to choose the right kind of practice. A person learning a programming language needs to write and run programs. A person learning data analysis needs to inspect data, choose operations, and explain the result. A person learning cloud infrastructure needs a sandbox and a safe change procedure. A person learning a design tool needs to reproduce a visual outcome, not recite menu names.
+
+### Write the capability as an action
+
+Use this sentence:
+
+> I can [verb] [object] under [constraint], and I can prove it by [evidence].
+
+Examples:
+
+| Weak target | Observable target | Evidence |
+| --- | --- | --- |
+| Learn JavaScript | Write a function that transforms an array of records, handles an empty input, and explains its return value | A tested function plus a short explanation |
+| Learn APIs | Send an authenticated request, handle one expected error, and store the response safely | A small client run against a sandbox and a request log with secrets removed |
+| Learn SQL | Join two tables, filter by a date range, and explain why duplicate rows could appear | A query, sample result, and explanation of the join |
+| Learn Git | Create a branch, make two meaningful commits, resolve a simple conflict, and show the final history | A local repository with a clean log |
+| Learn data analysis | Clean a small dataset, state one assumption, and produce a chart that answers a stated question | A notebook or script, source data, and written interpretation |
+| Learn a technical creative workflow | Reproduce a defined look or output from raw material and explain the three choices that caused it | The source, finished artifact, and decision notes |
+
+The target should be small enough to attempt within one session. If it needs a month, break it into capabilities that can each produce evidence. A roadmap is useful only when it leads to work you can inspect.
+
+This is close to the useful part of deliberate practice: a task should be understandable from your current level, repeated, and paired with immediate informative feedback. The classic review by Ericsson, Krampe, and Tesch-Römer also warns that mere repetition without adequate feedback does not automatically improve performance. ([deliberate practice review](https://doi.org/10.1037/0033-295X.100.3.363))
+
+### Decide what “done” means before the model suggests it
+
+When I taught product managers who moved from writing specifications to building and shipping products, the hard part was often not the model. It was agreeing on what done meant. That is a teaching observation, not a study result, but it travels well to self-directed learning. If the success condition is vague, AI can produce an impressive artifact and you will have no clear reason to reject it.
+
+Write three checks before you ask for help:
+
+1. **Behavior check:** What must the thing do?
+2. **Boundary check:** What must it refuse, preserve, or handle incorrectly?
+3. **Transfer check:** What changed version will you perform without the assistant?
+
+For a small API client, the behavior check might be “send a request and parse the expected response.” The boundary check might be “do not print the API key and show a useful message for a failed request.” The transfer check might be “change the endpoint or response shape and update the client without seeing the earlier code.”
+
+This is more useful than asking AI to “teach me APIs” because it gives the tutor a destination and gives you a test that does not depend on the tutor's confidence.
+
+If the capability you choose is specifically building AI agents, keep this article at the learning-method layer and use Marius Manolachi's separate guide on [what to learn before building AI agents](/blog/what-to-learn-before-building-ai-agents) for the technical prerequisite map. That page owns the agent-building question. This page owns how to learn a technical skill with AI.
+
+## How should AI map a technical skill into a learning path?
+
+Ask AI to decompose the target into prerequisites, concepts, procedures, common errors, and practice tasks, then compare that map with an authoritative source. Treat the map as a draft curriculum, not as the curriculum itself.
+
+Use a prompt like this:
+
+```text
+I want to learn this capability:
+[write one observable capability]
+
+My current experience is:
+[what I can already do, including tools and constraints]
+
+Build a short learning map with:
+1. Prerequisites I truly need for the first attempt
+2. Concepts I need to recognize
+3. Procedures I need to perform
+4. Common beginner errors and how to detect them
+5. Three practice tasks, from small to more demanding
+6. One task I should complete without AI to test transfer
+
+Do not give me a long syllabus. Mark any claim that depends on a
+current version, API, policy, or tool behavior so I can check it in
+primary documentation.
+```
+
+Then interrogate the map. Ask:
+
+- Which prerequisite is necessary for the first task, and which can wait?
+- What is the smallest exercise that would reveal whether I understand this?
+- Which parts are concepts and which parts are actions?
+- What would a beginner likely get wrong even if the output looked plausible?
+- Which facts must come from current documentation rather than model memory?
+
+This is where AI saves time. It can propose a useful order and expose missing pieces faster than a blank page. But its sequence may be wrong, too broad, or tuned to a version you are not using. In a certification context, IT Dojo's current guide makes the same practical move by anchoring AI study to the official objectives rather than asking the model to define the exam. The official objectives remain the authority, while the model helps with explanations and practice. ([IT Dojo study guide](https://www.itdojo.com/blog/using-ai-to-study-for-certification-exams/))
+
+### Keep a source ladder
+
+Use different sources for different claims:
+
+| Need | Best first source | AI's role |
+| --- | --- | --- |
+| What the current tool supports | Official documentation or specification | Locate the relevant section and explain its terms |
+| What the skill is expected to include | Official objectives, standard, or course outline | Turn the scope into practice tasks |
+| Why a learning technique may work | Original research or a rigorous review | Translate the finding into a routine |
+| How a specific error behaves | Reproducible local test, official issue, or maintainer documentation | Help form hypotheses and test cases |
+| Whether your work meets a quality bar | A rubric, test suite, expert, or known-good example | Apply the rubric and identify questions |
+
+The source ladder stops a polished explanation from becoming your only evidence. NIST describes confabulation as a generative AI system confidently presenting false or erroneous content, including misleading reasoning or citations. ([NIST AI 600-1](https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.600-1.pdf))
+
+![Illustration of a source ladder connecting technical documentation, a sandbox test, and an AI explanation](/blog/how-to-use-ai-to-learn-a-technical-skill-source-ladder.webp)
+
+### Start from work you already care about
+
+An abstract curriculum is easy to abandon. A real task supplies stakes, constraints, and a natural definition of done. In the ChatGPT workshop I led at Orange, the useful starting point was the work people already did, not an abstract tour of AI features. That is the right order for learning a technical skill too: begin with a small task you would actually like to perform, then learn only the parts needed to do it safely and well.
+
+If you are learning SQL, use a question you genuinely need answered. If you are learning automation, automate a repetitive personal task with harmless data. If you are learning a design tool, reproduce a result from your own material. The task should be real enough to hold your attention, but contained enough that a mistake does not damage production data or someone else's work.
+
+## How can AI explain a technical concept without making you passive?
+
+Ask for a short explanation tied to your target task, then close the answer and explain the concept back in your own words before requesting a correction. Use AI to expose a mental model, not to fill your notes with prose you will never retrieve.
+
+Start with context:
+
+```text
+Explain [concept] for this task: [task].
+
+Assume I know [known material] and do not know [unknown material].
+Use one concrete example and one counterexample.
+Show the smallest working shape, but do not solve my exercise.
+End with three questions I must answer without looking back.
+```
+
+Read the answer once. Then write:
+
+```text
+Here is my explanation of the idea:
+[your explanation]
+
+Check it for:
+1. A wrong statement
+2. A missing condition
+3. A misleading analogy
+4. A practical consequence I should test
+Do not rewrite it for me before listing the problems.
+```
+
+The “do not rewrite it first” line matters. If the model silently replaces your explanation, you can mistake its polished version for your understanding. Let it point to the gap. You repair the gap.
+
+### Use a hint ladder
+
+When you are stuck, ask for the smallest intervention that can get you moving:
+
+1. Restate the goal and ask which part of the task is currently unclear.
+2. Ask for a question that helps you choose the next step.
+3. Ask for a concept clue, not a solution.
+4. Ask which input, assumption, or constraint to inspect.
+5. Ask for pseudocode or a partial structure with one blank left for you.
+6. Ask for a solution only after you have recorded your attempt and the specific blockage.
+
+After each hint, return to the task. Do not turn a hint request into a second reading session. The mathematics field experiment described above used hints rather than direct answers as one of its learning guardrails. The study's tutor was also supplied with problem-specific correct solutions and common mistakes, which matters because a generic model may not know the intended reasoning path. ([Mathematics field experiment](https://pmc.ncbi.nlm.nih.gov/articles/PMC12232635/))
+
+![Illustration of a hint ladder that preserves thinking before an AI solution](/blog/how-to-use-ai-to-learn-a-technical-skill-hint-ladder.webp)
+
+### Know when a direct explanation is appropriate
+
+Direct explanations are useful when:
+
+- you need a definition before you can form a question;
+- you have tried to retrieve an idea and need a correction;
+- the task is a low-risk orientation step;
+- you are comparing two concepts and can test the comparison afterward;
+- a primary source is difficult to read and you want a plain-language translation.
+
+Ask for less direct help when:
+
+- the task is the exact skill you want to perform;
+- you are preparing for an unassisted assessment;
+- you have not made any attempt;
+- the answer would hide the decision you need to learn;
+- you are using the model because discomfort feels like evidence that you are stuck.
+
+Learning should not be made needlessly frustrating. The aim is not to refuse help. The aim is to delay the answer long enough for you to form a model, make a prediction, and expose an error.
+
+## How do you use AI for hands-on technical practice?
+
+Give AI a small task with a visible output, attempt it in a real or safe environment, and ask the model to critique the evidence you provide. Technical skill grows when you manipulate the object of the skill, not when you describe it.
+
+For code, that means a runnable file, test, trace, or diff. For data work, it means a dataset, transformation, query, chart, or written finding. For infrastructure, it means a disposable environment, configuration change, log, and rollback. For a technical creative tool, it means source material, a repeatable procedure, and an exported result.
+
+The task should be small enough that you can inspect every part. A first exercise might be:
+
+```text
+Build a command-line script that:
+- reads a local CSV file
+- checks that `email` and `status` exist
+- prints invalid rows without exposing unrelated fields
+- exits with a non-zero status when validation fails
+
+Before you write code, describe your approach in five lines.
+Then implement it without a full solution from me.
+```
+
+The prompt sets an outcome, constraints, and a boundary. It does not ask the model to perform the exercise. Once you have an attempt, show the relevant code and output, then ask for diagnosis:
+
+```text
+Review this attempt against the stated behavior and boundary checks.
+Do not provide a replacement yet.
+
+Return:
+1. The first failure in execution order
+2. The evidence that reveals it
+3. The smallest change I should try
+4. One test that would distinguish this cause from a similar cause
+5. A security or data-handling concern, if one exists
+```
+
+This keeps the model close to your evidence. “Fix my code” invites it to invent missing context and replace the very decisions you need to practice. A trace, failing test, error message, or screenshot of the relevant state gives it something to reason about.
+
+### Ask for tests before asking for a patch
+
+A test is a learning instrument. It tells you what behavior the author thinks matters and gives you a way to see whether your change worked.
+
+Ask the AI to propose test cases, then choose and write at least one yourself. For the CSV validator, useful cases include:
+
+| Case | Expected result | What it teaches |
+| --- | --- | --- |
+| Valid file with both fields | Success and a controlled output | The happy path |
+| Missing `email` field | Clear validation failure | Schema assumptions |
+| Empty file | Defined failure or empty result | Boundary behavior |
+| Malformed row | One row identified without leaking all data | Error handling and privacy |
+| Extra unrelated fields | Ignore them or state why they are rejected | Input contract |
+
+Then run the tests with the answer hidden. If AI writes all of them, you may get a working suite without learning how the behavior is specified. Ask it to critique your test selection after you have made it.
+
+### Use real constraints, but keep the environment safe
+
+A technical exercise becomes more valuable when it includes the constraints that make the work real. You might limit memory, require a clear exit code, preserve an input file, handle a network timeout, or explain a trade-off. You should not learn by experimenting directly on production systems, personal data, credentials, or someone else's account.
+
+Use a local sample, disposable project, sandbox account, or read-only environment. Redact secrets before sharing logs with any AI system. UNESCO's guidance recommends a human-centered approach that includes attention to data privacy, age-appropriate use, and ethical validation when GenAI is used in education and research. ([UNESCO guidance](https://www.unesco.org/en/articles/guidance-generative-ai-education-and-research))
+
+![Illustration of a safe sandbox with sample data and a rollback boundary for technical practice](/blog/how-to-use-ai-to-learn-a-technical-skill-safe-practice-environment.webp)
+
+## How should AI review your technical work?
+
+Give AI a rubric and evidence, then ask it to separate observed failures from guesses. A review without a rubric becomes taste, and a review without evidence becomes model improvisation.
+
+Use a small rubric with four dimensions:
+
+| Dimension | Question |
+| --- | --- |
+| Behavior | Does the artifact do what the target says? |
+| Reasoning | Can the learner explain the important choices and assumptions? |
+| Boundaries | Does it handle expected errors, permissions, data, and limits? |
+| Transfer | Can the learner adapt the approach when one condition changes? |
+
+Give the reviewer the target, rubric, artifact, test output, and your own explanation. Ask it to return an evidence table:
+
+```text
+Review my work against this target and rubric.
+
+Target:
+[capability statement]
+
+Rubric:
+[behavior, reasoning, boundaries, transfer]
+
+Evidence:
+[code, configuration, output, test result, or artifact]
+
+My explanation:
+[your explanation]
+
+For each rubric item, return:
+- pass, fail, or unknown
+- the exact evidence you used
+- the smallest next test
+- a confidence note
+Do not infer that a missing output is a pass.
+```
+
+The “unknown” state is important. It gives the model permission not to pretend. You should also keep the human and machine roles separate. AI can spot a missing test, compare code with a rubric, and suggest a likely cause. A maintainer, instructor, or qualified reviewer may still be needed for a high-stakes judgment.
+
+In a randomized clinical trial of 70 medical students learning a simulated surgical task, an AI tutor gave metric-based feedback on quantifiable performance criteria and actionable goals. The study found higher expertise scores for the AI feedback group, but global OSATS ratings were not statistically different across groups. The result supports a narrow lesson: feedback tied to observable metrics can help in a bounded simulation. It does not show that a conversational model can judge every technical skill or replace an expert. ([JAMA Network Open trial](https://jamanetwork.com/journals/jamanetworkopen/fullarticle/2789268))
+
+### Ask the reviewer to find the first wrong assumption
+
+Beginners often ask AI to grade the final output. That is useful, but the first wrong assumption is usually earlier:
+
+- a field was treated as always present;
+- a date was interpreted in the wrong timezone;
+- a library function was assumed to mutate data;
+- an API response was treated as stable when it is versioned;
+- a visual effect was attributed to the wrong control;
+- a performance problem was blamed on the model instead of the environment.
+
+Ask:
+
+```text
+Find the earliest assumption in my reasoning that could make the final
+result wrong. Quote my assumption, explain why it is risky, and propose
+one small test. Do not review style until the causal assumption is clear.
+```
+
+This is more educational than a list of ten style suggestions. It teaches you where to look next time.
+
+### Use more than one kind of feedback
+
+Feedback can come from four places:
+
+1. **Executable feedback:** tests, linters, type checkers, logs, or a sandbox result.
+2. **Source feedback:** official documentation or a specification.
+3. **Model feedback:** AI's critique, hypotheses, examples, and questions.
+4. **Human feedback:** a teacher, maintainer, colleague, or domain expert.
+
+Trust these sources differently. Executable feedback can show that a specific behavior failed, but it may not tell you whether your design is appropriate. Documentation can define behavior, but it may not show whether your system handles it well. AI can widen your hypotheses, but it can be wrong. A human can see context, but a human review may be slow or inconsistent.
+
+The strongest learning loop makes the sources disagree in a useful way. If AI says the code is correct but the test fails, trust the reproducible failure first and ask why. If the code passes locally but current documentation says the API contract changed, stop and inspect the version. If the model's critique feels plausible but you cannot reproduce the issue, mark it as a hypothesis.
+
+## How do you use AI for retrieval and long-term retention?
+
+Use AI to test recall one question at a time, increase the distance between reviews, and mix familiar tasks with changed versions. Do not use it only to summarize yesterday's material.
+
+Retrieval means trying to produce an idea or procedure before seeing the answer. That is different from recognizing a familiar explanation. The Science study by Karpicke and Roediger found that repeated retrieval supported delayed recall more than repeated study in the task they tested. The lesson for AI use is not “quiz yourself endlessly.” It is “make production from memory part of the learning session.” ([Science retrieval study](https://doi.org/10.1126/science.1152408))
+
+Ask the model to behave like a test administrator:
+
+```text
+Quiz me on [capability] one question at a time.
+
+Rules:
+- wait for my answer
+- do not show multiple questions at once
+- ask for a prediction before an explanation
+- after my answer, identify one correct part and one gap
+- give a hint before a full answer
+- include a changed scenario every third question
+- mark any question that depends on a current version or source
+```
+
+Do not let the model grade you from its own answer key without checking the key. For stable concepts, compare the answer with your notes, tests, or a primary source. For technical procedures, use an actual environment. A correct-sounding explanation of a command is weaker evidence than a safe run with an expected result.
+
+### Space reviews by the evidence you need
+
+You do not need a perfect schedule. You need reviews that ask a little more of you each time.
+
+| Review | What to retrieve | What to change |
+| --- | --- | --- |
+| Same session | The core concept and next action | Explain it without looking |
+| Next day | The procedure and its boundary | Rebuild the smallest example |
+| Several days later | The reason behind the procedure | Solve a related task |
+| The following week | The full capability | Work from a blank file or environment |
+| Later in the month | Transfer and diagnosis | Change an input, constraint, or failure |
+
+The exact interval depends on the skill and your schedule. The important distinction is between reviewing a summary and producing the behavior. If you open the same AI conversation and recognize the steps, you have not yet tested recall.
+
+### Mix recognition, recall, and performance
+
+Technical skills have several layers:
+
+- **Recognition:** You can identify a term or pattern.
+- **Recall:** You can explain the term or sequence without a reference.
+- **Execution:** You can perform the procedure in an environment.
+- **Diagnosis:** You can find the cause when the normal path fails.
+- **Transfer:** You can adapt the method to a new case.
+
+AI is useful at generating questions for every layer. It is less reliable at proving the last three. Ask for one question that names a concept, one that asks you to explain it, one that gives you a small task, one that introduces a failure, and one that changes the context.
+
+If you are learning Git, recognition might be knowing what a merge conflict is. Recall is explaining how a conflict appears. Execution is creating and merging branches. Diagnosis is deciding which lines to keep and why. Transfer is resolving a conflict in a different file when the branch histories are not identical to the example.
+
+### Keep an error journal, not just a success log
+
+Errors are raw material for the next practice task. Record:
+
+```text
+Date:
+Capability:
+My first prediction:
+What happened:
+The earliest wrong assumption:
+Correction:
+Source, test, or reviewer that verified it:
+What I will do differently next time:
+```
+
+The correction should be specific. “I need to be more careful” is not a correction. “I assumed the API returned an object, but the endpoint returned a list, so I will inspect the response schema before choosing the access path” is useful.
+
+Ask AI to turn your error journal into the next three drills, but choose one drill yourself. If the model always chooses the exercise, you lose practice at diagnosing your own gap.
+
+![Illustration of an unassisted transfer test using a changed technical task](/blog/how-to-use-ai-to-learn-a-technical-skill-transfer-test.webp)
+
+## How do you verify AI-generated technical information?
+
+Verify any claim that is current, consequential, security-sensitive, or difficult to notice when wrong against primary documentation, an executable test, or qualified human review. Treat AI as a fast hypothesis generator, not as the authority.
+
+The risk is not only a wild hallucination. The more dangerous error is a nearly correct answer with one changed parameter, missing permission, deprecated function, wrong default, or omitted failure case. It can look professional and fail only when you need it.
+
+### Classify the answer before trusting it
+
+Use four questions:
+
+1. **Does this depend on time?** Versions, prices, model behavior, policies, and API limits need current sources.
+2. **Does this touch real consequences?** Production data, security, health, money, legal obligations, and other people's access need stronger review.
+3. **Can I test it safely?** If yes, create a small reproducible check in a disposable environment.
+4. **Would a mistake be obvious?** If no, ask an expert or use a source with an explicit contract.
+
+The answer determines the verification path:
+
+| Answer category | Minimum verification |
+| --- | --- |
+| Stable concept with low stakes | Compare with a trusted reference and explain it back |
+| Current library or API behavior | Read the current official documentation and run a small test |
+| Security or permission advice | Read the official security guidance, test denial paths, and get qualified review |
+| Production change | Use a staged or reversible environment, logs, rollback, and an owner |
+| Health, legal, or financial decision | Use a qualified professional and authoritative current sources |
+
+Do not ask AI to “confirm” its own answer and treat that as verification. A second model can offer a second hypothesis. It is not automatically an independent authority. Independence comes from a different evidence path, such as a specification, test, or human who can inspect the real context.
+
+### Ask AI to cite the exact contract
+
+Use a prompt that creates a verification trail:
+
+```text
+For each technical claim in your answer:
+- label it stable, version-dependent, or uncertain
+- give the official documentation page or specification section to check
+- state the assumption the claim depends on
+- provide a minimal safe test
+
+If you cannot identify a primary source or a safe test, say so.
+Do not invent a citation.
+```
+
+Then open the source yourself. A citation that leads to a page but does not support the specific claim is not evidence. For a changing tool, note the version and access date in your learning record.
+
+### Never paste secrets into a learning conversation
+
+Remove API keys, passwords, private tokens, customer data, internal URLs, personal identifiers, and proprietary code that you are not allowed to share. Replace them with clearly marked placeholders and keep a local mapping if you need to run the example.
+
+UNESCO's guidance highlights privacy and human-centered validation in educational uses of GenAI. Its point applies to independent learning too. A personal learning goal does not make someone else's data yours to upload. ([UNESCO guidance](https://www.unesco.org/en/articles/guidance-generative-ai-education-and-research))
+
+![Illustration of verifying an AI technical answer against documentation and a test environment](/blog/how-to-use-ai-to-learn-a-technical-skill-verification-boundary.webp)
+
+## What is a complete AI learning session?
+
+A complete session has a target, an attempt, an artifact, a correction, a verification step, and an independent check. Use the following record at the end of every meaningful block.
+
+### The session record
+
+```text
+CAPABILITY
+I can:
+Evidence that would prove it:
+
+ATTEMPT
+My first approach:
+What I predicted would happen:
+
+ARTIFACT
+File, query, configuration, design, run, or explanation I produced:
+
+CORRECTION
+The first thing I got wrong:
+What changed after feedback:
+
+VERIFICATION
+Primary source, test, sandbox result, or human reviewer:
+
+INDEPENDENT CHECK
+What I rebuilt, recalled, or explained without AI:
+
+TRANSFER
+What changed in the next task:
+How I performed:
+
+NEXT DRILL
+The smallest useful challenge:
+```
+
+The record is intentionally ordinary. It can live in a text file, notebook, issue, or paper. The format matters less than the fields. It makes the invisible parts of learning visible.
+
+![Illustration of a technical learning session record from first attempt to transfer task](/blog/how-to-use-ai-to-learn-a-technical-skill-session-record.webp)
+
+### Score evidence, not confidence
+
+Use a four-level check:
+
+| Level | Evidence |
+| --- | --- |
+| 0 | I have not attempted the capability. |
+| 1 | I can follow an AI-assisted example or recognize the correct result. |
+| 2 | I can perform the original task with documentation or limited hints. |
+| 3 | I can perform it without AI, diagnose a common failure, and adapt one constraint. |
+| 4 | I can teach the decision, review another attempt, and choose when the method does not apply. |
+
+This is not a universal competency framework. It is a local progress instrument. Do not compare your score with another person's. Use it to choose your next drill.
+
+If you can only score yourself from the final artifact, the scale is too weak. Ask what you can do from a blank page. In a technical skill, the path to the answer is part of the skill.
+
+## How can you use AI to learn coding without copying the answer?
+
+Use AI after you have stated the behavior, sketched a plan, and tried a small implementation. Ask for a diagnosis or hint tied to the failing evidence, then close the answer and write the next change yourself.
+
+Here is a practical coding loop:
+
+1. **State behavior.** Describe inputs, outputs, constraints, and one failure case.
+2. **Predict.** Write what you think the code should do before asking for help.
+3. **Sketch.** Write pseudocode or function signatures.
+4. **Implement a slice.** Make the smallest part run.
+5. **Test.** Use a known input and one boundary case.
+6. **Show evidence.** Share the error, output, or diff, not only “it does not work.”
+7. **Ask for diagnosis.** Request one likely cause and a test that would confirm it.
+8. **Change one thing.** Make the edit yourself and rerun the test.
+9. **Explain.** Describe why the change worked.
+10. **Transfer.** Change an input shape, requirement, or failure and repeat without the earlier answer.
+
+For example, suppose you are learning how to parse JSON in a language you know only slightly. You might ask AI to show a minimal object and explain the data shape. Then you write a function that reads one field. You test a missing field. You ask for a hint when your error handling fails. You verify the parser behavior in the language's official documentation. Finally, you process a list of objects with one malformed item, without reopening the solution.
+
+The learning is in choosing the data shape, handling the missing field, reading the failure, and deciding what to do with malformed input. A code block you can paste is not a substitute for those decisions.
+
+### What to do when the model gives a complete solution too early
+
+Do not shame yourself or continue reading it. Save the answer, close the conversation, and write down:
+
+- what you had tried;
+- the point where you stopped;
+- one prediction you had made;
+- the smallest part of the answer you now understand;
+- a changed task you can attempt without looking.
+
+Then ask the model for a new exercise with the same underlying concept but different names, inputs, and constraints. If you cannot do the changed task, the answer was a completed task, not a completed lesson.
+
+## What is a good worked example for AI-assisted learning?
+
+Use one skill slice, one artifact, and one changed task. The example below is a template, not a claim about a personal experiment.
+
+### Example: learning to build a small authenticated API client
+
+**Capability:** I can call a documented sandbox endpoint, send authentication through the supported mechanism, parse a successful response, handle one expected error, and avoid printing the credential.
+
+**First map request:**
+
+```text
+Break this capability into the smallest prerequisites and actions.
+Separate stable concepts from version-dependent API details.
+For each action, give me one practice task and one failure case.
+Do not write the client code.
+```
+
+**Learner's first attempt:**
+
+- read the endpoint documentation;
+- write down the request method, URL, required headers, and response shape;
+- create a local environment variable for the credential;
+- make one request in the sandbox;
+- save a redacted response and the error output if it fails.
+
+**AI's job after the attempt:**
+
+```text
+Here is the request description, my code, and the redacted response.
+Identify the earliest mismatch between the documented contract and my
+implementation. Give me one check to run before suggesting a fix.
+Do not rewrite the client.
+```
+
+**Artifact:** a small client, a test or script that exercises the happy path, a test that handles the expected error, and a short note explaining where authentication enters the request.
+
+**Correction:** “I put the token in the request body because the model's example did. The current documentation specifies an authorization header. I verified the change in the sandbox and removed the token from printed output.”
+
+**Independent check:** close the conversation. Rebuild the request from the documentation and your session record in a new file. Do not copy the earlier client.
+
+**Transfer check:** change the response so the expected field is absent or nested differently. Handle that case safely and explain whether the correct response is a retry, a user-facing error, or a code change.
+
+The example forces a distinction between a model-generated request and a learner who understands the contract. It also shows when AI should not be the only reviewer: current API behavior belongs to the official documentation, and credential handling deserves security-minded review.
+
+### Example: learning SQL joins
+
+**Capability:** I can join customers to orders for a chosen date range, explain which table controls row inclusion, and diagnose why a join creates duplicates.
+
+**Practice:** Start with two small tables whose rows you can inspect by hand. Predict the result before executing the query. Write the join yourself. Compare the result with your prediction. Ask AI to generate questions about missing customers, multiple orders, and duplicate keys, but answer them before seeing the SQL.
+
+**Artifact:** the query, tiny seed data, expected result, actual result, and a paragraph explaining the join.
+
+**Correction:** If you used an inner join when the requirement was to include customers with no orders, write down that the join type changed the set of rows. Do not only paste the corrected query.
+
+**Transfer:** change the question to “show every customer and their order count, including customers with zero orders.” This tests whether you understand the shape of the result rather than remembering one query.
+
+### Example: learning a technical creative workflow
+
+**Capability:** I can produce a specified output from raw material, explain three controlling decisions, and recover when the result looks wrong.
+
+**Practice:** Ask AI to identify the minimum concepts and controls involved. Choose your own source material. Try the workflow from a short written target. Use the AI for menu translation or diagnosis only after you have described what you see.
+
+**Artifact:** source material, final output, settings or steps, and before-and-after notes.
+
+**Correction:** Record the visible symptom and the control you changed. If another control would create a similar symptom, test it. This is the difference between learning a procedure and memorizing a click path.
+
+**Transfer:** use different source material or a different output constraint and perform the workflow without the original conversation.
+
+## What should a four-week AI learning routine look like?
+
+Use a short cycle that changes the learner's job each week. The schedule is a template, not a promise that every skill takes four weeks.
+
+| Week | Main job | AI role | Independent evidence |
+| --- | --- | --- | --- |
+| 1 | Scope and first mental model | Map, explain, ask questions | A capability statement and a tiny artifact |
+| 2 | Guided practice | Give hints, generate cases, diagnose errors | Two corrections and one verified procedure |
+| 3 | Repetition and failure | Create variants, quiz recall, review against rubric | A fresh task completed with limited help |
+| 4 | Transfer and judgment | Act as a skeptical reviewer | A capstone artifact, transfer test, and “when not to use it” note |
+
+### A 30-minute session
+
+- 5 minutes: retrieve the last concept from memory.
+- 5 minutes: state today's target and success checks.
+- 15 minutes: attempt and test a small task.
+- 3 minutes: ask AI for diagnosis or a targeted hint.
+- 2 minutes: record the correction and next drill.
+
+### A 60-minute session
+
+- 10 minutes: unassisted recall and review of the previous error.
+- 10 minutes: ask for one explanation or comparison tied to today's task.
+- 25 minutes: build, run, inspect, or perform the task.
+- 10 minutes: review against a rubric and primary source.
+- 5 minutes: complete the transfer prompt and session record.
+
+Do not spend the entire hour in the conversation. The chat is support infrastructure. The skill is the work outside it.
+
+### Prompts for the four weekly jobs
+
+**Scope:**
+
+```text
+Turn this broad goal into three observable capabilities.
+For each, give one artifact and one transfer test.
+Choose the smallest capability that would be useful this week.
+```
+
+**Practice:**
+
+```text
+Give me a small task for [capability] with one hidden edge case.
+Do not show the solution. Wait for my attempt.
+After I respond, give one hint and ask me to predict the result.
+```
+
+**Failure:**
+
+```text
+Create three variants of the task that fail for different reasons.
+Ask me to diagnose each one from the evidence.
+Do not name the error category until I make a prediction.
+```
+
+**Transfer:**
+
+```text
+Change one important constraint in the task.
+I will solve it without looking at our earlier answer.
+After I submit my attempt, review my reasoning, boundary handling,
+and choice of verification source.
+```
+
+## When should you use a course, documentation, sandbox, or human tutor?
+
+Use AI when the main bottleneck is explanation, question generation, example variation, or immediate low-stakes feedback. Use documentation when the answer is a current contract. Use a sandbox when the skill is operational. Use a human when context, judgment, accountability, or high consequences exceed the model's safe reach.
+
+| Bottleneck | Best next resource | Why |
+| --- | --- | --- |
+| You do not know the vocabulary | AI plus a stable introductory source | AI can translate terms and expose prerequisites |
+| You need a reliable sequence | Course, official objectives, or instructor | A model may omit or misorder dependencies |
+| You need current behavior | Official documentation and a versioned test | Model memory can be stale |
+| You need repeated hands-on reps | Sandbox, lab, repository, or real but safe task | Chat cannot perform the physical or operational rep for you |
+| You keep making the same conceptual error | Human teacher or expert review | A person can inspect context and adapt the intervention |
+| The work is safety-critical or consequential | Qualified human plus authoritative sources | Fluency is not assurance |
+| You need accountability | Study group, coach, or scheduled course | AI can remind you, but it does not create real social commitment |
+
+Marius Manolachi's service is built around making existing people capable of building AI products on their own work. That is a different promise from delivering the work for them. If your difficulty is not finding another prompt but choosing a safe capability, defining evidence, and getting feedback on a real project, [learn about working with Marius as an AI tutor or consultant](https://mariusmanolachi.com/learn-ai). The method in this article is complete without that step.
+
+## What are the common ways AI learning goes wrong?
+
+The most common failures are not prompt syntax failures. They are failures of task design, evidence, and timing.
+
+### Failure 1: Starting with a subject instead of a capability
+
+“Teach me cloud computing” produces a wide tour. You may collect vocabulary without learning to perform a task. Rewrite the goal as a behavior with a boundary and evidence. Let the model help you choose the first slice.
+
+### Failure 2: Asking for the full roadmap before trying anything
+
+A long roadmap can feel like progress because it gives you a map. It can also delay the first useful rep. Ask for only the prerequisites needed for the first task. Expand the map when the task reveals a real gap.
+
+### Failure 3: Reading the solution before making a prediction
+
+Prediction creates a surface for correction. Without it, you cannot tell whether the answer changed your reasoning or simply made the next step look familiar. Write your guess, even if it is wrong.
+
+### Failure 4: Letting AI write the tests and the explanation
+
+A generated test suite may pass. A generated explanation may sound right. If you did not choose what to test or explain why the result matters, the task has moved around you. Write at least one test and one explanation yourself.
+
+### Failure 5: Treating a passing demo as a finished skill
+
+A happy-path demo is a beginning. Add one boundary case, one failure case, and one changed input. For production work, add permissions, data handling, monitoring, and rollback. The right test depends on the skill, but the principle is stable: change the conditions.
+
+### Failure 6: Using a second model as a source of truth
+
+Two fluent answers can repeat the same false assumption. Use a specification, official documentation, executable test, or qualified reviewer when the claim matters. A second model is useful for generating competing hypotheses, not for manufacturing certainty.
+
+### Failure 7: Saving only polished summaries
+
+Your future self needs the failed attempt and correction. Keep the error journal. A small record of what confused you is more useful than another perfect page of notes.
+
+### Failure 8: Confusing confidence with transfer
+
+Feeling confident after an AI explanation is not bad. It is incomplete. Ask for a blank-page rebuild, a changed problem, or an explanation to another person. If performance drops when AI disappears, record that as the next learning target.
+
+### Failure 9: Feeding private material into the tutor
+
+Remove secrets and private data. Use representative placeholders. If the real context is necessary for a consequential decision, use an approved environment and human review instead of improvising with a public chatbot.
+
+### Failure 10: Using a current tool feature as the learning goal
+
+Tool features change. Learn the durable concept and the observable behavior first. Then use AI to translate the concept into the current interface or version. Schedule a recheck when the tool or documentation changes.
+
+## What if you are a beginner, advanced learner, or short on time?
+
+Change the level of the task, not the evidence standard. Beginners need smaller capabilities and more scaffolding. Advanced learners need harder constraints, failure diagnosis, and design judgment. Busy learners need narrower targets and shorter sessions, not a license to skip the independent check.
+
+### If you are a complete beginner
+
+Give the AI your actual starting point and ask it to avoid unexplained terms. Ask for one example and one counterexample. Keep the first artifact tiny. Do not hide behind a “beginner project” that still requires ten unknown tools.
+
+Use a vocabulary check, a guided attempt, and a simple transfer task. If the AI explanation uses a term you do not know, stop and add it to the map. You do not need to understand the entire field before taking the first step.
+
+### If you already know the basics
+
+Ask for constraints and failure cases instead of more introductions. Compare two valid approaches. Review trade-offs. Diagnose a deliberately broken example. Explain why the obvious solution does not apply to a changed environment.
+
+Ask another person or the official maintainer to review decisions that AI cannot infer from the prompt. Advanced learning is less about collecting explanations and more about choosing among acceptable methods.
+
+### If you have only 15 minutes
+
+Use a micro-session:
+
+1. State one behavior.
+2. Retrieve one concept from memory.
+3. Attempt one tiny change.
+4. Record one correction.
+5. Schedule a transfer check.
+
+Fifteen focused minutes can produce evidence. Fifteen minutes of browsing AI explanations may only produce a longer list of things you could learn.
+
+### If you need a certificate or assessment
+
+Anchor to the official objectives and assessment rules. Use AI for explanations, one-question-at-a-time recall, scenario variations, and feedback on your reasoning. Keep hands-on labs and official practice material. Never use leaked questions or ask the model to bypass an assessment rule.
+
+### If the skill involves production systems
+
+Separate learning from change management. Practice in a safe environment first. Use read-only access where possible. Keep credentials outside the conversation. Review plans, permissions, tests, logs, and rollback with the system owner. A learning shortcut is not worth a real outage or data exposure.
+
+## What does AI still not know about your learning?
+
+AI does not automatically know whether you are motivated, distracted, embarrassed, under time pressure, or using a task that matters to you. It may infer these things from your words, but an inference is not a measurement. It also cannot see every constraint in your environment unless you provide it, and it cannot prove that you will perform tomorrow without the conversation.
+
+The 2025 Scientific Reports RCT is encouraging, but its AI tutor used expert-crafted, question-specific prompts, structured scaffolding, accurate instructional material, and a limited physics setting. The authors explicitly caution that their result should not be assumed to hold for every context, especially complex synthesis and higher-order critical thinking. ([Scientific Reports RCT](https://www.nature.com/articles/s41598-025-97652-6))
+
+The JAMA trial is encouraging for metric-based feedback in a simulated surgical task, but its global OSATS ratings did not show a statistically significant difference among groups. That is a useful limit, not a footnote to hide. ([JAMA trial](https://jamanetwork.com/journals/jamanetworkopen/fullarticle/2789268))
+
+The right conclusion is conditional:
+
+- AI can make explanations and feedback more available.
+- Structured tutoring can support learning in some bounded settings.
+- Unguided access can improve assisted performance without improving independent performance.
+- Technical skill still requires practice on the object, reliable verification, and transfer.
+- The right amount of human help depends on risk, ambiguity, and the cost of being wrong.
+
+## How do you know you are ready to move on?
+
+Move on when you can perform the target from a blank starting point, explain the important choices, handle a common failure, verify a current detail, and adapt one constraint. Do not move on because the AI says you are ready or because the final artifact looks polished.
+
+Use this exit check:
+
+```text
+I can perform the target behavior without the earlier AI answer: yes / no
+I can explain the important decision: yes / no
+I can name a boundary case: yes / no
+I can diagnose one common failure: yes / no
+I know which facts require current documentation: yes / no
+I completed a changed task: yes / no
+I recorded the error that taught me the most: yes / no
+```
+
+If you have three or more “no” answers, do not widen the topic. Choose the smallest missing capability and run another loop. If you have all “yes” answers, increase the constraint or move to a related capability. A skill grows through a chain of tested slices, not one grand conversation.
+
+## The short version to keep beside your AI tool
+
+1. Pick one behavior, not a whole subject.
+2. Define what done means before the model answers.
+3. Ask AI for prerequisites, examples, and a small exercise.
+4. Attempt the exercise before asking for a solution.
+5. Use hints before patches.
+6. Work in a real or safe environment.
+7. Ask for review against a rubric and show evidence.
+8. Verify current or consequential claims against primary sources.
+9. Record one error and its correction.
+10. Rebuild or transfer the skill without the earlier answer.
+
+Marius Manolachi teaches AI as a way for people to build capability on their own work. That is also the standard I would use for this query. AI has done its job when you can close the chat and do more than you could before it opened.
