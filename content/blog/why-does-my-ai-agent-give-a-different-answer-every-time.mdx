@@ -1,0 +1,562 @@
+---
+title: 'Why Does My AI Agent Give a Different Answer Every Time?'
+date: '2026-08-20'
+updated: '2026-08-20'
+excerpt: 'Diagnose inconsistent AI agent answers by separating sampling drift from changing context, tool results, retrieval, model versions, and unclear acceptance criteria.'
+answer: 'Your AI agent gives a different answer because either the model sampled a different continuation or the agent received different context, tool output, retrieved data, time, or model version. First replay the exact request with external results frozen. If that still changes, control sampling and pin the model. If it stabilizes, debug the changing inputs. Different wording is acceptable when the verified outcome is unchanged; different decisions are not.'
+targetQuery: 'why does my AI agent give a different answer every time'
+queryAliases:
+  - 'why does my AI agent give different answers'
+  - 'why does my AI agent answer differently each time'
+  - 'same prompt different answer AI agent'
+  - 'how to make an AI agent give consistent answers'
+intent: 'diagnostic'
+funnel: 'awareness'
+cluster: 'AI agent reliability'
+kind: 'satellite'
+sourceableAtom: 'A two-replay diagnostic separates model or provider variation from changing agent inputs: freeze the exact request and external results, then compare it with a live replay.'
+tags:
+  - 'AI agents'
+  - 'AI reliability'
+  - 'Prompt engineering'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-17'
+sources:
+  - 'https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/content-generation-parameters'
+  - 'https://cloud.google.com/vertex-ai/generative-ai/docs/reference/rest/v1beta1/GenerationConfig'
+  - 'https://cloud.google.com/vertex-ai/generative-ai/docs/reference/rest/v1/GenerateContentResponse'
+  - 'https://developers.openai.com/api/docs/guides/function-calling'
+  - 'https://developers.openai.com/api/docs/guides/evals'
+  - 'https://aws.amazon.com/blogs/publicsector/why-your-ai-agents-give-inconsistent-results-and-how-agent-sops-fix-it/'
+faq:
+  - q: 'Does temperature 0 make an AI agent deterministic?'
+    a: 'No. A low temperature can make output more predictable, but it does not freeze changing context, tool results, model versions, or provider execution. A fixed seed can help where the provider supports it, but even that is usually best effort rather than an absolute guarantee.'
+  - q: 'Is a different answer always an AI agent failure?'
+    a: 'No. Different wording can be acceptable when the structured outcome, decision, citations, and side effects meet the same contract. Treat variation as a failure when the agent changes a required fact, chooses an unsafe action, violates policy, or produces a different business result.'
+  - q: 'What should I record to reproduce an AI agent answer?'
+    a: 'Record the model and version, prompt and variables, sampling settings, seed if supported, tool definitions and results, retrieved documents, memory, clock, environment, code revision, and output schema. The user sentence alone is not a reproduction record.'
+cover: '/blog/why-does-my-ai-agent-give-a-different-answer-every-time-why-different-answer-hero.webp'
+coverAlt: 'Illustration of an AI agent answer splitting into model variation and changing input paths'
+draft: false
+---
+
+Same request. Different answer. That feels like a model problem, but it often isn't.
+
+When I taught product managers to move from writing specs to building and shipping, I learned to ask what “done” means before trying to make the system look consistent. A different sentence can still be correct. A different decision can be a serious defect.
+
+![Illustration of an AI agent answer splitting into frozen-input and live-input replay paths](/blog/why-does-my-ai-agent-give-a-different-answer-every-time-why-different-answer-replay.webp)
+
+## Why does an AI agent change an answer that looks like the same request?
+
+There are two broad causes: the model generated a different continuation, or the agent did not receive the same effective input. The effective input includes far more than the sentence a person typed.
+
+Language models choose output token by token. Sampling settings such as temperature and top-p influence that choice. Google Cloud documents lower temperature as more predictable, while also warning that temperature 0 can still allow a small amount of variation. A fixed seed can make output mostly deterministic for a given prompt and parameters, but the same documentation says it is not an absolute guarantee. [Google Cloud's generation-parameter documentation](https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/content-generation-parameters) is precise about that limit.
+
+An agent adds more places for the effective input to change. It can carry conversation history or memory, retrieve a different document, call a tool that returns a new value, observe a different screen, use the current time, or route to a different model version. OpenAI describes function calling as a way for models to access external systems and data, which is why “same prompt” is too small a description of an agent run ([OpenAI function calling](https://developers.openai.com/api/docs/guides/function-calling)).
+
+AWS makes the same distinction in its agent guidance: nondeterministic model output is harder to control once the agent is also reasoning about tools, unexpected tool results, and ambiguous instructions ([AWS on inconsistent agent results](https://aws.amazon.com/blogs/publicsector/why-your-ai-agents-give-inconsistent-results-and-how-agent-sops-fix-it/)).
+
+The practical conclusion is simple: do not start by rewriting the prompt. First find out which input changed.
+
+## How can I tell whether the model or the agent inputs changed?
+
+Run two replays. This is the diagnostic rule I use for this question.
+
+| Replay | What stays fixed | What it tells you |
+| --- | --- | --- |
+| Frozen request | Prompt, model, settings, seed if available, tool definitions, memory, retrieved content, clock, and tool results | If the answer still changes, investigate sampling, provider execution, or an unrecorded input. |
+| Live request | The user request only | If this changes while the frozen request is stable, investigate retrieval, tools, time, memory, routing, or application state. |
+
+The rule is worth stating exactly: **if the frozen replay changes, investigate sampling or provider execution; if it is stable while the live replay changes, investigate the inputs around the model.**
+
+This is not a claim that one replay proves a system deterministic. It is a way to reduce a vague complaint into a smaller search space. Keep the raw requests and outputs. Do not rely on a screenshot of the final answer.
+
+If you use a provider that returns model identity, store it with the run. For example, Google Cloud's generation response includes a `modelVersion` field ([GenerateContentResponse](https://cloud.google.com/vertex-ai/generative-ai/docs/reference/rest/v1/GenerateContentResponse)). A model alias is not a complete reproduction record if the provider can move that alias.
+
+## What changes even when the user types the same words?
+
+The usual hidden changes fall into five groups.
+
+### Sampling and decoding
+
+Temperature, top-p, top-k where supported, maximum output length, stop sequences, and seed can change the generated path. A lower temperature is a useful control for classification, extraction, and other narrow tasks. It is not a promise of identical output.
+
+Do not tune temperature before checking the request envelope. If the retrieved passages changed, a colder model will still see different evidence. If the tool returned a different account balance, making the model less random will not restore the old balance.
+
+### Conversation, memory, and retrieval
+
+The model may receive hidden history, a memory record, a retrieved chunk, a date, or a user profile that was not present in the first run. Two user messages can look identical while the message list behind them differs.
+
+Log the rendered messages, not only the prompt template. For retrieval, log document IDs, versions, ordering, scores if they affect selection, and the final text that entered the model context. A changed document or changed ordering is a changed input.
+
+### Tools and external state
+
+A tool can return the current weather, an account record, a search result, a filesystem listing, or a screen observation. These values change. The model can also choose a different tool or call a tool a different number of times.
+
+If the agent makes decisions through tools, log the tool name, arguments, result, timestamp, error, and side effect. OpenAI's function-calling guide documents strict schemas for reliable argument shape and separate controls for tool choice and parallel calls. A schema can stop malformed arguments, but it cannot make a changing database return yesterday's value ([OpenAI function calling](https://developers.openai.com/api/docs/guides/function-calling)).
+
+TryUncle is a useful boundary case here. It is an AI agent that watches the screen and annotates it live. For that kind of system, the screen is part of the problem, and latency and human approval are product constraints, not afterthoughts. Expecting the same words from two different screen states would be the wrong reliability target. That observation comes from `F-tryuncle`, not from a benchmark.
+
+### Model identity and routing
+
+An application can stay unchanged while a provider changes an alias, routes requests differently, or serves a new model revision. Record the exact model identifier and any provider version or fingerprint the API returns. If the record only says “latest,” you cannot explain a later difference with confidence.
+
+### Ambiguous acceptance criteria
+
+Sometimes the agent is not inconsistent. The requirement is underspecified. “Summarize this,” “choose the best option,” and “handle the request” leave decisions open. The model fills those gaps, and different reasonable choices can produce different answers.
+
+When I work with people learning to ship, I start by asking what counts as done. The same rule applies here. Write down the required facts, allowed decisions, forbidden actions, and acceptable variation before you grade consistency. This is the practical lesson behind `F-pms`.
+
+## How do I make an AI agent more consistent?
+
+Control the whole system in layers. A prompt-only fix is the weakest layer because it leaves runtime inputs and acceptance criteria unspecified.
+
+1. **Define the invariant.** Decide what must stay stable: a classification, a set of fields, a selected action, a side effect, a citation set, or the exact prose. Usually the first five matter more than identical sentences.
+2. **Capture the request envelope.** Store the model ID and version, rendered instructions, variables, user input, generation parameters, seed if supported, tool definitions, tool choice, retrieved context, memory, clock, environment, code revision, and output schema.
+3. **Freeze one replay.** Replace live retrieval and tool results with saved fixtures. Use a fixed clock and fixed model configuration where the provider allows it.
+4. **Change one variable.** Compare the frozen and live runs. Then restore the baseline and change only temperature, only the model, only retrieval, or only one tool result. This tells you what actually moves the output.
+5. **Constrain the interface.** Use structured output for decisions and extraction. Use strict tool schemas where supported. Validate values in code after generation. OpenAI recommends strict mode for function calls so arguments adhere to the supplied schema, but schema adherence is not proof that the decision is correct ([OpenAI function calling](https://developers.openai.com/api/docs/guides/function-calling)).
+6. **Add a veto for risky actions.** Require a deterministic check or human approval before an irreversible side effect. A consistent wrong action is still wrong. An inconsistent payment, deletion, permission change, or external message needs a stop condition, not a friendlier prompt.
+7. **Evaluate across representative inputs.** Define the task, run it against test inputs, and analyze the results. That is the basic evaluation loop in [OpenAI's current eval guidance](https://developers.openai.com/api/docs/guides/evals). Keep this article's replay as a debugging tool, then use a broader evaluation suite for release decisions.
+
+The order matters. Freeze first. Tune second. Otherwise you may lower model variation while leaving the real source of drift untouched.
+
+![Illustration of an AI agent trace envelope recording model, prompt, tools, retrieval, time, and outcome](/blog/why-does-my-ai-agent-give-a-different-answer-every-time-why-different-answer-trace-envelope.webp)
+
+## What should I log so I can reproduce an answer?
+
+Record a run as a complete envelope. The user message is only one field.
+
+```json
+{
+  "model": "exact-model-id",
+  "model_version": "provider-version-if-returned",
+  "instructions_hash": "hash-of-rendered-instructions",
+  "input_hash": "hash-of-rendered-input",
+  "sampling": {
+    "temperature": "configured-value",
+    "top_p": "configured-value",
+    "seed": "configured-value-or-null"
+  },
+  "tools_hash": "hash-of-tool-definitions-and-order",
+  "retrieval_snapshot": "document-ids-and-rendered-chunks",
+  "memory_snapshot": "memory-record-ids-and-rendered-values",
+  "clock": "time-used-by-the-run",
+  "tool_calls": [
+    {
+      "name": "tool-name",
+      "arguments": "validated-arguments",
+      "result": "captured-result",
+      "timestamp": "tool-time"
+    }
+  ],
+  "code_revision": "application-revision",
+  "outcome": "validated-result-and-side-effects"
+}
+```
+
+The values above are field names, not a claim that every provider uses the same API. Hashes help detect changes, but retain the captured values when policy permits. A hash can tell you that two runs differ; it cannot tell you why.
+
+For a run that calls tools, save the trace as well as the final response. For a run that changes data, save the before and after state or a verifiable event ID. The final prose can say “done” even when the underlying system did something else, so the outcome needs a source of truth.
+
+## When is different wording acceptable?
+
+Different wording is acceptable when the output contract permits it and the verified outcome is the same. Different facts, decisions, tool calls, permissions, or side effects are not presentation variance.
+
+| What changed? | Default interpretation | First check |
+| --- | --- | --- |
+| Sentence order or tone | Presentation variance | Whether the required facts and citations remain present |
+| Format or missing field | Contract failure | Structured-output validation and schema version |
+| Selected tool or arguments | Behavior change | Tool trace, tool schema, and tool-result snapshot |
+| Retrieved evidence | Input drift | Document IDs, versions, ordering, and timestamps |
+| Business decision or side effect | Correctness or safety failure | System of record, policy check, and approval record |
+
+Do not average these cases into one “consistency” score. A helpful rephrasing and an unauthorized action are different failures. Grade them differently.
+
+That distinction also keeps you from overcorrecting. If a creative writing assistant is allowed to vary its prose, forcing byte-for-byte equality may reduce usefulness. If a refund agent changes the amount or eligibility decision, stylistic consistency is irrelevant. The invariant belongs to the job.
+
+## What does “the same request” mean in an agent system?
+
+“The same request” has at least four meanings, and they are not interchangeable. The narrowest meaning is that the user typed the same sentence. The next meaning is that the application rendered the same message list. A stronger meaning is that the model received the same complete request envelope. The strongest meaning is that the whole run, including tools and side effects, happened in the same environment.
+
+Most debugging starts at the first level and quietly assumes the fourth. That is why the investigation goes in circles. A user may type `Can I approve this refund?` twice, while the agent receives a new account balance, a different policy document, a different date, or a new conversation summary. The visible request stayed fixed. The system request did not.
+
+| Identity level | What is held constant | What can still change | Useful for |
+| --- | --- | --- | --- |
+| User text | The typed sentence or API input | History, retrieved context, tools, model route, time, code | Detecting a repeat question | 
+| Rendered prompt | Instructions, messages, variables, and output schema | Provider execution, hidden route, external effects after the call | Comparing model calls | 
+| Frozen envelope | Prompt, model identity, settings, memory, retrieval, clock, and tool results | Provider behavior that is not exposed | Isolating sampling or execution variation |
+| Full run | Every input, tool call, state transition, and side effect | Nothing you have chosen to leave outside the trace | Reproduction and incident review |
+
+The distinction matters because each level supports a different conclusion. If the same user text produces a different rendered prompt, the model is not the first suspect. If the rendered prompt and frozen tool results are identical but the output differs, provider execution or an unrecorded input deserves attention. If the model output is the same but a downstream service behaves differently, the problem is outside generation.
+
+An agent can also change its own future request. A summary written after the first turn becomes memory for the second. A tool call can update a queue, reserve an item, or mark a task as seen. The next run may therefore differ even when the user repeats the same sentence. This is not necessarily a defect. It is a state transition that the team failed to include in its definition of sameness.
+
+![Illustration of four levels of sameness from user text to a complete AI agent run](/blog/why-does-my-ai-agent-give-a-different-answer-every-time-why-different-answer-envelope-layers.webp)
+
+Start an incident report with four lines:
+
+1. What did the user send?
+2. What exact messages and variables reached the model?
+3. What external values and model identity were used?
+4. What outcome was required to stay stable?
+
+If nobody can answer line two or line three, call the event “not reproducible yet.” Do not call it random. That wording keeps the investigation open to context, routing, state, and logging gaps.
+
+The principal exception is a deliberately creative task. If the job is to produce alternatives, a changed sentence may be the desired behavior. Even then, the team should state which properties remain fixed, such as topic, length, prohibited claims, or required facts. Creative freedom is an output contract, not an absence of one.
+
+## What belongs in a reproducible trace envelope?
+
+A reproducible trace needs the values that can alter a decision, not only a transcript. Record the rendered instructions and user messages, their ordering, the model identifier, generation settings, tool definitions, retrieved material, memory, clock, code revision, and validated outcome. Add provider request and response identifiers when they exist.
+
+The earlier JSON example is a useful starting point, but teams often store it in a way that is too shallow to diagnose anything. A hash of the prompt tells you that two prompts differ. It does not tell you whether the change came from a system instruction, a user variable, a retrieved paragraph, or a memory summary. Keep both a compact identity record and the captured values needed for permitted investigation.
+
+Use three layers of storage:
+
+| Layer | Keep | Why it exists | Retention question |
+| --- | --- | --- | --- |
+| Identity | Hashes, model ID, code revision, schema version, timestamps | Quickly group matching and nonmatching runs | Can this be retained longer than content? |
+| Inputs | Rendered messages, retrieval IDs and text, memory records, tool arguments and results | Explain why the model saw something different | Which fields need redaction or access control? |
+| Outcome | Parsed fields, decision, tool calls, state changes, approval, error, final text | Check correctness without trusting the prose | What system is the source of truth? |
+
+Do not treat the final answer as the outcome. An agent can say “I updated the record” while the update failed, or say “I could not find it” after a tool returned the record. The outcome should include an event ID, database version, file checksum, or another value from the system that owns the effect. The exact field depends on the product, but the principle is stable: verify the action where it happened.
+
+Record ordering as well as membership. Retrieval systems may return the same documents in a different order. A prompt with the same paragraphs in a different order is a different prompt. Tool definitions need the same care. Store the function name, description, parameter schema, enum values, required fields, tool order if the provider uses it, and whether parallel calls were allowed. A small description edit can change tool selection even when the visible user request is unchanged.
+
+Record absence too. A missing memory record, a failed retrieval, a timeout, and an empty search result are different states. Replacing all four with `null` destroys the clue that could explain the answer. Use explicit status fields such as `not_requested`, `returned_empty`, `timed_out`, `redacted`, and `failed` where they have different meanings.
+
+Privacy changes the shape of the envelope, not the need for one. Redact secrets before storage, separate identifiers from content, restrict access to customer records, and define who can replay a run. If content cannot be retained, store a stable fixture identifier and enough metadata to know that the same fixture was used. Do not copy production credentials into a replay environment just because the original call did.
+
+A good trace can answer this question without opening the application code: “What changed between run A and run B?” If it cannot, add the missing field before tuning the model. A longer transcript is not automatically a better trace. The useful record is the smallest one that exposes causal differences.
+
+## How do you run a frozen replay safely?
+
+Run the frozen replay against recorded inputs and a side-effect-free execution path. Replace live retrieval with the exact documents used in the original run. Replace tools with fixtures that return the recorded result. Fix the clock. Pin the model identifier where the provider allows it. Block writes, sends, payments, deletions, and permission changes unless the replay service is connected to an isolated test system.
+
+The replay should preserve the request shape. Do not paste the final prompt into a new chat window and assume it is equivalent. Preserve message roles, tool definitions, response schema, generation settings, and any fields that the SDK adds. A copied prompt can omit a system message or serialize a value differently from the production call.
+
+Use a replay manifest for each incident:
+
+```text
+run_id: original-run-id
+application_revision: git-revision-or-build-id
+prompt_revision: prompt-contract-version
+model: exact-model-id
+model_version: provider-returned-version-or-unknown
+retrieval_fixture: fixture-id
+memory_fixture: fixture-id
+tool_fixture_set: fixture-id
+clock: fixed-iso-time
+side_effect_mode: blocked
+expected_contract: refund-eligibility-v2
+```
+
+The values in this manifest identify the replay. They do not replace the captured content. Store the content in the system your privacy policy permits, and make the manifest point to it.
+
+A frozen replay has two jobs. First, run it more than once to see whether the same envelope produces different model results. Second, compare it with the live replay to see whether the application changed the envelope. A single frozen run cannot establish either fact. It is one observation, not a determinism guarantee.
+
+When a tool has both reads and writes, split its interface in the replay layer. A read fixture should return the recorded value. A write fixture should record the requested operation without applying it. That lets you inspect whether the model chose a different action without creating a second real action. If the tool cannot be split safely, replay the planning step only and inspect the proposed call under human review.
+
+Do not silently repair a fixture during replay. If a recorded tool result is malformed, preserve the malformed result and mark the run. Otherwise the replay answers a different question: how the current application behaves after the fixture has been cleaned. You may run a second experiment with a corrected fixture, but name the difference.
+
+Streaming needs its own rule. If the application assembles output from chunks, save the chunk sequence, finish reason, usage data, and any tool-call deltas. A client that drops a chunk or joins parallel streams in a different order can create output variation after the model has finished. Compare the provider response with the assembled response before blaming sampling.
+
+Retries also belong in the replay. Save the number of attempts, the reason for each retry, the request identifier, and which result was accepted. A first call may time out after the provider generated a response, while a second call succeeds with a different response. Logging only the successful attempt makes a two-call incident look like one nondeterministic call.
+
+The safe default is to replay analysis before execution. Generate the proposed tool calls, validate them against the recorded state, and require an explicit approval before any test write. For destructive or financial actions, keep production completely outside the replay path. Consistency debugging is not a reason to create new damage.
+
+![Illustration of an isolated AI agent replay using recorded fixtures and blocked side effects](/blog/why-does-my-ai-agent-give-a-different-answer-every-time-why-different-answer-replay-manifest.webp)
+
+## Worked example: a support agent changes a refund decision
+
+Suppose a support agent answers the same question twice: “Can this customer receive a refund?” The first answer says yes. The second says no. Looking only at the user sentence, the result is inconsistent. Looking at the trace envelope produces a more precise diagnosis.
+
+Run A contains the following effective inputs:
+
+| Field | Run A |
+| --- | --- |
+| Model | `support-model-v3` |
+| Policy document | `refund-policy-2026-07`, revision 4 |
+| Customer record | Purchase date 2026-08-01, status paid |
+| Clock | 2026-08-19 10:04 UTC |
+| Tool result | `days_since_purchase: 18` |
+| Output contract | `eligible`, `reason_code`, `next_action` |
+
+Run B has the same user sentence and model alias, but the trace shows a new policy revision and a different tool result:
+
+| Field | Run B |
+| --- | --- |
+| Model | `support-model-v3` |
+| Policy document | `refund-policy-2026-08`, revision 1 |
+| Customer record | Purchase date 2026-08-01, status paid |
+| Clock | 2026-08-20 10:04 UTC |
+| Tool result | `days_since_purchase: 19` |
+| Output contract | `eligible`, `reason_code`, `next_action` |
+
+The user request did not change. The effective evidence did. The correct repair is to decide whether the policy revision and clock should be live. If they should, the two answers may reflect a real business change, and the UI should show the policy date or decision reason. If they should not change within a single support case, snapshot the policy and customer state for the case. Lowering temperature would not address either issue.
+
+Now run the frozen replay for Run A twice. If both replays return `eligible: true`, the model path is stable under the captured envelope. Run the live replay against current policy and the live customer tool. If it returns `eligible: false`, the two-replay rule points to changing inputs. You can then test one variable at a time: current policy with the old tool result, old policy with the current tool result, and so on.
+
+Imagine a different result. The frozen Run A replay returns `eligible: true` once and `eligible: false` once, while the captured envelope is identical. That is a model or provider reproducibility problem, or a logging gap. Before changing prompts, inspect model version, seeds, hidden retries, parallel calls, SDK serialization, and provider fingerprints. If the contract requires a binary business decision, add a validator and a review boundary while the cause remains unresolved.
+
+The important comparison is not only the sentence. Compare the parsed contract:
+
+| Check | Run A | Run B | Interpretation |
+| --- | --- | --- | --- |
+| Required fields present | Yes | Yes | Shape is stable |
+| Eligibility | True | False | Business outcome changed |
+| Reason code | `within_window` | `outside_window` | Explainable only if policy or clock changed |
+| External action | No action | No action | No side effect yet |
+| Final prose | Different | Different | Secondary signal |
+
+This example also shows why an answer can be “consistent” at the schema level and still wrong. If both runs return a valid boolean, but the boolean does not match the system of record, schema validation has passed while correctness has failed. A parser checks shape. It does not decide whether the result is true.
+
+The same method works for a triage agent. Freeze the ticket text, classifier prompt, label definitions, retrieved examples, and model route. Then change the live queue, priority data, or business calendar one at a time. It works for a research agent too, but the acceptance contract should compare citations, source dates, and claims, not just the summary paragraph.
+
+![Illustration of two support-agent traces where changing policy and time alter the decision](/blog/why-does-my-ai-agent-give-a-different-answer-every-time-why-different-answer-worked-trace.webp)
+
+## How do you freeze retrieval, memory, and tool results?
+
+Freeze each source at the boundary where it enters the model. Freezing only the database is not enough if retrieval filters, chunking, ranking, or formatting can change. Freezing only the final text is not enough if you need to know which document was selected. Keep the source identity and the rendered context.
+
+For retrieval, capture:
+
+1. The query sent to the retriever, including rewritten queries.
+2. Index, tenant, filters, permissions, and search configuration.
+3. Document IDs, versions, chunk IDs, scores, and returned order.
+4. The exact text inserted into the model request.
+5. The timestamp and index build version.
+
+A retrieval replay should return the same ordered list and rendered text. If you want to test a new ranker, create a new experiment with a new fixture. Do not overwrite the old fixture and lose the baseline.
+
+Memory needs a similar record. Save which memory candidates were considered, which were selected, the summary or facts that entered the prompt, and the policy that allowed them to enter. A memory system can change because a new fact was written, because an old fact expired, or because the selector ranked candidates differently. These causes need different fixes.
+
+An empty result is especially easy to mishandle. “No memory found” is not the same as “memory lookup failed.” The first may be expected. The second may cause the model to answer without context or trigger a retry. Store the lookup status separately from the returned values.
+
+For tools, use a fixture keyed by the normalized tool name and arguments. The normalization rule must be explicit. If argument order is irrelevant in the tool API but significant in your fixture key, you may misdiagnose equivalent calls as different. If whitespace or time zone changes the business result, preserve those values rather than normalizing them away.
+
+When the model chooses a tool, record both the available tools and the selected tool. A changed tool list can cause a changed choice even if the selected tool returns the same value. A changed description can change a selection. A changed tool result can change the next model turn. The trace should show the whole loop, not only the first call.
+
+If the agent uses search, external websites, or current data, decide whether the correct product behavior is a live answer or a reproducible answer. A live answer should expose freshness and source time where that matters. A reproducible answer should cite a snapshot or report the version used. Trying to get both without a policy creates confusing tests.
+
+For screen-watching systems, freeze images or screen-state records rather than pretending that a screenshot is a text prompt. A screen can change while the model is processing it. Capture the frame ID, capture time, display scaling, viewport, cursor state if relevant, and the action that followed. In TryUncle, which Marius Manolachi is building as an agent that watches the screen and annotates it live, latency and human approval are part of the product contract. A replay can test whether the agent responds consistently to the same frame. It cannot prove that two different frames should produce the same annotation.
+
+Memory and tools can also contain personal or regulated information. Use synthetic fixtures when a real value is not needed for the diagnosis. If the failure depends on a real edge case, isolate access, document why the record is needed, and remove it when the incident window closes. A reliable replay process still needs a sound data boundary.
+
+## How should you compare answers when prose is not the real product?
+
+Compare the output in the order the product depends on it: side effects, decisions, required facts, structured fields, citations, and then wording. This prevents a polished paragraph from hiding a changed action, and it prevents harmless rephrasing from becoming an incident.
+
+Write the acceptance contract before running the comparison. For a classification agent, it may require one label from an allowed set, a confidence explanation, and no external action. For a planning agent, it may require a list of steps, tool arguments that pass validation, and approval before execution. For a writing assistant, it may require topic coverage and prohibited-content checks while allowing sentence-level variation.
+
+| Agent job | Usually invariant | Usually allowed to vary | Hard failure |
+| --- | --- | --- | --- |
+| Extraction | Field names, values, source references | Sentence order and whitespace | Missing or invented required field |
+| Classification | Label, policy route, escalation state | Explanation wording | Different route or unsafe label |
+| Retrieval answer | Supported claims and source IDs | Summary wording | Unsupported claim or stale source |
+| Tool planning | Tool permissions, validated arguments, approval state | Argument formatting that parses identically | Unauthorized tool or changed side effect |
+| Creative drafting | Topic, constraints, required elements | Voice, examples, sentence shape | Violation of a stated constraint |
+
+Structured output helps because it gives the evaluator fields to inspect. It does not make those fields correct. A model can return valid JSON with the wrong customer, wrong amount, or wrong label. Validate values against policy and the source of truth after parsing.
+
+Compare sets where sets are the right abstraction. Citation order may vary while the cited source set stays the same. Tool arguments may serialize differently while normalizing to the same object. Do not compare raw strings when the business meaning is structured. At the same time, do not normalize away meaningful differences. A different time zone, currency, account ID, or permission scope is not formatting.
+
+For prose, define a tolerance. It might be exact terminology, a required list, a maximum length, or a reading level. If no reader or downstream system cares about byte equality, do not make byte equality the release criterion. Exact matching can encourage the model to copy a brittle pattern instead of meeting the task.
+
+When a response cites evidence, check claim-to-source support. The same three source IDs can accompany different claims. A citation list comparison is not enough. For a high-stakes answer, sample the claims or require a verifier to connect each material claim to a source span. The verifier can also fail, so retain the original answer, source context, and verification result.
+
+Do not average behavior into one score that hides the dangerous tail. If nine answers are acceptable and one sends an unauthorized email, “90 percent consistent” is not a safe summary. Track separate rates or categories for contract validity, decision correctness, tool safety, and presentation quality. A qualitative review may be the honest choice when the test set is small or the failure consequence is high.
+
+The strongest acceptance rule is often a veto: if a required field is missing, a policy condition is violated, or an irreversible action lacks approval, stop the run. A veto does not make generation deterministic. It turns variation into a contained, reviewable event.
+
+![Illustration of an AI agent outcome contract checking decisions, citations, side effects, and wording](/blog/why-does-my-ai-agent-give-a-different-answer-every-time-why-different-answer-outcome-contract.webp)
+
+## Which consistency fixes fail most often?
+
+Several fixes feel plausible because they change the visible output. They fail because they leave the actual source of variation untouched.
+
+### Setting temperature to zero first
+
+A colder setting can reduce sampling variation for a fixed request. It cannot freeze retrieval, memory, tool results, model aliases, or a changing clock. It can also make a weak prompt repeat the same wrong interpretation more often. Use it after you know the envelope is stable and after you have decided that lower variation is useful for this task.
+
+### Logging only the final answer
+
+The final answer is evidence of what the agent said, not of what it saw or did. Without tool traces, retrieved context, model identity, and retries, you cannot distinguish a changed input from a changed generation. Save the request envelope and outcome fields alongside the prose.
+
+### Replaying the user sentence in a new session
+
+A new session often removes history, memory, tool definitions, and application variables. It may use a different SDK, model, account, or system instruction. That test can be useful for isolating the base model, but it is not a reproduction of the production run. Label it as a reduced experiment.
+
+### Changing prompt, model, and retrieval together
+
+If the new answer improves, you do not know which change helped. If it gets worse, you do not know which change introduced the failure. Restore the baseline and change one variable at a time. Keep a small experiment table with a hypothesis, one changed field, observed contract result, and decision.
+
+### Treating a provider alias as a version
+
+An alias such as `latest` identifies a moving target. Even a friendly model name may hide a provider revision or route. Save the exact model identifier and returned version or fingerprint. If the API does not expose enough identity to reproduce a run, record that as a limitation and test after every model change.
+
+### Ignoring retries and timeouts
+
+A timeout can happen after the provider accepted a request. A retry can therefore create two valid responses for one user action. Make request idempotency and retry ownership explicit. Log every attempt and decide which attempt is authoritative. For side effects, prefer a deterministic idempotency key and a system-level check before repeating an action.
+
+### Comparing only successful requests
+
+Failures often change the path. A retrieval timeout may cause a fallback prompt. A tool error may trigger a different tool. If the log drops failed calls, the surviving answers look mysterious. Include errors, fallbacks, empty results, and rejected validations in the trace.
+
+### Testing one easy example
+
+A single happy-path request can show that the system works once. It cannot tell you whether a small change breaks long inputs, missing fields, permission boundaries, stale documents, or concurrent work. Build a compact set of representative cases. Include at least one case for each important branch and one case where the safe action is to stop or ask for clarification.
+
+### Using a validator as a truth oracle
+
+A schema validator can confirm that `eligible` is a boolean. It cannot confirm that the customer meets the refund policy. A regex can confirm a citation URL. It cannot confirm that the citation supports the claim. Put deterministic checks next to the source of truth, and keep human review where the product consequence cannot be reduced safely.
+
+### Silently cleaning the context
+
+Trimming whitespace, reordering documents, dropping old memory, or replacing a tool error with an empty object may make the replay look more stable while deleting the cause. Preserve the original and run a separately named cleaned experiment. Never rewrite incident evidence in place.
+
+These failure modes share one lesson: a consistency fix should make the cause more visible before it makes the output more uniform. If the fix hides the difference, it has improved the screenshot of the problem, not necessarily the system.
+
+## How does the diagnosis change for different agent patterns?
+
+The two-replay rule stays the same, but the envelope and contract change with the architecture. A useful investigation names the pattern before choosing the control.
+
+### Retrieval-augmented answers
+
+Freeze the query rewrite, index, filters, document versions, chunk order, and inserted text. Compare the answer's claims against the frozen source set. If the answer changes only when the source set changes, treat the behavior as retrieval drift. The repair may be index versioning, document freshness policy, or a better fallback when no source meets the threshold.
+
+The exception is a live knowledge product. It may be correct for the source set to change between runs. In that case, expose source dates and compare whether the answer is supported by the current set. Do not demand an old answer after the evidence has changed.
+
+### Workflow agents
+
+Freeze the workflow state, branch conditions, queue contents, and clock. Record which branch was selected and why. A workflow can appear nondeterministic when a timestamp crosses a cutoff or when a previous run changed a status field. The first control is usually state visibility and idempotency, not a different prompt.
+
+### Tool-using planners
+
+Freeze the available tool list and tool results, then compare selected tools, argument values, call order, and approval state. If two plans are both valid, define a preference rule or allow either plan. If only one plan is safe, validate permissions and arguments before execution. Strict schemas can improve argument shape, but they do not choose the correct business action for you.
+
+### Screen-watching agents
+
+Capture the visual state and timing. The same application can show a different frame a few hundred milliseconds later. Compare whether the agent recognized the same visible elements, whether the proposed annotation was attached to the right coordinates, and whether a human approved the action. A screen watcher should usually have a timing and approval contract in addition to a text contract.
+
+### Multi-agent systems
+
+Trace every handoff. A final answer can vary because an upstream planner changed its task decomposition, because a specialist received a different context window, or because two parallel results were joined in a different order. Give each agent a run ID and parent ID. Freeze one handoff at a time rather than replaying only the final agent.
+
+### Creative assistants
+
+Freeze the safety and factual constraints, but permit variation in the creative surface. Evaluate required elements, exclusions, and suitability for the reader. If the product asks for ten distinct ideas, exact repetition is a failure. If it asks for a legal form with fixed fields, variation may be unacceptable. The task decides the invariant.
+
+This is why “make the agent deterministic” is too broad a requirement. A workflow scheduler, a research assistant, and a creative partner need different definitions of stable behavior. Write the contract in the language of the job, then choose controls that protect that contract.
+
+![Illustration comparing consistency contracts across six AI agent patterns](/blog/why-does-my-ai-agent-give-a-different-answer-every-time-why-different-answer-patterns.webp)
+
+## How can you turn one incident into a repeatable test?
+
+After diagnosing the incident, turn the trace into a regression case. Keep the original input, the relevant fixture set, the expected contract, and the reason the case matters. Do not turn every transcript into a test. Select cases that represent a failure branch, a risky action, a boundary condition, or a recently changed behavior.
+
+Each test case needs an owner and a review trigger. The owner decides when an expected result should change. The review trigger might be a model upgrade, policy revision, retrieval-index rebuild, tool-schema change, or application release. Without ownership, the suite becomes a graveyard of old expectations.
+
+Use a test record like this:
+
+| Field | Example |
+| --- | --- |
+| Case ID | `refund-after-window-boundary` |
+| User job | Decide eligibility without sending a message |
+| Fixtures | Policy revision 4, customer fixture 12, clock at cutoff |
+| Required invariant | Eligibility, reason code, no external action |
+| Allowed variation | Explanation wording |
+| Veto | Any send, write, or missing reason code |
+| Owner | Support product team |
+| Review trigger | Policy or model revision |
+
+Run the case against the frozen envelope first. Then run a live or perturbation variant when you want to test the system's response to change. Keep the two results separate. A frozen regression asks, “Does this known input still behave within contract?” A live test asks, “Does the system respond correctly to current inputs?” Mixing them makes failures hard to interpret.
+
+Use controlled perturbations to map sensitivity. Change only the retrieval order, only one policy sentence, only the clock, only a tool error, or only the model version. Record whether the outcome changed and whether that change was expected. This creates a behavior map without claiming that one test proves general performance.
+
+For a small product, a spreadsheet can be enough. Useful columns are case ID, envelope identity, model version, changed variable, contract result, side effect result, reviewer, and next action. A larger product may store the same fields in an evaluation service. The storage tool is less important than preserving the distinction between inputs, outputs, and judgments.
+
+Do not set a release threshold before deciding what failure costs. A writing assistant may tolerate a range of acceptable outputs. An agent that changes permissions may require zero unauthorized actions in the release set, plus a human approval boundary for unknown cases. The threshold should reflect the consequence and the coverage of the test set, not a fashionable percentage.
+
+OpenAI's eval guidance describes defining a task, running test inputs, and analyzing results, which is the right general loop even as specific evaluation products change. The two-replay method adds an incident-level question: which part of the run changed? Use replay for attribution and a broader test set for release confidence. Neither replaces the other.
+
+When a test fails, preserve the failing envelope before updating the expected result. Sometimes the product requirement changed. Sometimes the model improved. Sometimes the test exposed a regression. A reviewer should be able to see the old behavior, the new behavior, the source change, and the decision to accept or reject it.
+
+## How should a team investigate a variation alert?
+
+Start with the smallest useful incident packet. Include the user request, the two run IDs, timestamps, model identity, parsed outcomes, tool traces, retrieval fixture IDs, and the acceptance contract that was violated. Ask the person reporting the problem to describe the changed property in concrete terms: “the selected customer changed,” “the answer omitted a required source,” or “the prose used a different example.” “It felt random” is a useful signal, but not a diagnosis.
+
+Use this order when the two traces arrive:
+
+1. Compare the final outcome and side effects.
+2. Compare the number and order of model calls.
+3. Compare model identity, generation settings, and output schema.
+4. Compare rendered messages and their ordering.
+5. Compare memory, retrieval, tools, clock, environment, and code revision.
+6. Run the frozen replay and the live replay.
+7. Change one suspected input and record the result.
+
+The order protects the investigation from a common mistake: spending an hour comparing punctuation while a tool deleted a row or selected a different account. If a side effect changed, preserve the evidence and contain the action first. Root-cause analysis comes after safety.
+
+Create a simple difference report rather than asking engineers to scan two large JSON blobs. It can have one row per field:
+
+| Field | Run A | Run B | Changed? | Expected to change? |
+| --- | --- | --- | --- | --- |
+| Model version | `2026-07-15` | `2026-07-15` | No | No |
+| Retrieved document order | Policy, account | Account, policy | Yes | No |
+| Tool result timestamp | 10:04 | 10:05 | Yes | Maybe |
+| Parsed decision | Escalate | Resolve | Yes | No |
+| Final wording | “I need a review” | “This is complete” | Yes | Maybe |
+
+The last column turns a diff into a product decision. Not every difference is an incident. A current weather answer should change when the weather changes. A refund eligibility answer may change at a policy boundary. A permission change should not occur merely because the prose took another route.
+
+When the report shows a changed input that should have been stable, fix the boundary that allowed it to change. Snapshot policy text per case. Pin a retrieval index during a multi-step workflow. Make the clock explicit. Pass a case ID through memory and tool calls. Add an idempotency key to writes. These fixes are usually more durable than adding another instruction to the system prompt.
+
+When the report shows no changed input, run the frozen replay in a clean process. A clean process matters because SDK clients can retain state, caches, environment variables, connection pools, or conversation objects between calls. If the clean replay stabilizes the result, compare process state and client configuration. If it does not, compare provider request IDs, model versions, and response metadata.
+
+If the provider returns a different answer under an apparently identical envelope, record the observation without overstating it. Say: “The frozen replay produced two different contract results under the captured configuration.” Do not say: “The model is broken,” unless you have evidence for that broader claim. The next experiment may reveal a hidden route, a missing parameter, a streaming assembly bug, or a provider behavior outside the documented guarantee.
+
+A variation alert should end with one of four dispositions:
+
+- Expected variation: the changed input or allowed creative surface explains the result.
+- Input drift: a supposedly stable context, tool, memory, or clock changed and needs a boundary fix.
+- Contract failure: the model varied in a property the job requires, so validation, retry policy, or model configuration must change.
+- Unresolved reproducibility: the frozen envelope still changes and the system cannot yet identify why.
+
+The fourth disposition is not a failure of the investigation. It is an honest state that should trigger containment. If the result can cause an external effect, route it to approval or a safe fallback. If it only changes a draft sentence, record the case and decide whether additional work is worth its cost.
+
+This procedure also gives support and product teams a shared vocabulary. Engineers can bring the envelope and diff. Product can state the invariant. Operations can define the stop rule. The conversation moves from “the AI was weird” to a testable question with an owner.
+
+Concurrency deserves a separate check because two runs can have different results without any model variation. Imagine two workers reading the same task queue. Worker A observes item 14 as available. Worker B approves it a moment later. Worker A then asks the agent to choose an action using a state that is no longer current. The user request and prompt may match another run, but the database snapshot does not. Record transaction IDs, read versions, lock state, and the point at which the agent's decision became an action.
+
+The same problem appears in parallel tool calls. If one call updates state while another reads it, the order of completion may change the next model turn. A provider's parallel-call feature can be useful, but the application needs an explicit merge rule. Do not assume that the order in which results arrive is the order in which the model imagined the calls. Save the requested call set, completion timestamps, response order, and merge result.
+
+Caching creates another false appearance of randomness. One run may receive a cached retrieval result while another reaches the live index. One application server may have a cached prompt template while another has the new version. Include cache hit status, cache key, cache revision, and expiration in the envelope when they can affect the request. A cache is part of the input path.
+
+These cases are why a full run is broader than an API request. The model call can be identical while the surrounding system changes between the call and the outcome. A reliable test therefore checks the boundary from request creation through validation and side effect, with a clear record of the state version used at each step.
+
+If you cannot capture transaction or cache data yet, narrow the claim you make about the incident. You can say that the final answers differed. You cannot say that the model received identical inputs. Add the missing instrumentation as part of the repair, then rerun the case with the stronger evidence.
+
+## When should you demand exact sameness?
+
+Demand exact sameness only when the job truly requires it. Exact bytes may be appropriate for a cache key, a signed payload, a migration script, or a downstream parser with no tolerance. It is often the wrong goal for a summary, explanation, draft, or conversational response.
+
+For a business agent, stable behavior usually means stable decisions, required facts, permissions, and side effects. The explanation can vary if it remains supported and understandable. For a creative agent, stable behavior usually means stable constraints and topic coverage while the expression changes. For a screen-watching agent, stable behavior includes timing, target selection, and approval boundaries because the visual state is part of the job.
+
+If exact output is required, make the interface narrow. Use a fixed schema, deterministic post-processing, canonical serialization, and a pinned model or fixture where the provider supports it. Still test the full pipeline. A deterministic serializer cannot repair a changed input, and a fixed seed cannot promise identical provider execution forever.
+
+If exact output is not required, replace the requirement with an explicit contract. Write down what must remain stable, what may vary, and what causes a stop. This gives the team a way to investigate a changed answer without treating every different sentence as a production incident.
+
+The most useful question is not “Why did the model say different words?” It is “Which property of this job changed, and was that property supposed to change?” The two-replay diagnostic answers the first part. The contract answers the second.
+
+## What if the answer still changes after I freeze everything?
+
+Treat that as an unresolved reproducibility issue, not proof that the provider is broken. Check for an omitted input, an unpinned model route, a hidden retry, a streaming assembly difference, a parallel tool call, a changing system instruction, or a provider execution detail that the API does not expose.
+
+Then reduce the system until the change disappears. Remove tools. Remove retrieval. Replace memory with a fixture. Use one model snapshot and one request shape. If the output stabilizes, add components back one at a time. If it never stabilizes, define the accepted outcome at the field, decision, and side-effect level and add a validator around the model.
+
+That is the limit of this method: it narrows the cause, but it cannot make a provider promise a property it does not offer. Google Cloud explicitly describes seed-based repeatability as best effort, and its response contract exposes model version as a separate field. Reproducibility is an engineered property of the full run, not a switch on the model.
+
+If you want the next layer, read [How to Evaluate an AI Agent: A Practical Release Gate](/blog/how-to-evaluate-an-ai-agent) for release criteria and [How to Version Prompts for AI Agents in Production](/blog/how-to-version-prompts-for-ai-agents-in-production) for behavior identity across deployments. If your goal is to learn how to build this kind of system on your own work, [Marius Manolachi's AI learning path](https://mariusmanolachi.com/learn-ai) is the relevant next step.
+
+The fastest fix is not “make the model deterministic.” It is “make the run explainable.” Freeze the request, compare it with the live path, define what must remain invariant, and only then tune the model.
