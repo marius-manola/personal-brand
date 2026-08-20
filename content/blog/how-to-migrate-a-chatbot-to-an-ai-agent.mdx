@@ -1,0 +1,479 @@
+---
+title: 'How to Migrate a Chatbot to an AI Agent'
+date: '2026-08-20'
+updated: '2026-08-20'
+excerpt: 'Migrate a chatbot to an AI agent in capability slices: preserve the working chat path, add one verified tool boundary, replay real conversations, and roll back safely.'
+answer: 'Migrate a chatbot to an AI agent incrementally, one capability at a time: keep its tested conversation and escalation path, add a narrowly scoped tool, replay representative conversations, then run the agent beside the chatbot before routing traffic. The exception is a purely informational bot with no multi-step decision or action requirement. Keep it as a chatbot.'
+targetQuery: 'how to migrate a chatbot to an ai agent'
+queryAliases:
+  - 'migrate chatbot to AI agent'
+  - 'chatbot to agent migration'
+  - 'how to turn a chatbot into an AI agent'
+intent: 'implementation'
+funnel: 'consideration'
+cluster: 'AI agent implementation'
+kind: 'satellite'
+sourceableAtom: 'The migration unit is not the conversation transcript. It is a capability slice with a job, verifiable success state, allowed tools, approval boundary, and fallback route. A migration is complete only when the slice proves its outcome and can still return to the old chatbot path.'
+tags:
+  - 'AI agents'
+  - 'Implementation'
+  - 'Migration'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-16'
+sources:
+  - 'https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/'
+  - 'https://www.anthropic.com/engineering/building-effective-agents'
+  - 'https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents'
+  - 'https://docs.cloud.google.com/architecture/choose-design-pattern-agentic-ai-system'
+  - 'https://learn.microsoft.com/en-us/agent-framework/journey/from-llms-to-agents'
+  - 'https://support.zendesk.com/hc/en-us/articles/10543162665242-Migrating-to-the-new-AI-agents-experience'
+faq:
+  - q: 'Do I need to migrate the chatbot’s entire conversation history?'
+    a: 'No. Preserve the history you need for continuity, audit, and regression tests, but do not treat a transcript dump as agent memory. Select the durable user and task state the new capability actually needs, then keep the old transcript available for comparison and support.'
+  - q: 'Should I add memory before tools when migrating a chatbot?'
+    a: 'Usually no. Add one read-only tool first and prove the execution boundary. Add durable memory only when the capability needs information across turns or sessions. Adding tools, memory, and planning at the same time makes failures harder to localize.'
+  - q: 'Can a chatbot and an AI agent run together during migration?'
+    a: 'Yes. Keep the chatbot as the default or fallback, run the agent in shadow mode or on a small canary slice, compare outcomes, and switch traffic only after the migration contract passes. Keep the old route reversible until the new route is operationally understood.'
+  - q: 'When should I keep the chatbot instead of migrating it?'
+    a: 'Keep it when the job is predictable, informational, and complete after one response, or when the required action cannot yet be safely exposed through a narrow tool and approval boundary. An agent adds complexity, latency, and cost, so it needs a real workflow to earn that complexity.'
+cover: '/blog/how-to-migrate-a-chatbot-to-an-ai-agent-hero.webp'
+coverAlt: 'Illustration of a chatbot route gradually handing one verified capability to an AI agent while preserving a rollback path'
+draft: false
+---
+
+The hard part is not making a model call a function. It is deciding what the old chatbot already promises, what the new agent is allowed to change, and how you will know the task actually finished.
+
+I taught product managers who went from writing specs to building and shipping products. The recurring failure was not usually the model. It was that nobody could say what “done” meant. The same failure appears in chatbot migrations. Teams talk about tools and autonomy before they define the business result.
+
+![Illustration of a chatbot capability moving through inventory, tool, verification, and rollback stages](/blog/how-to-migrate-a-chatbot-to-an-ai-agent-migration-contract.webp)
+
+## What actually changes when a chatbot becomes an agent?
+
+A chatbot mainly produces a response. An agent uses a model to control a workflow, select tools, inspect results, and stop when the goal is complete or needs human control. OpenAI separates simple chat applications from agents on this boundary: agents execute workflows and use tools to interact with external systems ([OpenAI's practical guide to building agents](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/)).
+
+Anthropic makes a related distinction between a workflow, where code fixes the path, and an agent, where the model dynamically directs the process and tool use ([Anthropic's guide to effective agents](https://www.anthropic.com/engineering/building-effective-agents)). A chatbot can still be powered by an LLM, retrieve documents, and hold a conversation without becoming an agent.
+
+That distinction gives you a migration test:
+
+| If the user needs... | Keep the chatbot path when... | Consider an agent when... |
+| --- | --- | --- |
+| An answer | The answer is complete after retrieval and generation. | The answer requires gathering data from several systems before it can be correct. |
+| A single predictable action | A fixed workflow can validate and execute it. | The next step depends on context, exceptions, or results discovered during the task. |
+| A multi-step outcome | The steps are known and deterministic. | The system must choose the next safe action from available tools. |
+| Human help | The chatbot can transfer with the needed context. | The agent can prepare work for approval, then stop at the approval boundary. |
+
+Do not migrate because “agent” is the newer label. Migrate because a specific job needs model-directed execution and the added latency, cost, and risk are justified.
+
+## Should you migrate the whole chatbot at once?
+
+No. Migrate one capability slice, not the whole conversation surface. A slice is a user-visible job with a clear result, such as “check an order and explain the delay” or “collect the details needed to open a support ticket.” Leave unrelated intents on the existing route.
+
+This is also the safer interpretation of current architecture guidance. Google Cloud recommends choosing an agent pattern from the workload's task characteristics, latency, cost, and human-involvement requirements, and says predictable work may not need agentic infrastructure ([Google Cloud's agentic AI design patterns](https://docs.cloud.google.com/architecture/choose-design-pattern-agentic-ai-system)). Anthropic likewise recommends finding the simplest solution and adding complexity only when it is needed ([Anthropic's guide to effective agents](https://www.anthropic.com/engineering/building-effective-agents)).
+
+The migration unit for this article is:
+
+> **A capability slice with five fields: the job, the verifiable success state, the allowed tools, the approval boundary, and the fallback route.**
+
+| Field | Question to answer before coding | Example |
+| --- | --- | --- |
+| Job | What user goal is moving first? | Check an order and explain its current status. |
+| Success state | What fact proves the job finished? | The order status was read from the source system and cited in the reply. |
+| Allowed tools | Which reads and writes may the agent request? | Read order status. No refund or address change. |
+| Approval boundary | What must a person confirm? | Any refund, address change, or exception outside policy. |
+| Fallback route | What happens when the agent cannot prove success? | Keep the chatbot handoff and send the transcript plus tool results to support. |
+
+That table is the sourceable artifact. It keeps a migration grounded in an outcome instead of a collection of prompts.
+
+## What should you preserve from the chatbot?
+
+Preserve the promises and evidence that already work. Replace the execution layer only where the new capability earns it.
+
+Start with five inventories:
+
+1. **Intent coverage.** List the intents, entry phrases, exclusions, and out-of-scope requests the chatbot currently handles.
+2. **Knowledge sources.** Record which documents, retrieval indexes, APIs, or hard-coded rules support each answer. Remove contradictions before giving the agent more autonomy.
+3. **Conversation behavior.** Capture clarifying questions, tone constraints, escalation wording, and the information a human agent needs after handoff.
+4. **Business actions.** Separate actions that only read data from actions that change data or create external side effects.
+5. **Operational evidence.** Keep representative transcripts, unresolved cases, tool errors, handoffs, and user feedback. These become the migration test set.
+
+The inventory should be a map, not a prompt dump. Zendesk's current migration documentation is a useful platform-specific example: it first maps legacy answers and intents to new use cases and dialogues, then maps old API calls and transfers to action flows and escalations ([Zendesk's migration guide](https://support.zendesk.com/hc/en-us/articles/10543162665242-Migrating-to-the-new-AI-agents-experience)). The general lesson is to map each old behavior to a new responsibility before rebuilding it.
+
+Do not copy every branch into the agent's system instructions. A scripted branch may encode a policy, a data requirement, a user-interface limitation, or an old bug. Decide which one it is. Keep policy outside the model where possible. Give the agent the context and tools needed to act within that policy.
+
+## How do you choose the first capability to migrate?
+
+Choose a job that is useful enough to matter, narrow enough to verify, and safe enough to roll back. Do not start with the most autonomous workflow in the company.
+
+Use this sequence:
+
+1. **Rank the chatbot's work by action gap.** Find requests where users ask the bot to do something it can only describe today. Examples include checking a live record, preparing a ticket, or collecting missing fields.
+2. **Remove high-risk candidates.** Exclude irreversible actions, unclear ownership, missing source-of-truth data, and workflows with no approval path.
+3. **Prefer a read before a write.** A read-only capability exposes the runtime and tool boundary without immediately creating an external side effect.
+4. **Define the success state in system terms.** “The user feels helped” is not enough. Name the record, status, artifact, or human handoff that proves completion.
+5. **Write the fallback before the happy path.** If a tool times out, permission is denied, or the result is ambiguous, the agent should stop and route the case. It should not invent completion.
+6. **Set a release threshold.** Decide what must match the old chatbot, what may improve, and which failures block traffic before the first shadow run.
+
+Microsoft describes an agent as an LLM wrapped with identity, instructions, tools, memory, and runtime middleware, while a raw LLM call leaves those concerns to the application ([Microsoft's LLM-to-agent guide](https://learn.microsoft.com/en-us/agent-framework/journey/from-llms-to-agents)). You do not need to adopt that exact framework. You do need to assign those responsibilities somewhere in your own system. If the runtime needs an explicit execution model, see [the AI agent state-machine guide](/blog/how-to-design-an-ai-agent-state-machine).
+
+## How do you know whether the chatbot is ready for a migration?
+
+The chatbot is ready when the team can describe its current behavior outside the prompt. If the only specification is a system message and a collection of screenshots, pause the migration and recover the contract first.
+
+A useful readiness review asks five questions:
+
+| Readiness question | Evidence to collect | What a “not ready” answer means |
+| --- | --- | --- |
+| What jobs does the chatbot handle? | Intent names, entry phrases, exclusions, and escalation routes | You cannot tell which behavior must remain compatible. |
+| Which facts does each job depend on? | Documents, indexes, APIs, rules, and their owners | The agent may make a more confident version of an old answer that was already stale. |
+| What counts as completion? | A returned record, created artifact, approved handoff, or explicit unresolved state | The new system will grade wording instead of the result. |
+| Which actions can affect a person or system? | Read operations, writes, messages, payments, tickets, and changes to records | The approval and authorization boundary is still hidden. |
+| How does support take over? | Required context, transcript location, user notification, and queue ownership | The migration may remove the safest route for difficult cases. |
+
+Do not confuse a high-quality conversation with a well-specified product. A chatbot may sound consistent while relying on undocumented assumptions in retrieval, routing, session storage, or the handoff integration. Those assumptions become visible as soon as an agent has to choose a tool or decide whether it has finished.
+
+The readiness output should be a short behavior map. For each important intent, record the old route, the information it needs, the questions it asks, the answer or action it produces, and the reason it escalates. Add examples of incomplete requests and requests that look similar but belong to different policies. These are more useful than copying the full prompt into a new agent instruction.
+
+There is an important exception. A team may still migrate a poorly documented chatbot when the first slice is read-only and the old path can remain the source of truth. In that case, treat the migration itself as a documentation project. Do not expose writes until the missing contract has been recovered and reviewed.
+
+## How do you turn chatbot transcripts into migration cases?
+
+Turn transcripts into cases by extracting the job, state, allowed response, and expected outcome. Do not treat a transcript as a complete test merely because it contains a user message and an assistant reply.
+
+For each case, write down:
+
+1. **The starting context.** Include the user identity or role as far as the test environment permits, the conversation state, relevant records, and the information available at the moment the user asks.
+2. **The user goal.** Describe the job in plain language. “I need to know why my order is late” is more useful than a label such as `delivery_intent`.
+3. **The permitted route.** State whether the system may answer from knowledge, ask a question, call a read tool, prepare an action, request approval, or escalate.
+4. **The forbidden route.** Name the tempting action that must not happen. An order-status case must not issue a refund simply because the user sounds frustrated.
+5. **The completion proof.** Identify the record, status, ticket, approval, or handoff event that proves success. If no external state can prove completion, say that the case is informational.
+6. **The acceptable answer.** Preserve facts, required disclosures, and escalation wording. Do not require the agent to reproduce every sentence from the old chatbot.
+7. **The failure verdict.** Define what counts as a hard failure, a review-needed result, and an acceptable variation.
+
+This makes the test case about behavior rather than style:
+
+| Case part | Example for “where is my order?” | Why it matters during migration |
+| --- | --- | --- |
+| Starting context | Authenticated customer, order identifier present, order service available | The agent should not ask for data the application already has or use another customer’s record. |
+| Goal | Explain the current delivery status and the next expected step | The goal is not merely to produce a sympathetic sentence. |
+| Permitted route | Call a read-only order-status tool, then explain the returned status | The new capability has a narrow execution boundary. |
+| Forbidden route | Refund, change address, promise a delivery date not returned by the source | These actions exceed the slice. |
+| Completion proof | Status and source timestamp are recorded in the trace and shown to the user | The runtime can verify what the answer was based on. |
+| Acceptable answer | Clear status, uncertainty if present, and support route for an exception | Wording may change while the user still receives the required information. |
+| Failure verdict | Missing order, forbidden access, timeout, or stale data becomes an explicit handoff | The agent cannot convert an unavailable result into a claim of completion. |
+
+Start with cases that expose decisions, not only the most common greeting. A representative set should include a normal request, missing information, an ambiguous request, a request for another person’s data, a source-system failure, contradictory records, a user who changes their mind, and a request that belongs on the old escalation route. The point is coverage of state changes and boundaries. It is not a request to publish a statistic about the set.
+
+Redact secrets and unnecessary personal data before cases enter a development or evaluation environment. Preserve the fields needed to reproduce the decision, and replace the rest with stable identifiers. If the original transcript contains a hidden operator action or an external update, capture that action as structured case data instead of assuming the text explains it.
+
+Keep the original transcript beside the structured case, with access controls appropriate to the data. The transcript is useful for understanding language and unexpected context. The case is useful for grading. They serve different jobs.
+
+## How do you choose between several possible migration slices?
+
+Choose the slice that offers a clear user benefit, a reliable completion proof, a narrow permission boundary, and a credible fallback. A high-volume workflow is not automatically the best first migration if its outcome is hard to verify or its side effects are irreversible.
+
+Use a qualitative comparison before writing code:
+
+| Candidate capability | User value | Outcome verification | Risk of side effect | Fallback quality | First-slice decision |
+| --- | --- | --- | --- | --- | --- |
+| Look up an authenticated order status | Clear | Strong if the source returns status and time | Low, read-only | Existing support handoff | Good first slice |
+| Create a draft support ticket | Clear | Strong if a ticket ID is returned | Medium, creates a record | Human queue can review the draft | Good after read access is proven |
+| Change a delivery address | Clear | Strong technically, but authorization and timing matter | High | May require manual correction | Defer until approval and identity are explicit |
+| Issue a refund | Clear | Strong if the payment system returns a result | High and potentially irreversible | Manual review may be possible | Do not use as the first autonomous write |
+| Answer a policy question from stable documents | Moderate | The answer can be cited to a source | None | Existing chatbot already works | Keep as chatbot unless another need exists |
+
+This table is a decision aid, not a universal ranking. The same candidate can move categories when the business changes. A draft ticket may be safe in one organization and sensitive in another if ticket creation triggers notifications or service-level timers.
+
+Look for an action gap. The action gap is the distance between what the user asks for and what the chatbot can actually do. “Tell me the policy” has no action gap if the chatbot already retrieves the current policy. “Check my order and open a ticket if the carrier data is contradictory” has one because the system must inspect live data, compare conditions, and create a bounded handoff.
+
+Then apply three vetoes:
+
+- **No verifiable end state.** If nobody can say what record, artifact, or handoff proves the task finished, do not migrate it first.
+- **No authority model.** If the system cannot establish which user may access or change the relevant record, a tool is not ready for the agent.
+- **No recovery path.** If a failed run leaves a person unsure whether an action happened, keep the old route or redesign the operation before adding autonomy.
+
+A useful first slice may be less impressive than the company’s strategic workflow. That is a feature. It lets the team learn whether the application boundary, traces, approvals, and evaluation process work before several unknowns are introduced at once.
+
+## What should the application do between a tool call and a side effect?
+
+The application should treat every model-requested tool call as a proposal, not as permission. It should validate the proposed operation, establish identity and authorization, enforce limits, execute only the approved function, record the result, and decide whether the run may continue.
+
+A safe first-pass sequence looks like this:
+
+1. **Parse the call.** Reject malformed arguments before they reach a business API.
+2. **Validate the schema.** Check types, required fields, allowed values, identifier formats, and size limits.
+3. **Resolve identity in application code.** Bind the request to the authenticated user, service role, or approved operator. Do not let the model choose an identity field.
+4. **Check authorization.** Confirm that this identity may perform this operation on this record in the current state.
+5. **Apply policy and budget limits.** Enforce call counts, time limits, monetary limits, rate limits, and any restrictions on sensitive fields.
+6. **Require approval when the contract says so.** Pause before a side effect, show the material details, and record the decision.
+7. **Execute the narrow function.** The function should do one understandable job and return a typed result or a typed failure.
+8. **Record an audit event.** Include the run identifier, user or actor, tool version, operation type, safe argument representation, result status, and approval reference where relevant.
+9. **Return only the result the agent needs.** Avoid placing credentials, unrelated records, or raw internal errors into the conversation context.
+10. **Re-evaluate completion.** The runtime should check whether the result proves the success state. A successful HTTP response is not always a successful business action.
+
+The model can decide that it needs order status. It cannot decide that a customer is authorized to see an order, that an address change is allowed after dispatch, or that an API response means a refund settled. Those are application responsibilities.
+
+The most common migration mistake is to wrap an existing broad API as one agent tool. A function named `manage_customer_account` may contain reads, writes, exports, and settings changes. It gives the model a large action surface and makes the permission review difficult. Split it into operations with different authority, such as `orders.get_status`, `support.create_draft_ticket`, and `orders.request_address_change`.
+
+Use typed failure results. `forbidden`, `not_found`, `timeout`, `conflict`, and `stale_or_unknown` should not collapse into one empty string. The agent can explain a known limitation when it can distinguish these states. The support system can route them differently. The evaluator can test them separately.
+
+Idempotency matters as soon as a tool writes. A retry, duplicate model call, browser refresh, or network timeout should not create two tickets or issue the same payment action twice. The application may need an idempotency key tied to the capability case and action, along with a way to query whether the first attempt completed. If the external system cannot support that safely, require a human check before retrying.
+
+## How should permissions and approvals survive the migration?
+
+Move the permission model into the new runtime before moving the action. The agent should inherit a constrained authority from the application, not acquire broad access because the prompt says it is acting for a user.
+
+Separate four questions that teams often combine:
+
+| Question | Correct owner | Example |
+| --- | --- | --- |
+| Who is asking? | Authentication and session layer | The logged-in customer or a support operator. |
+| What may this identity see? | Authorization policy and resource checks | The customer’s own order, not every order with the same name. |
+| What may the workflow change? | Capability and business policy | A draft ticket may be created; a refund may require approval. |
+| Who approved this specific effect? | Approval service or recorded operator action | A named operator confirms the amount and destination before execution. |
+
+Do not use conversational confidence as evidence for any of these questions. A user who says “I am the account owner” has supplied a claim, not an authorization result. A model that says “I have permission” has supplied text, not a policy decision.
+
+For each write capability, write an approval sentence that a reviewer can apply. “The agent may update delivery details after the customer confirms” is incomplete if the update can happen after dispatch or if a second factor is required. A stronger contract names the record, allowed state, fields, confirmation content, expiry, and what happens when the source changes between approval and execution.
+
+Approval should happen at the right point. Ask too early and the user approves an abstract plan that later changes. Ask too late and the agent may already have caused the side effect. Show the exact operation, affected record, material values, and known uncertainty. After approval, revalidate authorization and current state before executing.
+
+Keep the old handoff path when it is safer than an incomplete approval design. A support agent who reviews a prepared action can be a useful migration boundary. The point is not to remove people from the loop. The point is to make the boundary explicit and auditable.
+
+## What memory and conversation state should move first?
+
+Move task state before long-term memory. The agent needs enough context to complete the selected capability, but a transcript archive is not automatically a reliable memory system.
+
+Classify state into four groups:
+
+1. **Turn context.** The current request, recent tool result, unresolved question, and instructions needed for this run. This can usually expire with the run.
+2. **Task state.** The capability identifier, authenticated subject, selected record, pending approval, tool results, and current step. This must survive a retry or handoff when the operation requires it.
+3. **Durable user facts.** Preferences or information that the product intentionally stores across tasks. Each fact needs an owner, update rule, scope, and deletion path.
+4. **Audit history.** What the system attempted, what it returned, who approved an effect, and which version of the tool or policy ran. Audit history is not a prompt to feed back forever.
+
+Do not add a memory store simply because the new system has more turns. First ask whether the capability can carry a small, explicit task record. A support-ticket draft may need the customer, issue category, selected order, evidence, and missing fields. It does not need every conversation the customer has ever had.
+
+Version the state shape. During a gradual migration, old chatbot sessions and new agent runs may coexist. Store the route and contract version with the task so a retry uses the same interpretation or deliberately performs a documented conversion. A silent conversion can make a previously approved action appear to belong to a different task.
+
+Plan expiry and deletion. Temporary state should not remain available indefinitely, and durable facts should not be copied into logs or prompts without a reason. The exact retention period depends on the product and legal context. The migration requirement is simpler: name what is retained, why it is retained, who can access it, and how the old chatbot and new agent handle deletion requests.
+
+The exception is a capability whose value genuinely depends on continuity across sessions. Even then, start with the smallest durable record that supports the job. Test stale preferences, conflicting facts, an account transfer, and a user asking the agent to forget a stored detail before treating memory as complete.
+
+## How do you compare old and new behavior during replay?
+
+Compare outcomes and boundaries, not exact wording. The old chatbot may be the compatibility reference for intent routing and escalation, while the agent may improve the path by retrieving a live record or preparing a structured handoff.
+
+Grade each replay case across separate dimensions:
+
+| Dimension | Question | Typical hard failure |
+| --- | --- | --- |
+| Intent handling | Did the new route recognize the same in-scope job? | The agent treats a refund request as an informational question. |
+| Clarification | Did it ask for the missing fact that actually matters? | It asks for unnecessary data or guesses a missing identifier. |
+| Tool choice | Did it use only the tools allowed for this capability? | It calls a broad write tool for a read-only case. |
+| Arguments | Were identifiers and values valid and authorized? | It uses a record supplied by another user or accepts an unchecked free-form amount. |
+| Intermediate behavior | Did it stop, retry, or escalate at the right boundary? | It continues after a forbidden or contradictory result. |
+| Final state | Is the named record, artifact, or handoff correct? | The message says “done” while no ticket or update exists. |
+| User answer | Does the response accurately describe what happened and what remains? | It presents a plan as a completed action. |
+| Recovery | Can an operator resume or return to the old route? | A timeout leaves action status unknown and no safe next step. |
+
+Allow differences that improve the job without weakening its contract. The agent may ask one precise question where the chatbot used a generic fallback. It may cite a current status where the chatbot gave a static explanation. It may produce a structured support handoff where the chatbot transferred a transcript. Those are improvements only if the new result remains within policy and the completion proof is stronger.
+
+Mark a case for human review when the final outcome is acceptable but the path is unusual. For example, a source system may return a new status value that the agent explains correctly but that the grader has not seen. Do not silently mark it as pass or fail. Capture the value, decide whether the contract needs an update, and add a regression case if it is legitimate.
+
+Use failure cases as first-class cases. A timeout is not an inconvenience around the test. It is one of the conditions that determines whether the migration is safe. Run retries against a controlled test double or sandbox when a live system cannot be touched. For action tools, verify that the forbidden path produces no side effect, not merely that the final message sounds cautious.
+
+Anthropic's evaluation guidance describes graders that inspect transcripts, tool calls, and resulting environment state. That matches the migration problem: the answer is one observation, not the whole result. Keep the old transcript, new trace, tool outcomes, approvals, and final state together so an engineer can explain the verdict later ([Anthropic's guide to agent evaluations](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)).
+
+## What should shadow mode and a canary release look like?
+
+Shadow mode should let the agent see a copied request and produce a proposed route without giving it permission to change production state. A canary should route a controlled capability to the new path while preserving the chatbot fallback and a clear switch back.
+
+The two modes answer different questions:
+
+| Mode | Agent sees | Agent may do | What you learn |
+| --- | --- | --- | --- |
+| Offline replay | Stored case and controlled state | Nothing in production | Whether the contract and graders work. |
+| Shadow | A copy of a live request and permitted read context | Propose calls or use isolated tools; no production writes | How real language, latency, missing context, and route selection differ. |
+| Canary | A selected live capability | Only the operations approved by the contract | Whether users, support, systems, and fallback behave together. |
+| General release | The supported live workload | The full approved capability, still under limits | Whether the operating model remains reliable as coverage grows. |
+
+In shadow mode, record enough context to compare the agent with the route the user actually experienced. Do not expose the shadow answer to the user by accident. Do not send sensitive production data to a development system without an approved handling path. If a shadow tool reads live data, give it the narrowest read permission and log the access.
+
+The canary selector should be understandable. Select a capability, tenant, operator group, region, or explicit test cohort according to the product's risk. Avoid a selector that cannot be reconstructed after an incident. Record why a request entered the canary, which contract version ran, and whether it fell back.
+
+Define rollback as an operational action, not a sentence in a design document. It should name the switch, owner, alert or symptom that triggers it, and what happens to in-flight tasks. If the agent has prepared a draft, support may be able to review it. If it has started a write whose result is unknown, rollback may mean reconciliation rather than routing traffic back.
+
+Use promotion checks that include the old path. The new route is not ready merely because its offline cases pass. Confirm that the chatbot can still receive traffic, its handoff still contains the required context, the agent can be disabled without a data migration, and support knows which route a user encountered.
+
+Do not use a public canary as the first place to discover whether logs contain secrets, whether a timeout causes duplicate actions, or whether the fallback page is broken. Those are offline and shadow-mode questions. Live traffic should teach you about real variation after the basic safety boundary is already tested.
+
+## Which chatbot-to-agent migration failures should you expect?
+
+Most migration failures come from moving an abstraction without moving the responsibility that made the old system safe. Name the failure before release so the team can look for it.
+
+| Failure mode | Why it happens | Detection | Repair |
+| --- | --- | --- | --- |
+| Prompt transplant | The team copies the chatbot prompt and assumes it is an agent contract | Missing tools, unclear stop conditions, and inconsistent completion judgments | Write the capability fields and runtime checks separately from conversational instructions. |
+| Big-bang replacement | The team migrates all intents to avoid maintaining two routes | Failures cannot be isolated and rollback becomes a product rewrite | Move one capability and keep route ownership explicit. |
+| Broad tool exposure | An existing API is published as one general-purpose function | Traces show unexpected operations or arguments that reviewers cannot explain | Split tools by effect and authority, then validate at the application boundary. |
+| False completion | The agent's final answer is graded as success | The message claims completion while the source record is unchanged or unknown | Require an external success state and typed failure result. |
+| Transcript-as-memory | Every old conversation is copied into a new context or store | Context grows, stale facts conflict, and deletion is difficult | Extract task state and durable facts deliberately; retain the transcript for audit and cases. |
+| Hidden authorization | The old chatbot relied on a server-side route that the new tool bypasses | Users can request records or actions outside their role | Bind identity and authorization in application code for every operation. |
+| Approval theater | The user approves a vague plan, then the agent changes the operation | Approval text does not match the eventual tool call | Show the material effect and revalidate state immediately before execution. |
+| Retry duplication | A timeout is treated as proof that no action happened | Duplicate tickets or repeated writes appear after retries | Add idempotency and a reconciliation path before enabling retries. |
+| Shadow contamination | The shadow agent can write to production or its output reaches the user | Test requests change records or produce inconsistent support messages | Use isolated tools, explicit routing, and separate visibility for shadow results. |
+| Compatibility overfitting | The agent must reproduce old wording instead of old obligations | The new route fails useful improvements or hides better evidence | Grade intent, policy, outcome, and user truth separately from phrasing. |
+| Unsupported expansion | A successful read slice quietly gains writes and memory | Tool list and state shape grow without a new review | Treat each new effect as a new capability contract and release gate. |
+| Missing operator runbook | The team assumes the system will be self-explanatory during an incident | Support cannot tell whether to retry, wait, or take over | Document states, traces, switches, and user communication before canary. |
+
+The last two failures are organizational, but they still belong in the technical migration plan. A team that cannot limit scope or operate the fallback will eventually turn a small capability into an unreviewed platform.
+
+## What does a complete worked migration look like?
+
+Consider a support chatbot that already answers delivery-policy questions and hands complicated cases to a human. The proposed slice is “check an authenticated order and prepare a support ticket when the source data is contradictory.” The chatbot remains responsible for general policy questions and ordinary handoff.
+
+Start with the old promise. The user can ask about an order, provide an identifier, and receive a status explanation or a support handoff. The old chatbot does not change the order. The new slice adds a live read and a structured draft, but it does not add refunds, address changes, or carrier promises.
+
+Write the contract before implementing the agent:
+
+| Contract field | Worked definition |
+| --- | --- |
+| Job | Explain the current order status; if the order service and carrier data conflict, prepare a support-ticket draft with the evidence. |
+| Success state | The status response includes the source timestamp, or a draft ticket ID is returned with the conflicting values attached. |
+| Allowed tools | `orders.get_status` and `support.create_draft_ticket`. |
+| Approval boundary | Creating a draft is allowed; sending a customer-facing commitment, changing the order, or issuing a refund requires support review. |
+| Fallback route | Preserve the existing chatbot handoff with the conversation, order identifier, tool results, and unresolved reason. |
+
+Now define the cases. A normal order should call the read tool once and explain the result. A missing identifier should ask for it. An identifier belonging to another customer should produce a forbidden result and the existing handoff, without revealing whether the record exists. A carrier timeout should state that live status is unavailable and offer support. Contradictory values should include both source results in a draft, not choose one because it sounds more recent. A request for a refund should remain outside the slice and follow the existing route.
+
+The tool results should be structured. A successful status might return an order identifier bound by the application, status, source timestamp, and a freshness marker. A conflict might return the two source values and their timestamps without giving the model credentials or internal request details. A draft-ticket result should return a ticket identifier and a stable status. If ticket creation times out, the runtime should query for an idempotency key before offering a retry.
+
+The agent instructions can then stay small: identify the user goal, ask for a missing order identifier, use the status tool for the selected capability, explain only returned facts, create a draft only when the conflict condition is met, and stop on forbidden, unavailable, or ambiguous results. The application still enforces identity, field validation, policy, tool count, and side effects.
+
+Replay should compare the old and new routes on the cases above. A different sentence is acceptable. A missing source timestamp, an invented delivery promise, a ticket created for a non-conflict, or a leaked cross-account status is not.
+
+In shadow mode, let the agent read a safe copy of the order data and simulate draft creation. Compare its proposed route with the chatbot's actual answer and handoff. Look for requests where the chatbot collected context that the new route does not carry forward. Add those fields to the case or contract rather than hiding them in a longer prompt.
+
+For the canary, route only this capability. Keep policy questions and refund requests on the chatbot. Show support the new trace shape and the fallback switch. If a live case enters an unknown status, pause promotion and add a case. Do not widen the tool list to make the single case disappear.
+
+This example is intentionally modest. It demonstrates the migration pattern without pretending that one agent can safely inherit every support action. The capability is complete when its result can be checked, its authority is narrow, its failures are explicit, and the old path still works.
+
+## What should the migration runbook tell the team?
+
+The runbook should let an operator answer three questions during a live case: what route ran, what the system attempted, and what action is safe now.
+
+Include these fields:
+
+- the capability name and contract version;
+- the route decision and reason the request entered it;
+- the run and task identifiers;
+- the user or operator context used for authorization;
+- each tool proposal, validation result, execution result, and failure type;
+- approval details and the state that was rechecked before a write;
+- the external success state or the reason it remains unknown;
+- the fallback switch and its owner;
+- the user-facing message for waiting, handoff, retry, or cancellation;
+- the retention and access rules for the trace and transcript.
+
+Support needs a human-readable view, not only raw model messages. It should be possible to see that the agent asked for an order identifier, received a forbidden result, and handed off, without asking an operator to reconstruct the event from a token stream.
+
+Give the operator explicit actions for common states. If a read timed out, wait and retry only when the operation is safe. If a write result is unknown, reconcile before retrying. If authorization failed, do not ask the user to repeat the same claim in different words. If the agent selected an unsupported capability, route to the chatbot and record the case for review.
+
+The runbook should also state what not to do. Do not approve an action from a screenshot without checking the current record. Do not copy secrets into a support note. Do not disable authorization to get a canary unstuck. Do not delete the old route until the team has proved that the new route can handle the handoff and rollback states.
+
+Writing this runbook often exposes a missing design decision. That is useful. A migration is not ready when only the happy path is documented.
+
+## How should you add tools without turning the chatbot into an unsafe operator?
+
+Put the application between the model and every external effect. The model may propose a tool call. Your runtime should validate the arguments, check authorization, enforce limits, execute the tool, record the result, and decide what the model may do next.
+
+OpenAI describes data tools and action tools separately, including tools that retrieve context and tools that update records or hand a case to a human ([OpenAI's tool guidance](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/)). Start with data tools. Add action tools only after the capability has a clear approval rule and an observable result.
+
+This article keeps that boundary narrow. For the deeper work of connecting an agent to production systems, use [the existing business-systems integration guide](/blog/how-to-integrate-an-ai-agent-with-existing-business-systems).
+
+Use a provider-neutral contract like this for the first migrated tool:
+
+```yaml
+name: orders.get_status
+purpose: Read the current status for one authenticated customer's order.
+inputs:
+  - order_id
+authorization: Customer may access only their own order.
+effect: read_only
+success_state: Source system returns a current status and timestamp.
+failure_states:
+  - not_found
+  - forbidden
+  - timeout
+  - stale_or_unknown
+agent_behavior:
+  on_success: Explain the returned status and timestamp.
+  on_failure: State the limitation and route to the existing support handoff.
+limits:
+  max_tool_calls_per_turn: 2
+  max_runtime_seconds: 15
+audit: run_id, user_id, tool_name, arguments_hash, result_status
+```
+
+The exact fields will differ by system. The boundary is the point. Keep the tool narrow enough that a reviewer can explain what it can and cannot do. Do not expose a broad “manage customer account” function when the first slice only needs to read an order.
+
+Memory is a separate decision. Preserve the conversation history required for continuity and regression tests, but do not dump every transcript into a new long-term memory store. Store durable facts and task state only when the capability needs them. Adding tools, memory, and planning in one change makes it difficult to tell whether a failure came from execution, state, or orchestration.
+
+## How do you test a chatbot-to-agent migration?
+
+Replay real chatbot cases, then grade the agent's actions and final state, not only its wording. An agent can produce a fluent answer while failing to update the system it was supposed to change.
+
+Build a migration suite with these fields:
+
+| Field | What to record |
+| --- | --- |
+| Input | The original user message and any relevant conversation context. |
+| Expected path | The capability, tool, clarification, or escalation that is allowed. |
+| Forbidden path | Actions the agent must not take for this case. |
+| Final state | The record, artifact, response, or handoff that proves completion. |
+| Evidence | Tool results, approvals, trace events, and the final user-facing message. |
+| Verdict | Pass, fail, or needs human review, with the reason. |
+
+Anthropic's evaluation guidance separates a task from a trial, a grader, a transcript, and an outcome. It also explains that multi-turn agents need evaluation of tool calls, intermediate behavior, and the resulting environment state, not just the final text ([Anthropic's guide to agent evaluations](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)). For a deeper release framework after this migration gate, use [the AI agent evaluation guide](/blog/how-to-evaluate-an-ai-agent).
+
+Run the suite in stages:
+
+1. **Offline replay.** Run historical cases against the old chatbot and the candidate agent. Check that preserved intents still answer, clarify, or escalate correctly.
+2. **Tool safety tests.** Add missing identifiers, unauthorized records, timeouts, contradictory data, duplicate requests, and ambiguous user instructions. These are agent cases even if the chatbot never had a tool.
+3. **Shadow mode.** Let the agent process copied requests without letting its action tools change production state. Compare the planned action and final answer with the chatbot's actual route.
+4. **Canary routing.** Route one low-risk capability or a small controlled slice to the agent. Keep the chatbot as the fallback and log every switch.
+5. **Promotion review.** Promote only when the migration contract passes, failure handling is understood, and an operator can explain how to return traffic to the old route.
+
+This is not a claim that a particular pass rate guarantees safety. It is a release procedure. The threshold belongs to the business risk of the capability.
+
+![Illustration of historical chatbot conversations being replayed against old and new paths with outcome checks](/blog/how-to-migrate-a-chatbot-to-an-ai-agent-replay-evaluation.webp)
+
+## When should the chatbot remain the default?
+
+Keep the chatbot when the work is predictable, informational, and complete after one response. A deterministic flow is often the better system for fixed forms, known routing, and actions whose sequence never changes. Google Cloud explicitly advises that predictable or single-call tasks may not need agentic infrastructure, while Anthropic warns that agents trade simplicity for flexibility, latency, and cost ([Google Cloud's agentic AI design patterns](https://docs.cloud.google.com/architecture/choose-design-pattern-agentic-ai-system), [Anthropic's guide to effective agents](https://www.anthropic.com/engineering/building-effective-agents)).
+
+Keep the old path, at least temporarily, when:
+
+- the source-of-truth API is unreliable or cannot prove its result;
+- the action has no clear authorization or approval boundary;
+- the user needs a fixed sequence rather than model-directed decisions;
+- the team cannot inspect the agent's tool calls and final state;
+- the migration would remove an escalation path that support already depends on.
+
+An agent is not a promotion every chatbot deserves. It is an execution architecture for a workflow that needs judgment, tools, or multiple steps.
+
+## What makes a migration complete?
+
+Call the migration complete only when the capability slice passes all six checks:
+
+1. The old intent, scope, and escalation behavior are documented.
+2. The new agent has a named success state that can be checked outside the model's reply.
+3. Every tool has a narrow purpose, validated inputs, authorization, and a defined failure result.
+4. The replay suite covers normal, ambiguous, unauthorized, unavailable, and escalation cases.
+5. The agent has run beside the chatbot or through a controlled canary, with traces and outcomes recorded.
+6. The old chatbot route can still receive traffic without a data migration or code rollback that takes longer than the business can tolerate.
+
+That last check is the one teams skip. A migration is not finished because the agent answers a test prompt. It is finished when the new capability can prove what it did, when it should stop, and how the system returns control to the old path.
+
+I build with Claude Code, Codex, ChatGPT, and related tools on actual work every day, and I use the same bias in agent projects: make the next change small enough to inspect. If you want help turning one existing chatbot workflow into a capability contract and a safe first release, bring the workflow, its real failure cases, and the current handoff path to [Marius Manolachi's AI consulting and tutoring page](https://mariusmanolachi.com/learn-ai). The article's procedure is enough to start without hiring anyone.
+
+![Illustration of a canary release with an agent route, chatbot rollback route, approval boundary, and outcome verification](/blog/how-to-migrate-a-chatbot-to-an-ai-agent-canary-rollback.webp)
