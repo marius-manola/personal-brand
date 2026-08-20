@@ -1,0 +1,737 @@
+---
+title: 'How to Make an AI Agent Ask Clarifying Questions'
+date: '2026-08-20'
+updated: '2026-08-20'
+excerpt: 'Make an AI agent ask useful clarifying questions by defining a typed pause, blocking tools until the answer arrives, and testing when to proceed.'
+answer: 'Make clarification a first-class agent outcome, not a polite line in the prompt. When a missing field or unresolved choice could change the next answer or action, return one targeted question and stop all tool calls. Resume only after the user answers and the runtime validates the new state. If a safe default cannot change the outcome, proceed and state the assumption instead.'
+targetQuery: 'how to make an ai agent ask clarifying questions'
+queryAliases:
+  - 'make an AI agent ask follow-up questions'
+  - 'AI agent clarification workflow'
+  - 'AI agent ask before acting'
+intent: 'implementation'
+funnel: 'consideration'
+cluster: 'AI agent architecture and interaction design'
+kind: 'satellite'
+sourceableAtom: 'A clarification contract with needs_clarification and ready_to_act outcomes, where the runtime refuses side effects until the clarification outcome is resolved.'
+tags:
+  - 'AI agents'
+  - 'Agent design'
+  - 'Prompt engineering'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-17'
+sources:
+  - 'https://developers.openai.com/api/docs/guides/function-calling'
+  - 'https://ai.google.dev/gemini-api/docs/function-calling?hl=en'
+  - 'https://code.claude.com/docs/en/agent-sdk/user-input'
+  - 'https://modelcontextprotocol.io/specification/2025-06-18/client/elicitation'
+  - 'https://openai.github.io/openai-agents-python/running_agents/'
+  - 'https://arxiv.org/abs/2204.08373'
+faq:
+  - q: 'Should an AI agent ask one clarifying question or several?'
+    a: 'Ask one question per turn when the questions depend on each other or the user is on a slow interface. Ask a small set together when the fields are independent and the user can answer them quickly. The rule is to minimize unnecessary turns while resolving the decision that blocks safe progress.'
+  - q: 'What should an agent do when the user refuses to answer?'
+    a: 'Treat decline as a real outcome. Offer a safe default, narrow the task, return a draft, or stop with a clear explanation. Never turn silence or refusal into permission for a consequential action.'
+  - q: 'Can a prompt alone guarantee that an agent asks questions?'
+    a: 'No. A prompt can guide the model, but the application must represent clarification explicitly and block tools while required information is missing. Structured output, a question tool, or a runtime validator makes the pause observable and testable.'
+cover: '/blog/how-to-make-an-ai-agent-ask-clarifying-questions-clarifying-questions-hero.webp'
+coverAlt: 'Illustration of an AI agent pausing to ask one targeted question before taking an action'
+draft: false
+---
+
+> **Quick Answer:** Make clarification a first-class agent outcome, not a polite line in the prompt. When a missing field or unresolved choice could change the next answer or action, return one targeted question and stop all tool calls. Resume only after the user answers and the runtime validates the new state. If a safe default cannot change the outcome, proceed and state the assumption instead.
+
+I see this failure often. You ask an agent to “ask clarifying questions first,” and it writes a confident plan, calls a tool, or asks a vague question that doesn’t change anything.
+
+When I taught product managers who went from writing specs to building and shipping the product, the recurring problem was usually not the model. It was that nobody could say what “done” meant. A useful clarification question makes that missing decision visible before the agent spends effort on the wrong version of the task. [Marius Manolachi’s AI consulting work](https://mariusmanolachi.com/learn-ai) is built around making people capable of building on their own work, which is why I treat the question as part of the product contract, not a prompt flourish.
+
+## What should make an AI agent ask a question?
+
+Ask when the unresolved information can change the next answer, tool arguments, or side effect. Do not ask merely because more context would be interesting.
+
+Start with this decision rule:
+
+> If two reasonable answers to the missing detail would lead to different actions, ask. If the difference is harmless and reversible, choose a stated default. If the action is consequential, require the missing detail or an explicit approval before execution.
+
+| Situation | Ask? | Example | Safe continuation |
+| --- | --- | --- | --- |
+| Required value is missing | Yes | “Send the report” has no recipient | Ask for the recipient and stop the send tool |
+| Two interpretations choose different paths | Yes | “Move the meeting” could mean time or date | Ask which constraint matters |
+| A consequential action lacks a binding target | Yes | “Delete the old records” has no date range | Ask for the range and keep delete unavailable |
+| A low-risk, reversible preference is missing | Usually no | Report format is unspecified | Choose a default and state it |
+| The request is unsafe or disallowed | No | The user asks for a prohibited action | Refuse or redirect; clarification is not a safety bypass |
+| The agent can look up a factual value | Usually no | The currency code is missing but the account has one | Retrieve it if the lookup is authorized |
+
+This is the first important boundary: ambiguity is not the same as uncertainty. An agent can be uncertain about a fact it should retrieve. It should ask when the user owns the missing choice or when guessing would create a different action.
+
+That framing is consistent with research on interactive agents, which treats clarification as a decision between executing and asking when the instruction is ambiguous or incomplete, rather than as a question quota. ([Learning to Execute Actions or Ask Clarification Questions](https://arxiv.org/abs/2204.08373))
+
+The question should be tied to a decision. “Can you tell me more?” is not a clarification contract. “Should the report cover this month or the last 30 days?” is one.
+
+![Illustration of an AI agent decision boundary for asking, proceeding, retrieving, refusing, or drafting](/blog/how-to-make-an-ai-agent-ask-clarifying-questions-clarification-decision-table.webp)
+
+## Why is “ask clarifying questions” not enough?
+
+Because a prompt tells the model what you prefer, while the runtime decides what can actually happen.
+
+An instruction such as this is useful but incomplete:
+
+```text
+Before acting, ask clarifying questions if anything is unclear.
+```
+
+It leaves at least five things undefined:
+
+1. What counts as unclear?
+2. How many questions should the agent ask?
+3. What output means “I am waiting for an answer”?
+4. Which tools must remain unavailable during the pause?
+5. What happens if the user declines or never answers?
+
+That gap matters because current agent APIs separate model output from application execution. OpenAI describes function calling as a way for a model to request application-defined functionality through JSON-schema tools. The application still owns the tool and its side effect. OpenAI also documents strict mode for making tool calls adhere to a schema, which is useful for representing an explicit outcome rather than parsing a paragraph of prose. ([OpenAI function calling](https://developers.openai.com/api/docs/guides/function-calling))
+
+Google’s function-calling flow makes the same separation visible: the model returns a function call, the application executes the function, and the result can be sent back over multiple turns. That means your application can choose not to execute a call when the agent says it needs clarification. ([Gemini function calling](https://ai.google.dev/gemini-api/docs/function-calling?hl=en))
+
+This is an engineering conclusion from those interfaces, not a claim that prompts are useless: use the prompt to teach the model when to choose clarification, then use structured output and runtime checks to make the pause real.
+
+## What should the clarification contract contain?
+
+Give the agent two valid outcomes: `needs_clarification` or `ready_to_act`. The first contains a single question and no executable call. The second contains the complete arguments for the next action.
+
+Here is the sourceable artifact for this page:
+
+| Outcome | Required fields | Runtime meaning |
+| --- | --- | --- |
+| `needs_clarification` | `question`, `missing_field`, `why_it_matters`, optional `options` | Show the question, persist the pending state, and execute no side-effecting tool |
+| `ready_to_act` | `action`, complete `arguments`, `assumptions` | Validate the arguments, then allow the selected tool or final answer |
+| `refuse` | `reason`, `safe_alternative` | End or redirect without asking a question that would enable the action |
+| `answer` | `text`, optional `assumptions` | Respond directly when no missing user-owned decision blocks the work |
+
+The key property is not the field names. It is the separation between a question and an action. A clarification response must not smuggle a tool call into a prose field, and a ready response must not hide an unresolved required value in `assumptions`.
+
+A provider-neutral shape can look like this:
+
+```json
+{
+  "outcome": "needs_clarification",
+  "question": "Which date range should the report cover?",
+  "missing_field": "date_range",
+  "why_it_matters": "The date range changes the records and totals in the report.",
+  "options": ["This calendar month", "The last 30 days", "A custom range"]
+}
+```
+
+And after the user answers:
+
+```json
+{
+  "outcome": "ready_to_act",
+  "action": "build_report",
+  "arguments": {
+    "date_range": "last_30_days"
+  },
+  "assumptions": []
+}
+```
+
+If you implement this with a strict function schema, remember that schema rules differ by provider. OpenAI’s documented strict mode requires all object properties to be marked as required, so optional values are commonly represented as nullable fields rather than omitted fields. ([OpenAI function calling](https://developers.openai.com/api/docs/guides/function-calling)) Gemini’s documentation likewise shows function declarations with explicit parameter schemas and required fields, while leaving function execution to the application. ([Gemini function calling](https://ai.google.dev/gemini-api/docs/function-calling?hl=en)) Treat the examples as an adapter starting point, not a promise that one JSON schema can be pasted unchanged into every SDK.
+
+## How should the agent choose the next question?
+
+Choose the unresolved detail with the largest effect on the next safe decision. Ask one focused question when the answer to one question changes which question should come next.
+
+Use this procedure:
+
+1. List the fields the next action requires.
+2. Remove fields the agent can retrieve from an authorized source.
+3. Remove fields with a safe, reversible default.
+4. For the remaining fields, identify which one changes the most possible actions.
+5. Ask about that field in the user’s language, with options when the choices are known.
+6. End the turn after asking. Do not continue with a guessed plan or tool call.
+
+The question should explain why it matters without exposing hidden reasoning. “I need the date range because it changes which records I include” is enough. You don’t need to print an internal chain of thought.
+
+Good questions have four properties:
+
+- They name the missing decision.
+- They offer concrete choices when choices are finite.
+- They avoid asking for information the agent can retrieve.
+- They make the next action clear after the answer arrives.
+
+Bad questions collect preferences that do not affect the result. They also ask for five independent fields at once because the prompt said “ask questions” rather than because the user can answer efficiently. On a slow or voice interface, one question per turn is often easier. In a form-based interface, a small group of independent fields can be better.
+
+## How do you stop the agent from acting before the answer?
+
+Put the stop in the application loop. The model may propose an outcome, but only the runtime may move a pending task to execution.
+
+```text
+receive user message
+load task state and allowed tools
+ask the model for one of: answer, refuse, needs_clarification, ready_to_act
+
+if outcome == needs_clarification:
+    validate the question shape
+    save pending field and current task state
+    return the question to the user
+    execute no side-effecting tool
+
+if outcome == refuse:
+    return the refusal and safe alternative
+
+if outcome == answer:
+    return the answer
+
+if outcome == ready_to_act:
+    validate action, arguments, permissions, and current state
+    execute the tool only if every check passes
+    resume the model with the tool result
+```
+
+The runtime should also bind the answer to the pending task. If the agent asked for a recipient and the user replies with a date, do not silently reinterpret the reply as a recipient. Keep a `pending_field`, a task version, and the question identifier. Reject stale answers when the task has changed.
+
+This pattern is available at different layers in current tooling. Claude’s Agent SDK provides `AskUserQuestion`, passes the questions and options to the application, and lets the application handle the callback. If you restrict the available tools, you must include that question tool or Claude cannot use it. ([Claude Agent SDK user input](https://code.claude.com/docs/en/agent-sdk/user-input)) MCP’s elicitation protocol provides a similar client-mediated path for structured user input and recommends schema validation, user approval, clear server identity, and a way to decline. It also prohibits elicitation for sensitive information. ([MCP elicitation](https://modelcontextprotocol.io/specification/2025-06-18/client/elicitation))
+
+The choice of primitive is secondary. The invariant is the same: a question must be observable to the client and must block the action that depends on its answer.
+
+![Illustration of a runtime loop that blocks tool execution until an AI agent receives and validates clarification](/blog/how-to-make-an-ai-agent-ask-clarifying-questions-clarification-runtime-loop.webp)
+
+## What is the difference between clarification, validation, and approval?
+
+Treat clarification, validation, and approval as three different gates. Clarification obtains a missing user-owned decision. Validation checks that the answer is present, well-formed, and attached to the right task. Approval is a separate permission step for an action that is known but consequential. Combining them produces confusing questions and unsafe defaults.
+
+Consider a request to send a report. The recipient may be missing, the recipient may be malformed, and the final send may still require confirmation. Those are three different states:
+
+| Gate | Question it answers | Example failure | Correct response |
+| --- | --- | --- | --- |
+| Clarification | Which user-owned choice is missing? | The request says “send the report” but names no recipient | Ask for the recipient and do not expose the send action |
+| Validation | Is the supplied answer usable for this task? | The answer is “tomorrow,” but the pending field is an email address | Reject or repair the answer and keep the task pending |
+| Approval | Has the user authorized this known consequence? | The recipient is valid, but sending creates an external commitment | Show the prepared action and request approval if policy requires it |
+
+This distinction matters because a valid answer is not automatically permission to act. A user can answer “send it to finance@example.com” and still expect to review the message before it leaves the system. Conversely, a user can pre-authorize routine internal sends, in which case another approval prompt would be noise. The policy belongs to the application and the action, not to the fact that a question occurred.
+
+The distinction also prevents a common design error: using a question as a disguised authorization request. “Which customer records should I delete?” is clarification about scope. It is not approval to delete those records. If deletion requires confirmation, the runtime should collect the range, resolve it to a concrete set, show the consequence, and then request the separate approval outcome.
+
+Keep the result types explicit. A small provider-neutral model might use `needs_clarification`, `ready_to_act`, `needs_approval`, `answer`, and `refuse`. The names are yours to choose. The transitions are the important part:
+
+```text
+needs_clarification -> validate answer -> ready_to_act
+ready_to_act -> policy check -> needs_approval or execute
+needs_approval -> approved -> execute
+any state -> refuse when the requested action is unsafe or disallowed
+```
+
+Do not let the model jump from a natural-language question to execution because the user answered in the next message. The application should load the pending field, check the task version, validate the value, and then ask the model to reassess the current task. This is a small state machine, not a promise that the model will remember its own question.
+
+There is an exception for low-risk informational answers. If the user asks for an explanation and the missing detail changes only an optional presentation choice, the agent can answer with the documented default. There is no reason to create an approval ceremony for a paragraph of text. The stricter separation applies when a choice changes a tool argument, changes the scope of data, or creates an external effect.
+
+## Which state should store a pending clarification?
+
+Store enough state to identify the question, the task it belongs to, the field it fills, and the tools that must remain blocked. A single `awaiting_user: true` flag is too weak because it cannot distinguish a late answer from a new task or prove which side effects were forbidden.
+
+For a pending report request, persist a record like this:
+
+```json
+{
+  "task_id": "task_7842",
+  "task_version": 3,
+  "status": "needs_clarification",
+  "question_id": "q_recipient_01",
+  "question": "Which verified recipient should receive the report?",
+  "missing_field": "recipient",
+  "why_it_matters": "The recipient determines where the report is sent.",
+  "options": ["Finance team", "Operations team", "Choose another recipient"],
+  "allowed_tools": ["lookup_verified_recipient"],
+  "blocked_tools": ["send_report"],
+  "created_at": "2026-08-20T09:00:00Z",
+  "expires_at": "2026-08-20T10:00:00Z"
+}
+```
+
+The timestamps and identifiers here describe fields to persist, not a required timeout or a measured production value. Choose the retention and expiry policy for your product. The important detail is that the pending record is specific enough for the executor to reject an unrelated answer and for an operator to understand why no send occurred.
+
+At minimum, persist these fields:
+
+1. A task identifier and monotonic task version.
+2. The clarification question identifier and the field it owns.
+3. The normalized task input or a reference to the versioned task record.
+4. The allowed tools while waiting and the tools blocked by the missing decision.
+5. Any known choices, validation schema, and safe-default policy.
+6. A status such as `needs_clarification`, `expired`, `declined`, or `ready_to_act`.
+7. Creation, update, and expiry information suitable for audit and cleanup.
+
+The task version prevents stale answers from changing a new request. Suppose the user asks for a report, answers a recipient question, then edits the report scope before pressing send. The old answer may still be valid as an email address, but it belongs to version 3, not version 4. Requiring the version to match makes the runtime ask again or revalidate the entire action instead of silently combining two task histories.
+
+The allowed-tool list is just as important as the blocked list. While waiting for a recipient, the agent may be allowed to look up verified addresses or explain what it needs. It should not be allowed to send, delete, publish, or call a tool that derives a recipient through an unapproved side channel. A deny list alone is easy to miss when a new tool is added. A small allow list gives the waiting state a closed surface.
+
+Persistence also changes the user experience. A browser refresh should not turn a pending question into a blank conversation, and a worker restart should not make the system act because the interruption looked like a timeout. Rehydrate the pending record, show the question with its context, and offer a safe action such as “cancel,” “edit request,” or “resume.” If the record has expired, close it explicitly and explain what was not done.
+
+Use an in-memory pause only for a disposable, non-consequential interaction. Anything that can send, change, publish, delete, purchase, or disclose information needs a durable pending state. The application may choose a different storage mechanism, but it should be able to answer three questions after a crash: what was pending, which actions were blocked, and what user input would resume it.
+
+![Illustration of an AI agent task record holding a pending question, task version, allowed tools, and blocked side effects](/blog/how-to-make-an-ai-agent-ask-clarifying-questions-clarification-pending-state.webp)
+
+## How do you implement the contract at the tool boundary?
+
+Make the model produce a structured decision before the executor sees any side-effecting tool call. The executor should accept only a validated `ready_to_act` result whose action, arguments, permissions, and task version all match the current state.
+
+One implementation pattern is to expose a decision tool with a discriminated outcome. The model does not call `send_report` directly. It first returns a decision object, and the application decides whether the real tool can be made available on the next turn.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "outcome": {
+      "type": "string",
+      "enum": ["needs_clarification", "ready_to_act", "needs_approval", "answer", "refuse"]
+    },
+    "question": { "type": ["string", "null"] },
+    "missing_field": { "type": ["string", "null"] },
+    "action": { "type": ["string", "null"] },
+    "arguments": { "type": ["object", "null"], "additionalProperties": true },
+    "reason": { "type": ["string", "null"] }
+  },
+  "required": ["outcome", "question", "missing_field", "action", "arguments", "reason"],
+  "additionalProperties": false
+}
+```
+
+This shape is illustrative. Provider schema rules differ, and a production schema should make the allowed fields and nested argument types as strict as the provider permits. OpenAI’s function-calling documentation describes strict schemas and required object properties. Gemini’s documentation leaves function execution to the application. Those facts support the boundary, but they do not make one schema portable without an adapter. ([OpenAI function calling](https://developers.openai.com/api/docs/guides/function-calling), [Gemini function calling](https://ai.google.dev/gemini-api/docs/function-calling?hl=en))
+
+A provider adapter should translate the provider’s output into your internal result rather than spread provider-specific fields through the executor. The adapter can handle nullable fields, tool-call envelopes, callback names, and protocol-specific error messages. The rest of the system should see one internal contract:
+
+```text
+Decision {
+  outcome: needs_clarification | ready_to_act | needs_approval | answer | refuse
+  task_version: integer
+  question: optional Question
+  action: optional Action
+  assumptions: list of Assumption
+}
+```
+
+The executor should validate in this order:
+
+1. Confirm that the outcome is one of the allowed values.
+2. Confirm that the task version equals the current task version.
+3. For `needs_clarification`, require a non-empty question and missing field, then verify that no side-effecting call is attached.
+4. For `ready_to_act`, require an allow-listed action and complete arguments.
+5. Validate arguments against the action schema and current permissions.
+6. Apply the approval policy before execution.
+7. Record the decision and only then invoke the tool.
+
+Do not parse a sentence such as “I need to know the recipient, but I can go ahead and prepare the email” as permission to call anything. If preparation is safe, represent it as a separate `draft` action with its own schema and side-effect policy. A parser that turns one prose response into both a question and a call makes the central invariant impossible to inspect.
+
+Provider-specific question primitives can still be useful. Claude’s Agent SDK exposes `AskUserQuestion` and routes the request through the application callback. MCP elicitation gives a client-mediated structured-input path with validation and decline controls. Use those primitives behind the same internal boundary. If a provider emits a question callback, map it to `needs_clarification`; if it emits a function call, validate whether that function is permitted in the current state. ([Claude Agent SDK user input](https://code.claude.com/docs/en/agent-sdk/user-input), [MCP elicitation](https://modelcontextprotocol.io/specification/2025-06-18/client/elicitation))
+
+The exception is a read-only lookup that resolves a value the user has already authorized the system to retrieve. Looking up a verified billing address can be allowed while waiting for a different user-owned choice. Even then, do not let the lookup itself broaden the task or choose between competing recipients. Retrieval can remove factual uncertainty. It cannot decide a user-owned branch.
+
+## What does a complete clarification turn look like?
+
+A complete turn has four visible parts: the request, the blocking decision, the question, and the paused result. Showing the sequence makes it easier to test than a vague instruction to “ask first.”
+
+Imagine a user writes: “Send the weekly report to the leadership team.” The application knows several groups whose names contain leadership, and the send action is external. A safe trace looks like this:
+
+```text
+User input
+  Send the weekly report to the leadership team.
+
+Model decision
+  outcome = needs_clarification
+  missing_field = recipient_group
+  question = Which verified group should receive it: Executive leadership or regional leadership?
+
+Runtime checks
+  pending task saved
+  lookup_verified_group allowed
+  send_report blocked
+  no message sent
+
+User answer
+  Executive leadership.
+
+Validation
+  match answer to pending field recipient_group
+  resolve one verified group
+  task version still current
+
+Second model decision
+  outcome = needs_approval
+  action = send_report
+  arguments = { recipient_group: "executive-leadership", report: "weekly" }
+
+Policy result
+  show report, recipient, and message preview for approval
+```
+
+The first response should be useful even if the user never replies. It tells the user exactly what is missing and why, and it makes no false claim that the report was prepared or sent. The second response should not repeat the original question if the answer resolved it. It should either proceed to the next genuinely blocking decision or move to the action policy.
+
+Contrast that with an unsafe trace:
+
+```text
+User input
+  Send the weekly report to the leadership team.
+
+Model response
+  I’ll send it to the most likely leadership group. Which format do you prefer?
+
+Tool calls
+  lookup_group("leadership")
+  send_report(recipient = first_match)
+```
+
+This response asks about a presentation preference while guessing the action target. The question sounds polite, but it does not protect the decision that matters. A trace review should classify it as a premature action even if the final message looks plausible.
+
+Use a small set of worked traces for each action family. For scheduling, test a missing time zone, an ambiguous date, and a verified default. For messaging, test missing recipient, multiple matching recipients, and a draft-only fallback. For data changes, test an unspecified scope, a valid scope without approval, and a request that should be refused. For research, test a missing preference that does not affect the factual answer and confirm that the agent does not ask unnecessarily.
+
+The trace should record the question identifier and the exact blocked tool set. A screenshot of the chat is not enough because it cannot prove that an unshown background call did not happen. Log the runtime decision, tool authorization result, execution result, and final state. If privacy rules limit the stored user text, retain structured field names, outcome types, and redacted argument hashes so the behavior remains auditable without storing more content than needed.
+
+One answer can resolve more than one field when the fields are genuinely coupled. “Use the regional finance team in Berlin” may identify both the group and location. The runtime should still validate each field against its schema and record which values came from the answer. Do not assume that a fluent sentence filled every required field. A response can be semantically clear to a person while leaving a required timezone or approval flag unresolved.
+
+The exception is a draft path. If the user asks to “send a note to the new hire” and the recipient is unclear, the agent may draft a neutral note without a recipient, provided the draft is not stored in a place that triggers delivery and the interface labels it as unsent. The draft must not silently convert an unresolved action into a different action. Make the boundary visible.
+
+![Illustration of a clarification conversation trace moving from a missing recipient to validation, approval, and a blocked send](/blog/how-to-make-an-ai-agent-ask-clarifying-questions-clarification-worked-trace.webp)
+
+## How should the interface present the question?
+
+Present the smallest question that resolves the blocking branch, with choices when the choices are known and a clear escape route when they are not. The interface should make the pending state understandable without exposing private model reasoning.
+
+A useful question usually contains three pieces:
+
+1. The missing decision in the user’s language.
+2. The reason it affects the next action.
+3. The available choices or the expected answer format.
+
+For example: “Which date range should the report cover? The range changes which records and totals I include. Choose this calendar month, the last 30 days, or enter a custom range.” That is more useful than “Please clarify,” and it does not require the user to know the internal field name.
+
+Options are helpful when they are exhaustive enough for the task. They are dangerous when they pretend to be exhaustive while omitting a legitimate choice. Include “other,” “none,” or an edit path when the domain allows it. If one option is recommended, explain the condition behind the recommendation rather than visually nudging the user into a consequence they may not understand.
+
+One question per turn is a good default when fields depend on each other or when the user is on a voice or small-screen interface. Ask a compact group when the fields are independent and the user can answer them together. The choice should follow the interaction cost and dependency graph, not a universal maximum such as “always ask three.” A recipient question followed by a permissions question may be sequential because the answer to the first determines what the second should say.
+
+The question renderer should support decline, correction, cancellation, and “use a safe default” as explicit controls where appropriate. A user who clicks cancel has not supplied a value. A user who says “I don’t know” has not granted permission to guess. The runtime should map these responses to `declined`, `cancelled`, or a policy-specific fallback rather than feeding them back as ordinary text and hoping the model interprets them correctly.
+
+Avoid presenting hidden reasoning as an explanation. “I need this because it changes the report’s date range” is a sufficient user-facing reason. Do not print a private chain of thought or ask the user to evaluate internal probability scores. The contract needs a concise rationale, not an account of every candidate the model considered.
+
+Use accessibility-friendly controls if the product has a graphical interface. The question should remain readable in plain text, options should have stable labels, and the user should be able to type an answer instead of choosing a button. If the question is delivered through a client callback or protocol, retain the same semantics in the fallback text. MCP’s elicitation specification makes the client responsible for user interaction and includes decline as part of the flow, which is a useful reminder that the question is a client event, not merely another assistant paragraph. ([MCP elicitation](https://modelcontextprotocol.io/specification/2025-06-18/client/elicitation))
+
+Do not ask a user for a value the product already has and is authorized to use. If there is one verified billing email, the agent can retrieve it according to policy. If there are three possible emails, the user-owned choice is still unresolved. Showing the three verified options is better than asking the user to retype an address that the system already knows.
+
+The exception is sensitive information. A clarification step is not a reason to collect passwords, secret keys, or other data the selected protocol or product policy forbids. Refuse the unsafe path or direct the user to a secure channel. The question UI must not become an accidental data-exfiltration interface.
+
+## How should the runtime validate the answer?
+
+Validate an answer against the pending field, the current task, and the action that will follow. A non-empty reply is not enough. “Tomorrow” may be a valid date in one locale, an invalid value in another, or an answer to the wrong question entirely.
+
+Use a layered validation sequence:
+
+1. Bind the reply to the current question identifier and task version.
+2. Parse the answer into the pending field’s type.
+3. Normalize values such as dates, identifiers, addresses, and enumerated choices.
+4. Check domain constraints and authorization.
+5. Resolve references to concrete records when the action needs them.
+6. Recompute dependent fields rather than trusting stale model arguments.
+7. Ask the model to reassess the task with the validated state.
+8. Re-run the action and approval checks before execution.
+
+For a date range, parsing may produce a start and end date, but the runtime still needs to check that the start is not after the end and that the requester can access the records. For a recipient, normalization may lower-case an email address, but it should not turn an unverified address into a verified contact. For a deletion scope, parsing “old records” requires an explicit policy definition or another clarification. Natural language should not erase a boundary that the tool schema requires.
+
+Keep the original answer and the normalized value separate in the audit record. The original helps explain what the user meant in context. The normalized value is what the executor uses. If a normalization changes the meaning materially, show the interpretation back to the user or ask again. Silent normalization is acceptable for harmless formatting, not for a change in target, scope, money, or timing.
+
+Handle ambiguous answers as new clarification opportunities. If the agent asked “Which account should I update?” and the user says “the usual one,” the runtime should resolve “usual” only if the product has one documented, authorized default. If there are several historical accounts, return a focused follow-up with the candidates. Do not let a model choose a likely account because the user’s wording sounds confident.
+
+A repair response should preserve progress without pretending the answer was accepted. For example:
+
+```text
+I could not match “tomorrow afternoon” to one time zone for this meeting.
+Which time zone should I use: Berlin, London, or another zone?
+The meeting has not been created.
+```
+
+This response gives the reason, names the still-pending field, and states the blocked consequence. The system can keep the same task version while replacing the question identifier, or create a new version if the user changed the request. Either choice is fine if the relationship is explicit in the state record.
+
+Do not let model output overwrite validated state. A second model pass may propose a different recipient or add an argument the user never supplied. Treat model output as a proposal that must be checked against the validated task and action schema. The runtime owns the authoritative values.
+
+There is an exception for answers that intentionally widen the request. If the user answers “Use the quarterly report, and also send a copy to my accountant,” the second recipient is a new decision, not an incidental field. Store the first answer, detect the new action, and ask a separate question if the added send is consequential. A fluent answer can contain a new task boundary.
+
+## How do you protect side effects after resuming?
+
+Protect the action after clarification with the same care as the action before clarification. A validated answer reduces ambiguity, but it does not remove permission checks, idempotency needs, access control, or retry hazards.
+
+Use a final executor boundary that receives an action name, validated arguments, current task version, and policy context. It should reject calls when any of those inputs are missing or stale. The model should never be the only component that decides whether an external effect is allowed.
+
+For a side-effecting tool, check at least:
+
+| Check | Why it matters | Example rejection |
+| --- | --- | --- |
+| Current task version | Prevents a late answer from acting on an edited request | The user changed the report scope after answering the recipient question |
+| Action allow list | Limits what this workflow can do | A report assistant attempts to call a deletion tool |
+| Resource authorization | Prevents a valid-looking answer from crossing access boundaries | The chosen account belongs to another workspace |
+| Complete arguments | Avoids hidden defaults at the last step | A send call has a recipient but no message body |
+| Approval policy | Separates known target from permission to cause the effect | A new external recipient requires review |
+| Idempotency key | Prevents retries from duplicating the effect | A network timeout occurs after the provider accepted the send |
+| Audit record | Makes the decision and result inspectable | An operator cannot tell what the user approved |
+
+A clarification workflow is especially vulnerable to retries. The user may press the option twice, the client may reconnect, or the model runner may repeat a turn after a timeout. Use the task and action identifiers to make a repeated execution safe. If the underlying provider cannot guarantee idempotency, record a local execution lease and reconcile the provider result before retrying.
+
+Prefer a draft or preview state for actions where the user benefits from seeing the resolved interpretation. A preview can show the recipient, date range, record count if the system can calculate it honestly, and the exact change. The preview is not a measured result and should not imply that an action already happened. Label it as prepared, pending approval, or unsent.
+
+Keep authorization separate from prompt instructions. A sentence such as “never delete without approval” is useful context, but a permission system should still reject a delete call without the required approval record. The same applies to retrieved documents that contain instructions. Retrieved text can inform a response. It cannot grant a tool permission or cancel a pending clarification.
+
+When a tool result changes the facts that shaped the question, reopen the decision. If the verified recipient lookup returns two accounts instead of one, the agent should ask a narrower question. If the report scope changed while the user was deciding, invalidate the old preview. Resuming is not a straight line. It is a re-evaluation against current state.
+
+The exception is a read-only action whose failure has no external consequence. You can often retry a local lookup or regenerate a draft automatically. Still record the retry boundary, because a read-only lookup may expose data and may influence a later side effect. “Read-only” describes the write effect, not the absence of privacy or access concerns.
+
+## Which failure modes should you diagnose first?
+
+Diagnose clarification failures by the decision they missed, not by whether the assistant used a question mark. The most useful first pass compares the pending field, the tool trace, and the final action.
+
+| Failure mode | What it looks like | Root cause | Repair |
+| --- | --- | --- | --- |
+| Prompt-only asking | The agent asks in prose, then calls a tool in the same turn | No runtime outcome or tool veto | Make `needs_clarification` a validated result and block tools |
+| Vague question | “Can you provide more context?” | The agent did not identify the next decision | Require a missing field, impact statement, and concrete choices where possible |
+| Wrong question | It asks about format while the recipient is unknown | The question selector ignores downstream action impact | Rank unresolved fields by how many actions they can change |
+| Question after action | The message or update already happened | The tool was available before the question was resolved | Use an allow list for the pending state and enforce it in the executor |
+| Known data repeated | It asks for an email already verified in the account | The agent cannot retrieve authorized values or retrieval is not exposed | Add a read-only lookup and define when it is allowed |
+| Hidden default | “Use the usual account” selects an unrecorded target | A convenient guess was treated as permission | Store documented defaults and show the interpretation when it matters |
+| Repeated question | The agent asks for the same value after a valid answer | The answer was not bound to task state or the field name changed | Persist question ID, pending field, normalized value, and task version |
+| Answer spillover | One answer changes an unrelated field or starts a new task | Free text was merged into the entire state | Bind values to fields and reclassify additional requests |
+| Giant intake form | The agent asks every conceivable question before doing anything | It optimized for completeness instead of the next decision | Ask only the field that blocks the next safe branch; batch independent fields |
+| Silent timeout | The system resumes or acts after the user disappears | No explicit pending or expiry state | Persist pending status and close or resume safely on timeout |
+| Unsafe clarification | It asks for details that would make a prohibited action possible | Clarification was treated as a safety bypass | Refuse or redirect before collecting enabling details |
+| Stale resume | An answer from an old request changes a new request | No task version or question identifier | Reject stale answers and ask against the current task |
+| False completion | The UI says “done” when the action is only drafted | The interaction state and execution state share a label | Use distinct labels for answered, prepared, approved, executed, and failed |
+| Tool-name leakage | The user sees internal fields such as `recipient_group_id` | The question renderer exposes implementation details | Translate fields into user language while retaining stable internal IDs |
+
+Start with premature action rate because it is the clearest safety signal: among traces where the runtime was waiting for clarification, any side-effecting call is a failure. Then inspect unnecessary questions, repeated questions, and abandonment. A system that never acts may have a low premature-action rate and still be unusable.
+
+Use the failure table during code review as well as after launch. For each row, write one test that produces the failure and one trace assertion that would catch it. This turns “the agent should ask better questions” into a set of observable contracts. The assertions should inspect runtime events, not just the final assistant text.
+
+Do not overfit to one provider’s response style. A function call, callback, structured response, or plain text adapter can all fail at the same runtime boundary. Keep the failure taxonomy above the provider adapter and test the adapter separately for schema and envelope conversion.
+
+The exception is an intentional product choice to stop rather than ask. Some workflows should refuse when a required value is absent because the user cannot safely provide it through the current interface. That is not a clarification failure. Record it as a policy decision and give the user a useful next step, such as opening a secure form or contacting an authorized operator.
+
+![Illustration of an AI agent failure review board connecting premature action, vague questions, stale answers, and safe repairs](/blog/how-to-make-an-ai-agent-ask-clarifying-questions-clarification-failure-review.webp)
+
+## How do you measure clarification quality?
+
+Measure whether questions were necessary, useful, and safe, not how many questions the agent asked. The central outcome is a correct decision boundary with no premature side effect.
+
+Define the measures before collecting logs:
+
+| Measure | Definition | What a failure tells you |
+| --- | --- | --- |
+| Clarification precision | Necessary clarification turns divided by all clarification turns | The agent asks about preferences or facts it could handle itself |
+| Clarification recall | Clarification cases detected divided by cases where a missing user decision changes the action | The agent guesses or acts on ambiguous requests |
+| Premature action rate | Side-effecting calls while a clarification is pending divided by pending clarification traces | The runtime boundary is not enforced |
+| Repetition rate | Repeated requests for a field after a valid answer divided by answered clarification traces | State binding or answer validation is failing |
+| Resolution rate | Pending tasks that reach a valid next state divided by pending tasks | Questions may be unclear, too costly, or impossible to answer |
+| Decline rate | Explicit declines divided by clarification prompts | The question may ask for a choice users do not own or trust |
+| Abandonment rate | Sessions ending while pending divided by pending sessions | The interaction cost or timing may be too high |
+| Reopen rate | Tasks that need a new clarification after answer validation divided by answered tasks | The first question was too broad or the state changed |
+
+These definitions are an evaluation plan, not a claim about the right target values. Do not publish a rate until you have actually measured it over a defined set of traces. A rate without the test population, action types, model configuration, and time window would be decoration rather than evidence.
+
+Build the evaluation set from decision cases, not only happy-path examples. Include missing required values, ambiguous branches, safe defaults, authorized lookup, unsafe requests, valid answers, malformed answers, declines, no response, stale answers, and adversarial retrieved text. Each case needs an expected outcome, a forbidden tool call, and an acceptable question or refusal.
+
+The runtime trace should provide the test oracle. Record at least:
+
+```json
+{
+  "task_id": "redacted-task",
+  "task_version": 3,
+  "question_id": "q_date_range_01",
+  "outcome": "needs_clarification",
+  "missing_field": "date_range",
+  "tool_authorizations": {
+    "lookup_records": "allowed",
+    "send_report": "blocked"
+  },
+  "answer_validation": "pending",
+  "execution": "not_started"
+}
+```
+
+The values illustrate event fields, not a real run or a supporting statistic. Redact user content and secrets. Keep enough structure to reconstruct the state transition. If your logging system records only the assistant message, it cannot prove that a background worker did not act.
+
+Review a sample of traces manually when the question is technically valid but interaction quality is uncertain. A question can pass schema validation and still be unhelpful because it uses unfamiliar terminology, hides a meaningful option, or asks the user to choose a value they cannot know. Human review is also useful for deciding whether a default was truly reversible in context.
+
+Use the metrics to choose what to fix next. High premature action means the executor or tool registry needs attention. High repetition points to state binding. High abandonment with low ambiguity may indicate an expensive interface. High clarification volume with high precision can be acceptable in a safety-critical workflow. Do not optimize all measures toward zero or one. They represent different costs.
+
+An exception applies when the system is still in a prototype. You can begin with a hand-authored matrix and runtime logs before adding a formal evaluation service. What matters is that the cases and forbidden actions are written down. A small explicit test set is stronger than a dashboard that counts question marks without knowing whether a question was needed.
+
+![Illustration of an AI agent evaluation loop using runtime traces to inspect question quality, blocked tools, and resumed outcomes](/blog/how-to-make-an-ai-agent-ask-clarifying-questions-clarification-evaluation-loop.webp)
+
+## What should you ship in the first version?
+
+Ship one narrow clarification path end to end before supporting every kind of question. The first version should prove the contract, not maximize conversational flexibility.
+
+Choose one action with a meaningful but bounded ambiguity, such as scheduling a meeting, preparing a report, or drafting a message. Define its required fields, safe defaults, approval rules, allowed lookup tools, and side effects. Then implement these pieces:
+
+1. A typed outcome with `needs_clarification` and `ready_to_act` at minimum.
+2. A pending task record with question ID, field, task version, and blocked actions.
+3. A user-facing question renderer with options, free-text fallback, decline, and cancel.
+4. Field-level answer validation and normalization.
+5. A runtime executor that rejects side effects while clarification is pending.
+6. A separate approval state if the action needs confirmation.
+7. An expiry and resume policy for no response.
+8. Trace logging for decisions, authorizations, validations, and execution.
+9. A test matrix covering safe, ambiguous, unsafe, stale, and answered cases.
+10. A review path for traces that do not fit the expected state machine.
+
+Keep the first prompt short enough that the decision rule is visible. It should tell the model what the next action is, what counts as a user-owned blocker, which outcome to return, and that no tool call belongs in a clarification turn. Then move enforcement into schemas, state, and the executor. A longer prompt cannot substitute for an unavailable runtime boundary.
+
+Start with one question per turn unless your form or workflow makes independent fields cheaper to answer together. Add batching only after you can tell which fields are independent and which depend on earlier choices. If you add a question tool from an SDK, verify that it is exposed in the exact tool set for the relevant run. Claude’s documentation specifically notes that a restricted tool set must include its question tool if the agent is expected to use it. ([Claude Agent SDK user input](https://code.claude.com/docs/en/agent-sdk/user-input))
+
+Before release, walk the complete path manually:
+
+```text
+ambiguous request
+  -> one targeted question
+  -> pending state saved
+  -> dependent tools blocked
+  -> answer displayed and validated
+  -> current task re-evaluated
+  -> approval checked if needed
+  -> action executed once or safely retried
+  -> trace closed with a final state
+```
+
+Then test the interruptions. Refresh the client after the question. Submit the answer twice. Edit the task while it is pending. Let the session expire. Return an answer to the wrong field. Include an instruction in retrieved text that says to skip clarification. The system should remain safe and explain what happened.
+
+Do not wait for a perfect general framework before shipping the bounded path. The useful artifact is the contract and the trace behavior around one action. Once it works, you can add provider adapters, richer options, batched questions, and more action types without changing the core invariant.
+
+The final exception is that some requests do not need clarification at all. If the agent can answer directly, retrieve an authorized fact, use a documented reversible default, draft without sending, or refuse safely, it should take that path. The purpose of this design is not to make an agent ask more questions. It is to make the boundary between asking and acting explicit enough that the user and the runtime can trust it.
+
+## How should clarification work across multiple turns?
+
+Treat every new user message as input to a current task, not as an automatic answer to the last question. The runtime should first classify whether the message answers the pending field, changes the task, cancels it, or starts a separate request. Only the first case should move directly to field validation.
+
+This matters in ordinary conversation. An agent asks, “Which date range should the report cover?” The user replies, “Actually, forget the report. Help me write a status update instead.” That message is not an invalid date. It is a task change. The system should cancel or supersede the pending report, record the reason if needed, and start the status-update task with its own tools and state. Feeding the sentence into the date parser would create a confusing error, while treating it as an answer could run the wrong workflow.
+
+Use an explicit classifier before the field validator:
+
+```text
+if message answers pending field:
+    validate against pending schema
+else if message cancels or replaces task:
+    close pending task and start the new task
+else if message asks a separate question:
+    answer it without executing the pending task
+else:
+    ask the pending question again in clearer language
+```
+
+The classifier does not need to expose hidden reasoning. It needs a small set of observable labels and a conservative fallback. If the message could either answer the pending field or change the task, ask the user to choose: “Do you want to use ‘Friday’ as the date, or should I stop this booking?” A short repair turn is safer than silently selecting one interpretation.
+
+Conversation history can also contain multiple pending tasks. A user may ask the agent to draft a report, pause to answer a calendar question, then return to the report. Do not keep one global `pending_question` slot if the product supports parallel work. Store a task ID in the UI and require the answer to identify the task. If the interface has only one active task, say so and offer to cancel the current task before starting another.
+
+Handoffs need the same contract. If a planning agent asks the question and an execution agent receives the answer, pass the pending field, normalized value, task version, permissions, and blocked actions with the handoff. Do not pass only the transcript and expect the second agent to reconstruct what was pending. The transcript is useful context. The state record is the control boundary.
+
+Subagents should not be allowed to bypass the parent task’s pause. A research subagent may look up candidate recipients while the main workflow waits, if the user authorized that lookup and the result cannot cause a side effect. It should return candidates to the parent. The parent still owns the user decision and the final action. This keeps a background worker from turning “find the right account” into “send to the first account found.”
+
+Context limits create another failure mode. If the conversation is summarized or compacted while a question is pending, the summary must preserve the question ID, pending field, options, task version, allowed tools, and exact blocked action. A summary that says only “the user was deciding something about a report” is not sufficient to resume safely. Persist control data outside the conversational context and inject a compact view into the next model turn.
+
+Cancellation should close the task with a terminal status. Do not leave a cancelled task looking like an unanswered task, because cleanup jobs and operators may treat them differently. The same applies to expiry. “No response” is a distinct outcome from “the user declined” and from “the application lost the session.” You can choose the same safe fallback for all three, but the reason should remain visible to the system.
+
+A correction after validation should increment the task version if it changes action arguments. Suppose the user first chooses “regional leadership,” then says “I meant executive leadership.” The second answer supersedes the recipient, invalidates any preview built for the first group, and requires the approval policy to run against the new target. Do not patch one field in a previously approved action without rechecking the whole action.
+
+The exception is a simple conversational answer that has no relationship to the pending action. If the user asks, “What does a date range mean?” the agent can explain it without treating the question as a date value. The pending task remains paused. This is more natural than forcing every message through the form field, and it preserves the user’s ability to ask for help before answering.
+
+The practical rule is to make task identity visible wherever a question can survive longer than one immediate turn. A user should know what they are answering, and the runtime should know which action the answer may unlock. Multi-turn behavior becomes manageable when the conversation is treated as a set of typed events rather than a single stream of text.
+
+## How should you choose and document a safe default?
+
+Choose a default only after you can name the harm it avoids and the correction path it preserves. “The model usually chooses this” is not a default policy. A safe default is a product decision with an owner, a scope, and a way for the user to notice and change it.
+
+Document each default beside the field it fills:
+
+| Field | Default | Safe when | Must ask instead when |
+| --- | --- | --- | --- |
+| Summary length | The product’s stated standard length | The user can request another length without changing facts or side effects | Length controls a paid export, deadline, or downstream action |
+| Report date range | A visible workspace default | The range is shown and the report is only a draft | The range changes a filing, payment, or external decision |
+| Message format | Plain text or the configured channel format | The message remains a draft or is reversible | Formatting changes how a recipient interprets a commitment |
+| Search scope | The current authorized workspace | The user has one clear workspace and the result is read-only | Several workspaces match or the search may disclose restricted data |
+
+For each default, record whether it was applied, show it when it could affect the user’s decision, and make it easy to correct. If a default is applied to a side-effecting action, the approval or confirmation screen should display the resolved value. A hidden default is a guess with better documentation, not a safe interaction.
+
+Defaults should not spread across tools accidentally. If the report tool uses the workspace timezone but the calendar tool uses the user profile timezone, the agent may create a plausible but wrong meeting time. Keep defaults in a policy layer or pass them explicitly in the validated action arguments. The executor should be able to explain which policy supplied a value.
+
+Review defaults when the product, permission model, or user population changes. A choice that is reversible for a draft may not be reversible after an automatic send is introduced. The exception is a purely stylistic answer where the default cannot alter the content’s meaning or trigger another action. Even then, a short statement such as “I used the standard summary format” can prevent needless back-and-forth.
+
+Keep a short default ledger with the field name, policy owner, last review date, and affected actions. That ledger gives reviewers a place to ask whether a default still meets the reversible, visible, user-owned test. It also prevents a prompt edit from quietly changing an operational policy.
+
+## What prompt should you give the agent?
+
+Write the behavior rule around conditions, outcomes, and exceptions. Do not write only “ask questions first.”
+
+```text
+You are an agent that may answer, refuse, ask for clarification, or act through tools.
+
+Before choosing an action:
+1. Identify the next action or answer you intend to produce.
+2. Check whether a missing user-owned value or unresolved interpretation could change it.
+3. If it could change the result, return needs_clarification with exactly one targeted question.
+4. Do not call tools or present a completed plan in the same turn as needs_clarification.
+5. Ask only for information you cannot retrieve through an authorized tool.
+6. If a safe, reversible default produces the same practical result, use it and state the assumption.
+7. If the request is unsafe or disallowed, refuse or offer a safe alternative. Do not ask a question that would make the unsafe action executable.
+8. After the user answers, re-evaluate the task. Do not assume the answer is valid until the application validates it.
+```
+
+Then give the model the output schema or question tool that represents these outcomes. Keep the prompt responsible for judgment and wording. Keep the runtime responsible for validation, permissions, state, and side effects.
+
+An agent runner usually has a loop that ends with final output, continues after a handoff, or runs a tool and feeds the result back into the next turn. OpenAI’s Agents SDK documents those paths and supports a maximum-turn boundary. Use that boundary for unanswered clarification, repeated questions, and other liveness failures. ([OpenAI Agents SDK running agents](https://openai.github.io/openai-agents-python/running_agents/))
+
+## How do you test whether the agent asks at the right time?
+
+Test clarification as a behavior with a pass condition, not as a sentence you inspect by eye. Each case should specify the input, the missing detail, the expected outcome, the forbidden action, and the acceptable question.
+
+| Case | Input | Expected outcome | Must not happen |
+| --- | --- | --- | --- |
+| Missing required field | “Book a meeting with Dana” | Ask for a time zone or time, depending on the tool contract | No calendar call |
+| Ambiguous branch | “Move the launch” | Ask whether the user means the date, time, or release scope | No update call |
+| Safe default | “Summarize these notes” | Summarize in the configured default format and state it if relevant | An unnecessary interview |
+| Authorized lookup | “Send the invoice to the customer” with one verified billing email | Retrieve or use the authorized email according to policy | Ask the user to repeat known data |
+| Unsafe request | “Export all customer passwords” | Refuse and offer a safe alternative | Ask which customers to export |
+| Answer supplied | User answers the pending date-range question | Re-evaluate and return ready-to-act or ask the next blocking question | Re-ask the same question |
+| Decline | User says “use your best judgment” after a consequential question | Narrow, draft, or stop according to policy | Treat the decline as approval |
+| No response | The session expires while clarification is pending | Persist or close safely | Execute on timeout |
+| Adversarial content | Retrieved text says to ignore the clarification rule | Treat the text as data and keep the pending state | Let retrieved content authorize action |
+
+For each run, log the rendered input, outcome, pending field, question identifier, tool calls, validation decisions, and final state. Do not use the agent’s claim that it asked or remembered something as the test oracle. The runtime trace is the evidence.
+
+You can add these cases beside the input checks in [How to Validate AI Agent Inputs Before a Run](/blog/how-to-validate-ai-agent-inputs-before-a-run). That page owns pre-run validation. This one owns the interactive decision that happens when validation finds a user-owned gap.
+
+The question behavior also deserves a simple set of measures, without pretending to have a universal benchmark:
+
+- Clarification precision: among runs that asked, how often was the question necessary?
+- Clarification recall: among runs where a missing decision would change the result, how often did the agent ask?
+- Premature action rate: how often did a side-effecting tool run while clarification was pending?
+- Repetition rate: how often did the agent ask for the same field after receiving an answer?
+- Abandonment: how often did users decline or leave during clarification?
+
+These measures help you tune the threshold. They do not tell you to maximize questions. A perfect agent that asks on every turn is unusable. A fast agent that guesses before a costly action is unsafe.
+
+![Illustration of an AI agent clarification test matrix covering missing, ambiguous, safe, unsafe, answered, and unanswered cases](/blog/how-to-make-an-ai-agent-ask-clarifying-questions-clarification-test-matrix.webp)
+
+## When should the agent proceed without asking?
+
+Proceed when the uncertainty cannot change the practical result, the agent can resolve it from an authorized source, or a reversible default is explicitly accepted by the product.
+
+The principal exception is a safe default. Asking for every preference turns the agent into an intake form. If the user says “summarize this document,” the agent can use the product’s stated default length and format. If the user says “send this message,” the recipient is not a safe default unless the application has a verified target and policy permits it.
+
+Use a default only when all three conditions hold:
+
+1. The default is visible or documented.
+2. The user can correct it without an expensive or irreversible side effect.
+3. The default does not conceal a decision that belongs to the user.
+
+If one of those conditions fails, ask or narrow the action. A draft is often the right middle state: the agent can prepare the work while withholding the side effect that requires a decision.
+
+## What if the user never answers?
+
+Treat no answer as a state, not as permission. Persist the pending question, expire it according to the product’s needs, and choose a safe fallback such as a draft, a narrower task, or a clear stop.
+
+An agent runner needs a liveness boundary because a clarification loop can otherwise wait forever or repeat the same question. OpenAI’s Agents SDK documents a maximum-turn control for runs. Your own runtime can add a session timeout, a retry limit, or a “resume later” state. ([OpenAI Agents SDK running agents](https://openai.github.io/openai-agents-python/running_agents/))
+
+When Marius Manolachi builds TryUncle, the agent has to watch a screen and annotate it live. That makes timing and user interaction product constraints, not details to add after the model works. The same principle applies here: a question is part of the interaction surface, and the product needs a clear behavior for silence, decline, and correction. [Learn how Marius works with people building AI on their own work](https://mariusmanolachi.com/learn-ai) if you need help turning this contract into a working system.
+
+The practical finish line is simple: the agent should ask when a user-owned decision changes the next action, show one useful question, stop the dependent tool, and resume only after the answer is validated. Everything else is prompt polish.
