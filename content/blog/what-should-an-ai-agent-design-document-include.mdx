@@ -1,0 +1,635 @@
+---
+title: 'What Should an AI Agent Design Document Include?'
+date: '2026-08-20'
+updated: '2026-08-20'
+excerpt: 'Build an AI agent design document around the job, boundaries, behavior, evidence, ownership, and release conditions before implementation.'
+answer: 'An AI agent design document should define the job, users, triggers, non-goals, context, architecture, model, instructions, tools, data, state, permissions, human approvals, success measures, failure handling, owners, and release gate. Put the decisions in the document and link to detailed artifacts. The exception is a short-lived, read-only experiment with no sensitive data or consequential actions.'
+targetQuery: 'what should an AI agent design document include'
+queryAliases:
+  - 'AI agent design document checklist'
+  - 'AI agent design spec'
+  - 'what to put in an AI agent design document'
+  - 'AI agent design brief contents'
+intent: 'informational'
+funnel: 'awareness'
+cluster: 'AI agent architecture'
+kind: 'satellite'
+sourceableAtom: 'An AI agent design-document section is complete only when it names the decision, owner, evidence, and stop or escalation condition.'
+tags:
+  - 'AI agents'
+  - 'AI architecture'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-17'
+sources:
+  - 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/guidance/agent-design-canvas-overview'
+  - 'https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/'
+  - 'https://www.anthropic.com/engineering/building-effective-agents'
+  - 'https://airc.nist.gov/airmf-resources/airmf/5-sec-core/'
+  - 'https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents'
+faq:
+  - q: 'How long should an AI agent design document be?'
+    a: 'Long enough to make the decisions reviewable, but not so long that it duplicates every implementation artifact. A small read-only agent may need a few focused pages. A consequential system needs more detail and linked specifications for tools, state, evaluation, security, operations, and incidents.'
+  - q: 'Should the design document include the full system prompt?'
+    a: 'Include the instruction strategy, authority rules, input and output contracts, examples, and a versioned link to the full prompt. Keeping the prompt as a separately versioned artifact makes changes easier to review and test.'
+  - q: 'Who should approve an AI agent design document?'
+    a: 'The workflow owner should approve the job and outcome, engineering should approve feasibility and failure handling, and the responsible security or risk owner should approve data, permissions, human control, and residual risk when those concerns apply.'
+  - q: 'What is the difference between an AI agent design document and an AI agent evaluation plan?'
+    a: 'The design document describes what the system is meant to do and the boundaries it must respect. The evaluation plan turns those decisions into test cases, graders, traces, and release thresholds. The design document should link to the evaluation plan rather than replace it.'
+cover: '/blog/what-should-an-ai-agent-design-document-include-what-should-an-ai-agent-design-document-include-hero.webp'
+coverAlt: 'Illustration of an AI agent design document connecting a business goal to tools, controls, evidence, and a release gate'
+draft: false
+---
+
+An agent project usually gets vague at the same moment it gets expensive. The team has a prompt, a few tools, and a convincing demo, but nobody can answer what the agent must never do or what evidence would count as success.
+
+When I taught product managers to move from writing specs to building and shipping products, the recurring failure was often an undefined “done,” not the model. An agent design document is where you make “done” concrete before code and permissions turn assumptions into behavior.
+
+## What should an AI agent design document include?
+
+Include the agent's job, users, triggers, non-goals, context, architecture, model, instructions, tools, data, state, permissions, human approvals, success measures, failure handling, owners, and release gate. Keep the document focused on decisions. Link to detailed tool schemas, state machines, prompt versions, evaluation cases, threat models, runbooks, and incident procedures.
+
+Microsoft's Agent Design Canvas reaches a similar starting point through user outcomes, system context, human responsibilities, data dependencies, organizational constraints, triggers, channels, tools, governance, and evaluation. OpenAI's practical guide adds the technical core of model, tools, and instructions. The useful design move is to connect those ingredients to an owner, evidence, and an explicit stopping rule instead of leaving them as a checklist ([Microsoft's Agent Design Canvas guidance](https://learn.microsoft.com/en-us/microsoft-copilot-studio/guidance/agent-design-canvas-overview), [OpenAI's practical guide to building agents](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/)).
+
+![Illustration of an AI agent design document laid out as connected decisions, evidence, owners, and stop conditions](/blog/what-should-an-ai-agent-design-document-include-what-should-an-ai-agent-design-document-include-document-map.webp)
+
+Here is the rule I use for the document:
+
+> A section is not complete until it names the decision it supports, the owner who can answer for it, the evidence that will verify it, and the condition that stops or escalates the work.
+
+That is this page's sourceable contribution. It is a design rule, not a measured reliability claim. It prevents a common failure mode: a document can contain every fashionable heading and still leave the team unable to decide whether the agent is ready.
+
+| Design area | Decision the document must make | Evidence to link | Stop or escalation condition |
+| --- | --- | --- | --- |
+| Job and scope | What work does the agent own, and what is outside it? | Workflow map and representative cases | No owner, no measurable outcome, or a simpler system is sufficient |
+| Users and context | Who triggers the run, with what information and limits? | Input examples, data inventory, user roles | Required context is unavailable, restricted, or too ambiguous |
+| Architecture | Is this deterministic software, an LLM workflow, one agent, or several? | Decision record and control-flow diagram | Complexity adds no measured value or cannot be tested |
+| Behavior | Which model, instructions, tools, data, state, and exit rules shape the run? | Versioned prompt, tool contracts, state definition, traces | A required action or stop rule has no enforcement path |
+| Risk and control | What may the system read, write, decide, and escalate? | Permission matrix, threat model, approval record | Impact is unacceptable or no human can intervene in time |
+| Evaluation | What does success mean, and which failures block release? | Cases, graders, trials, expected outcomes, baseline | Critical failure lacks a test or owner |
+| Operations | Who monitors, changes, pauses, and retires it? | Runbook, alerts, incident and change records | No accountable operator or recovery path |
+| Release decision | What is still unknown, and what happens next? | Open-decision log and signed review | Unresolved decision affects safety, outcome, or ownership |
+
+The rest of the document should explain these rows. It does not need to repeat every implementation detail that another artifact already owns.
+
+## When do you need a formal AI agent design document?
+
+Write one before the first production-bound build when the agent takes actions, sees sensitive data, involves several teams, needs human approval, or is expected to scale or be reused. For a short-lived, read-only experiment with no restricted data and no consequential action, a brief experiment note may be enough.
+
+Microsoft makes this same distinction in its guidance. Structured design becomes more valuable when an agent acts, uses sensitive or enterprise data, involves multiple stakeholders, or must scale, evolve, or be reused. Microsoft also describes a balanced path: prototype quickly, then pause and design before operationalizing the system ([Microsoft's guidance on when to use a structured design framework](https://learn.microsoft.com/en-us/microsoft-copilot-studio/guidance/agent-design-canvas-overview)).
+
+The exception matters. A formal document is not a ritual that every toy experiment must perform. If the system only answers a small, static set of questions and cannot change an external system, you can learn first and document the design when the experiment earns a larger scope.
+
+Use the [decision framework for when to use an AI agent](/blog/when-to-use-an-ai-agent) if you have not decided whether dynamic agent behavior is warranted. The design document should record that decision and the simpler alternatives you rejected.
+
+## What job, boundary, and outcome should the document define?
+
+Start with one workflow and one owner. State the user problem, the trigger, the desired change in the real system, the non-goals, and the conditions that return control to a person.
+
+Do not write “the agent helps with support.” Write something a reviewer can observe:
+
+> When a support lead submits an unresolved billing case, the agent gathers the approved account facts, checks the applicable policy, drafts a recommendation with evidence, and routes the case to a named reviewer. It does not issue a refund, change account data, or contact the customer.
+
+That sentence has a trigger, a job, a result, a source boundary, a reviewer, and forbidden actions. It is already more useful than a persona paragraph.
+
+OpenAI recommends agents for workflows involving complex decisions, brittle rules, or heavy use of unstructured data, while noting that a deterministic solution may be enough otherwise. Anthropic similarly distinguishes workflows with predefined code paths from agents that dynamically direct process and tool use. Your document should therefore record the architecture decision and the non-agent alternatives, not assume that “agent” is the answer ([OpenAI's agent design foundations](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/), [Anthropic's distinction between workflows and agents](https://www.anthropic.com/engineering/building-effective-agents)).
+
+At minimum, answer these questions:
+
+| Question | Good design-document answer |
+| --- | --- |
+| Who owns the outcome? | A named person or role who can accept or reject the result |
+| What starts a run? | A defined event, request, schedule, or human action |
+| What must change? | A visible result in a system, document, decision, or approved human workflow |
+| What is outside scope? | Explicit tasks, users, data, systems, and actions the agent will not handle |
+| What is the simpler baseline? | The current manual process, deterministic automation, or fixed LLM workflow |
+| What ends the run? | Success, escalation, refusal, timeout, budget exhaustion, or a defined partial result |
+
+If the outcome cannot be observed, the design is not ready for autonomy. Keep the system assistive until a person or a source-of-truth system can verify progress.
+
+## Which technical decisions belong in the design document?
+
+Describe the control loop at the level another engineer can challenge. The document should say what the model decides, what code decides, what the tools decide, and what the human decides.
+
+OpenAI describes model, tools, and instructions as the fundamental components of an agent. It also separates data tools, action tools, and orchestration tools. That is a useful minimum inventory, but the design document must add the conditions around each component ([OpenAI's agent design foundations](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/)).
+
+| Component | Document this | Link separately when it grows |
+| --- | --- | --- |
+| Model | Selected model or model class, task fit, latency and cost constraints, fallback policy | Model comparison and change record |
+| Instructions | Behavioral rules, priority, input and output contracts, examples, edge cases, version | Full prompt or routine file |
+| Tools | Purpose, inputs, outputs, permissions, side effects, failure signals, retry and idempotency behavior | Tool schema and contract tests |
+| Data | Sources, freshness, access identity, allowed fields, retention, provenance, and missing-data behavior | Data map, retrieval specification, or schema |
+| State | Run state, checkpoints, resumability, expiration, and source of truth | State machine and persistence design |
+| Control flow | Steps the system can choose, fixed transitions, branching, loops, handoffs, and exit conditions | Sequence diagram or orchestration code |
+| Output | Result format, citations or evidence, user-visible status, partial-result policy | Output schema and examples |
+
+Do not let the document imply that a prompt can enforce a permission. A prompt can describe a boundary. Code, authentication, authorization, tool wrappers, approval gates, and database constraints must enforce it. OpenAI explicitly says guardrails should be coupled with authentication, authorization, strict access controls, and standard software security measures ([OpenAI's guardrails guidance](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/)).
+
+For tools, include the edge cases that change the next decision. Anthropic's agent guidance says tools need clear documentation and testing, and its tool guidance emphasizes purpose, inputs, outputs, examples, and boundaries. A tool described only as “update customer” leaves too much to inference. State which records it may update, which fields are allowed, how the agent learns that the write succeeded, and what happens when the result is unknown ([Anthropic's agent guidance](https://www.anthropic.com/engineering/building-effective-agents)).
+
+## What safety, human control, and ownership fields are required?
+
+Document risk where the agent can cause impact, not as a generic paragraph at the end. Name the data boundary, permission boundary, approval boundary, and recovery boundary.
+
+NIST's AI Risk Management Framework uses Govern, Map, Measure, and Manage functions. Its core guidance calls for documented intended purposes, users, limitations, system requirements, human oversight, roles, risk controls, testing, monitoring, incident response, recovery, and deactivation. Those are not all fields in one form, but they are a strong test for whether the design has an operating owner ([NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/)).
+
+Include a table like this:
+
+| Control question | What to record |
+| --- | --- |
+| What may the agent read? | Systems, fields, user identity, tenant boundary, data sensitivity, and retention |
+| What may it write? | Exact actions, allowed fields, reversibility, transaction limits, and audit record |
+| What requires approval? | The action, approver, evidence shown, expiry, and what happens when approval is denied |
+| What must be refused? | Out-of-scope requests, missing authority, unsafe states, and conflicting instructions |
+| What can fail safely? | Read-only fallback, partial result, queue, pause, rollback, or human takeover |
+| Who owns the risk? | Named product, engineering, security, domain, and operational owners |
+| Who can stop it? | The person and technical mechanism that pauses, disables, or deactivates the system |
+
+My own TryUncle work makes this concrete. TryUncle is an AI agent that watches the screen and annotates it live. In a live environment, latency and human approval are product constraints, not details to add after the architecture is chosen. A design document for that kind of system must state what the user sees in time, what the agent may point at or change, and when a person can interrupt it. That is a bounded observation from `F-tryuncle`, not a performance claim.
+
+If an action is difficult to reverse, financially consequential, privacy-sensitive, or hard for a person to inspect, make approval explicit. “The agent should be careful” is not a control.
+
+![Illustration of an AI agent control boundary separating read access, proposed actions, human approval, and irreversible effects](/blog/what-should-an-ai-agent-design-document-include-what-should-an-ai-agent-design-document-include-control-boundary.webp)
+
+## How should success and failure be documented before the build?
+
+Write the acceptance conditions before choosing the model or framework. A design document should describe the result, the required actions, forbidden actions, limits, and evidence for each representative case.
+
+Anthropic's evaluation guidance defines a task through inputs and success criteria, then separates trials, graders, and the complete trace of a run. NIST likewise calls for documented test sets, metrics, tools, deployment-relevant performance, limitations, safety, security, privacy, and monitoring ([Anthropic's evaluation guidance](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents), [NIST's Measure function](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/)).
+
+Put this evaluation contract in the design document:
+
+| Case type | Expected result | Forbidden behavior | Evidence | Release decision |
+| --- | --- | --- | --- | --- |
+| Normal case | The stated workflow outcome is reached | No unapproved side effect | Final system state and trace | Pass if the outcome and constraints hold |
+| Missing context | The agent asks for the missing fact or escalates | Guessing a value that changes the decision | Input, response, and escalation record | Block if it guesses or silently proceeds |
+| Tool failure | The run pauses, retries within limits, or returns a partial result | Claiming success after an unknown write | Tool response, state, and user-visible status | Block if the result is falsely reported |
+| Out-of-scope request | The agent refuses or routes to the correct owner | Using a nearby tool to improvise | Request, decision, and tool trace | Block if the boundary is bypassed |
+| High-impact action | A named person approves with enough evidence | Taking the action before approval | Approval record and side-effect audit | Block on approval bypass |
+| Repeated trial | The behavior remains acceptable across representative variants | Treating one good demo as proof | Trial results and failure labels | Hold if instability exceeds the agreed limit |
+
+Do not collapse these cases into one quality score. A strong answer does not compensate for an unauthorized write. Put critical safety and approval failures in the release gate as vetoes.
+
+The design document can link to a fuller evaluation suite. It should still contain enough information for a reviewer to see whether the suite tests the decisions the document makes.
+
+![Illustration of an AI agent release gate checking outcomes, traces, forbidden actions, owners, and failure paths](/blog/what-should-an-ai-agent-design-document-include-what-should-an-ai-agent-design-document-include-release-gate.webp)
+
+For a complete release workflow, use the existing [AI agent evaluation release gate](/blog/how-to-evaluate-an-ai-agent). This article's job is earlier: it makes the design decisions testable before the evaluation suite is built.
+
+## How should context and data boundaries be written?
+
+State the smallest context the agent needs, where each item comes from, how fresh it must be, and what the system does when the item is missing. “The agent can access company knowledge” is not a data design. It does not tell a reviewer which records are allowed, which identity is used, or whether an old record can change the answer.
+
+The context section should answer five questions in order:
+
+1. What information is required to make the next decision?
+2. Which source is authoritative for each item?
+3. What identity and tenant boundary apply to the read?
+4. What freshness, completeness, and provenance checks apply?
+5. What happens when the information is missing, contradictory, stale, or restricted?
+
+A useful entry names a field rather than a category. For a support triage agent, “account status” is too broad. A reviewable entry might say: “Read the current billing status and the last three settled invoices from the billing system using the authenticated support user's tenant scope. Do not read payment-card details. If the billing system is unavailable, show an unavailable status and route the case to the billing queue.” The sentence identifies the source, access boundary, permitted data, fallback, and owner of the resulting decision.
+
+Use a context contract like this:
+
+| Context item | Source of truth | Allowed use | Freshness or quality rule | Missing-data behavior | Owner |
+| --- | --- | --- | --- | --- | --- |
+| Customer plan | Billing system | Decide which support policy applies | Current plan at run time | Stop policy lookup and escalate | Billing owner |
+| Previous case history | Support system | Avoid asking for facts already supplied | Most recent accessible cases | State that history is incomplete | Support operations |
+| Product policy | Approved policy repository | Ground the recommendation | Version must be active on the run date | Refuse a definitive recommendation | Policy owner |
+| User identity | Session and authorization service | Enforce tenant and role limits | Valid for the whole run | End the run if authorization expires | Security owner |
+
+The table separates a source from an instruction. A retrieval system may find text that sounds relevant, but relevance does not make the text authoritative. Record whether the agent may quote the source, summarize it, compare it, or use it to trigger an action. If a source is only background context, say so. If a source can authorize a write, name the exact authorization path instead of implying that a retrieved sentence grants permission.
+
+Also record data that the system must not collect. A boundary is clearer when it includes an exclusion: no payment-card numbers, no unrelated customer records, no private employee notes, or no copied text from a restricted workspace. The exclusion should exist in the retrieval filter or tool permission, not only in the prose of the prompt. OpenAI's guidance treats guardrails as part of a broader control system with authentication, authorization, and access controls, which is why the design document should name those enforcement points rather than call the model's instructions a security boundary ([OpenAI's guide to building agents](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/)).
+
+When the data boundary is unclear, keep the agent in a proposal mode. It can identify the missing decision, show the source it would need, and ask a person to provide or verify it. That is a useful partial result. It is safer than filling an empty field with a plausible value and leaving no trace that the value was inferred.
+
+![Illustration of an AI agent context boundary separating approved sources, restricted data, freshness checks, and missing-data escalation](/blog/what-should-an-ai-agent-design-document-include-what-should-an-ai-agent-design-document-include-context-boundary.webp)
+
+## How should tools and side effects be specified?
+
+Describe every tool as an interface with a purpose, input contract, output contract, permission, side effect, failure signal, and owner. A list of tool names is not enough. The reviewer needs to know what the agent can cause when the tool succeeds, partially succeeds, times out, or returns an ambiguous result.
+
+OpenAI separates data tools, action tools, and orchestration tools. Anthropic's agent guidance also stresses clear tool descriptions, appropriate examples, and testing. The practical consequence is simple: record the tool's role and boundary in the main design document, then link to the complete schema and contract tests ([OpenAI's practical guide](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/), [Anthropic's agent-building guidance](https://www.anthropic.com/engineering/building-effective-agents)).
+
+For each tool, document:
+
+- the human or system purpose it serves;
+- the exact input fields, formats, and validation rules;
+- the data it may read or write;
+- whether it is read-only, reversible, approval-gated, or irreversible;
+- the identity under which it runs;
+- the success response and the source of truth for confirming success;
+- timeout, retry, rate-limit, and duplicate-call behavior;
+- the error states that require a pause or escalation; and
+- the technical owner and the contract-test location.
+
+Consider a tool named `create_refund_request`. Its name suggests a side effect, but it still leaves important questions unanswered. Does it create a request or issue the refund? Which currency and amount fields are accepted? Can the same case create two requests? Does a timeout mean the request failed, or could it have been accepted before the connection dropped? Who approves it? What does the agent show to the user while the result is unknown?
+
+A design row could make the boundary explicit:
+
+| Tool | Allowed action | Required checks | Success evidence | Ambiguous or failed result | Approval |
+| --- | --- | --- | --- | --- | --- |
+| `find_invoice` | Read invoices for the current tenant and case | Case identity and user authorization | Invoice ID and returned record | Show unavailable data and escalate | None |
+| `draft_refund_request` | Prepare a proposed amount and reason | Policy version, invoice match, amount validation | Saved draft ID | Keep the case open and report that no request was submitted | Support lead before submission |
+| `submit_refund_request` | Submit one approved request | Approval ID, idempotency key, allowed amount | Billing system request status | Query the request status before retrying | Named approver |
+
+The distinction between draft and submit is valuable because it gives the system a safe intermediate state. If the first version combines them, the design document should say why a separate proposal step is unnecessary and what prevents an unauthorized submission. “The model will ask first” is not a sufficient answer. The application should reject a call without an approval token, and the billing system should enforce the user's authority independently.
+
+Document idempotency as a user-visible rule. A retry can be correct for a read, but it can duplicate a write. The design should say whether the tool accepts a stable request key, how the agent checks an existing request, and what message the operator sees when the outcome cannot be confirmed. Do not describe a timeout as a failure unless the source system proves that no side effect occurred.
+
+The same detail applies to tools that do not change a database. A screen annotation, email draft, ticket classification, or proposed code edit can still influence a consequential decision. Record who sees the output, whether it is labelled as a proposal, how long it remains valid, and what action turns it into an external effect.
+
+![Illustration of an AI agent tool contract showing inputs, permissions, side effects, idempotency, failure signals, and approval](/blog/what-should-an-ai-agent-design-document-include-what-should-an-ai-agent-design-document-include-tool-contract.webp)
+
+## How should state, retries, and handoffs be documented?
+
+Write down the states a run can occupy and the event that moves it from one state to another. A prompt describes what the model may say. A state definition describes what the system believes has happened and what it is allowed to do next.
+
+At minimum, define states for received, collecting context, ready for proposal, waiting for approval, executing, completed, paused, escalated, failed, and cancelled. Use only the states the workflow needs, but do not hide a meaningful distinction inside a free-form status message. “In progress” cannot tell an operator whether the agent is waiting for a person, retrying a tool, or holding an unconfirmed write.
+
+For each state, record:
+
+| State field | Question to answer |
+| --- | --- |
+| Entry event | What exact event creates this state? |
+| Required evidence | What must be stored before the transition is accepted? |
+| Allowed next actions | Which model, code, tool, or human actions are permitted? |
+| Timeout | How long can the run remain here, and who is notified? |
+| Exit condition | What proves the transition is safe? |
+| Recovery | Where does the run go after a process crash or unavailable dependency? |
+| Audit record | Which actor, version, and timestamp are saved? |
+
+Suppose a run has drafted a high-impact action and is waiting for approval. Its state should include the exact proposal, evidence shown to the approver, the policy version, the approver identity, an expiry time, and the action the system takes when approval is denied. If the proposal changes after approval, the approval should no longer apply. That is a state rule, not a writing preference.
+
+Retries deserve their own subsection because they cross the boundary between reliability and side effects. For each retryable operation, state the maximum attempts, delay policy, conditions that make a retry safe, and the event that ends retries. A read may retry after a transient network failure. A write should usually retry only with a stable idempotency key or after the source system confirms that the original operation did not happen. A model response should not be retried indefinitely when the same missing context will produce the same uncertainty.
+
+Handoffs must name the receiving role and the package it receives. “Escalate to a human” is incomplete. Specify whether the human receives the original request, retrieved evidence, failed tool response, proposed next action, and reason for escalation. Tell the operator whether they can edit the proposal, resume the run, reject it, or start a new run. Without that package, the handoff turns into a second manual investigation and the team cannot tell whether the agent saved time.
+
+Anthropic describes the need for environmental feedback and stopping conditions in agent loops. A state table turns that guidance into something an engineer can implement and an operator can inspect. It also creates a place to record partial results, which are often more honest than a binary success or failure label ([Anthropic's guidance on effective agents](https://www.anthropic.com/engineering/building-effective-agents)).
+
+For long-running or resumable work, add expiration and ownership transfer. State should not remain actionable forever because a policy, permission, or source record may change. Define when a draft expires, whether an operator can resume it, and which checks run again before a resumed action. If a worker process restarts, the system should recover from the last durable checkpoint rather than infer progress from conversation text.
+
+## How should model changes and prompt changes appear in the document?
+
+Treat the model and instructions as versioned dependencies, not permanent facts. The design document should state the task requirements that a model change must continue to satisfy, the cases that must be rerun, and the person who can approve a change.
+
+Record the model class or selected model, context limits that matter to the workflow, latency and cost constraints, fallback behavior, and the date of the last review. Avoid writing a model name without a reason. The important decision is not “use model X.” It is “this model or model class must extract the required fields, produce the output contract, respect the refusal cases, and stay within the workflow's response-time and cost limits.” A future model can be substituted only when the same acceptance conditions still hold.
+
+The instruction section should link to the versioned prompt or routine, but the main document should summarize its authority rules. State which instruction has priority when the user request conflicts with a policy, retrieved text, or tool response. Include representative examples of valid input, ambiguous input, adversarial input, and input that must be refused. Keep secrets, credentials, and hidden operational details out of prompts when the application can enforce the boundary elsewhere.
+
+A change table helps reviewers see what must happen before approval:
+
+| Change | Recheck | Required approver | Possible hold condition |
+| --- | --- | --- | --- |
+| Model version | Representative cases, refusal cases, latency, output contract | Technical owner and workflow owner | Any critical case regresses or response timing breaks the human handoff |
+| System instruction | Authority conflicts, tool selection, missing-context behavior | Workflow owner | New instruction changes scope or creates an untested action path |
+| Tool schema | Input validation, permissions, side effects, retry behavior | Tool owner and security owner when access changes | A previous call can now write more or return less evidence |
+| Retrieval source | Provenance, freshness, access boundary, contradictory records | Data owner | The source is not authoritative or the access scope is unclear |
+| Approval policy | Approval identity, expiry, audit, denial behavior | Risk or domain owner | A consequential action can proceed without a named approver |
+
+A change can be technically small and operationally large. Adding one writable field to a tool may deserve a new threat review even when the prompt does not change. Replacing a source may alter the meaning of a previously passing evaluation case. The design document should therefore define review triggers, not just a calendar date.
+
+## Which design-document failures should block the build?
+
+Block the build when the document creates the appearance of control without a way to enforce or observe it. The most dangerous gaps are not missing headings. They are unresolved decisions hidden behind broad language.
+
+| Failure in the document | Why it matters | Repair before implementation |
+| --- | --- | --- |
+| “The agent helps the team” | No owner, trigger, or observable outcome | Name one workflow, one owner, one trigger, and one result |
+| “Use company knowledge” | Source authority, access, and freshness are unknown | Inventory sources and define the missing-data response |
+| “The model must be safe” | A prompt cannot enforce every permission or side effect | Add application controls, authorization, approval, and refusal cases |
+| “The agent can update records” | The write scope and duplicate behavior are unclear | Name fields, limits, idempotency, source confirmation, and owner |
+| “A human reviews it” | The reviewer, timing, evidence, and authority are unspecified | Define the approval gate and what happens when it is denied or late |
+| “The score is above target” | One aggregate can hide a critical unauthorized action | Add case-level vetoes and trace evidence for critical failures |
+| “We will monitor it” | No signal, threshold, operator, or response exists | Name alerts, review cadence, incident path, and pause mechanism |
+| “The prompt is the specification” | The socio-technical workflow, code, and people disappear | Link prompt, tool, data, state, risk, and operations artifacts |
+| “We can add the stop button later” | The team may be unable to contain a live failure | Implement and test a technical pause or deactivation path first |
+
+One subtle failure is confusing a missing fact with a failed model. If the input does not identify the customer, policy version, requested amount, or approval authority, the correct result may be “cannot decide.” The design should say whether that result is a pause, a question, a route to a person, or a permitted partial output. Otherwise a team may tune the prompt to sound more decisive when it actually needs better context.
+
+Another failure is treating every error as a technical incident. A malformed tool call, an expired permission, a policy conflict, and a source that returns contradictory records require different responses. Label the failure classes and assign the owner for each. A useful trace lets the reviewer distinguish model uncertainty from authorization failure and system unavailability.
+
+The design can also fail by overspecifying a prototype. A short read-only experiment does not need a complete production operations manual. It does need a clear purpose, safe data boundary, experiment owner, stop rule, and statement of what would trigger a fuller design. Proportionality keeps the document useful without weakening the controls that the experiment actually needs.
+
+## What does a complete design document look like in practice?
+
+Use one bounded workflow to test whether the structure produces decisions rather than headings. Consider a hypothetical agent that reviews expense exceptions for a small operations team. It may gather the submitted receipt, compare it with the approved travel policy, identify missing information, and draft a recommendation. It may not approve its own recommendation, change a ledger, or send a final decision to an employee without a named reviewer.
+
+The job section would say:
+
+> When an employee submits an expense that falls outside the normal policy path, the agent collects the approved receipt and policy context, identifies the rule that appears relevant, drafts a reasoned recommendation, and routes the case to the expense owner. It does not approve the expense, change accounting records, or infer a missing receipt value.
+
+The scope is observable. The owner can see whether the case was classified, the relevant policy was found, the missing information was identified, and the recommendation reached the correct queue. The non-goals prevent the phrase “expense review” from quietly becoming authorization to pay.
+
+The context section would name the expense record, receipt attachment, policy version, employee role, cost center, and submission timestamp. It would identify the policy repository as the source of truth for rules, the expense system as the source for the submitted amount, and the employee's role directory as the source for approval routing. If the policy version is missing, the agent pauses. If the receipt is unreadable, it asks for a replacement. If the cost center owner is not available, it routes the case to a fallback operations role. It does not turn an unavailable source into a guessed answer.
+
+The architecture decision might choose a fixed retrieval-and-review workflow rather than an autonomous agent. The steps are known: validate the submission, retrieve the policy, compare the fields, draft the recommendation, and ask for approval. A dynamic agent could be considered later if the workflow has many legitimate branches that cannot be maintained as explicit steps. Recording the simpler option protects the team from adding autonomy merely because the project uses a language model.
+
+The behavior section would separate responsibilities:
+
+| Decision | Model may do | Code must do | Human must do |
+| --- | --- | --- | --- |
+| Find relevant policy passage | Rank and explain candidate passages | Restrict retrieval to approved policy versions | Resolve a genuine policy conflict |
+| Identify missing information | Describe which field appears absent | Check required fields and file types | Decide whether an exception is acceptable |
+| Draft recommendation | Write a traceable proposal | Enforce output schema and evidence links | Approve, reject, or request more information |
+| Route the case | Suggest the destination based on role data | Enforce routing permissions and queue rules | Take ownership when the route is ambiguous |
+| Update accounting | No authority to perform the update | Reject unsupported write calls | Complete the approved accounting action |
+
+This table is useful because it does not ask the model to be “careful” in the abstract. It gives code a validation and permission job, and it gives a person a decision that remains theirs. The final recommendation includes the relevant policy version, submitted values, missing facts, confidence expressed as an explanation rather than an invented percentage, and the exact reason for escalation.
+
+The evaluation contract would include a normal in-policy submission, an exception with complete evidence, a missing receipt, two policy versions with one inactive, an unreadable attachment, a mismatched employee role, a duplicate submission, a policy conflict, and an attempted request to approve itself. Each case gets an expected result, forbidden behavior, evidence, and release decision. A passing normal case cannot compensate for a self-approval case that the system should have blocked.
+
+Operations would define the queue owner, alert for cases waiting beyond the service window, and the technical mechanism that pauses new runs. A policy change would trigger a retrieval review and rerun of the policy cases. A change to routing permissions would trigger an access review. Retirement would occur when the expense system changes its approval workflow or the team can no longer verify the policy source. The document now describes a system that another person can challenge and operate, not only a model that produced a convincing paragraph.
+
+## How should you run the design review?
+
+Run the review as a decision exercise. Send the document to the workflow owner, implementer, and risk or operations owner before the meeting. Ask each person to mark unclear fields and predict what the system should do in a few representative cases. The meeting should resolve differences in those predictions, not reward the document for having many pages.
+
+Use this sequence:
+
+1. Read the job statement and non-goals aloud. Ask the workflow owner to name the real-world result that proves completion.
+2. Pick one normal case and trace the required context, tool calls, state transitions, evidence, and final owner.
+3. Pick one missing-context case. Confirm that the document permits a pause or question instead of a guessed value.
+4. Pick one tool failure. Confirm what the user sees, whether a retry is safe, and who receives the escalation.
+5. Pick one consequential action. Confirm the approval identity, evidence shown, expiry, audit record, and technical enforcement.
+6. Pick one out-of-scope request. Confirm that the system refuses or routes it without selecting a nearby tool as a workaround.
+7. Inspect the evaluation cases. Make sure every release veto corresponds to a risk or outcome decision in the design.
+8. Inspect operations. Name the person who can pause the system, the signal that prompts them, and the recovery path.
+9. Record unresolved decisions with an owner and due date. Decide whether each one blocks the build, permits a constrained experiment, or can wait.
+
+The reviewer should be able to answer the five implementation-readiness questions from the document alone. If they need the author to explain a basic boundary, rewrite the document while the disagreement is visible. Do not solve every disagreement by adding another paragraph. Add the missing decision, change the owner, link the evidence, or mark the condition that stops the run.
+
+Keep review notes separate from the main design when they are meeting history. The design document should retain the decision, rationale, owner, evidence, and review date. A separate decision record can retain alternatives, objections, and why an option was rejected. This keeps the design readable while preserving the reasoning needed when the workflow changes.
+
+After approval, test the document against the built system. Check that every stated permission exists in code or the source system, every required evidence field appears in the trace, every stop condition has a reachable path, and every owner knows what they are expected to do. A document is not complete because the meeting ended. It is complete when implementation and review can refer to the same decisions.
+
+![Illustration of a team reviewing an AI agent design document by tracing normal, missing-context, failed-tool, and high-impact cases](/blog/what-should-an-ai-agent-design-document-include-what-should-an-ai-agent-design-document-include-review-trace.webp)
+
+## What should be checked before the first pilot?
+
+Before a pilot, reduce the document to a short set of veto questions. These checks should be answerable with a link, a test result, or a named owner.
+
+| Pilot check | Pass condition | Veto |
+| --- | --- | --- |
+| Purpose | One workflow, one owner, one observable outcome | The job is a broad promise or has no source of truth |
+| Scope | Non-goals include prohibited users, data, and actions | The agent can expand its own authority through interpretation |
+| Context | Required sources, access identity, freshness, and missing-data behavior are named | The system guesses when context is unavailable |
+| Tools | Inputs, outputs, permissions, side effects, and duplicate behavior are tested | A write or approval path is unclear |
+| State | Pauses, retries, handoffs, expiry, and recovery are implemented | A crash or timeout can lose the true state |
+| Evaluation | Representative normal, boundary, failure, and forbidden cases exist | A critical failure has no test or release veto |
+| Human control | Approver and operator roles are named and reachable | “Human in the loop” is only a sentence in the prompt |
+| Operations | Monitoring, incidents, pause, recovery, and review triggers exist | Nobody can stop or own the system after launch |
+
+The pilot can still be small. A narrow scope, read-only tools, synthetic or sanitized inputs, and manual approval reduce the consequence of being wrong while the team learns. That does not remove the need to document the boundary. It makes the boundary easier to test.
+
+If a veto fails, the right next step may be to narrow the workflow rather than abandon the idea. Change “resolve customer cases” to “draft a response for one policy category.” Change “update project records” to “propose fields for a human to review.” Change “monitor every screen” to “annotate one approved application in a test environment.” Scope is a design control.
+
+The document should name the event that ends the pilot and the decision that follows: expand, adapt, keep constrained, or stop. A pilot that continues indefinitely becomes an unreviewed production system. A pilot that ends with a clear decision leaves behind evidence for the next design.
+
+## How should requirements, assumptions, and decisions be separated?
+
+Keep requirements, assumptions, decisions, and questions in different fields. They have different owners and different consequences when they are wrong. A requirement describes what the system must do. An assumption describes what the team currently believes. A decision records the selected path and why it was chosen. An open question identifies work that must happen before the next gate.
+
+This distinction prevents a common document failure: an assumption gets written in the same confident voice as a requirement, then the implementation treats it as settled. For example, “support agents always have a current customer ID” may be an assumption. “The run must not read account records without a verified customer ID” is a control decision. “The support form will require a customer ID by 1 September” is an owned dependency. They should not appear as three versions of the same bullet.
+
+Use a decision register like this:
+
+| Type | Example | Owner | Evidence or due date | What happens if it changes? |
+| --- | --- | --- | --- | --- |
+| Requirement | Every submitted recommendation includes its policy source | Workflow owner | Output contract and evaluation case | Hold release if the source is absent |
+| Assumption | The incoming request contains a stable case ID | Product owner | Input sample and form specification | Revisit retrieval and deduplication if false |
+| Decision | Use a read-only policy lookup before the draft step | Product and engineering | Architecture record and trace | Rerun architecture review if writes are added |
+| Open question | Which role owns an unassigned cost center? | Operations owner | Answer before pilot gate | Route all such cases to a manual queue |
+| Constraint | The reviewer must see the proposal within the existing work queue | Operations owner | Queue design and timing check | Narrow the workflow if the handoff is too slow |
+
+Write the decision in a form that another person can test. “Use retrieval” is a solution label. “Retrieve only active policy versions from the approved repository, show the passage used, and pause when no active policy matches” is a decision with a boundary and an acceptance condition.
+
+Record rejected alternatives too, but keep the reason short and concrete. If the team chose a fixed workflow over a dynamic agent, say which branches are known, what maintenance cost is accepted, and what signal would justify reconsidering the choice. If the team chose a human approval step, state what risk or uncertainty it addresses. A rejected alternative makes the selected architecture easier to challenge when the facts change.
+
+Do not turn every preference into a gate. “The response should sound friendly” may matter to the user experience, but it is not the same kind of control as “the response must include a source and may not promise an outcome the policy does not authorize.” Give each requirement a verification method so reviewers can tell style feedback from release risk.
+
+The register also gives the document a way to handle uncertainty without hiding it. If an unresolved question affects authority, sensitive data, a consequential action, or the ability to stop the system, it blocks the relevant gate. If it affects only a later interface choice, it can remain open with an owner and review date. The rule is not “resolve everything before writing code.” The rule is “do not let an unresolved decision silently choose the behavior.”
+
+## How should linked artifacts stay consistent with the design document?
+
+Make the design document an index of decisions, not a duplicate of every artifact. Link each detailed artifact by name, owner, version or date, and change trigger. A link without ownership is a dead end. An owner without a version makes it hard to know what the document reviewed.
+
+Use an artifact register with enough detail to find the source of truth:
+
+| Artifact | Source of truth | Owner | Version or date | Main document must be reviewed when |
+| --- | --- | --- | --- | --- |
+| Tool schema | Repository path or service contract | Tool owner | Release version | Inputs, outputs, permissions, or side effects change |
+| State machine | State definition and persistence design | Engineering owner | Commit or review date | A state, transition, retry, or recovery path changes |
+| Prompt or routine | Versioned prompt file | Model behavior owner | Prompt version | Authority, scope, examples, or refusal behavior changes |
+| Evaluation suite | Cases, graders, and trace policy | Evaluation owner | Suite version | A case, grader, threshold, or veto changes |
+| Access policy | Identity and authorization rules | Security owner | Policy version | A role, tenant boundary, field, or write permission changes |
+| Runbook | Operator instructions and incident path | Operations owner | Review date | Alerts, pause mechanism, escalation, or recovery changes |
+
+The main document should summarize what each artifact decides. The tool schema owns the exact JSON fields, but the design document still states the tool's purpose, permission, side effects, and approval boundary. The state machine owns every transition, but the design document still says whether a run can pause, expire, resume, or be cancelled. The evaluation suite owns the full case set, but the design document still names the release vetoes.
+
+Add a change-trigger sentence to every link: “Review this document when the tool gains a write field,” or “Review this document when the policy repository changes its versioning rule.” This is more useful than a generic promise to keep documents in sync because it tells the next maintainer when the connection matters.
+
+During implementation, check the links in both directions. Starting from the design document, every important decision should lead to an artifact or a named owner. Starting from the tool, prompt, state, and runbook artifacts, each consequential behavior should lead back to the design decision that authorized it. A new side effect with no design entry is a change that bypassed review.
+
+Keep the document readable when an artifact is unavailable. Include the decision, boundary, owner, and stop condition in the main text. Do not rely on a private repository or a dashboard to explain why the system may act. The link provides depth. It should not be the only place where the authority decision exists.
+
+![Illustration of an AI agent design document linking decisions to versioned tool, state, evaluation, access, and operations artifacts](/blog/what-should-an-ai-agent-design-document-include-what-should-an-ai-agent-design-document-include-artifact-register.webp)
+
+## How should limits and residual risk be expressed?
+
+End the risk section with what remains uncertain after the controls are applied. A list of safeguards can create false confidence if the document never says which failures are still possible or who accepts them.
+
+Describe limits in the same concrete language as the job. The agent may misclassify an unusual request, fail to retrieve a current policy, misunderstand an ambiguous instruction, receive an incomplete tool result, or encounter a permission change during a run. For each limit, say whether the system detects it, what it does next, and which person decides whether the workflow can continue.
+
+Use a residual-risk table:
+
+| Remaining risk | Detection or signal | Immediate control | Accountable owner | Accepted for pilot? |
+| --- | --- | --- | --- | --- |
+| Policy text is contradictory | Two active sources produce different rules | Pause and route to policy owner | Policy owner | Only in read-only recommendation mode |
+| Tool result is unknown after timeout | No confirmation from source system | Do not retry a non-idempotent write; check status | Engineering owner | No for automatic submission |
+| User request is outside the supported category | Classifier or rule detects an out-of-scope request | Refuse and route to the named queue | Workflow owner | Yes if routing is tested |
+| Approval expires before execution | Expiry check at the action boundary | Require a new approval | Operations owner | Yes if no action can bypass the check |
+| Operator cannot respond in time | Queue age or alert threshold | Pause new consequential runs | Operations owner | No for time-sensitive actions |
+
+“Accepted for pilot” should not mean “the risk is harmless.” It means the team has chosen a bounded mode, a named owner, and a reason the remaining risk is tolerable for that stage. A read-only recommendation may be acceptable while an automatic write is not. A sandbox may be acceptable while production data is not. A manual review may be acceptable while an unattended queue is not.
+
+NIST's AI Risk Management Framework connects intended use and limitations with human oversight, roles, measurement, monitoring, incident response, recovery, and deactivation. The design document can stay smaller than a full governance file, but it should preserve those decisions where they affect the workflow ([NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/)).
+
+State what evidence would change the risk decision. It might be a recurring failure class, a new tool permission, a policy change, an operator response time that is too slow, or an evaluation case that exposes a forbidden action. A risk statement without a review trigger becomes background prose. A risk statement with a trigger can guide the next iteration.
+
+This is also where the document should say what it does not establish. A passing evaluation suite does not prove that every future input is safe. A human approval step does not help if the approver cannot inspect the evidence. A source citation does not prove that the source is current. An agent that completes a task does not prove that the task was worth automating. Limits are part of the design, not an apology after it.
+
+## What evidence should a run leave behind?
+
+Define the minimum trace before implementation. A trace should let a reviewer reconstruct the important decision without saving every internal token or exposing sensitive data. The design document should say which events are recorded, which fields are redacted, how long records are kept, and who may inspect them.
+
+For a document-review agent, a useful trace may include the run ID, input category, source versions, retrieved evidence identifiers, model and instruction versions, tool calls, validation results, state transitions, approval record, final outcome, and escalation reason. It does not need to store an unrestricted copy of every private source if a permitted reviewer can retrieve the relevant record through an access-controlled reference.
+
+Match the trace fields to the decisions in the document:
+
+| Design decision | Trace evidence | Review question |
+| --- | --- | --- |
+| Use the current policy | Policy ID and version used | Did the run rely on an active source? |
+| Do not act without approval | Approval ID, approver, proposal hash, and time | Was the approved proposal the one executed? |
+| Stop when context is missing | Missing field and resulting state | Did the system pause instead of guessing? |
+| Retry only safe operations | Attempt number and idempotency key | Could a retry duplicate a side effect? |
+| Route to the correct owner | Routing input and selected queue | Can the operator explain the handoff? |
+| Support release vetoes | Case label, expected outcome, observed outcome | Did the critical case pass for the right reason? |
+
+The proposal hash or equivalent version link matters when a human approval is involved. Without it, the audit record may show that somebody approved something, but not whether the system later executed the same content after a model or context change. The trace should make that relationship inspectable.
+
+Do not record more data simply because storage is available. Identify the purpose of each field, the retention period, the access role, and the deletion or redaction rule. A trace that copies an entire sensitive conversation may create a new risk while trying to explain the old one. The data boundary in the design document must apply to observability too.
+
+Use a failure trace during the design review. Simulate a missing source, an expired approval, a timed-out write, and an out-of-scope request. Ask the reviewer to identify the exact event that proves the system paused or refused. If the answer is only a final status label, the design needs more evidence. A status such as “failed” does not say whether a side effect occurred or whether a person still needs to act.
+
+The trace is also a teaching artifact. When a team reviews an unexpected result, it can compare the requested job, available context, model choice, tool response, human decision, and final state. That keeps the review focused on the system's boundary instead of blaming the model for every failure. Anthropic's evaluation guidance describes complete trajectories as part of understanding agent behavior, while NIST calls for measurement, monitoring, and records that support risk management. The design document should connect those records to the decisions it makes ([Anthropic's agent evaluation guidance](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents), [NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/)).
+
+## What should the user see while the agent is working?
+
+Document the user-visible states, not just the internal control flow. People need to know whether the agent is collecting context, proposing an action, waiting for approval, retrying a safe read, or paused because the outcome is unknown. A spinner hides the very distinction the design is supposed to make visible.
+
+For each state that the user can encounter, write the message, available action, evidence link, and owner. “Waiting for approval” should identify what is being approved and who may approve it. “Action status unknown” should tell the operator not to submit a duplicate and provide the request identifier or status-check path. “Missing context” should name the missing item and explain how to supply or verify it.
+
+| User-visible state | Message should explain | User action | System boundary |
+| --- | --- | --- | --- |
+| Gathering context | Which sources are being checked and what is still unavailable | Wait or cancel | No external write is allowed |
+| Proposal ready | What the agent recommends and which evidence supports it | Approve, edit, reject, or escalate | Proposal is not an executed action |
+| Approval required | Which action needs a named decision and when approval expires | Approve or decline | No action before valid approval |
+| Action in progress | Which system is receiving the request and what confirmation is expected | Wait or open status | Retry follows the tool contract |
+| Outcome unknown | Why confirmation is missing and how to check status | Inspect, escalate, or cancel if safe | No duplicate submission |
+| Paused or escalated | Why the agent stopped and who owns the next decision | Provide context or take over | The run cannot silently continue |
+
+This is especially important for live systems. Marius's TryUncle work involves an AI agent that watches the screen and annotates it live. The relevant design lesson is bounded: latency and human approval are part of the product behavior when the user must see and interrupt an action in time. They should appear as visible timing and control requirements, not as notes added after the model is chosen.
+
+The exception is a background read-only task whose user does not watch a live run. Even then, the system needs a durable result, a failure state, and a way to find the owner. Removing a live progress display does not remove the need for an honest state model.
+
+## What should remain outside the main design document?
+
+Keep detailed, frequently changing artifacts separate, but make the links and ownership visible. One giant document becomes stale. A one-page brief becomes vague. The useful middle is a decision record with maintained source artifacts.
+
+| Keep summarized in the design document | Keep as a linked artifact |
+| --- | --- |
+| Why the workflow needs this system | Full requirements and user research |
+| The chosen architecture and rejected alternatives | Architecture diagrams and code |
+| Tool purpose, permission, side effects, and owner | Complete schemas, examples, contract tests, and implementation |
+| State and exit rules | State machine definition and persistence code |
+| Evaluation objectives and release vetoes | Test cases, graders, trial data, and reports |
+| Risk posture and approval rules | Threat model, access policy, and audit configuration |
+| Operational owner and review cadence | Runbook, dashboards, alerts, incident playbooks, and change log |
+| Open decisions and their due dates | Decision records and meeting notes |
+
+The design document is the index of decisions. It is not the only source of truth for every detail. Every linked artifact needs an owner, a version or date, and a statement of what change requires the main design document to be reviewed again.
+
+This distinction also prevents a prompt from becoming the accidental product specification. The prompt describes behavior for the model. The design document describes the whole socio-technical system: people, data, code, controls, evidence, and consequences.
+
+## A copyable AI agent design-document skeleton
+
+Use this as a starting structure. Replace the bracketed prompts with decisions, links, and owners. Do not leave a field unresolved when it affects safety, outcome, or authority.
+
+```md
+Agent name: [Agent name] design document
+
+Status: [draft | review | approved | retired]
+Owner: [named person]
+Last reviewed: [date]
+Next review: [date or trigger]
+
+## 1. Job and scope
+- User problem:
+- Trigger:
+- Intended outcome:
+- Non-goals:
+- Simpler alternative considered:
+- Decision owner:
+- Evidence:
+- Stop or escalation condition:
+
+## 2. Users and context
+- Users and roles:
+- Required inputs:
+- Allowed data sources:
+- Missing or stale context behavior:
+- Assumptions and limitations:
+- Decision owner:
+- Evidence:
+- Stop or escalation condition:
+
+## 3. Architecture
+- Chosen pattern: [deterministic | LLM workflow | single agent | multi-agent]
+- Why this pattern:
+- Rejected alternatives:
+- Control flow and exit conditions:
+- Decision owner:
+- Evidence:
+- Stop or escalation condition:
+
+## 4. Behavior and interfaces
+- Model and version policy:
+- Instruction strategy and versioned prompt link:
+- Tools and permissions:
+- Data and retrieval:
+- State and source of truth:
+- Output contract:
+- Decision owner:
+- Evidence:
+- Stop or escalation condition:
+
+## 5. Risk and human control
+- Read boundary:
+- Write boundary:
+- Approval gates:
+- Refusal and escalation rules:
+- Failure, rollback, and deactivation path:
+- Decision owner:
+- Evidence:
+- Stop or escalation condition:
+
+## 6. Evaluation and release
+- Representative cases:
+- Expected outcomes:
+- Forbidden actions:
+- Graders and trace requirements:
+- Baseline:
+- Release vetoes:
+- Decision owner:
+- Evidence:
+- Stop or escalation condition:
+
+## 7. Operations and change
+- Operator:
+- Monitoring and alerts:
+- Incident response:
+- Change approval:
+- Review cadence:
+- Retirement condition:
+- Decision owner:
+- Evidence:
+- Stop or escalation condition:
+
+## 8. Open decisions
+- Decision:
+- Owner:
+- Due date or trigger:
+- Consequence of waiting:
+```
+
+The repeated fields are deliberate. They make the document reviewable. If a team cannot name the evidence or stop condition for a section, that is a design gap, not a formatting problem.
+
+## What makes the document ready for implementation?
+
+The document is ready when a second person can answer five questions without asking the author to translate it:
+
+1. What job does the agent own, and what does it refuse?
+2. What evidence proves that the job was completed?
+3. Which decisions are model-driven, code-driven, and human-driven?
+4. What happens when context is missing, a tool fails, or an action is risky?
+5. Who can approve, operate, change, and stop the system?
+
+Run a design review with the workflow owner, implementer, and the person responsible for risk or operations when those roles apply. Read a few representative cases aloud. Ask each reviewer to predict the agent's next action and the expected end state. Differences reveal missing decisions faster than another architecture diagram.
+
+I would hold the build if the outcome has no source of truth, the owner is a department instead of a person, a tool's side effect is unclear, a critical failure has no test, or the system has no technical stop path. Those are not gaps a better model fixes.
+
+The document is a starting boundary, not a promise of production reliability. Revisit it when the model changes, a tool gains a permission, the workflow expands, a failure reveals a new risk, or evaluation changes the release decision. The goal is not paperwork. The goal is making the next decision visible before the agent makes it for you.
+
+If you want help turning a real workflow into a design document your team can implement and test, [learn how Marius Manolachi helps people build AI products on their own work](/learn-ai).
