@@ -1,0 +1,964 @@
+---
+title: 'How to Roll Out a New AI Model in Production'
+date: '2026-08-20'
+updated: '2026-08-20'
+excerpt: 'Roll out a new AI model safely with a frozen baseline, shadow or canary traffic, explicit stop conditions, and a rehearsed rollback path.'
+answer: 'Roll out a new AI model by keeping the current model as a baseline, checking the candidate against the application contract and representative tasks, deploying it beside the baseline, and using shadow traffic or a small canary before expanding exposure. Define quality, safety, latency, cost, and rollback conditions in advance. The main exception is shadow-only traffic, which can run without returning candidate outputs to users.'
+targetQuery: 'how to roll out a new AI model in production'
+queryAliases:
+  - 'how to deploy a new AI model in production'
+  - 'safe AI model rollout'
+  - 'AI model canary release'
+  - 'how to switch models in production'
+intent: 'implementation'
+funnel: 'consideration'
+cluster: 'AI production rollout'
+kind: 'satellite'
+sourceableAtom: 'Marius Manolachi’s rollout rule is to increase production traffic only after one release record shows that a candidate preserves the application contract, meets behavior requirements, fits the operating envelope, and can be reversed to the last approved model; shadow traffic is the exception when candidate responses are not returned to users.'
+tags:
+  - 'AI models'
+  - 'Production AI'
+  - 'MLOps'
+  - 'AI reliability'
+  - 'Model deployment'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-18'
+sources:
+  - 'https://docs.aws.amazon.com/sagemaker/latest/dg/shadow-tests.html'
+  - 'https://learn.microsoft.com/en-us/azure/machine-learning/how-to-safely-rollout-online-endpoints?view=azureml-api-2'
+  - 'https://docs.cloud.google.com/architecture/mlops-continuous-delivery-and-automation-pipelines-in-machine-learning?hl=en'
+  - 'https://developers.openai.com/api/reference/overview#backwards-compatibility'
+  - 'https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.800-4.pdf'
+  - 'https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.600-1.pdf'
+faq:
+  - q: 'Should I test a new AI model in shadow mode first?'
+    a: 'Yes, when your serving path can copy requests without returning the candidate response and when operational signals can be compared fairly. Shadow mode is not enough for user-perceived quality, business outcomes, or state-changing actions, so follow it with a bounded canary when those signals matter.'
+  - q: 'How much traffic should a new AI model receive first?'
+    a: 'There is no universal percentage. Start with the smallest slice that can produce the signal you need while keeping the blast radius acceptable, then predeclare the next step and stop conditions. A candidate with irreversible actions may need approval-gated exposure rather than an ordinary percentage canary.'
+  - q: 'What should I do if the new model is better but slower?'
+    a: 'Keep it at the current exposure until the product owner accepts the latency trade-off or you change the design. A quality improvement does not cancel a violated response-time or capacity requirement.'
+cover: '/blog/how-to-roll-out-a-new-ai-model-in-production-hero.webp'
+coverAlt: 'Illustration of a new AI model moving through shadow traffic, canary traffic, and a rollback gate'
+draft: false
+---
+
+The dangerous moment in a model upgrade is not the first successful API call. It is the moment a team decides that the new model is good enough for more traffic.
+
+That decision is easy to make badly. A candidate can score higher on a test set and still break your output parser, add seconds to a user interaction, use a tool differently, expose a new failure mode, or cost more than the workflow can carry.
+
+I have seen the same confusion in teaching. People treat a working demo as if it were a release gate. When I taught product managers who moved from writing specifications to building and shipping products, the missing piece was often a concrete definition of done, not a more impressive model. A rollout needs the same discipline.
+
+## The rollout result: traffic is earned, not granted
+
+The safest default is a staged rollout. Keep the incumbent model available, validate the candidate offline, deploy it beside the incumbent, shadow it when possible, expose a bounded slice of real traffic, and increase exposure only when prewritten conditions pass.
+
+Marius Manolachi’s rollout rule is this:
+
+> Increase a candidate model’s production traffic only after one release record shows that it preserves the application contract, meets behavior requirements, fits the operating envelope, and can be reversed to the last approved model. Shadow traffic is the exception when candidate responses are not returned to users.
+
+This rule is my synthesis for a model change inside an existing AI system. It is not a vendor standard, a benchmark, or a claim that every team needs the same thresholds. Its purpose is to make the promotion decision inspectable. The person approving the next traffic step should be able to point to the same record and answer four questions:
+
+| Gate | Question before more user traffic | Typical evidence | Veto example |
+| --- | --- | --- | --- |
+| Contract | Does the candidate still fit the application and tool interface? | Schema checks, parser tests, tool-call assertions, versioned request and response examples | The model omits a required field or changes a tool argument shape |
+| Behavior | Does it perform the job acceptably on representative and risky cases? | Task results, policy checks, human review, comparison to the incumbent | It sounds better but invents unsupported answers on a critical case |
+| Operations | Does it fit the live time, error, capacity, cost, and data envelope? | Latency, error rate, queue depth, token or compute use, timeout and privacy checks | It meets quality only by exceeding the workflow’s latency or budget limit |
+| Reversal | Can you return to the last approved state quickly and safely? | Tested routing switch, old deployment, rollback owner, retained release metadata | The old model was deleted or the routing change cannot be made without a new build |
+
+The four gates are deliberately separate. A higher answer-quality score cannot pay for a broken parser. Low latency cannot excuse an unauthorized action. A clean canary cannot save a team that has no way back.
+
+Amazon SageMaker’s shadow-testing documentation describes a closely related operational pattern: a copy of live inference requests can be sent to a shadow variant while only the production variant’s response is returned to the calling application. AWS presents this as a way to evaluate a new model or serving change for signals such as latency and error rate before promotion ([Amazon SageMaker shadow tests](https://docs.aws.amazon.com/sagemaker/latest/dg/shadow-tests.html)). Google Cloud’s MLOps guidance likewise separates offline validation from online validation, recommending canary or A/B testing before a newly deployed model serves online traffic ([Google Cloud MLOps](https://docs.cloud.google.com/architecture/mlops-continuous-delivery-and-automation-pipelines-in-machine-learning?hl=en)).
+
+The useful addition is the decision record. The mechanisms are available in many platforms. The release decision still needs an owner, evidence, limits, and a reversal path.
+
+![Illustration of four independent release gates labeled contract, behavior, operations, and reversal](/blog/how-to-roll-out-a-new-ai-model-in-production-inline-1.webp)
+
+## What exactly are you changing?
+
+Before comparing models, define the change boundary. “We are switching the model” can describe several different releases:
+
+- changing from one hosted model identifier to another;
+- moving from a rolling alias to a pinned snapshot;
+- changing a provider or serving endpoint;
+- replacing a fine-tuned checkpoint;
+- changing the model and its system instructions together;
+- changing the model, tools, retrieval configuration, and output schema together;
+- moving from a text-only model to a multimodal model;
+- changing the model used by a workflow that can write to external systems.
+
+These are not equivalent. A model-only change can still alter the surrounding system because model behavior is part of the interface. A provider change may alter tokenization, rate limits, safety filters, streaming behavior, error shapes, and data handling. A model plus prompt change makes attribution harder because an improvement or regression can belong to either component.
+
+Write the release as a tuple:
+
+```text
+application version
+model identifier and version
+prompt or instruction version
+tool and schema version
+retrieval and memory version
+serving configuration
+traffic policy
+evaluation-set version
+```
+
+If any element changes during the comparison, record it as part of the candidate. Do not call the test a model comparison when it is actually a system comparison.
+
+This is where pinned versions matter. OpenAI’s API reference says prompting behavior can change between model snapshots and recommends pinned model versions plus evals when consistent behavior matters ([OpenAI API backward compatibility](https://developers.openai.com/api/reference/overview#backwards-compatibility)). That advice is not limited to OpenAI. The general lesson is that a friendly alias is convenient for experimentation but weak as a production audit identifier. Your release record should preserve the exact identifier the application used, the date it was tested, and the configuration that surrounded it.
+
+The exception is a deliberately managed floating alias. Some teams choose it to receive provider improvements automatically. That can be reasonable for low-risk, read-only assistance when the team accepts behavior movement and has continuous checks. It is a poor default for a workflow where output shape, cost, or action authority must remain stable. If you use an alias, turn the provider’s change notification into a release event, even if the code does not change.
+
+### The compatibility inventory
+
+Before deployment, make a small inventory of what can observe or depend on model behavior:
+
+| Surface | What to inspect | Why the model swap can affect it |
+| --- | --- | --- |
+| Input | Required fields, maximum size, file or image types, locale, redaction | The candidate may interpret edge inputs differently or reject them |
+| Output | JSON schema, enum values, citations, formatting, refusal behavior | A parser may fail even when the prose looks correct |
+| Tool use | Tool names, arguments, ordering, confirmation requirements | The candidate may choose a different action or omit a required check |
+| Retrieval | Query generation, filters, grounding requirements, source ranking | Different reasoning can change what is retrieved and trusted |
+| Memory | What is written, recalled, summarized, or deleted | A new model may store different facts or compress context differently |
+| Timing | Time to first token, full response, tool timeout, queue timeout | The feature may become unusable before it becomes inaccurate |
+| Cost | Input, output, cached, batch, image, tool, and retry costs | A model with better quality can still violate unit economics |
+| Safety | Refusal behavior, sensitive data handling, approval path, policy tests | The candidate may respond differently to adversarial or ambiguous input |
+| Human work | Review queue, correction rate, escalation, explanation burden | “Automation” can move work to people instead of removing it |
+
+The inventory becomes your contract gate. It also tells you which changes cannot be tested in shadow mode. A response parser can be checked with shadow outputs. A user-visible latency change cannot be fully understood if the candidate does not compete for the real response path. An action that writes to a database cannot be safely replayed just because the model is in a test variant.
+
+## Freeze the incumbent before you judge the candidate
+
+The incumbent is not merely “whatever is live right now.” Freeze enough of it to make the comparison meaningful.
+
+Record the incumbent model identifier, application revision, prompt version, tool definitions, retrieval configuration, serving settings, traffic policy, and current operating signals. Take a sample of representative inputs, but do not silently copy sensitive production data into an unsafe test store. If you need live-like inputs, define retention, access, redaction, and deletion first.
+
+Then write the incumbent’s current behavior in observable terms. For a customer-support assistant, that might include:
+
+- it returns a structured disposition and explanation;
+- it must cite the source record when one exists;
+- it must not change the ticket without a named approval event;
+- it must route low-confidence cases to a person;
+- it must answer within the product’s response-time budget;
+- it must leave the ticket unchanged when the identity check fails.
+
+Those are stronger than “the current model is good.” They let you detect regression even when the candidate’s prose is more polished.
+
+### Define “done” before the comparison
+
+The release owner should answer these questions before seeing candidate results:
+
+1. What outcome must remain true for the existing feature?
+2. Which behaviors may improve, and which must not change?
+3. Which failures are automatic release blockers?
+4. Which trade-offs require a product or risk decision rather than an engineering decision?
+5. Which signals must be measured in shadow mode, canary traffic, and full traffic?
+6. What is the maximum acceptable blast radius at each stage?
+7. What evidence allows the next exposure step?
+8. Who can stop the rollout at any hour it is running?
+9. What exact route returns traffic to the incumbent?
+10. How will you know the rollback worked?
+
+The last question is easy to skip. A routing command can succeed while the application continues sending some requests to the candidate because of caching, a second endpoint, a background worker, or a region that was not updated. Rollback is not complete when the switch is issued. It is complete when routing, versions, and user-visible behavior are back inside the incumbent’s known envelope.
+
+Marius Manolachi’s teaching experience is relevant here. The locked fact is that he taught product managers who moved from writing specs to building and shipping products and automating work around them. The practical lesson is not that every product manager uses the same release method. It is that the definition of done has to be concrete enough for a person to act on it. “The model looks better” is not concrete enough.
+
+## Build an evaluation set that represents the job
+
+Offline evaluation is the first filter, not the launch decision. It should answer whether the candidate is worth exposing to a live environment and which cases need special protection.
+
+Start with cases, not scores. A useful evaluation set contains:
+
+- normal tasks that represent the majority of the feature’s intended work;
+- high-value tasks where a small quality improvement matters;
+- known failures from the incumbent;
+- ambiguous inputs that should trigger clarification or escalation;
+- malformed and incomplete inputs;
+- long-context or large-file cases if the feature handles them;
+- adversarial requests and instruction conflicts;
+- tool failures, timeouts, empty retrieval, stale data, and permission denials;
+- cases where the correct behavior is to do nothing;
+- cases that test the output parser and downstream state transition.
+
+The candidate and incumbent must receive comparable inputs and comparable context. If the candidate sees a different retrieval result, record that difference. If the prompts are not identical by design, make the prompt change visible. If a human judge sees only the final prose and not the action trace, do not claim the evaluation covers tool safety.
+
+### Use the cheapest valid check first
+
+Not every result needs a person or a model grader. Match the check to the claim:
+
+| Claim you want to verify | First check | Add when needed |
+| --- | --- | --- |
+| Output parses | Deterministic schema validation | Samples of rejected outputs |
+| Required field is present | Code assertion | Human review if presence can hide nonsense |
+| Correct record changed | State comparison in a sandbox | Domain review for material decisions |
+| Tool was allowed | Trace and policy assertion | Security review for high-risk actions |
+| Answer is grounded | Citation or source check | Human sampling for source quality |
+| Explanation is clear | Rubric-based review | User feedback or domain review |
+| Latency fits | Timed request measurement | Load test with production-like concurrency |
+| Cost fits | Metered usage and retry accounting | Finance or product review for trade-offs |
+
+The candidate should not be allowed to pass an objective check by producing a plausible sentence. If the workflow changes a record, inspect the record. If it calls a tool, inspect the trace and the tool result. If it is a writing assistant, then the response itself may be the product, but you still need to check the constraints that the product promises.
+
+### Compare distributions, not only averages
+
+An average can hide the failures that matter. A model that is slightly faster on most requests but times out on long, high-value tasks may be a regression. A model with a higher mean quality score but more dangerous outliers may be unacceptable.
+
+Look at slices that match real risk:
+
+- task type;
+- customer or user segment, where permitted and appropriate;
+- language or locale;
+- input length and modality;
+- retrieved-source availability;
+- tool path;
+- approval path;
+- low-confidence or escalated cases;
+- model output length;
+- time of day or load condition when capacity varies.
+
+Do not invent a universal pass percentage. The threshold should come from the feature’s promise, consequence, baseline, and capacity. A read-only drafting assistant can tolerate a different quality and latency trade-off from a workflow that approves a payment or sends a legal notice.
+
+## Shadow traffic is observation without user exposure
+
+Use shadow traffic when you want the candidate to see realistic requests and exercise the serving path, but you are not ready to return its response to users.
+
+In a shadow arrangement, the incumbent handles the user-facing request. A copy of the request goes to the candidate. The system records the candidate’s response, latency, errors, token or compute usage, and any internal trace, but discards or quarantines the candidate’s external effect. AWS describes this arrangement as routing a copy of real-time inference requests to a shadow variant while returning only the production variant’s response ([Amazon SageMaker shadow tests](https://docs.aws.amazon.com/sagemaker/latest/dg/shadow-tests.html)). Azure’s safe-rollout guidance also describes mirroring a percentage of live traffic to a new green deployment before sending that deployment a small percentage of live traffic ([Azure Machine Learning safe rollout](https://learn.microsoft.com/en-us/azure/machine-learning/how-to-safely-rollout-online-endpoints?view=azureml-api-2)).
+
+Shadow traffic is valuable because offline cases cannot reveal every serving problem. It can expose:
+
+- request serialization and payload-size failures;
+- authentication or endpoint mistakes;
+- concurrency and queue behavior;
+- unexpected latency at realistic input sizes;
+- provider errors and timeouts;
+- output-shape changes;
+- token or compute consumption;
+- logging and redaction problems;
+- differences in tool planning, if tools are simulated or read-only;
+- responses that fail downstream parsing.
+
+It does not prove everything you need. The candidate is not competing for the user-visible response, so you cannot learn its effect on user-perceived latency, acceptance, correction, abandonment, or trust. If the candidate output would lead to a state change, a shadow invocation should not be allowed to perform that state change. Use a sandbox, a dry-run tool, a read-only mirror, or a comparison harness instead.
+
+### Make shadow comparisons fair
+
+A poor shadow test can create false confidence. Check the following:
+
+1. **Input parity.** The candidate receives the same request content and relevant context, subject to privacy controls.
+2. **Dependency parity.** The candidate uses equivalent retrieval, tool, and network conditions, or the differences are recorded.
+3. **Response isolation.** Candidate output cannot send messages, make purchases, edit records, or change permissions.
+4. **Measurement parity.** Measure the same timing boundaries and error categories for both variants.
+5. **Sampling clarity.** Record whether the candidate saw all requests or only a sample and whether the sample is biased.
+6. **Retention.** Keep enough metadata to explain a difference without retaining more sensitive content than necessary.
+7. **Decision date.** Give the shadow test an owner and an end condition. An endless shadow test is a delayed decision.
+
+When the incumbent and candidate return different answers, do not call the difference a regression automatically. First classify it:
+
+- same answer, different wording;
+- same decision, stronger or weaker grounding;
+- different decision, both plausibly acceptable;
+- different decision, one violates a hard rule;
+- candidate cannot complete the task;
+- candidate completes the task but exceeds an operating limit;
+- candidate attempts an action that the workflow forbids.
+
+The classification determines the next check. A wording difference may need a rubric. A tool difference needs a trace and policy assertion. A state-changing difference needs a sandbox result and a domain owner.
+
+![Illustration of production requests being mirrored to an isolated candidate model while the incumbent serves users](/blog/how-to-roll-out-a-new-ai-model-in-production-inline-2.webp)
+
+## Choose between shadow, canary, A/B, and blue-green rollout
+
+These patterns answer different questions. Do not select one because the name sounds safe.
+
+| Pattern | Candidate serves users? | Best question | Strength | Main limitation |
+| --- | --- | --- | --- | --- |
+| Shadow | No | Can the candidate handle realistic requests and serving conditions? | Low user blast radius; good for operations and parsing | Does not measure user-visible quality or business effect |
+| Canary | Yes, small bounded slice | Is the candidate safe and useful for a limited live audience? | Direct evidence with controlled exposure | Small samples can miss rare failures; users see the candidate |
+| A/B test | Yes, assigned groups | Which variant produces a better product outcome under a defined experiment? | Supports comparative product or behavior analysis | Needs a valid metric, assignment, duration, and ethical exposure |
+| Blue-green | Usually no, then controlled traffic | Can we switch between two complete deployments with a clean route? | Clear isolation and fast route-level reversal | Requires duplicate capacity and does not by itself define quality |
+| Full cutover | Yes, everyone | Is the candidate approved for the whole workload? | Simple steady state after approval | Highest blast radius; poor first test |
+
+The patterns can be sequenced. A common sequence is blue-green deployment with no candidate traffic, shadow traffic for serving validation, a canary for user-visible behavior, then full exposure. Google Cloud recommends canary or A/B setup for online model validation after offline validation, and Azure describes a blue-green sequence that includes isolated testing, mirrored traffic, and a small live slice ([Google Cloud MLOps](https://docs.cloud.google.com/architecture/mlops-continuous-delivery-and-automation-pipelines-in-machine-learning?hl=en), [Azure safe rollout](https://learn.microsoft.com/en-us/azure/machine-learning/how-to-safely-rollout-online-endpoints?view=azureml-api-2)).
+
+### When shadow mode is not enough
+
+Move to a canary when the decision depends on a signal shadow mode cannot produce:
+
+- whether users prefer or reject the candidate response;
+- whether people correct or rework the candidate’s output;
+- whether the candidate changes conversion, completion, or abandonment;
+- whether users perceive latency differently because the candidate is on the response path;
+- whether the candidate’s clarification questions help or frustrate users;
+- whether the candidate’s tone changes trust or escalation behavior.
+
+You can protect a canary with constraints. Return candidate responses only for read-only work. Keep a human approval step before external actions. Limit the canary to internal users or an opt-in group when that is appropriate. Make the experience clearly reversible. Do not use a canary as permission to ignore privacy, safety, or disclosure obligations.
+
+### When A/B testing is the wrong frame
+
+A/B testing is useful when you have a stable product metric and can assign traffic fairly. It is not automatically appropriate for a safety-sensitive model change. If one variant can make a materially harmful mistake, random assignment may be the wrong exposure design. It is also a poor frame when the main question is compatibility or incident risk rather than user preference.
+
+An A/B result can say that one variant produced more completed tasks. It cannot, by itself, prove that the variant respected every prohibited action. Keep hard safety checks outside the experiment’s blended metric.
+
+## Write the traffic progression before you start
+
+Traffic stages are not a magic percentage ladder. They are a sequence of decisions with bounded exposure.
+
+A useful plan looks like this:
+
+| Stage | Candidate exposure | Primary question | Evidence required to advance | Stop immediately when |
+| --- | --- | --- | --- | --- |
+| Install | 0% user traffic | Is the deployment healthy and reachable? | Health checks, version identity, permissions, capacity, logs | Deployment cannot be identified or isolated |
+| Shadow | Mirrored requests, 0% returned to users | Does it handle realistic load and produce usable output? | Error, latency, parse, cost, trace, and sampled quality comparison | Candidate creates external side effects or leaks data |
+| Canary | Small declared slice | Does it work for real users in the real product path? | Candidate outcome, user-visible latency, corrections, safety, support signals | Any hard veto or unacceptable blast-radius signal |
+| Expanded canary | Larger declared slice | Does behavior hold across more segments and load? | Segment checks, capacity, cost, incident review | Regression in a protected slice or operating breach |
+| Full traffic | 100% after approval | Can the candidate own the workload? | Sign-off, retained record, rollback ready, monitoring active | Any new hard failure or unexplained drift |
+| Stabilization | Candidate primary, incumbent retained as rollback | Is the new steady state understood? | Post-rollout review, incident links, decommission plan | Rollback evidence is missing or failures remain unexplained |
+
+The exact exposure values depend on the workflow. Do not write “start at 5%” as if it were a law. Start with the smallest slice that can produce the signal you need while keeping the blast radius acceptable. A low-volume feature may need an internal group or a longer observation window because a tiny percentage will not produce enough observations. A high-risk feature may need an approval-gated route rather than an ordinary percentage split.
+
+Declare the next step in advance, but allow the release owner to hold. A plan such as “shadow for one hour, then 1%, then 10%, then 50%” is incomplete without conditions. Add the conditions beside each step:
+
+```text
+Advance from shadow to canary when:
+- contract checks pass for every sampled candidate response;
+- no forbidden action is observed;
+- candidate error and timeout behavior is inside the approved envelope;
+- sampled human review finds no critical behavior regression;
+- the rollback route has been tested;
+- the release owner signs the next stage.
+```
+
+The word “every” matters for vetoes. You may use aggregate thresholds for quality or latency where the risk owner accepts a trade-off. You should not average away a single unauthorized action or a data-boundary violation.
+
+## Monitor the change as a comparison, not as a dashboard contest
+
+During rollout, the incumbent is your control. Compare candidate and incumbent using the same time windows, segments, and definitions where possible.
+
+NIST AI 800-4 describes post-deployment monitoring as necessary to validate real-world operation, track unforeseen outputs and drift, and identify consequences that appear when an AI system enters a changing context. Its report groups monitoring into functionality, operational, human factors, security, compliance, and large-scale impacts categories ([NIST AI 800-4](https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.800-4.pdf)). You do not need to implement every category for every low-risk feature. You do need to decide which categories apply before traffic increases.
+
+### Functionality signals
+
+Functionality asks whether the candidate still does the job.
+
+Measure the actual outcome when one exists:
+
+- record status after the run;
+- file or code change after the run;
+- accepted structured result;
+- successful completion of a workflow;
+- source-backed answer where grounding is required;
+- human approval or correction;
+- escalation when the task is out of scope.
+
+Avoid using the model’s own claim of success as the main signal. A response saying “done” is not evidence that a database row changed. If the feature is an assistant whose output is itself the product, use a rubric and sampled review, but keep the rubric tied to the promised job.
+
+Compare protected slices separately. A candidate can improve the overall score by doing better on easy cases while becoming worse on the cases that matter most.
+
+### Operational signals
+
+Operations asks whether the candidate can deliver the job inside the system’s limits.
+
+Track at least:
+
+- request count and candidate exposure;
+- error and timeout rates;
+- time to first response and full completion;
+- queue depth and concurrency;
+- retry count and fallback count;
+- input and output size;
+- token or compute use;
+- cost per request or task, if you can measure it honestly;
+- provider rate-limit and capacity errors;
+- infrastructure saturation;
+- missing, late, or malformed telemetry.
+
+Do not hide candidate failures inside a shared aggregate. Keep the model identifier on every request or trace. If a fallback returns the incumbent response, record that fact. Otherwise a healthy user-visible metric can conceal a candidate that failed repeatedly.
+
+### Human and safety signals
+
+Human factors include correction, override, abandonment, escalation, complaint, and the time a reviewer spends recovering from a bad output. Security and compliance include denied actions, sensitive-data exposure, instruction override, policy failure, and missing approval evidence.
+
+For a read-only summarizer, an operator may review samples. For an agent that changes a system, the monitoring record should include the action, authorization context, approval, and resulting state. For a feature that generates content, track reports and review patterns appropriate to the content and audience.
+
+NIST’s Generative AI Profile recommends mechanisms for monitoring, human intervention where appropriate, defined performance limits, incident response, recovery, and change management. It also recommends decommissioning or retraining models that perform outside defined limits ([NIST Generative AI Profile](https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.600-1.pdf)). That is why rollback belongs in the rollout design. It is part of the operating control, not only a disaster response.
+
+![Illustration of a rollout comparison board showing incumbent and candidate quality, latency, cost, safety, and rollback signals](/blog/how-to-roll-out-a-new-ai-model-in-production-inline-3.webp)
+
+## Treat latency and cost as product requirements
+
+A new model can be “better” in a notebook and worse in the product. Latency changes how people use a feature. Cost changes which requests you can afford to serve. Capacity changes whether a successful canary survives a busy hour.
+
+Start by writing the user-facing budget. It can be a full-response time, a time to first token, a maximum wait before a fallback, or a background completion window. State what counts as a timeout and whether the user sees a partial result.
+
+Then separate model time from total system time. A model call may be only one part of the path:
+
+```text
+queue wait
++ request validation
++ retrieval
++ model time to first token
++ tool calls
++ model follow-up turns
++ output validation
++ persistence
++ response rendering
+= user-visible time
+```
+
+A candidate can improve model time and still worsen total time because it generates longer output, calls more tools, retries more often, or creates a larger retrieval request. Measure the whole feature and keep component timings where possible.
+
+Cost needs the same treatment. Count the costs you can attribute, including retries, shadow requests, image or audio processing, retrieval infrastructure, tool calls, and human review if the rollout changes review volume. Shadow traffic may double some provider or serving costs even though users see only the incumbent response. Include that cost in the rollout decision.
+
+When a new model is slower but more accurate, there are several possible decisions:
+
+| Situation | Sensible action |
+| --- | --- |
+| The product has spare latency and capacity | Continue a bounded canary with explicit monitoring |
+| The model is better only on long-tail cases | Route those cases selectively if the contract and user experience support it |
+| The latency breach affects the core task | Hold or reject the candidate until the design changes |
+| The model is better but costs exceed the unit limit | Require a product decision, change routing, or reject the candidate |
+| The candidate is fast but quality is worse on high-risk cases | Keep the incumbent for those cases or reject the candidate |
+
+Do not turn a trade-off into an engineering victory lap. The product owner or risk owner decides whether the benefit justifies the cost and delay. The release record should show that decision.
+
+Marius is building TryUncle, an AI agent that watches the screen and annotates it live. The locked fact does not give a latency benchmark or a rollout result. It does give a useful design constraint: in a live screen experience, latency and human approval are product behavior. They are not cleanup tasks to postpone until after the model is chosen.
+
+## Protect contracts, tools, and external effects
+
+Model changes often fail at boundaries rather than in the model’s main answer. The candidate may return valid-looking content that does not satisfy the application’s contract.
+
+### Structured output
+
+Validate every candidate output against the same schema the application expects. Test missing fields, unknown enum values, malformed JSON, nulls, extra text, truncated output, refusals, and partial streams. Decide whether a validation failure triggers a retry, a fallback, a human review, or a hard stop. Do not let an automatic retry turn a schema regression into a cost or latency incident.
+
+If the candidate uses a structured-output feature provided by a model API, still validate at the application boundary. The provider’s guarantee may have a scope that does not include your prompt, tools, stream assembly, or post-processing.
+
+### Tool use
+
+A model change can alter tool selection, arguments, ordering, and confirmation behavior. For every tool the candidate can call, define:
+
+- which inputs are allowed;
+- which identity and permission checks happen outside the model;
+- which actions are read-only;
+- which actions need human approval;
+- which actions are forbidden during shadow and canary stages;
+- how the tool result is validated;
+- what state must remain unchanged after a refusal or error.
+
+Never treat a model’s internal instruction as the permission boundary. Enforce authority in the tool or service. A candidate that chooses a prohibited tool has failed the contract or safety gate even if the final response is polite.
+
+### Side effects
+
+Shadow and offline tests must isolate side effects. Replace write tools with dry-run versions, sandbox identities, or a recorder that returns a simulated result without changing the real system. Mark every tool result as simulated when it is simulated. Otherwise a later evaluator may mistake the test trace for a real operation.
+
+Canary traffic needs a side-effect policy too. If a candidate sends customer messages, edits tickets, changes payment state, or grants access, determine whether the canary is allowed to do that. If it is allowed, the blast radius must be explicit and the approval path must be real. If it is not allowed, route those tasks to the incumbent or a human until the candidate has passed the relevant gate.
+
+### Privacy and data handling
+
+A new provider, endpoint, model context window, or logging setting can change data exposure. Check what data is sent, stored, logged, retained, redacted, or available to operators. Recheck whether shadow copies create additional retention or access paths. The candidate’s response can contain sensitive data even when the input did not visibly contain it, so inspect logs and downstream stores.
+
+Do not copy production prompts and responses into a shared spreadsheet simply because it makes review easy. Use approved storage, access controls, retention rules, and redaction. The rollout should be observable without making the evidence itself a new privacy incident.
+
+## Rehearse rollback before promotion
+
+Rollback is a route, not a hope. Before the candidate receives meaningful user traffic, exercise the route in the same environment or a faithful staging environment.
+
+A rollback rehearsal should answer:
+
+1. Can a person with the right authority change routing without rebuilding the application?
+2. Does the route cover every region, worker, queue, batch job, and cached configuration?
+3. Does the incumbent deployment still exist and have enough capacity?
+4. Are the incumbent model, prompt, tools, and retrieval configuration still available as a coherent set?
+5. Will in-flight requests finish, fail safely, or retry under the new route?
+6. How will you identify requests handled by the candidate after the rollback command?
+7. What state changes need reconciliation after a partial candidate run?
+8. What user or operator communication is required?
+9. Who owns the decision, and who can execute it?
+10. What evidence proves the system is back on the incumbent?
+
+Do not keep only the old model identifier. Keep the release bundle that made the old behavior possible. If the prompt, tool schema, parser, or retrieval configuration changed with the model, a model-only rollback may not restore the old system.
+
+### Stop and rollback conditions
+
+Write two types of conditions:
+
+- **Vetoes:** one occurrence is enough to stop or hold, such as unauthorized action, data-boundary failure, broken output contract, or loss of the rollback route.
+- **Thresholds:** aggregate signals that can be compared to an approved range, such as latency, cost, error rate, correction rate, or task quality.
+
+Example:
+
+```text
+Rollback now if:
+- candidate executes a forbidden action;
+- candidate output crosses a protected data boundary;
+- candidate causes an unrecoverable contract failure;
+- candidate error or timeout behavior threatens service availability;
+- the release owner declares an incident.
+
+Hold the next traffic step if:
+- candidate quality is below the approved comparison threshold;
+- user-visible latency exceeds the product budget;
+- cost per completed task exceeds the approved limit;
+- correction or escalation rises beyond the allowed range;
+- a protected segment has not been reviewed.
+```
+
+Avoid thresholds that the team cannot measure in time. “Rollback if quality drops” is not operational. “Rollback if the structured outcome check fails for a critical case” is closer, but still needs an owner, a case definition, and a path to inspect the state.
+
+### After rollback
+
+A rollback reduces exposure. It does not explain the failure. Preserve candidate traces, inputs under the approved retention policy, outputs, versions, traffic decisions, alerts, and state changes. Link the incident to a new evaluation case. If the candidate is retried later, the original failure should be part of the release gate.
+
+NIST’s monitoring guidance emphasizes the feedback loop from post-deployment measurement into system design and pre-deployment testing. The useful operational translation is simple: every rollback should create a better test case, a clearer boundary, or a narrower rollout policy ([NIST AI 800-4](https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.800-4.pdf)).
+
+## The copyable model-rollout record
+
+The following record is intentionally vendor-neutral. Put it beside the application release or in the deployment system. Fill it before the first candidate request. Empty fields are not harmless. They identify decisions nobody has made yet.
+
+```yaml
+rollout_id: support-assistant-model-2026-08-20
+owner: team-or-role
+decision_owner: product-or-risk-owner
+status: proposed
+
+incumbent:
+  model_id: exact-production-model-id
+  application_revision: git-or-build-id
+  prompt_revision: prompt-version
+  tool_schema_revision: tool-version
+  retrieval_revision: retrieval-version
+  serving_revision: serving-config-version
+
+candidate:
+  model_id: exact-candidate-model-id
+  application_revision: git-or-build-id
+  prompt_revision: prompt-version
+  tool_schema_revision: tool-version
+  retrieval_revision: retrieval-version
+  serving_revision: serving-config-version
+
+job:
+  user_outcome: describe-the-real-task
+  allowed_actions:
+    - read-approved-record
+  forbidden_actions:
+    - write-without-approval
+  escalation_condition: describe-when-a-person-takes-over
+
+contract_gate:
+  input_cases: evaluation-set-version
+  output_schema: schema-version
+  parser_check: required
+  tool_trace_check: required
+  side_effect_policy: dry-run-or-approved-sandbox
+
+behavior_gate:
+  representative_cases: evaluation-set-version
+  protected_slices:
+    - known-failure-cases
+    - ambiguous-inputs
+    - high-risk-actions
+  human_review_plan: reviewer-and-sampling-plan
+  quality_threshold: approved-threshold-or-rationale
+
+operations_gate:
+  latency_budget: product-defined-budget
+  error_and_timeout_limit: approved-limit
+  capacity_check: load-and-concurrency-plan
+  cost_limit: approved-cost-per-task-or-budget
+  telemetry: trace-and-metric-identifiers
+
+reversal_gate:
+  rollback_route: exact-command-or-control
+  rollback_owner: role-or-person
+  incumbent_capacity_confirmed: true
+  rehearsal_id: test-record
+  success_check: how-incumbent-restoration-is-verified
+
+exposure:
+  - stage: install
+    user_traffic: 0
+    entry_condition: deployment-isolated
+    advance_condition: health-and-identity-checks-pass
+  - stage: shadow
+    user_traffic: 0
+    entry_condition: side-effects-isolated
+    advance_condition: shadow-comparison-and-operations-checks-pass
+  - stage: canary
+    user_traffic: declared-small-slice
+    entry_condition: all-four-gates-pass
+    advance_condition: canary-checks-pass-and-owner-approves
+  - stage: full
+    user_traffic: 100
+    entry_condition: expanded-checks-pass-and-sign-off-recorded
+
+vetoes:
+  - unauthorized-action
+  - data-boundary-failure
+  - broken-output-contract
+  - rollback-route-unavailable
+
+stop_conditions:
+  - signal: user-visible-latency
+    rule: compare-to-approved-budget
+  - signal: candidate-error-rate
+    rule: compare-to-approved-limit
+  - signal: protected-task-quality
+    rule: compare-to-incumbent-and-minimum
+
+decision:
+  result: hold-or-promote-or-rollback
+  evidence_links: []
+  signed_by: []
+  decided_at: timestamp
+  next_review_at: timestamp
+```
+
+The YAML is not a magical schema. Adapt it to your deployment system. Its value is the separation of identities, gates, exposure, vetoes, and reversal. A dashboard can display the same information, but if the decision lives only in a dashboard screenshot, it is hard to audit and easy to lose.
+
+## Worked example: a support assistant model change
+
+Consider a support assistant that reads a ticket, retrieves policy and order information, drafts a response, and suggests a disposition. A person approves any refund or account change. The incumbent is a pinned model that has been serving the feature. The candidate is a newer model with better reasoning in offline tests.
+
+### The tempting release decision
+
+The team compares 200 internal examples. The candidate produces more complete explanations and fewer obvious misunderstandings. The team changes one environment variable and sends all traffic to it.
+
+The release fails in three different ways:
+
+1. The candidate returns a disposition label outside the existing enum. The UI falls back to “unknown,” so the support operator loses a shortcut.
+2. The candidate’s longer reasoning increases response time. Operators refresh the page and submit duplicate requests.
+3. The candidate recommends a refund more often on ambiguous policy cases. The human approval step remains, but the reviewer queue expands and the team interprets the change as a quality problem only after a busy period.
+
+None of those failures are captured by “the candidate scored better on the test set.”
+
+### The four-gate release
+
+The contract gate adds parser checks for every output, enum coverage, and tool-trace assertions. The candidate uses a dry-run policy lookup and cannot create a refund. The behavior set adds ambiguous policy cases, missing order data, duplicate refund history, identity failures, and escalation cases. The operations gate measures full response time, queue delay, retries, and cost per completed ticket. The reversal gate confirms that the incumbent route can be restored without changing the application build.
+
+The candidate is deployed with no user traffic. Shadow requests reveal that the candidate’s full responses are larger and that a subset of long tickets approach the timeout. That does not automatically reject it. It changes the question: can the product accept the latency, can the serving path handle it, or should the candidate be used only on a subset of tasks?
+
+The team then runs a read-only canary for internal support operators. Candidate responses are visible, but no external message or account state change can occur without the existing approval step. The release owner checks:
+
+- parsing and UI rendering;
+- policy grounding;
+- escalation for incomplete identity data;
+- full response time;
+- correction and rejection by operators;
+- duplicate-request behavior;
+- candidate and incumbent error rates;
+- review queue capacity.
+
+The candidate can be promoted only if the contract and safety vetoes pass and the product owner accepts the latency and review trade-off. If the candidate is better on complex policy explanations but slower on simple tickets, a route split may be better than a full replacement. The release record should state that decision rather than pretending the model is universally better.
+
+### What this example proves, and what it does not
+
+This is a worked example, not a client result, benchmark, or report of a production incident. It shows how to apply the release artifact to a common workflow. The example does not provide a universal traffic percentage, a quality score, or a claim that one model family handles support better than another.
+
+The evidence-backed point is narrower: a new model has to be evaluated as part of the system that receives its output, not as a detached text generator. Google Cloud’s MLOps guidance makes a similar system-level point by listing configuration, data verification, serving infrastructure, metadata, testing, and monitoring around the model rather than treating the model file as the whole production system ([Google Cloud MLOps](https://docs.cloud.google.com/architecture/mlops-continuous-delivery-and-automation-pipelines-in-machine-learning?hl=en)).
+
+![Illustration of a support assistant candidate moving from offline tests to shadow traffic, internal canary, and approved rollout](/blog/how-to-roll-out-a-new-ai-model-in-production-inline-4.webp)
+
+## Common rollout failures and the repair for each
+
+### Failure 1: the benchmark becomes the release gate
+
+The team has a clean offline score and assumes the production decision is settled.
+
+Why it fails: a benchmark usually does not cover serving behavior, output parsing, real retrieval, user corrections, capacity, permissions, or current data. It may also reward a capability that the product does not need.
+
+Repair: keep the benchmark as one behavior signal. Add contract, operations, safety, and reversal gates. Compare protected slices and inspect the actual outcome.
+
+### Failure 2: the model alias changes quietly
+
+The application points at a provider alias. The provider changes what the alias resolves to, but the team does not create a release record.
+
+Why it fails: model behavior can move without a code diff. A prompt that worked with one snapshot can produce different output with another.
+
+Repair: pin the production version when consistency matters, or treat every alias movement as a change event with automated checks and a rollback policy. OpenAI explicitly warns that behavior can change between snapshots and recommends pinned versions and evals ([OpenAI API backward compatibility](https://developers.openai.com/api/reference/overview#backwards-compatibility)).
+
+### Failure 3: the shadow test is declared a quality test
+
+The candidate sees mirrored requests, but users never see its answers. The team compares outputs and concludes that the candidate will improve the product.
+
+Why it fails: shadow traffic cannot measure user acceptance, candidate response latency on the user path, correction, abandonment, or the effect of user-visible wording.
+
+Repair: use shadow for operational and compatibility evidence. Follow it with a controlled canary when user-visible signals matter. Keep side effects isolated.
+
+### Failure 4: the canary has no stop authority
+
+The system can send 1%, 10%, and 50% of traffic to the candidate, but nobody is named to stop it.
+
+Why it fails: a traffic control without an owner turns a live incident into a coordination problem.
+
+Repair: name the release owner and the person or role allowed to roll back. Put the rollback route in the record and rehearse it.
+
+### Failure 5: a single blended score hides a veto
+
+The candidate has better average quality and lower cost, so a serious policy violation is averaged into a green dashboard.
+
+Why it fails: some failures are not compensable. A lower cost does not make an unauthorized action acceptable.
+
+Repair: separate vetoes from thresholds. A forbidden action, data-boundary failure, or broken approval path blocks promotion regardless of the average score.
+
+### Failure 6: the old model is deleted too early
+
+The candidate is promoted and the incumbent deployment is removed to save capacity.
+
+Why it fails: rollback becomes a rebuild under pressure. The old prompt, tool version, or serving configuration may also be gone.
+
+Repair: retain a coherent incumbent release bundle until the stabilization review says it can be decommissioned. Set that decision date explicitly.
+
+### Failure 7: the candidate and incumbent are not comparable
+
+The candidate receives a different retrieval index, a different prompt, or a different timeout. The team attributes every difference to the model.
+
+Why it fails: the experiment has multiple moving parts and cannot explain its own result.
+
+Repair: freeze the comparison tuple. If the surrounding changes are intentional, call the release a system change and evaluate the system.
+
+### Failure 8: only infrastructure metrics are monitored
+
+The candidate has healthy CPU, memory, and HTTP status. The team declares success.
+
+Why it fails: an AI system can be available and wrong. Infrastructure health does not prove task quality, policy integrity, grounding, or user benefit.
+
+Repair: pair infrastructure signals with outcome, trace, human, safety, and business checks that match the job.
+
+### Failure 9: retries repair the evidence
+
+The candidate produces malformed output. The application retries until a response parses. The dashboard counts the request as successful and loses the first failure.
+
+Why it fails: retries can turn a contract regression into hidden cost, latency, and inconsistent behavior.
+
+Repair: record every attempt, the reason for retry, the final response, and the total cost. Set retry limits. Decide whether a validation failure should fall back, escalate, or block.
+
+### Failure 10: rollout ends at 100%
+
+The team reaches full traffic and closes the ticket.
+
+Why it fails: full exposure is the start of a new baseline. Data, users, load, and provider behavior continue to move.
+
+Repair: schedule a stabilization review, keep monitoring active, add failures to the evaluation set, and decide when the incumbent can be retired.
+
+## What if the candidate is better on quality but worse on something else?
+
+Model changes are often trade-offs. The rollout process should make the trade-off visible without pretending one metric dominates.
+
+### Better quality, higher latency
+
+First identify where the latency appears. If it is time to first token, streaming or a smaller initial response may help. If it is full completion, output length, tool calls, or retrieval may be the cause. If it is queue time, the candidate may need more capacity. Do not change the model and the serving configuration in one opaque step if you need to know which change solved the problem.
+
+If the product’s response budget is a hard promise, a breach is a veto. If it is a preference, the product owner can accept a measured trade-off. Record the decision and the affected user segment.
+
+### Better quality, higher cost
+
+Calculate cost at the task level, not only per model call. Include retries, fallbacks, shadow requests, tool calls, and review. If the candidate improves completion enough to justify cost, write the product rationale. If the benefit is visible only in rare cases, route those cases selectively or use a two-stage design if the added complexity is acceptable.
+
+Do not claim an ROI number without data. The release record can say “candidate exceeds current approved cost limit” without manufacturing a savings estimate.
+
+### Better quality, more refusals
+
+Refusal behavior is not one metric. Some added refusals may correct a dangerous weakness. Others may block legitimate tasks. Review refusal cases by category and compare them to the product’s scope. Keep protected safety cases separate from normal helpfulness cases.
+
+If the feature operates in a sensitive domain, involve the relevant owner before increasing exposure. A model change can alter the practical boundary of what users can ask and what the system will do.
+
+### Better quality, different style
+
+Style changes can matter when users rely on predictable formatting, tone, citations, or language. Decide which differences are cosmetic and which change the product contract. If a customer-facing assistant becomes more verbose, it may increase latency, review time, or abandonment even if human reviewers prefer the explanation.
+
+### Better quality, unstable repeatability
+
+If the candidate produces more variable behavior, expand repeated or paraphrased cases and inspect the variance. The question is not whether every response is identical. It is whether the range remains inside the accepted behavior and risk envelope. A system that needs deterministic formatting should enforce that requirement at the application boundary.
+
+## What if the feature is an agent?
+
+This article owns model rollout, not agent design. The rollout gates still apply, but the evidence must include action traces and state changes.
+
+For an agent, add these to the contract gate:
+
+- tool inventory and permission policy;
+- required preconditions for each write action;
+- approval and escalation behavior;
+- maximum steps, retries, and cost;
+- state verification after actions;
+- handoff and memory compatibility;
+- replay or recovery behavior for interrupted runs.
+
+Shadow mode needs extra care. A candidate agent should not perform the real action merely because it received a real request. Give it read-only tools, dry-run tools, a sandbox, or a simulated state. Compare intended action plans and tool arguments without granting the candidate authority it has not earned.
+
+The existing site has separate guides for [evaluating an AI agent](/blog/how-to-evaluate-an-ai-agent), [monitoring an AI agent in production](/blog/how-to-monitor-an-ai-agent-in-production), and [versioning prompts for AI agents in production](/blog/how-to-version-prompts-for-ai-agents-in-production). Use those for their detailed jobs. This page supplies the missing release transition: how evidence from those practices becomes a traffic decision for a new model.
+
+If a model upgrade changes the tool schema, treat that as a contract migration as well as a model rollout. If it changes memory format, plan forward and backward compatibility or a safe migration. If it changes the agent’s authority, make the permission change a separate approval event. Do not hide a capability expansion inside a model identifier change.
+
+![Illustration of an AI agent rollout with read-only shadow tools, approval gates, and verified state changes](/blog/how-to-roll-out-a-new-ai-model-in-production-inline-5.webp)
+
+## Make the release reviewable by another person
+
+A rollout is safer when someone who did not build the candidate can reconstruct the decision. That person does not need to repeat every test. They need to see what changed, what was checked, what failed, what remains unknown, and why the next traffic step is acceptable.
+
+Give the reviewer a short release packet rather than a collection of links. The packet should contain:
+
+- the incumbent and candidate identity tuple;
+- the user outcome and protected behavior;
+- the evaluation-set version and a summary of important slices;
+- contract and tool-check results;
+- shadow or canary exposure and dates;
+- candidate-versus-incumbent operational signals;
+- safety, privacy, and approval findings;
+- known failures and their disposition;
+- the exact stop and rollback controls;
+- the decision, owner, and next review date.
+
+The reviewer should be able to answer “what would make us stop?” without asking the implementation team to translate a dashboard. If the answer is hidden in a notebook, a temporary log query, or one person’s memory, the release is not reviewable enough.
+
+### Separate roles without creating a committee maze
+
+Small teams do not need a large approval ceremony. They do need the right decisions to have owners.
+
+| Role | Owns | Does not get to do alone |
+| --- | --- | --- |
+| Builder | Candidate deployment, tests, telemetry, and known limitations | Declare business or safety acceptance without the relevant owner |
+| Product owner | User outcome, product trade-offs, and acceptable experience | Waive a technical safety control without the responsible risk owner |
+| Domain or risk owner | Protected cases, policy limits, approval requirements, and vetoes | Approve a feature they cannot observe or verify |
+| Operations owner | Capacity, latency, incident response, and rollback execution | Change the product’s quality or authority policy unilaterally |
+| Release owner | Stage decision, evidence completeness, and pause or rollback call | Treat a missing owner or missing evidence as an implicit approval |
+
+One person can hold several roles in a small team. Record that explicitly. The point is not to maximize signatures. The point is to avoid the common failure where everyone assumes someone else checked the risk.
+
+### Retain evidence at the right level
+
+Evidence retention is a design choice. Keep enough to reproduce the decision without collecting unlimited sensitive content.
+
+For every rollout stage, retain:
+
+1. version identifiers and configuration hashes;
+2. traffic routing and exposure timestamps;
+3. aggregate metrics with the denominator and sampling rule;
+4. failed case identifiers and approved redacted examples;
+5. decision records and approvals;
+6. rollback or hold events;
+7. links to incidents and new evaluation cases.
+
+For high-risk workflows, retain the relevant trace and resulting state under the approved access and retention policy. For lower-risk features, a redacted sample and structured result may be enough. Do not claim reproducibility if you kept only a final dashboard number and deleted the configuration that produced it.
+
+### Schedule the decision after full exposure
+
+The promotion record should include two future decisions. The first is whether the candidate can move to the next traffic stage. The second is whether the incumbent can be retired.
+
+Those decisions are different. The candidate may be safe enough to serve everyone while the team still needs the incumbent as a fallback during a short stabilization period. Or the candidate may become the new baseline while a provider change requires the team to keep a second fallback rather than the original model. Make the retirement decision after enough live evidence exists and after the rollback route has been exercised against the current deployment.
+
+If the team cannot explain when the old release will be retired, it may be carrying unnecessary cost. If it retires the old release immediately, it may be buying avoidable incident risk. A dated decision is better than either habit.
+
+![Illustration of a reviewable AI model release packet being checked by builder, product, risk, operations, and release owners](/blog/how-to-roll-out-a-new-ai-model-in-production-inline-6.webp)
+
+## What if there is not enough live traffic?
+
+Low traffic changes the evidence plan. It does not justify a full cutover without a rollback path.
+
+If shadow traffic cannot produce enough observations, use a combination of:
+
+- a larger, approved offline set;
+- historical requests under privacy controls;
+- controlled internal users;
+- a longer shadow window;
+- targeted canary cases;
+- synthetic edge cases for contract and safety checks;
+- load tests for capacity and latency;
+- human review of high-risk slices.
+
+Be honest about what each method can prove. Historical requests can test output and parsing but may not represent future users. Synthetic cases can cover a known edge condition but cannot estimate real user behavior. A small internal canary can expose product friction but not broad segment differences.
+
+Do not convert “we have no traffic” into “there is no risk.” It usually means uncertainty is higher. Reduce scope, use read-only behavior, add approval, or delay the rollout until you can collect the evidence you need.
+
+## What if the provider deprecates the incumbent?
+
+A provider deadline can compress the rollout, but it does not remove the need for a baseline and reversal plan. If the old model will disappear, the fallback may be a second supported model, a degraded workflow, a deterministic path, or a human queue.
+
+Create a migration record that states:
+
+- deprecation date and source;
+- incumbent behavior that must be preserved;
+- candidate and fallback identifiers;
+- contract differences;
+- known quality, latency, cost, and safety differences;
+- last safe date for rollback;
+- customer or operator communication;
+- post-migration monitoring and incident owner.
+
+If no exact rollback is possible after the provider deadline, say so. Your reversal gate can then require a different safe fallback. “Rollback” means return to the last approved service behavior, not necessarily the same model artifact.
+
+## What you still do not know after a careful rollout
+
+A staged rollout reduces uncertainty. It does not eliminate it.
+
+You may still not know:
+
+- how rare failures will behave at larger scale;
+- whether a new user segment will respond differently;
+- whether the provider changes capacity or behavior later;
+- how model behavior shifts under new data;
+- whether human reviewers adapt or grow tired of the new output;
+- whether a slow quality improvement is worth its long-term cost;
+- whether the candidate’s safety behavior holds against an attack you have not imagined;
+- whether a future tool, prompt, retrieval, or application change will interact badly with it.
+
+Document the unknowns. Add a follow-up owner and a trigger where possible. NIST AI 800-4 explicitly describes best practices for post-deployment monitoring as still nascent and identifies open questions around monitoring cadence, automation versus human validation, and measuring impacts ([NIST AI 800-4](https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.800-4.pdf)). That is not a reason to avoid rollout. It is a reason not to write a green checkmark as if it were permanent proof.
+
+The article’s four-gate rule also has limits. It is a decision aid, not a substitute for legal review, domain safety review, security engineering, privacy analysis, or a product experiment. It does not tell you which model is best. It tells you what must be true before a candidate earns more exposure.
+
+## A practical rollout checklist
+
+Use this checklist as the final review of the release record.
+
+### Before deployment
+
+- [ ] The change boundary names the candidate model and every surrounding version that changes.
+- [ ] The incumbent release bundle is recorded and still deployable.
+- [ ] The application contract and output schemas are explicit.
+- [ ] Tool permissions, approvals, and forbidden actions are explicit.
+- [ ] The representative evaluation set includes normal, risky, ambiguous, malformed, and known-failure cases.
+- [ ] Behavior, operations, safety, and cost checks are defined before results are seen.
+- [ ] Protected slices are identified.
+- [ ] The shadow or canary side-effect policy is written.
+- [ ] The release owner and decision owner are named.
+- [ ] The rollback route and success check are written.
+
+### During shadow or isolated testing
+
+- [ ] Candidate requests are isolated from external side effects.
+- [ ] Input and dependency parity is checked.
+- [ ] Candidate and incumbent identities are attached to traces.
+- [ ] Parser, tool, error, timeout, latency, and cost signals are compared.
+- [ ] Candidate outputs are sampled for behavior and safety.
+- [ ] Sensitive data is stored under an approved retention and access policy.
+- [ ] A decision date is set.
+
+### During canary traffic
+
+- [ ] The exposure slice and routing rule are known.
+- [ ] The user-visible response path is measured.
+- [ ] Candidate outcomes and corrections are compared to the incumbent.
+- [ ] Veto conditions are evaluated separately from aggregate thresholds.
+- [ ] A person can stop traffic without waiting for a new build.
+- [ ] The incumbent still has capacity to receive traffic after rollback.
+- [ ] Segment and high-risk cases are reviewed.
+- [ ] The next traffic step is approved explicitly.
+
+### After promotion
+
+- [ ] Full-traffic monitoring remains active.
+- [ ] Candidate failures become new evaluation cases.
+- [ ] The stabilization review has a date and owner.
+- [ ] The incumbent retirement decision is recorded.
+- [ ] Model-provider and serving-platform freshness risks are tracked.
+- [ ] The release record links to evidence, incidents, and follow-up work.
+
+If several boxes are unknown, the candidate is not ready for more traffic. The answer is not always “do more model testing.” Sometimes it is “clarify the contract,” “make the action reversible,” or “reduce the scope of the canary.”
+
+![Illustration of a completed AI model rollout record with version identities, evidence links, vetoes, owner approval, and a tested rollback route](/blog/how-to-roll-out-a-new-ai-model-in-production-inline-7.webp)
+
+## The shortest safe answer
+
+To roll out a new AI model in production, preserve the incumbent as a baseline, freeze the full system configuration, test the candidate on representative work, isolate it from side effects, shadow it when possible, and then expose a bounded user slice. Promote only when contract, behavior, operations, and reversal evidence pass. Stop on vetoes, hold on threshold breaches, and keep the old release available until the new one is understood.
+
+That process gives a team something more useful than confidence. It gives the team a decision it can explain, inspect, and reverse.
+
+If you are moving from a promising prototype to this kind of release record, Marius Manolachi helps existing people learn to build AI products on their own work through [AI consulting and tutoring](/learn-ai). The article is complete without that next step. The next step is useful when your team has a real candidate and needs to turn the rollout decision into a working practice.
