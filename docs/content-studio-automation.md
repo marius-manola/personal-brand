@@ -29,12 +29,12 @@ Hard caps used here:
 
 | Cap | Value | Why |
 |---|---|---|
-| Published posts per Berlin day | 10 (usually target 8–10) | Quality + crawl budget |
+| Published posts per Berlin day | 6 | One balanced editorial slate |
 | Parallel writers | 5 | Isolated Plus account + long jobs |
 | Parallel imagers | separate pool | Images must not steal writer slots |
 | Live publishes at once | 1 | One git lock, one Vercel deploy |
-| Word band | 900–8,000, stop when the job is done | Gate fails under 900 or padded length |
-| Images | 3–8 | Hero + in-article rasters |
+| Length | 1,500–6,000 by content type | Enough to complete the reader job; no padding |
+| Images | 3–6 by content type | Only useful hero + in-article rasters |
 | Retries per job | 3, 5 minutes apart | Then quarantine, start a new post |
 
 ---
@@ -120,7 +120,8 @@ Rules that matter:
 - **Writers** = jobs with `status: generating`.
 - **Imagers** = jobs with `status: imaging` (and sometimes `publishing` if that step still makes images).
 - `canStartMore()` counts **writers only**. An imaging job must not fill a writer slot. That is how five posts write while one is imaging.
-- Autopilot `neededDrafts = remainingToday - ready - writing - imaging`. If you forget imaging, the scheduler thinks it still needs more drafts and over-produces.
+- Desk **Keep in queue** is an inventory target, not a parallel-start count. `needed = target - ready - writing - imaging`. If the bank already covers it, generate nothing. Writers start only the shortfall, five at a time; `.content-studio/stock.json` keeps the rest filling after slots free.
+- Autopilot `neededDrafts = max(remainingToday, stockTarget) - ready - writing - imaging`. If you forget imaging, the scheduler thinks it still needs more drafts and over-produces.
 - Publish **one** job at a time (`status: publishing`).
 - Public `date` / `updated` are stamped in `publish()` to **Europe/Berlin today**, not the write day.
 
@@ -174,19 +175,26 @@ Codex `exec` into the job dir with skills mounted:
 - `gary-provost` + anti-AI patterns
 - `seo-geo-playbook`
 - DR21 `blog-post` structure as the quality bar
+- Evidence-first GEO: create evidence, then package it extractably. H2s are heading → immediate answer → evidence → exceptions. No 40-60 word quota, no manufactured stat, no forced brand citation.
 
 Required artifacts: `idea.md`, `research.md`, `post.mdx`, `review.md`, `manifest.json`.
 
+Each six-post slate contains one of each: original research, decision tool, failure clinic, implementation lab, capability guide, and commercial decision. These map across six canonical curriculum clusters: opportunity, architecture, implementation, evaluation, capability, and commercial.
+
 Deterministic gate (must fail the job, not warn):
 
-- 900–8,000 body words (strip code fences, images, raw URLs); never pad
-- at least 4 H2s, each a real subproblem
+- original research: 3,000–6,000 body words and at least 6 H2s
+- decision tools, failure clinics, capability guides: 1,800–3,500 body words
+- implementation labs and commercial decisions: 1,500–3,000 body words
+- at least 4 H2s for non-flagships, each a real subproblem
 - excerpt 100–170 chars, Quick Answer 25–80 words
 - 3+ HTTPS sources (prefer 5), optional FAQ
-- original contribution (table, procedure, or template) plus one locked firsthand fact
-- ≥1 internal `/blog/` link
+- completed evidence basis plus the artifact required by the assigned content type
+- a locked firsthand fact only when `evidenceType` is firsthand
+- at least two internal `/blog/` links, including the canonical cluster parent
 - no `<!--`, no em dashes, no AI cliches, no banned entity claims
-- 3–8 image requests, hero first, unique `__HERO_IMAGE__` / `__INLINE_IMAGE_n__`
+- exactly the assigned 3–6 image requests, hero first, unique `__HERO_IMAGE__` / `__INLINE_IMAGE_n__`
+- at least three distribution hooks with channel, audience, and angle
 - collision check against taken work
 
 If the gate fails, Codex repairs in a loop. If it still fails after the repair budget, **do not publish**. Mark `failed`.
@@ -441,7 +449,7 @@ These are not style notes. They are the reasons the first versions did not run u
 
 **`git add content/blog` is a footgun.** Unpublished siblings ride along. Add one slug.
 
-**Padding must be a hard fail.** The gate counts body words after stripping images and URLs. Under 900 → repair or fail. Over 8,000 without being original research → fail. Do not publish filler. Length follows the reader job.
+**Outside the assigned content profile is a hard fail.** The gate counts body words after stripping images and URLs. Global range is 1,500-6,000, with the narrower type ranges above. Repair with missing evidence or decisions, never filler.
 
 **Collision excepts the current slug.** Otherwise a job cannot repair its own post.
 
@@ -455,7 +463,7 @@ These are not style notes. They are the reasons the first versions did not run u
 
 **Do not commit `.env`, tokens, or the studio.** Commit posts, images, sitemap, robots, llms.txt, IndexNow key file.
 
-**Plus usage is shared on that second account.** Writing 7k posts + 8 images × several jobs will chew the weekly window. Read `https://chatgpt.com/backend-api/wham/usage` with the isolated access token. If remaining < 20%, stop starting new writers and Telegram.
+**Plus usage is shared on that second account.** Six evidence-led posts plus 3-6 images each can still consume the weekly window. Read `https://chatgpt.com/backend-api/wham/usage` with the isolated access token. If remaining < 20%, stop starting new writers and Telegram.
 
 ---
 
@@ -504,7 +512,7 @@ Settings file: `.content-studio/settings.json`
 ```json
 {
   "enabled": true,
-  "postsPerDay": 9,
+  "postsPerDay": 6,
   "scheduleMode": "autopilot",
   "imageProvider": "codex"
 }

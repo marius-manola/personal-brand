@@ -16,6 +16,12 @@ export interface BlogPostMetadata {
   updated?: string;
   targetQuery?: string;
   cluster?: string;
+  parent?: string;
+  contentType?: string;
+  kind?: string;
+  sourceableAtom?: string;
+  evidenceType?: string;
+  evidenceBasis?: string;
   nextReviewAt?: string;
   sources: string[];
   cover?: string;
@@ -69,6 +75,12 @@ function parsePost(fileName: string): BlogPost {
       updated: data.updated ? String(data.updated) : undefined,
       targetQuery: data.targetQuery ? String(data.targetQuery) : undefined,
       cluster: data.cluster ? String(data.cluster) : undefined,
+      parent: data.parent ? String(data.parent) : undefined,
+      contentType: data.contentType ? String(data.contentType) : undefined,
+      kind: data.kind ? String(data.kind) : undefined,
+      sourceableAtom: data.sourceableAtom ? String(data.sourceableAtom) : undefined,
+      evidenceType: data.evidenceType ? String(data.evidenceType) : undefined,
+      evidenceBasis: data.evidenceBasis ? String(data.evidenceBasis) : undefined,
       nextReviewAt: data.nextReviewAt ? String(data.nextReviewAt) : undefined,
       sources: Array.isArray(data.sources) ? data.sources.map(String) : [],
       cover: data.cover ? String(data.cover) : undefined,

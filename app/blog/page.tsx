@@ -14,7 +14,59 @@ export default async function BlogPage() {
 
   return (
     <div className="blog-shell">
-      <main className="blog-main">
+      <main className="m-blog-index mobile-experience">
+        <header className="m-index-topbar">
+          <Link href="/">Marius Manolachi</Link>
+          <a href="/blog/rss.xml">RSS</a>
+        </header>
+        <section className="m-index-hero">
+          <p>Field notes for people shipping AI</p>
+          <h1>Useful before<br />it is impressive.</h1>
+          <span>Evidence, decisions, failures, and build notes for small teams.</span>
+        </section>
+
+        {posts[0] && (
+          <article className="m-index-featured">
+            <Link href={`/blog/${posts[0].slug}`}>
+              <div className="m-index-featured-meta">
+                <span>Latest</span>
+                <span>{posts[0].readingTime} min</span>
+              </div>
+              <h2>{posts[0].metadata.title}</h2>
+              <p>{posts[0].metadata.excerpt}</p>
+              <strong>Read the field note <span aria-hidden="true">→</span></strong>
+            </Link>
+          </article>
+        )}
+
+        {posts.length > 1 && (
+          <section className="m-index-feed" aria-label="All field notes">
+            <div className="m-index-feed-head">
+              <h2>Keep going</h2>
+              <span>{posts.length - 1} notes</span>
+            </div>
+            {posts.slice(1).map((post, index) => (
+              <article key={post.slug} className="m-index-row">
+                <Link href={`/blog/${post.slug}`}>
+                  <span className="m-index-number">{String(index + 1).padStart(2, '0')}</span>
+                  <div>
+                    <p>{post.metadata.cluster || post.metadata.tags[0] || 'AI products'} · {post.readingTime} min</p>
+                    <h3>{post.metadata.title}</h3>
+                  </div>
+                  <span className="m-index-arrow" aria-hidden="true">↗</span>
+                </Link>
+              </article>
+            ))}
+          </section>
+        )}
+
+        <footer className="m-index-footer">
+          <span>© <Copyright /> Marius Manolachi</span>
+          <Link href="/learn-ai">Work with me</Link>
+        </footer>
+      </main>
+
+      <main className="blog-main desktop-experience">
         <header className="blog-header">
           <Link href="/" className="blog-kicker">Marius Manolachi</Link>
           <h1 className="blog-title">Blog</h1>

@@ -8,6 +8,8 @@ import { AnimatedShinyText } from '@/components/ui/animated-shiny-text';
 import LinkedInQuote from '@/app/components/LinkedInQuote';
 import PhotoStrip from '@/app/components/PhotoStrip';
 import QualifyForm from '@/app/components/QualifyForm';
+import MobileLearnAI from '@/app/components/MobileLearnAI';
+import MobileConsultingPopup from '@/app/components/MobileConsultingPopup';
 import {
   fit,
   guarantee,
@@ -96,6 +98,9 @@ export default function LearnAI() {
         <style>{NO_JS_REVEAL}</style>
       </noscript>
 
+      <MobileLearnAI />
+
+      <div className="desktop-experience">
       <div className="page-shell" style={{ scrollbarGutter: 'stable' }}>
         {/* strip-guard: clips the photo strip where it escapes the frame, so
             the overflow never turns into a horizontal scrollbar. */}
@@ -317,6 +322,8 @@ export default function LearnAI() {
           </main>
         </div>
       </div>
+      </div>
+      <MobileConsultingPopup />
     </>
   );
 }

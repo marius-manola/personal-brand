@@ -1,4 +1,10 @@
-import type { DayPoint } from './types';
+type VercelDayPoint = {
+  date: string;
+  views: number;
+  visitors: number;
+  engagedMs: number;
+  aiReferrals: number;
+};
 
 type VercelRow = {
   day?: string;
@@ -16,7 +22,7 @@ function berlinDay(value: string) {
   }).format(new Date(value));
 }
 
-export async function fetchVercelPageviews(rangeDays = 30): Promise<DayPoint[] | null> {
+export async function fetchVercelPageviews(rangeDays = 30): Promise<VercelDayPoint[] | null> {
   const token = process.env.VERCEL_TOKEN;
   const projectId = process.env.VERCEL_PROJECT_ID;
   const teamId = process.env.VERCEL_TEAM_ID;
@@ -41,7 +47,7 @@ export async function fetchVercelPageviews(rangeDays = 30): Promise<DayPoint[] |
   });
   if (!response.ok) return null;
   const payload = await response.json() as { data?: VercelRow[] };
-  const byDay = new Map<string, DayPoint>();
+  const byDay = new Map<string, VercelDayPoint>();
   for (const row of payload.data || []) {
     if (!row.day) continue;
     const path = String(row.requestPath || '');

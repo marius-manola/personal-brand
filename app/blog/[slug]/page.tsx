@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import { MDXRemote } from 'next-mdx-remote/rsc';
 import Copyright from '@/app/components/Copyright';
 import BlogCallCard from '@/app/components/BlogCallCard';
+import MobileReadingProgress from '@/app/components/MobileReadingProgress';
 
 import { getAllBlogPosts, getBlogPost, prepareBlogMdx } from '@/lib/server/blog.server';
 import { isLocalBlogImage, localBlogImageSize } from '@/lib/server/blog-image';
@@ -82,10 +83,21 @@ function BlogTable({ data }: { data: string }) {
     <table>
       <thead><tr>{parsed.headers.map((header) => <th key={header}>{header}</th>)}</tr></thead>
       <tbody>{parsed.rows.map((row, rowIndex) => (
-        <tr key={rowIndex}>{parsed.headers.map((_, cellIndex) => <td key={cellIndex}>{row[cellIndex] || ''}</td>)}</tr>
+        <tr key={rowIndex}>{parsed.headers.map((header, cellIndex) => <td key={cellIndex} data-label={header}>{row[cellIndex] || ''}</td>)}</tr>
       ))}</tbody>
     </table>
   );
+}
+
+function headingId(value: React.ReactNode) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+function BlogH2({ children }: { children?: React.ReactNode }) {
+  return <h2 id={headingId(children)}>{children}</h2>;
 }
 
 export async function generateStaticParams() {
@@ -167,7 +179,7 @@ export default async function BlogPostPage({ params }: PageProps) {
   };
 
   return (
-    <div className="blog-shell">
+    <div className="blog-shell blog-post-shell">
       <div className="blog-article-layout">
       <BlogCallCard />
       <main className="blog-main blog-article-main">
@@ -176,7 +188,14 @@ export default async function BlogPostPage({ params }: PageProps) {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, '\\u003c') }}
         />
 
-        <nav className="blog-breadcrumb" aria-label="Breadcrumb">
+        <nav className="m-blog-bar mobile-experience" aria-label="Article navigation">
+          <Link href="/blog" aria-label="Back to all articles">← Articles</Link>
+          <span>{post.readingTime} min</span>
+          <Link href="/" aria-label="Marius Manolachi home">MM</Link>
+          <MobileReadingProgress />
+        </nav>
+
+        <nav className="blog-breadcrumb desktop-experience" aria-label="Breadcrumb">
           <Link href="/blog">Blog</Link>
           <span aria-hidden="true">/</span>
           <Link href="/">Marius Manolachi</Link>
@@ -184,7 +203,8 @@ export default async function BlogPostPage({ params }: PageProps) {
 
         <article>
           <header className="blog-article-header">
-            <div className="blog-post-meta">
+            <p className="m-blog-kicker mobile-experience">Field note · {post.metadata.cluster || 'AI products'}</p>
+            <div className="blog-post-meta desktop-experience">
               <time dateTime={post.metadata.date}>
                 {longDateFormatter.format(new Date(`${post.metadata.date}T00:00:00Z`))}
               </time>
@@ -195,6 +215,12 @@ export default async function BlogPostPage({ params }: PageProps) {
             </div>
             <h1>{post.metadata.title}</h1>
             <p>{post.metadata.excerpt}</p>
+            <div className="m-blog-meta mobile-experience">
+              <time dateTime={post.metadata.date}>
+                {longDateFormatter.format(new Date(`${post.metadata.date}T00:00:00Z`))}
+              </time>
+              <span>{post.readingTime} minute read</span>
+            </div>
             {post.metadata.tags.length > 0 && (
               <ul className="blog-tags" aria-label="Topics">
                 {post.metadata.tags.map((tag) => <li key={tag}>{tag}</li>)}
@@ -227,7 +253,7 @@ export default async function BlogPostPage({ params }: PageProps) {
           <div className="blog-prose">
             <MDXRemote
               source={withBlogTables(prepareBlogMdx(post.content))}
-              components={{ img: BlogImage, Image: BlogImage, BlogTable }}
+              components={{ img: BlogImage, Image: BlogImage, BlogTable, h2: BlogH2 }}
             />
           </div>
 
@@ -243,6 +269,13 @@ export default async function BlogPostPage({ params }: PageProps) {
             </section>
           )}
         </article>
+
+        <aside className="m-blog-call mobile-experience" aria-label="Work with Marius">
+          <p className="m-blog-call-label">Turn the article into capability</p>
+          <h2>Bring the real work. Leave able to do it yourself.</h2>
+          <p>One-to-one AI consulting on the product, workflow, or decision in front of you.</p>
+          <Link href="/learn-ai">See if it fits <span aria-hidden="true">→</span></Link>
+        </aside>
 
         {(newerPost || olderPost) && (
           <nav className="blog-pagination" aria-label="More posts">
@@ -261,12 +294,16 @@ export default async function BlogPostPage({ params }: PageProps) {
           </nav>
         )}
 
-        <footer className="blog-footer">
+        <footer className="blog-footer desktop-experience">
           <span>© <Copyright /> Marius Manolachi</span>
           <div>
             <Link href="/blog">All posts</Link>
             <a href="/blog/rss.xml">RSS</a>
           </div>
+        </footer>
+        <footer className="m-blog-footer mobile-experience">
+          <Link href="/blog">All field notes</Link>
+          <span>© <Copyright /> Marius Manolachi</span>
         </footer>
       </main>
       </div>

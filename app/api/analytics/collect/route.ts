@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { recordEvent } from '@/lib/analytics/store';
-import { countryFromRequest, parseUserAgent } from '@/lib/analytics/ua';
+import { countryFromRequest, isBotUa, parseUserAgent } from '@/lib/analytics/ua';
 import type { AnalyticsEventType } from '@/lib/analytics/types';
 
 export const runtime = 'nodejs';
@@ -36,7 +36,10 @@ export async function POST(request: Request) {
     path?: string;
     ms?: number;
     ref?: string;
+    src?: string;
     sid?: string;
+    vid?: string;
+    scroll?: number;
   };
   try {
     body = await request.json();
@@ -51,7 +54,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'invalid' }, { status: 400 });
   }
 
-  const { device, os } = parseUserAgent(request.headers.get('user-agent') || '');
+  const ua = request.headers.get('user-agent') || '';
+  const { device, os } = parseUserAgent(ua);
   await recordEvent({
     t: new Date().toISOString(),
     type,
@@ -59,10 +63,14 @@ export async function POST(request: Request) {
     path,
     ms: Math.max(0, Math.min(Number(body.ms) || 0, 120_000)),
     ref: String(body.ref || '').slice(0, 300),
+    src: String(body.src || '').slice(0, 80),
     sid: String(body.sid || '').slice(0, 80),
+    vid: String(body.vid || '').slice(0, 80),
     country: countryFromRequest(request),
     device,
     os,
+    bot: isBotUa(ua),
+    scroll: Math.max(0, Math.min(Number(body.scroll) || 0, 100)),
   });
 
   return new NextResponse(null, { status: 204 });

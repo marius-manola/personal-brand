@@ -1,13 +1,16 @@
 import { appendFile, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { AnalyticsEvent, CitationRecord } from './types';
+import type { AnalyticsConfig, AnalyticsEvent, CitationRecord } from './types';
 
 const ROOT = process.cwd();
 const FILE_DIR = process.env.ANALYTICS_DIR || join(ROOT, '.content-studio', 'analytics');
+const CONFIG_FILE = join(FILE_DIR, 'config.json');
 const KV_URL = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
 const KV_TOKEN = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
 
-function berlinDay(iso = new Date().toISOString()) {
+const EMPTY_CONFIG: AnalyticsConfig = { excludeVisitors: [], excludeCountries: [] };
+
+export function berlinDay(iso = new Date().toISOString()) {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Europe/Berlin',
     year: 'numeric',
@@ -37,7 +40,7 @@ export function analyticsSources() {
   return {
     file: true,
     kv: Boolean(KV_URL && KV_TOKEN),
-    vercel: Boolean(process.env.VERCEL_TOKEN && process.env.VERCEL_PROJECT_ID),
+    vercel: false,
   };
 }
 
@@ -76,7 +79,7 @@ export async function readEvents(rangeDays = 30): Promise<AnalyticsEvent[]> {
     try {
       const event = JSON.parse(trimmed) as AnalyticsEvent;
       if (!event?.t || !event.slug || !event.type) return;
-      const id = `${event.t}:${event.sid}:${event.type}:${event.ms}`;
+      const id = `${event.t}:${event.vid || event.sid}:${event.type}:${event.path}:${event.ms}`;
       if (seen.has(id)) return;
       seen.add(id);
       events.push(event);
@@ -102,6 +105,29 @@ export async function readEvents(rangeDays = 30): Promise<AnalyticsEvent[]> {
   }
 
   return events;
+}
+
+export async function readConfig(): Promise<AnalyticsConfig> {
+  try {
+    const text = await readFile(CONFIG_FILE, 'utf8');
+    const parsed = JSON.parse(text) as Partial<AnalyticsConfig>;
+    return {
+      excludeVisitors: Array.isArray(parsed.excludeVisitors) ? parsed.excludeVisitors.map(String) : [],
+      excludeCountries: Array.isArray(parsed.excludeCountries) ? parsed.excludeCountries.map(String) : [],
+    };
+  } catch {
+    return { ...EMPTY_CONFIG };
+  }
+}
+
+export async function writeConfig(next: AnalyticsConfig) {
+  await mkdir(FILE_DIR, { recursive: true });
+  const clean: AnalyticsConfig = {
+    excludeVisitors: [...new Set(next.excludeVisitors.filter((value) => /^[0-9a-f-]{8,80}$/i.test(value)))],
+    excludeCountries: [...new Set(next.excludeCountries.map((value) => value.toUpperCase()).filter((value) => /^[A-Z]{2}$/.test(value)))].sort(),
+  };
+  await writeFile(CONFIG_FILE, JSON.stringify(clean, null, 2), 'utf8');
+  return clean;
 }
 
 export async function readCitations(): Promise<CitationRecord[]> {
