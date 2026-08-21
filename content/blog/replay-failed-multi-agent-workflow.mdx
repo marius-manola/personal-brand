@@ -1,7 +1,7 @@
 ---
 title: 'How to Replay a Failed Multi-Agent Workflow Safely'
-date: '2026-08-17'
-updated: '2026-08-17'
+date: '2026-08-21'
+updated: '2026-08-21'
 excerpt: 'A practical recovery plan for replaying failed multi-agent workflows from durable checkpoints without repeating actions or hiding uncertainty.'
 answer: 'Replay a failed multi-agent workflow from a durable checkpoint, not from the last chat message. Record task state, handoff artifacts, source versions, tool effects, permissions, retry budget, and ownership; validate the checkpoint before resuming, and stop when replay cannot prove what already happened.'
 targetQuery: 'how to replay a failed multi-agent workflow'
@@ -13,6 +13,8 @@ queryAliases:
 intent: 'implementation'
 funnel: 'consideration'
 cluster: 'AI agent reliability'
+kind: 'satellite'
+sourceableAtom: 'A failed multi-agent run is safe to resume only when its purpose, minimum context, verifiable artifact, bounded authority, recorded effects, and owned failure state are present in a durable checkpoint.'
 tags:
   - 'AI agents'
   - 'Architecture'
@@ -28,7 +30,7 @@ sources:
   - 'https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ai-agents/single-agent-multiple-agents'
   - 'https://docs.cloud.google.com/architecture/choose-design-pattern-agentic-ai-system?hl=en'
   - 'https://www.anthropic.com/engineering/multi-agent-research-system'
-cover: '/blog/test-multi-agent-handoffs-test-multi-agent-handoffs-hero.webp'
+cover: '/blog/replay-failed-multi-agent-workflow-test-multi-agent-handoffs-hero.webp'
 coverAlt: 'A failed multi-agent workflow being reconstructed from a bounded checkpoint before a safe resume'
 draft: false
 ---
@@ -51,7 +53,7 @@ An agent is a model-controlled worker that can manage a workflow, choose tools, 
 
 That distinction matters during recovery. If Agent A sends Agent B a paragraph called “research notes,” the orchestrator cannot reliably tell which claims are current, which are opinions, or which actions already happened. If Agent A records a bounded research artifact with source references, freshness, open questions, effects, and a failure state, the orchestrator can validate the checkpoint before the receiver acts again.
 
-![Conceptual diagram of two AI agents exchanging a bounded artifact instead of an unstructured transcript](/blog/test-multi-agent-handoffs-handoff-artifact-test-fixture.webp)
+![Conceptual diagram of two AI agents exchanging a bounded artifact instead of an unstructured transcript](/blog/replay-failed-multi-agent-workflow-handoff-artifact-test-fixture.webp)
 
 For this article, a useful recovery checkpoint has six fields:
 
@@ -97,7 +99,7 @@ Do not resume at the last visible message. Draw the dependency graph first. Ask 
 
 OpenAI describes manager and decentralized handoff patterns. Google Cloud describes sequential, parallel, loop, and review or critique patterns. The names differ, but the recovery question is the same: who owns the next decision, and what evidence proves that owner received the last valid state?
 
-![Conceptual architecture map showing sequential, parallel, review, and loop paths with bounded agent handoffs](/blog/test-multi-agent-handoffs-multi-agent-handoff-test-cases.webp)
+![Conceptual architecture map showing sequential, parallel, review, and loop paths with bounded agent handoffs](/blog/replay-failed-multi-agent-workflow-multi-agent-handoff-test-cases.webp)
 
 For a sequential workflow, do not ask the receiver to reconstruct the prior step from prose. Resume from a versioned artifact and reject it when its evidence is missing or stale. For a parallel workflow, do not merge outputs by asking a final agent to “pick the best one” without sources, conflict fields, and a defined success condition. Preserve disagreement in the checkpoint and route it deliberately. The more autonomy the pattern has, the more explicit recovery must be.
 
@@ -109,7 +111,7 @@ Suppose a support workflow has one worker that reads a customer account and anot
 
 Microsoft identifies security and compliance boundaries, separation of duties, multiple teams, and planned growth as reasons to use multiple agents. It also warns that every added agent creates more credentials, state transitions, and data-transit points to govern ([Microsoft](https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ai-agents/single-agent-multiple-agents)).
 
-![Conceptual diagram of separate AI agent authority zones connected by a narrow audited handoff](/blog/test-multi-agent-handoffs-agent-authority-test-boundaries.webp)
+![Conceptual diagram of separate AI agent authority zones connected by a narrow audited handoff](/blog/replay-failed-multi-agent-workflow-agent-authority-test-boundaries.webp)
 
 The model can propose an action. It should not define its own authority during replay. Enforce these controls in code or policy infrastructure, then record whether the checkpoint still satisfies each boundary:
 
@@ -152,7 +154,7 @@ The values above are a template, not sample production data. Replace them with t
 
 Before resuming, the orchestrator should check required fields, enum values, source freshness, authorization scope, effect records, and consistency with the current workflow state. It should decide whether to continue, compensate, retry, review, or stop. If validation fails, use a defined repair or review path. Do not simply send the invalid response back to the same agent with “try again” and no new evidence.
 
-![Conceptual illustration of an AI agent returning a structured artifact through validation before another agent can consume it](/blog/test-multi-agent-handoffs-handoff-artifact-validation-test.webp)
+![Conceptual illustration of an AI agent returning a structured artifact through validation before another agent can consume it](/blog/replay-failed-multi-agent-workflow-handoff-artifact-validation-test.webp)
 
 This is also where the baseline matters. If the proposed checkpoint only repackages a shared conversation and records no independent state or effect, it cannot support safe replay. Compare it with the simplest durable state design and add coordination only when it improves recovery. Anthropic's guidance recommends starting with the simplest design and adding complexity when it demonstrably improves the result ([Anthropic](https://www.anthropic.com/engineering/building-effective-agents)).
 
@@ -192,7 +194,7 @@ Fill this out for one real workflow. Compare the proposed recovery design with t
 | Latency and cost budget |  | What will the recovery attempt consume? |
 | Stop or compensation condition |  | When must the workflow stop or undo an effect? |
 
-![Conceptual comparison worksheet for a multi-agent handoff, showing context, artifact, authority, verification, and failure checks](/blog/test-multi-agent-handoffs-handoff-comparison-test-worksheet.webp)
+![Conceptual comparison worksheet for a multi-agent handoff, showing context, artifact, authority, verification, and failure checks](/blog/replay-failed-multi-agent-workflow-handoff-comparison-test-worksheet.webp)
 
 Run the recovery in a controlled order:
 
@@ -205,21 +207,723 @@ Run the recovery in a controlled order:
 
 This is a recovery-plan recommendation, not a claim that I ran these cases for you. For broader pre-release evaluation, use [the AI agent release gate](/blog/how-to-evaluate-an-ai-agent). For runtime traces, alerts, and recovery signals, use [the AI agent monitoring guide](/blog/how-to-monitor-an-ai-agent-in-production).
 
-## Three recovery scenarios
+## Define the incident before you define the replay
 
-### Customer support and account actions
+Start by describing the failed run as an incident with a boundary, an owner, and a known last fact. Do not start with the sentence “the agent failed.” That description is too broad to tell you what to inspect. A useful incident record says which workflow instance failed, which transition was in progress, what the last confirmed external effect was, what information is uncertain, and which decision is blocked.
 
-The support worker can read the conversation and account state, then return a proposed action with evidence. If the workflow fails after approval but before the refund call is recorded, the checkpoint must identify the account, amount, approval, and last confirmed effect. The action worker should resume only after the tool layer proves that the refund was not already issued; a changed account ID or amount must be rejected.
+For example, “the refund workflow failed” could mean at least six different things:
 
-### Open-ended research and synthesis
+1. The researcher never read the account record.
+2. The eligibility worker produced an artifact that failed schema validation.
+3. The approval service accepted the proposed refund, but the approval result was not stored.
+4. The action worker called the payment provider and timed out before receiving a response.
+5. The provider completed the refund, but the local ledger did not record it.
+6. The final notification was not sent after the refund was safely completed.
 
-Independent researchers can each receive a scoped question and source policy. Their artifacts should include citations, retrieval time, unresolved conflicts, and confidence limits. If the synthesizer crashes after one branch is accepted, the checkpoint should identify the accepted branch and the missing branches. Resume only the missing work, and preserve disagreement when the evidence does not resolve it.
+Each case has a different safe boundary. The first may be retryable. The fourth needs an effect lookup before another call. The fifth needs reconciliation, not a new model response. The sixth may be a compensating notification or a harmless retry. A recovery design that calls all six “agent failure” will eventually repeat an action or erase useful uncertainty.
 
-### Planner, implementer, and reviewer labels
+Use this incident header before opening a transcript:
 
-Role names alone do not justify three agents. Start with a clear repository boundary, tool policy, and checkpoint format. If the implementer crashes after a partial write, the reviewer must see the exact artifact version, repository revision, and write effects. Resume only the uncompleted step. Otherwise a restart may overwrite a valid change or ask a reviewer to approve a state that no longer exists.
+| Incident field | Question it answers | Example value |
+| --- | --- | --- |
+| Workflow ID | Which definition and version was running? | `refund-review.v3` |
+| Run ID | Which single execution are we reconstructing? | `run-2026-08-17-1842` |
+| Boundary | Which transition was active? | `eligibility -> action` |
+| Last confirmed fact | What do we know happened? | Eligibility artifact stored and approved. |
+| Unknown fact | What cannot yet be proved? | Provider call outcome after timeout. |
+| Risk owner | Who can authorize the next decision? | Payments operations lead. |
+| Recovery deadline | When does freshness or approval expire? | Approval expires at a recorded time. |
 
-![Decision path showing a workflow moving through a handoff contract, validation, conflict handling, and a controlled next action](/blog/test-multi-agent-handoffs-handoff-release-decision-path.webp)
+The header is not a replacement for the six-field recovery card. It gives the card a specific incident to describe. It also prevents a common mistake: rebuilding a general workflow explanation when the real problem is one unverified effect in one run.
+
+### Separate failure location from failure cause
+
+The last visible error is often not the cause. A worker may report “tool unavailable” after a policy service denied the request. A synthesizer may report missing context after the upstream worker stored an incomplete artifact. A timeout may be an observability failure rather than a provider failure. Record both the location and the cause as separate fields.
+
+| Field | Meaning | Why the distinction matters |
+| --- | --- | --- |
+| Failure location | The component or transition that stopped progress | Tells the operator where to resume inspection. |
+| Failure cause | The condition that made the transition unsafe or impossible | Tells the operator what must change before another attempt. |
+| Detection time | When the runtime learned about the condition | Helps identify expired approvals and stale sources. |
+| Last successful event | The latest event with a durable acknowledgement | Establishes the recovery floor. |
+| Confidence | How directly the evidence supports the event | Prevents a log message from being treated as proof of an external effect. |
+
+Do not convert a low-confidence log into a high-confidence state just because the log is recent. A worker saying “refund submitted” is an assertion. A provider receipt tied to the request key is stronger evidence. A missing provider response is not proof that no refund happened.
+
+### The product definition of done comes first
+
+The checkpoint should make the business completion condition visible before it stores model output. I have taught product managers who went from writing specs to building and shipping the product, and automating work around it. The recurring lesson is not that a prompt needs more decoration. It is that a team has to define what done means and what evidence proves it.
+
+That observation is useful here because replay is a product decision as much as a runtime decision. “The agent finished” is not enough. Did it save a draft, submit an irreversible action, receive a provider receipt, or merely produce a recommendation? If the workflow does not distinguish those states, the recovery layer cannot know whether to resume, verify, notify, compensate, or stop.
+
+Write the completion condition in observable terms:
+
+```text
+Done means:
+- the requested account and amount match the approved request;
+- the action provider returned a durable receipt;
+- the local effect ledger contains that receipt;
+- the notification was either acknowledged or assigned for retry;
+- no unresolved policy or identity conflict remains.
+```
+
+This is a bounded teaching observation, not a failure rate or a private deployment result. It does not prove that every product team has the same problem. It gives the recovery designer a useful question: what would a reviewer need to see before calling this run complete?
+
+## Make the effect ledger the source of replay truth
+
+A replay should read an effect ledger before it reads a model transcript. The ledger records attempted effects, acknowledgements, unknown outcomes, and compensations in a way the runtime can query. Without it, the orchestrator is forced to infer side effects from messages, timestamps, or the agent’s own summary.
+
+At minimum, store one effect record for every operation that can change an external system or create a user-visible commitment:
+
+| Effect field | Required meaning | Example |
+| --- | --- | --- |
+| Effect ID | Stable identifier for this logical action | `effect-refund-482` |
+| Replay key | Key reused when safely checking or retrying | `refund:request-91:amount-40` |
+| Operation | The action attempted | `issue_refund` |
+| Target | Account, document, record, or resource | `account-identifier` |
+| Input digest | Hash or canonical representation of approved inputs | `digest-...` |
+| Attempt state | Planned, started, acknowledged, unknown, failed, compensated | `unknown` |
+| Provider receipt | External acknowledgement, if available | `provider-receipt-...` |
+| Started and ended time | Timing of the attempt | Recorded timestamps |
+| Authority snapshot | Identity, scope, and approval used | `payments-worker`, policy v12 |
+| Next owner | Component responsible for resolving uncertainty | Payments operations |
+
+The `unknown` state deserves special attention. A timeout after a write is not the same as a rejected write. The runtime should move the effect to `unknown`, pause dependent actions, and ask an effect-specific question: can the provider be queried by replay key, request ID, or another idempotent lookup? If yes, reconcile first. If no, route to a human or an approved compensation procedure.
+
+### Treat intent, attempt, and outcome as different events
+
+A clean event sequence separates what the workflow wanted to do from what it actually did:
+
+```text
+intent_created -> approval_recorded -> attempt_started -> outcome_recorded
+```
+
+The events can be enriched with `compensation_started` and `compensation_completed`, but do not overwrite the original attempt with a later interpretation. An event log that changes “attempt started” to “nothing happened” loses the very uncertainty that makes replay risky.
+
+Use an append-only record where practical, then derive a current effect view for the orchestrator. The current view can say `unknown`, while the history still shows that a request was sent and that the response timed out. This makes the recovery decision inspectable by another person and prevents a retry from hiding the earlier attempt.
+
+The effect ledger is not a business database. It should not become a second copy of every domain record. It should contain enough identifiers and evidence to answer whether a particular workflow action happened, which version of the approved input it used, and what must happen next. Keep domain truth in the domain system and link to it with stable references.
+
+### Classify actions by replay risk
+
+Not every tool call needs the same recovery treatment. Classify the action before you write a retry rule:
+
+| Action class | Typical example | Replay posture |
+| --- | --- | --- |
+| Pure read | Fetch account status or retrieve a document | Repeat if the source is still valid; record the read time. |
+| Deterministic computation | Recalculate a risk score from a fixed snapshot | Repeat with the same input digest or compare versions. |
+| Idempotent write | Set a field to a specified value with a request key | Retry only with the same key and approved input. |
+| Append or send | Add a note, send a message, create a ticket | Query for an existing key before repeating. |
+| Irreversible action | Charge a card, delete a record, publish a release | Require effect proof, compensation, or human review. |
+| External action with unknown outcome | Provider call timed out after transmission | Freeze dependent actions and reconcile by provider or owner. |
+
+This classification is a decision aid, not a universal guarantee. A supposedly idempotent endpoint may be misconfigured. A read may itself expose sensitive data or trigger a billable operation. The policy must describe the actual tool contract, not the friendly name of the function.
+
+## Design idempotency around the business action
+
+Idempotency prevents a repeated request from creating a second logical effect. It does not make every retry safe by itself. The key must represent the business action, the service must honor it, and the runtime must reject a new key when it would hide a changed input.
+
+For an action like issuing a refund, a replay key might bind together the original request, the approved amount, the account, and the workflow version. If the recovered run proposes a different amount, it should not reuse the old key. The mismatch should produce a review state, because a new business action needs a new approval path.
+
+Use a contract such as:
+
+```yaml
+action:
+  name: issue_refund
+  replay_key: refund:request-91:account-7:amount-40
+  approved_input_digest: digest-of-account-7-amount-40
+  authorization:
+    principal: payments-worker
+    approval_id: approval-22
+    expires_at: timestamp
+  lookup:
+    provider_query: refund_request_id
+    local_query: effect_id
+```
+
+Before a replayed call, the runtime should check four things:
+
+1. The logical action is the same as the stored intent.
+2. The canonical input digest matches the approved input.
+3. The authority and approval are still valid.
+4. The provider or local ledger has no completed effect for the replay key.
+
+If the fourth check is unavailable, the action is not safe merely because the request has a key. A key can help the provider deduplicate a call, but the workflow still needs a way to learn the result and continue the correct branch.
+
+### Do not create a new key for a retry by default
+
+Creating a fresh key on every attempt is tempting because it makes logs easy to read. It is dangerous when the first attempt may have reached the provider. The default should be to reuse the original key for the same approved action, then create a new key only after a deliberate business decision changes the action or starts a compensation.
+
+Keep attempt identity separate from action identity:
+
+| Identity | Answers | Can change during a safe retry? |
+| --- | --- | --- |
+| Business action ID | What logical action was requested? | No, unless a new action is approved. |
+| Replay key | How should the service deduplicate this action? | Usually no. |
+| Attempt ID | Which transmission attempt was made? | Yes. |
+| Provider receipt | What did the external service acknowledge? | It is discovered, not invented. |
+| Compensation ID | Which approved undo or correction is being made? | It is created only for compensation. |
+
+This separation lets an operator see three network attempts without mistaking them for three refunds. It also supports a provider lookup when an attempt timed out. If the provider has no idempotency facility, the local effect ledger and an explicit review gate become more important, not less.
+
+### Handle non-idempotent tools honestly
+
+Some tools cannot safely repeat an action and cannot query the outcome. Do not hide that limitation behind an agent prompt. Mark the tool as non-replayable, require a human or domain-specific reconciliation step, and make the workflow stop before dependent actions proceed.
+
+For an email, the system may search for a message with a stable workflow marker before sending again. For a physical shipment, it may query the fulfillment system by order ID. For a destructive command, it may require a human to inspect the target and the last known state. The right approach depends on the tool contract, but the general rule is stable: if the outcome cannot be proved, replay must not pretend that it can.
+
+## Version every input that can change the decision
+
+A checkpoint is not durable if its meaning changes after the run stops. Store the versions that influenced the handoff: workflow definition, prompt or instruction set, tool schema, policy rules, source snapshots, retrieval settings, code revision, and model configuration when it affects the output. You do not need to preserve every byte of every dependency, but you need enough information to know whether the old artifact can still be interpreted.
+
+The receiver should see a compatibility result, not just a list of versions:
+
+| Compatibility state | Meaning | Action |
+| --- | --- | --- |
+| Exact | The workflow and relevant inputs match the checkpoint | Resume according to the stored state. |
+| Compatible | A change is known not to affect this boundary | Resume with the change recorded. |
+| Recompute required | The artifact depends on a changed input | Re-run the affected read or computation. |
+| Approval required | Policy, identity, or business terms changed | Obtain fresh approval before action. |
+| Incompatible | The old artifact cannot be safely interpreted | Stop and reconstruct from an earlier checkpoint. |
+
+Do not force every version change into a full restart. A changed notification template may not invalidate a completed refund. A changed eligibility policy can invalidate the approval even if the account record is unchanged. The compatibility rule should live near the affected action and be testable.
+
+### Pin source freshness separately from code freshness
+
+A run can have the same code revision but stale evidence. A research worker that read a policy document yesterday may not be allowed to make today's decision. Store retrieval time, source identifier, source version when available, and the maximum age permitted by the workflow.
+
+For a recovered research handoff, the artifact should say whether it remains usable:
+
+```yaml
+evidence:
+  source_id: policy-document-7
+  retrieved_at: timestamp
+  source_version: published-version-or-unknown
+  freshness_limit: 24h
+  status: current | stale | unavailable | changed
+```
+
+If the source has changed, the orchestrator should not quietly preserve the old conclusion. It can keep the old artifact as historical evidence and ask the research worker to re-read the changed source. The new artifact must carry a new input digest so a reviewer can tell which version influenced the next action.
+
+### Preserve enough environment to reproduce the boundary
+
+Replaying a workflow often fails because the runtime restored the task but not the environment. Record the relevant region, tenant, feature flags, permissions service version, tool endpoint, queue configuration, and time assumptions. Avoid copying secrets into the checkpoint. Store references to secret versions or policy identities that the runtime can resolve under current authorization.
+
+The goal is not a perfect virtual machine snapshot. The goal is to answer whether the receiver is running in a materially different world. A changed tenant, policy region, or feature flag can matter more than a changed model setting. If an environment difference cannot be assessed, make it an explicit uncertainty and route it through the recovery decision.
+
+## Use a state machine with one owner for every branch
+
+Recovery becomes safer when the orchestrator maps each checkpoint state to a small set of allowed transitions. A free-form instruction such as “continue if possible” leaves too much room for a model to make a business decision that belongs to the runtime or a person.
+
+One practical state machine is:
+
+```text
+captured
+  -> validated
+  -> resumed
+  -> completed
+
+captured -> invalid
+captured -> stale
+captured -> incomplete
+captured -> conflict
+captured -> unknown_effect
+
+invalid       -> repair or stop
+stale         -> refresh or review
+incomplete    -> collect missing evidence or stop
+conflict      -> resolve or review
+unknown_effect -> reconcile, compensate, or review
+```
+
+The labels are illustrative. Your domain may need `cancelled`, `expired`, or `quarantined`. What matters is that each state has an owner, an allowed next action, and a condition that proves the transition.
+
+| Recovery state | Runtime may do | Runtime must not do | Owner |
+| --- | --- | --- | --- |
+| Validated | Restore the approved context and invoke the next bounded step | Add tools or widen the task | Orchestrator |
+| Invalid | Record field-level errors and request repair | Ask the same agent to guess missing fields | Artifact validator |
+| Stale | Refresh the named source or request new approval | Reuse the stale conclusion for an external action | Source or policy owner |
+| Incomplete | Collect the missing artifact or route to review | Treat an absent effect as a negative result | Upstream worker or operator |
+| Conflict | Preserve both claims and invoke a resolver | Pick a winner from confidence prose alone | Conflict owner |
+| Unknown effect | Query, reconcile, compensate, or stop | Issue the same irreversible action again | Domain action owner |
+| Blocked | Explain the dependency and notify the owner | Loop without an external budget | Dependency owner |
+
+The model can help classify evidence or draft a repair request, but the runtime should decide whether a transition is allowed. This division keeps the model useful without making it the authority over irreversible state.
+
+### Give each retry a budget outside the prompt
+
+Retry policy should include attempts, elapsed time, cost, and effect risk. A loop that retries a read five times may be acceptable. A loop that repeats an unknown write five times is not. Store the budget in the recovery state so a restarted process cannot accidentally reset it.
+
+```yaml
+retry_budget:
+  max_attempts: 3
+  attempts_used: 1
+  max_elapsed_seconds: 120
+  max_cost_units: 10
+  retryable_failures:
+    - timeout_before_transmission
+    - temporary_dependency_unavailable
+  forbidden_after:
+    - unknown_external_effect
+```
+
+The exact numbers are placeholders for the workflow owner to set. They are not a recommendation to use three attempts or ten cost units everywhere. The important property is that a replay cannot gain a fresh budget simply because the process restarted.
+
+### Make stop a successful safety outcome
+
+Operators sometimes treat `stop` as a failure of the recovery system and pressure the next agent to continue. That incentive produces guesses. Define stop as a valid terminal outcome when the system cannot prove safety. A stopped run should include the reason, evidence inspected, next owner, and conditions for reopening.
+
+For example:
+
+```text
+Outcome: stopped
+Reason: provider outcome cannot be queried by action key
+Risk: duplicate financial action
+Evidence checked: local ledger, provider lookup, approval record
+Owner: payments operations
+Reopen when: provider receipt or account reconciliation is available
+```
+
+This record is more useful than a synthetic success message. It tells the next person what has already been checked and protects the workflow from a series of independent retries.
+
+## Validate artifacts at both sides of the boundary
+
+The sender should validate before storing a handoff, and the receiver should validate again before acting on it. Sender validation catches obvious omissions while the original context is available. Receiver validation protects against storage corruption, version drift, confused routing, and an artifact that no longer matches the current task.
+
+The two checks should not be identical. The sender asks, “Did I produce a complete artifact for the contract?” The receiver asks, “Is this artifact authentic, current, authorized, and applicable to this run?”
+
+### Sender-side checks
+
+The sending worker should confirm:
+
+- the artifact has the required fields and allowed values;
+- every material claim points to a source, record, or computation;
+- the task and success condition are the ones assigned by the orchestrator;
+- effects are recorded separately from conclusions;
+- missing information is represented as missing, not filled with a plausible guess;
+- the artifact has a version, checkpoint ID, and creation time;
+- the worker did not include credentials, secrets, or irrelevant private reasoning;
+- the authority used for the artifact is recorded without granting that authority to the receiver.
+
+If sender validation fails, do not pass a half-valid artifact with a warning buried in prose. Return a structured rejection that tells the orchestrator whether repair is possible, whether the worker must re-read a source, or whether a human must decide.
+
+### Receiver-side checks
+
+The receiving worker or runtime should confirm:
+
+1. The checkpoint belongs to this workflow ID, run ID, and transition.
+2. The artifact version is the one referenced by the event ledger.
+3. The input digest matches the current task and approved action.
+4. Required sources and effects are present and within their freshness limits.
+5. The receiver's authority is sufficient and no forbidden action is implied.
+6. No later event supersedes the artifact.
+7. The failure owner and next action are defined.
+
+The receiver should reject a valid-looking artifact that belongs to another run. This sounds obvious, but shared queues and parallel branches make routing mistakes possible. Include a unique run and transition identifier in every artifact, and verify it before the receiver reads business fields.
+
+### Validate semantics, not only syntax
+
+JSON schema can confirm that `status` is a string and `evidence` is an array. It cannot by itself prove that the evidence supports the status, that the account ID matches the approved request, or that the action is still allowed. Add domain assertions beside the schema.
+
+For a refund artifact, semantic checks might include:
+
+| Assertion | Failure state |
+| --- | --- |
+| Account in artifact equals account in request | Conflict |
+| Amount is within the approved amount | Invalid or approval required |
+| Eligibility evidence is newer than its freshness limit | Stale |
+| Approval covers this operation and amount | Approval required |
+| Provider lookup finds no completed effect | Unknown effect if lookup fails |
+| Notification target belongs to the same request | Invalid |
+
+Do not make the model responsible for proving these assertions in natural language. Let it propose evidence locations, then let code or a person validate the actual records.
+
+## Reconcile parallel branches without erasing disagreement
+
+Parallel branches can shorten a workflow when their subtasks are independent, but recovery must preserve branch identity and merge status. A synthesizer that sees only a combined paragraph cannot tell whether a fact came from one branch, two agreeing branches, or an accidental duplicate.
+
+Store a branch manifest:
+
+| Branch field | Purpose |
+| --- | --- |
+| Branch ID | Distinguishes the work unit from the model or role name. |
+| Assigned question | Defines the bounded subtask. |
+| Input snapshot | Shows what the branch actually received. |
+| Sources consulted | Preserves provenance and retrieval time. |
+| Output artifact | Stores the typed result separately. |
+| Completion event | Proves the branch reached its boundary. |
+| Conflict set | Lists claims that disagree with another branch. |
+| Merge status | Pending, accepted, rejected, or needs review. |
+
+When a synthesizer fails after accepting two of five branches, resume from the branch manifest. Do not restart all five by default. First determine whether the accepted branches remain valid, whether the missing branches are independent, and whether the merge rule changed. A branch can be complete while the overall task remains incomplete.
+
+### Define merge rules before the failure
+
+A merge rule should say what counts as agreement, what happens when sources differ, and who can override the rule. Possible rules include:
+
+- accept only claims supported by two independent sources;
+- preserve both values when the disagreement is material;
+- prefer the source with the newest effective date for a time-sensitive field;
+- route legal, safety, identity, or financial conflicts to a human;
+- allow a synthesis worker to summarize but not resolve a policy conflict.
+
+These are examples, not universal policies. The error to avoid is leaving the merge decision implicit in the final prompt. If a rule is not known before recovery, mark the state `conflict` and assign an owner.
+
+### Preserve branch cancellation and partial completion
+
+Parallel recovery also needs cancellation semantics. If one branch discovers that the task is invalid, do the other branches stop, finish their reads, or continue because their results may help explain the failure? Store the policy. A worker that keeps running after the workflow is cancelled may produce artifacts that look current but no longer belong to an active run.
+
+Use a cancellation token or equivalent runtime signal for new work, but keep already completed artifacts. Mark them as `completed_before_cancel` rather than deleting them. This gives the operator a history without treating cancelled work as approved output.
+
+## Recover human approvals as state, not as a message
+
+An approval is an effect with scope, time, identity, and input. A sentence in a transcript saying “approved” is not enough to resume a consequential action. Store who approved, what was approved, which version of the artifact they saw, when the approval expires, and whether the approval can be reused after a change.
+
+```yaml
+approval:
+  id: approval-22
+  decision: approved | rejected | expired | revoked
+  principal: reviewer-identity
+  scope:
+    action: issue_refund
+    account_id: account-identifier
+    amount: approved-amount
+  artifact_id: checkpoint-17
+  artifact_digest: digest-...
+  created_at: timestamp
+  expires_at: timestamp
+  reusable_after_replay: false
+```
+
+The `artifact_digest` matters. If the receiver changes the amount, source evidence, or target account, the old approval no longer covers the new action. The runtime should detect the mismatch and move to `approval_required`, even if the model says that the change is minor.
+
+### Distinguish review from approval
+
+A reviewer may inspect a failed run and recommend a next step without authorizing an external action. Record `reviewed` and `approved` separately. A support lead may confirm that the evidence is coherent but still require a payment owner to approve a refund. A security engineer may approve a tool scope without approving the business outcome.
+
+This distinction makes ownership clearer during replay:
+
+| Decision | What it permits | What it does not permit |
+| --- | --- | --- |
+| Reviewed | The record has been inspected | An irreversible action |
+| Repaired | Missing fields or sources were added | A changed business action |
+| Approved | The named action and input may proceed within scope | A different target or amount |
+| Reconciled | An uncertain effect has a supported outcome | A new effect using old evidence |
+| Released | The workflow may leave quarantine | Any action outside the release record |
+
+Do not ask one model to compress all of these into a single boolean. A boolean makes the happy path easy and the recovery path ambiguous.
+
+### Expired approvals should fail closed
+
+If an approval expires during a retry, the workflow should stop or request a new approval. It should not rely on the fact that the same person would probably approve it again. Expiry is a business boundary, not a network inconvenience.
+
+The same applies to revoked identities, changed permissions, and closed accounts. A recovered checkpoint must be evaluated against current policy where the action is about to happen. Historical authority can explain what the previous worker did, but it should not silently grant present authority.
+
+## Add observability that answers recovery questions
+
+Logs are useful only when they can be joined into one run, one transition, one artifact, and one effect. Recovery-oriented observability is not a pile of verbose model traces. It is a small set of durable identifiers and events that let an operator reconstruct the path without guessing.
+
+Carry these identifiers through every event:
+
+| Identifier | Scope |
+| --- | --- |
+| Workflow ID and version | The definition being executed |
+| Run ID | One execution from start to terminal state |
+| Parent span or transition ID | The handoff that led to this event |
+| Agent or worker ID | The runtime identity, not merely a role label |
+| Checkpoint ID | The artifact snapshot being consumed or produced |
+| Effect ID and replay key | The logical action and deduplication identity |
+| Policy version | The rules used for the decision |
+| Source version or retrieval time | The evidence state |
+| Attempt ID | One invocation or transmission |
+
+A model response ID alone is not enough. It may not connect to the tool call, policy decision, provider receipt, or effect ledger. Capture the joins around it.
+
+### Record summaries that a human can audit
+
+The recovery log should include compact operational summaries:
+
+- what the worker was asked to do;
+- what artifact it produced and where it is stored;
+- what evidence it used;
+- what tools it called and whether each call changed state;
+- what the runtime validated;
+- what was unknown at failure time;
+- what next action was selected and by whom;
+- what was deliberately not repeated.
+
+Do not store hidden chain-of-thought as a substitute for these fields. A short, structured reason code and evidence pointer is easier to audit and safer to retain. If a reviewer needs the raw input or output for a specific incident, retrieve it under the same access controls as the original workflow.
+
+### Make the last confirmed event obvious
+
+Operators should not have to sort timestamps from several systems by hand. Derive a recovery view that highlights the latest event with a durable acknowledgement, the latest attempted effect with an unknown outcome, and every dependent action paused because of that uncertainty.
+
+For example:
+
+```text
+Last confirmed checkpoint: cp-17, eligibility artifact accepted
+Last unknown effect: effect-refund-482, provider response timed out
+Paused dependents: notification, account-status update
+Allowed next actions: provider lookup, domain reconciliation, stop
+Forbidden next actions: new refund request, approval reuse after expiry
+Owner: payments operations
+```
+
+This view is an operational artifact derived from the event ledger. It is not a new truth source. If the derived view disagrees with the underlying events, quarantine the run and repair the view rather than making a decision from the disagreement.
+
+## Test recovery with failure injection, not only successful runs
+
+A workflow can pass normal examples and still be impossible to replay. Test the boundary by stopping workers at specific points, delaying responses, dropping acknowledgements, changing versions, and removing permissions. The purpose is not to create a dramatic benchmark. It is to prove that each interruption leads to a defined next state.
+
+Build a small recovery test matrix:
+
+| Injection point | What to remove or delay | Expected recovery decision |
+| --- | --- | --- |
+| Before artifact write | Kill the sender after computation | Re-run the bounded computation if inputs are still current. |
+| After artifact write | Kill the sender before handoff acknowledgement | Reuse the stored checkpoint, do not create a duplicate artifact. |
+| Before tool transmission | Stop the action worker | Retry with the same approved input and key if no transmission occurred. |
+| After transmission before response | Delay or drop provider response | Query or reconcile; do not issue a new action by default. |
+| After provider success before local write | Drop the local acknowledgement | Look up by provider receipt or replay key, then rebuild local state. |
+| During approval | Expire or revoke the approval | Stop and request current approval. |
+| During parallel merge | Remove one branch or create a conflict | Preserve completed branches and route the merge state. |
+| After cancellation | Let a branch finish late | Mark it outside the active run and exclude it from approval. |
+
+The expected result should be a state and an owner, not only a log line. “Test passed” is weak if the test cannot tell you whether the runtime should resume, compensate, retry, review, or stop.
+
+### Test duplicate prevention explicitly
+
+For each side effect, run the same recovery case twice. The second run should produce one of three outcomes: the provider returns the existing result for the same key, the local ledger recognizes the completed effect, or the workflow stops because the outcome cannot be proved. A second call that happens to be harmless in a test environment does not prove production safety.
+
+Test changed inputs separately. Reusing a key for a changed amount or target should be rejected. Otherwise a caller could accidentally turn “retry the approved refund” into “apply a new amount under the old approval.”
+
+### Test corrupt and plausible artifacts
+
+Many validators test missing fields but not believable wrong values. Add fixtures where the artifact has the right shape but the wrong account, stale evidence, mismatched workflow ID, superseded version, or an authority claim that the sender never possessed. The receiver should reject these cases with a reason that an operator can act on.
+
+Keep at least one deliberately incomplete fixture and one deliberately conflicting fixture. The goal is to exercise the safe branches, not to make the happy path look impressive.
+
+### Test the recovery code without the model
+
+Replay validation should run deterministically on stored fixtures before a model is invoked. If the validator itself needs a model to decide whether an effect happened, the system is asking another uncertain component to settle the original uncertainty. Use code and domain lookups for identity, schema, digests, timestamps, permissions, effect keys, and provider receipts. Use a model later for bounded classification or a human-readable incident summary when that adds value.
+
+## Walk through a partial write recovery step by step
+
+Consider a planner that creates an implementation plan, an implementer that writes a repository change, and a reviewer that checks the result. The implementer crashes after writing one file and before storing its completion artifact. A restart from the last chat message may ask the implementer to write the file again or ask the reviewer to inspect a repository state it cannot identify.
+
+The recovery should proceed in a controlled order.
+
+### 1. Freeze the run and identify the repository revision
+
+Stop new writes for the run. Record the workflow version, run ID, branch or workspace, current repository revision, and the last durable file event. Do not infer the revision from a model message. Read it from the repository or execution system under the same authority used by the worker.
+
+If the workspace contains uncommitted changes from another run, isolate the recovery. A valid artifact from one run cannot be applied safely to a mixed workspace. The correct next state may be `conflict` before any file is changed.
+
+### 2. Locate the intended artifact and the write set
+
+The planner's artifact should name the intended files, constraints, tests, and success condition. The implementer's checkpoint should identify which files it planned to change and which write events were acknowledged. If the checkpoint is missing, inspect the workspace and tool logs, but label the result as reconstructed evidence with a lower confidence.
+
+Do not use a directory diff alone to decide whether the work is complete. A file may have changed before the crash but contain a partial write, a generated output, or an unrelated edit. Pair the diff with the write event, file digest, and expected artifact version.
+
+### 3. Validate the partial result
+
+Run deterministic checks that do not change the workspace where possible: parse the file, compare its digest to the recorded write, inspect the patch boundaries, and run targeted tests in an isolated environment. If a test itself writes state, record that effect separately.
+
+Possible results include:
+
+| Result | Recovery action |
+| --- | --- |
+| No write occurred | Retry the exact approved write if the workspace is unchanged. |
+| Full write matches the recorded artifact | Store the missing completion event and continue to review. |
+| Partial write is safely replaceable | Restore the planned file from the approved patch, then record the new attempt. |
+| File differs from the approved patch | Stop and inspect a conflict before overwriting. |
+| Tests cannot establish validity | Route to review with the workspace and evidence attached. |
+
+This example illustrates why “resume the implementer” is not a sufficient recovery instruction. The safe branch depends on external state, artifact identity, and whether the write can be repeated without destroying another change.
+
+### 4. Re-establish authority at the write boundary
+
+The implementer may have been allowed to modify a working directory but not publish, merge, or deploy. The reviewer may read the result but not change it. Restore those permissions from runtime policy. Do not pass a sentence such as “the previous agent already approved this” as a substitute for the current policy check.
+
+### 5. Record the outcome
+
+The terminal record should say whether the write was accepted, repaired, rejected, or left for review. Include the final file digest, repository revision, tests run, remaining uncertainty, and next owner. If a human repairs the state, record the repair as a new event rather than rewriting the original failed attempt.
+
+## Walk through a provider timeout recovery
+
+Now consider an action worker that calls an external service. It stores `attempt_started`, sends the request, and times out before receiving the response. The recovery decision hinges on whether the request may have reached the provider.
+
+First, freeze dependent actions. Do not send a confirmation, update a local status to “complete,” or start a compensation until the action outcome is reconciled. Then search in order of strength:
+
+1. Query the provider by its request or idempotency key.
+2. Query the provider by a domain identifier such as order or account ID.
+3. Compare the local effect ledger with any provider receipt already stored.
+4. Ask the domain owner to reconcile the external state if the API cannot answer.
+5. Stop with an explicit unknown outcome if none of these checks can prove what happened.
+
+Do not allow a model to infer success from the absence of an error. A network timeout means the caller lacks a response. It says nothing by itself about the provider's state.
+
+### If the provider says the action completed
+
+Store the provider receipt, bind it to the original replay key and input digest, and append a reconciliation event. Rebuild any missing local status or notification as a separate local effect. Do not create a second provider action to make the local record look complete.
+
+### If the provider says the action did not occur
+
+Verify that the lookup covers the correct account, request, time range, and provider region. If the lookup is authoritative and the original approval is still valid, retry with the same replay key. If the approval expired or the input changed, request new approval before sending anything.
+
+### If the provider cannot answer
+
+Keep the effect `unknown`. The workflow may prepare a review packet, but it must not represent the action as failed just because the API is silent. A human may reconcile a bank statement, shipment record, or domain database. The exact process belongs to the domain owner.
+
+This case is where a durable effect ledger pays for itself. A transcript can say that the agent tried. The ledger can show the approved request, transmission attempt, lookup queries, and why the next action is blocked.
+
+## Walk through an open-ended research recovery
+
+Research workflows have a different risk profile from financial actions, but their recovery still depends on provenance and merge state. A researcher may have found sources, a synthesizer may have accepted some claims, and the process may fail while producing a draft. The safest replay restores branch artifacts and source versions rather than asking every worker to search again.
+
+For each research branch, store:
+
+- the question assigned to the branch;
+- the source policy and date range;
+- the queries or retrieval scope when reproducibility matters;
+- URLs, source titles, and access times;
+- extracted claims and their supporting passages or locations;
+- unresolved contradictions;
+- the branch's confidence limits;
+- whether the synthesizer accepted, rejected, or has not reviewed it.
+
+If one branch's source is updated, mark that branch stale and re-run only the affected work when the merge rule allows it. If a central definition changed, several branches may require recomputation. The checkpoint should make that dependency visible.
+
+Anthropic reports that its multi-agent research system performed well on breadth-first questions with independent directions, while using much more token budget and fitting poorly with highly dependent work. That is a report about Anthropic's system, not a general benchmark. It still illustrates a recovery distinction: independent branches can often be resumed separately, while dependent research needs an ordered checkpoint and stronger version compatibility.
+
+### Do not turn disagreement into false consensus
+
+Suppose two branches disagree about whether a source supports a claim. The synthesizer should store both claims, their evidence, and the merge decision. If it crashes before deciding, resume the merge, not the source collection. If a reviewer later rejects the merge, preserve the rejected decision and reason so another replay does not repeat the same mistaken synthesis.
+
+A useful final artifact can contain a table like this:
+
+| Claim | Branch A | Branch B | Merge status | Next owner |
+| --- | --- | --- | --- | --- |
+| Policy effective date | Source A, retrieved time | Source B, retrieved time | Conflict | Policy reviewer |
+| Product capability | Documentation source | Release note source | Accepted with scope | Synthesizer |
+| Internal process | No public source | Team record | Needs permission check | Process owner |
+
+The values are illustrative. The pattern is the important part: the recovery record keeps the evidence structure that a final paragraph would otherwise hide.
+
+## Roll out the recovery contract in stages
+
+Introduce the contract at the riskiest boundary first. Do not rewrite an entire multi-agent platform before you know which transitions need durable proof. Select one workflow with a consequential effect or a recurring partial failure, then measure whether the card and ledger answer the operator's questions.
+
+### Stage 1: Observe without changing behavior
+
+Add run, transition, checkpoint, attempt, and effect identifiers to the existing workflow. Build a derived recovery view. Do not change retries yet. Compare what the view can prove with what operators currently infer from transcripts and logs.
+
+The output of this stage should be a list of missing facts: provider receipts, source versions, write digests, approval scope, or branch identity. Those gaps define the next implementation work.
+
+### Stage 2: Quarantine unsafe resumes
+
+Add validation before the highest-risk action. When the checkpoint is invalid, stale, conflicting, or unknown, stop and route it. Keep the normal path unchanged when validation passes. This stage may increase visible stops because the system is surfacing uncertainty that was already present.
+
+### Stage 3: Add idempotent retries and reconciliation
+
+For actions with provider support, reuse business replay keys and implement lookup by key. For actions without lookup support, define a review or compensation path. Add tests for changed inputs and duplicate recovery before enabling automatic retries.
+
+### Stage 4: Expand to parallel branches and human decisions
+
+Once one boundary is understandable, extend branch manifests, merge rules, approval records, and cancellation semantics. Keep the authority model outside the agents. Review whether extra coordination helps the workflow or only adds more places to store uncertain state.
+
+### Stage 5: Review the recovery record after incidents
+
+After each real failure, ask which field was missing, which decision was ambiguous, and which test should be added. Update the contract or the workflow, not just the prompt. If the incident exposed a new external effect, classify it and assign an idempotency or reconciliation strategy.
+
+Use a short review table:
+
+| Incident question | Finding | Contract change |
+| --- | --- | --- |
+| What did we believe happened? | The worker message said complete. | Require a provider receipt or explicit unknown state. |
+| What did we actually know? | Only that transmission started. | Add attempt and lookup events. |
+| Why did replay choose that branch? | The retry budget reset. | Persist budget outside the process. |
+| Who could stop it? | No owner was assigned. | Add a failure owner and escalation route. |
+
+The examples show the shape of a post-incident change. Replace them with facts from the actual workflow. Do not turn one incident into a universal statistic.
+
+## Decide whether to resume, compensate, retry, review, or stop
+
+The final decision should follow evidence, not urgency. Use the smallest allowed action that restores progress without hiding an unknown effect or widening authority.
+
+| Decision | Choose it when | Required proof or input |
+| --- | --- | --- |
+| Resume | The checkpoint is valid, current, authorized, and no dependent effect is uncertain | Validated artifact and current policy |
+| Retry | The operation is safely repeatable, the failure is transient, and the budget remains | Same approved input and replay rule |
+| Compensate | A known effect must be corrected through an approved inverse or domain procedure | Effect receipt, compensation scope, and authority |
+| Review | Evidence conflicts, an action is consequential, or policy is ambiguous | Complete recovery packet and named reviewer |
+| Stop | The system cannot prove safety or the owner is unavailable | Explicit reason, evidence checked, and reopen condition |
+
+These decisions can appear as simple buttons in an operator tool, but the underlying conditions must be persisted. A human choosing “resume” should be approving a named transition and artifact, not granting a general instruction to continue the conversation.
+
+![Decision path showing a workflow moving through a handoff contract, validation, conflict handling, and a controlled next action](/blog/replay-failed-multi-agent-workflow-handoff-release-decision-path.webp)
+
+### Resume only from the latest valid checkpoint
+
+The latest checkpoint is not necessarily the safest checkpoint. A newer artifact may be incomplete, stale, or produced after an unknown effect. Choose the latest checkpoint that passes validation and has a coherent effect history. If a later checkpoint cannot be trusted, roll back to an earlier one while preserving the later record as failed evidence.
+
+### Compensate only with a known inverse
+
+Compensation is not a universal undo button. A refund may be reversed under one provider contract but not another. A sent message cannot always be unsent. A deleted record may need restoration from a snapshot with its own risks. Name the compensation procedure and its limits before relying on it.
+
+### Review should receive a complete packet
+
+A reviewer should not have to reconstruct the incident from raw logs. Provide the incident header, recovery card, effect ledger, source and policy versions, authority decisions, validation failures, options, and explicit questions. The reviewer can then choose among bounded actions rather than improvising a new workflow.
+
+## Use the recovery card on one real boundary
+
+Before changing your architecture, fill out the card for the boundary where a repeated action or silent loss would matter most. Use concrete values from one workflow. If a field is unknown, write `unknown` and assign an owner. Do not fill the table with idealized statements that the runtime cannot verify.
+
+| Field | Your record | Verification or exception |
+| --- | --- | --- |
+| Purpose |  | What exact job and success condition belong to the receiver? |
+| Context |  | Which facts, source versions, and constraints are necessary? |
+| Artifact |  | What schema and semantic checks apply? |
+| Authority |  | Which identity, tools, data, approvals, and forbidden actions apply? |
+| Effects |  | Which attempts, receipts, writes, and unknown outcomes exist? |
+| Failure |  | Which state is active, who owns it, and what transitions are allowed? |
+
+Then add the effect questions:
+
+1. What is the logical business action ID?
+2. What replay key identifies the same approved action?
+3. Which external system can confirm or reject the effect?
+4. What input digest must remain unchanged?
+5. What happens if the external system cannot answer?
+6. Which dependent actions are paused until reconciliation?
+7. When does approval or evidence expire?
+8. What is the stop condition and reopen condition?
+
+If the answers are vague, the workflow is not ready for automatic replay. That does not mean it needs more agents. It means the boundary needs a clearer contract, a better tool, or a human decision.
+
+### Compare the card against the simplest design
+
+The worksheet should end with a comparison to the simplest durable alternative. Perhaps one worker can perform the read and produce an artifact without a handoff. Perhaps a queue plus a typed record is enough. Perhaps the boundary is required because separate permissions or teams need to own the action. State the reason.
+
+| Question | Current multi-agent design | Simplest credible alternative | Decision |
+| --- | --- | --- | --- |
+| What boundary is necessary? |  |  |  |
+| What evidence is lost without it? |  |  |  |
+| What authority separation is required? |  |  |  |
+| How are effects reconciled? |  |  |  |
+| What does the added coordination cost? |  |  |  |
+| What test would show the extra boundary helps? |  |  |  |
+
+The comparison prevents recovery work from becoming an excuse to preserve a topology that has no clear benefit. OpenAI, Microsoft, Google Cloud, and Anthropic all describe trade-offs around orchestration, context, state, permissions, cost, or latency. Apply those trade-offs to your workflow and record the reason for the boundary.
+
+## What this procedure does not prove
+
+The recovery card does not prove that a workflow is secure, compliant, correct, or profitable. It makes certain decisions inspectable. Legal, security, privacy, financial, and safety requirements still belong to the people and controls responsible for those domains.
+
+It also does not guarantee exactly-once behavior across arbitrary external systems. Exactly-once semantics depend on the provider, network, storage, and business action. The procedure reduces duplicate-action risk by preserving keys, effects, and uncertainty. When the external contract cannot provide proof, the safe outcome may remain review or stop.
+
+The vendor guidance cited here is architecture guidance, not a promise that a particular pattern will work in your environment. Anthropic's breadth-first research result is attributed to its system and should not be read as a general benchmark. The recovery card is original synthesis for this article, not an industry standard. The scenarios and YAML examples are procedures and templates, not private test results.
+
+You also do not know that a recovered artifact is good merely because it passes schema validation. Semantic checks, source freshness, authority, domain rules, and human review may still be required. A clean state machine can faithfully route a bad decision. Recovery safety depends on the quality of the boundary and the evidence that supports it.
 
 ## The resume rule
 
@@ -227,6 +931,6 @@ A failed workflow is safe to resume only when its purpose, minimum necessary con
 
 Write one recovery card for the highest-risk boundary first. Exercise missing, stale, conflicting, and out-of-scope state. Block resume on duplicate-action risk, unverified artifacts, or unowned failures. Then decide whether the workflow needs a new checkpoint, a compensating action, or human review.
 
-![Conceptual overview of the layers that make a multi-agent handoff reliable](/blog/test-multi-agent-handoffs-multi-agent-handoff-test-overview.webp)
+![Conceptual overview of the layers that make a multi-agent handoff reliable](/blog/replay-failed-multi-agent-workflow-multi-agent-handoff-test-overview.webp)
 
 If a team has a concrete workflow but cannot reconstruct its checkpoints or agree on resume rules, an architecture review or reliability workshop is a sensible next step. It should inspect the workflow, state records, data access, tools, effects, and failure policy. It should not replace the definition of the business outcome or specialist legal and security advice. You can also start with [Marius Manolachi's AI consulting work](/learn-ai) if you need help framing that review.
