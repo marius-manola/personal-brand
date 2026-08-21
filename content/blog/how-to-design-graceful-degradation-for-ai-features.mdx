@@ -1,0 +1,834 @@
+---
+title: 'How to Design Graceful Degradation for AI Features'
+date: '2026-08-21'
+updated: '2026-08-21'
+excerpt: 'Design AI features that lose capability safely when models, data, or tools fail, with fallbacks, stop conditions, honest UX, and tests.'
+answer: 'Design graceful degradation as a capability contract, not just a backup model. For each failure signal, define what remains available, what is forbidden, what the user sees, and how recovery is verified. Degrade when the reduced behavior stays truthful and safe. Clarify, hand off, or stop when a partial result could mislead or cause an unacceptable side effect.'
+targetQuery: 'how to design graceful degradation for AI features'
+queryAliases:
+  - 'AI feature graceful degradation'
+  - 'AI fallback design'
+  - 'how to design AI fallbacks'
+  - 'graceful failure for AI features'
+intent: 'implementation'
+funnel: 'consideration'
+cluster: 'AI feature reliability and architecture'
+kind: 'satellite'
+sourceableAtom: 'The smallest complete graceful-degradation design for an AI feature is a capability contract that names the trigger, preserved capability, forbidden capability, visible user state, recovery action, and telemetry for each degraded mode.'
+tags:
+  - 'AI reliability'
+  - 'AI features'
+  - 'Architecture'
+author: 'Marius Manolachi'
+nextReviewAt: '2027-02-21'
+sources:
+  - 'https://docs.aws.amazon.com/wellarchitected/2022-03-31/framework/rel_mitigate_interaction_failure_graceful_degradation.html'
+  - 'https://docs.cloud.google.com/architecture/framework/perspectives/ai-ml/reliability?authuser=0'
+  - 'https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentrel04-bp03.html'
+  - 'https://airc.nist.gov/airmf-resources/airmf/5-sec-core/'
+  - 'https://www.microsoft.com/en-us/haxtoolkit/guideline/scope-services-when-in-doubt/'
+  - 'https://www.microsoft.com/en-us/haxtoolkit/pattern/g10-c-fall-back-to-other-strategies/'
+faq:
+  - q: 'Is graceful degradation the same as using a fallback model?'
+    a: 'No. A fallback model is only one possible implementation. Graceful degradation is the product behavior and authority boundary that applies when the full AI path is unavailable, uncertain, stale, or unsafe. The fallback may be a cache, rules, clarification, human handling, read-only mode, or a hard stop.'
+  - q: 'Should users know when an AI feature is degraded?'
+    a: 'Tell users when the reduced capability changes the meaning, freshness, confidence, or actionability of the result. A transparent read-only or stale state is safer than presenting degraded output as normal. An invisible infrastructure substitution can be acceptable only when the user-visible contract stays materially equivalent.'
+  - q: 'When should an AI feature fail closed instead of degrading?'
+    a: 'Fail closed when the reduced path could create an irreversible side effect, expose protected information, imply verification that did not happen, or make a high-consequence decision without required evidence or approval. Preserve continuity only when the remaining behavior is still truthful and within scope.'
+  - q: 'How do you test an AI feature fallback?'
+    a: 'Test each trigger as a distinct case. Verify the selected degraded mode, the capability that remains, the actions that are blocked, the message shown to the user, the recovery path, and the telemetry that proves the primary path was unavailable or unsafe.'
+cover: '/blog/how-to-design-graceful-degradation-for-ai-features-hero.webp'
+coverAlt: 'Illustration of an AI feature switching from full capability to bounded degraded modes'
+draft: false
+---
+
+An AI feature rarely fails in one clean way. The model can time out while the cache is fresh. Retrieval can return empty evidence while the model is perfectly available. The answer can be fluent but not trustworthy enough for the action the product wants to take.
+
+When I taught product managers to move from writing specs to building and shipping, the missing piece was usually not the model. It was that nobody could say what done meant. That same gap appears at the other end of the feature: nobody has defined what “still works” means when the full path is gone. That observation is from my teaching work, not a benchmark, and it is why I start with a capability contract rather than a model list.
+
+![Illustration of a capability contract for an AI feature degradation path](/blog/how-to-design-graceful-degradation-for-ai-features-inline-1.webp)
+
+## What should graceful degradation mean for an AI feature?
+
+Graceful degradation means that an AI feature changes to a simpler, safer, or narrower behavior when a required dependency or capability is unhealthy, while the product stays honest about what it can still do. The reduced mode can return less, ask a question, wait, route to a person, or stop. It does not have to produce an answer at any cost.
+
+AWS describes the general reliability pattern as allowing a component to continue with a predetermined degraded response when a dependency is unhealthy. Its examples include a last cached good value or a static response. AWS also draws an important boundary: a static response is a simple alternative to an error, not an attempt to recompute the same result through a completely different mechanism ([AWS Well-Architected graceful degradation](https://docs.aws.amazon.com/wellarchitected/2022-03-31/framework/rel_mitigate_interaction_failure_graceful_degradation.html)).
+
+For AI features, that boundary prevents a common mistake. A team calls every alternate model a fallback, then assumes that the second model preserves the same product promise. It may not. A smaller model may be acceptable for rewriting a sentence but unsafe for approving a payment. A cached answer may be useful for a static help page but misleading for a live inventory question. A rules engine may preserve filtering but not explanation.
+
+The useful design question is not “What do we call when the model fails?” It is:
+
+> What is the smallest truthful capability we can preserve under this exact failure, and which capability must we remove?
+
+That question produces a system and a user experience. It forces the team to define the truth boundary, the authority boundary, and the recovery path before an outage makes the decision for you.
+
+### What graceful degradation is not
+
+Graceful degradation is not any of these by itself:
+
+| Pattern | Why it is not enough |
+|---|---|
+| Retrying the same request | A retry handles some transient failures. It does not define what happens when the dependency stays unavailable, when the output is unsafe, or when a retry repeats a costly action. |
+| Switching to a cheaper model | A cheaper model may have a different quality, latency, context, or safety profile. The product still needs a capability decision. |
+| Returning a generic error | An error can be the correct degraded state, but only if it gives the user a safe next step and does not pretend the feature completed. |
+| Hiding a failed call behind a spinner | Waiting is a temporary state, not a fallback contract. It needs a deadline and a next state. |
+| Serving stale content without a date | A stale result can be useful or dangerous depending on the question. Its age and scope are part of the user-facing meaning. |
+| Asking the model to apologize and try again | A polite message does not repair missing evidence, authority, or a broken dependency. |
+
+### The sourceable design rule
+
+The smallest complete graceful-degradation design for an AI feature is a capability contract with six fields:
+
+| Field | Question to answer |
+|---|---|
+| Trigger | What observable signal enters this mode? |
+| Preserved capability | What can the user still truthfully accomplish? |
+| Forbidden capability | What must the system not claim, infer, or execute? |
+| Visible state | What does the user see, and what change in capability must be understood? |
+| Recovery action | What can the user or system do next, and how does normal capability return? |
+| Telemetry | What evidence proves the mode, its frequency, its outcome, and its recovery? |
+
+That table is the sourceable atom of this page. It is a reusable artifact, not a standard attributed to AWS, Google Cloud, Microsoft, or NIST. Those sources constrain the fields. The contract makes the constraints practical for a product team.
+
+If a proposed fallback cannot fill all six fields, it is not ready to ship. The missing field usually reveals the real problem. No trigger means the mode will activate unpredictably. No preserved capability means the team is keeping availability as a slogan. No forbidden capability means the fallback may quietly overreach. No visible state means users may misread a weaker result. No recovery action means the mode becomes a permanent dead end. No telemetry means the team cannot tell whether the feature is working normally or surviving by fallback.
+
+## When should an AI feature degrade, clarify, hand off, or stop?
+
+Choose the next state from the consequence of being wrong, not from the convenience of keeping the request moving. Degrade when a reduced behavior remains truthful and safe. Clarify when the goal is ambiguous and a question can resolve it. Hand off when a person can take over with the missing authority or judgment. Stop when every available continuation would mislead, exceed scope, or create an unacceptable side effect.
+
+The following decision table is the shortest practical version of the rule.
+
+| Condition | Default next state | What can remain available | What must be blocked or disclosed |
+|---|---|---|---|
+| Short, transient dependency failure and no side effect has started | Bounded retry, then degraded mode | Read-only context, draft work, or a safe static response | Retry limit, deadline, and any lost freshness |
+| Primary model unavailable but a simpler path preserves the same truth | Simpler model, rules, or cached response | The narrower capability named in the contract | Changed quality, scope, freshness, or tool access when material |
+| Evidence missing, stale, contradictory, or below the feature’s support requirement | Clarification, limited answer, or stop | Questions, source links, known facts, or a draft marked unverified | Do not present an unsupported conclusion as a verified answer |
+| User goal or target is ambiguous | Clarify before acting | Disambiguation choices and reversible preparation | Do not guess the person, record, recipient, or action |
+| Required action needs judgment or approval unavailable to the system | Human handoff | Context collection, draft, triage, or queue placement | No irreversible action; show who owns the next step |
+| Permission, policy, privacy, or safety check fails | Hard stop or approved handoff | Safe explanation and recovery instructions | Do not search for a weaker check or route around the control |
+| Dependency is overloaded and more calls would worsen the incident | Circuit open and bounded degraded path | Cached or deterministic behavior, or a queue if delay is truthful | Stop adding load; communicate delay or reduced capability |
+| The feature’s result would be mistaken for completed work | Stop or read-only preview | Proposed changes, evidence, and human review | Never claim the underlying state changed without verification |
+
+The same technical error can lead to different modes in two products. A timeout while generating a suggested email may allow a local draft to remain visible. A timeout while authorizing a transfer should not produce a “probably approved” state.
+
+NIST’s AI Risk Management Framework supports this consequence-based approach. It asks teams to define the system’s scope, document knowledge limits and human oversight, test before deployment and during operation, and ensure that the system can fail safely when operating beyond its knowledge limits ([NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/)). The framework does not tell you which fallback to choose. It gives you the reason to choose by context and risk instead of treating availability as the only goal.
+
+### A simple stop test
+
+Before approving a degraded mode, ask five yes-or-no questions:
+
+1. Can the mode state exactly what it knows, what it does not know, and what it has not done?
+2. Can the mode avoid the side effects that the primary feature is not currently able to verify?
+3. Can a user distinguish the reduced capability when that distinction changes a decision?
+4. Can the mode recover without silently losing work, consent, or context?
+5. Can the team detect and measure the mode separately from normal success?
+
+If the answer to the first two is no, stop or hand off. If the answer to the third is no, change the interface or the mode. If the answer to the fourth or fifth is no, the implementation is incomplete.
+
+## How do you map AI feature failures to degraded modes?
+
+Start with failure classes, not vendor error codes. Error codes are useful for implementation, but the product decision depends on what the failure means to the user and the workflow.
+
+### Availability failure
+
+The model provider, retrieval service, tool, feature store, or network is unavailable. The system may receive a timeout, a rate-limit response, a connection error, or a circuit-open signal.
+
+Availability failures are usually the easiest place to design a fallback because the missing capability is structural. You know which dependency did not answer. The danger is assuming that a different dependency is equivalent without checking the contract.
+
+Possible modes include a last-known-good response, a local deterministic operation, a read-only view, a queued request, a lower-capability model, or a clear retry later state. The choice depends on freshness and consequence. A cached explanation of a product concept can last longer than a cached account balance. A queue is honest only if the user understands that the work is pending rather than complete.
+
+AWS recommends circuit breakers when a remote system begins returning errors or high latency. In the open state, requests stop hitting the unhealthy dependency. A half-open state sends limited probes to check recovery before normal traffic resumes ([AWS circuit breaker guidance](https://docs.aws.amazon.com/wellarchitected/2022-03-31/framework/rel_mitigate_interaction_failure_graceful_degradation.html)). The design implication is important: the fallback is also a load-shedding decision. It protects the dependency and the user-facing path from a retry storm.
+
+### Latency failure
+
+The system may eventually return a good result, but not within the time the interaction can afford. Latency is a product failure when the user cannot tell whether the feature is working, waiting, or lost.
+
+Treat latency as a deadline with states, not as a single number. Define the first useful response, the maximum wait for an interactive action, the point at which the UI offers a background continuation, and the point at which the request stops. A long-running research task may move from inline response to queued work. A button that changes a record may need to remain pending until the state is verified.
+
+Google Cloud’s AI and ML reliability guidance connects error rates and latency to thresholds, fault isolation, simpler models, cached data, and proactive monitoring. It also recommends tracking workload metrics and using SLO practices for production reliability ([Google Cloud AI/ML reliability](https://docs.cloud.google.com/architecture/framework/perspectives/ai-ml/reliability?authuser=0)). Use those patterns, but set thresholds from the user promise and consequence of the specific feature.
+
+Do not use an unlimited spinner as a degraded mode. It consumes attention while hiding the state of the system. A better contract says what is happening, when the product will stop waiting, what the user can do meanwhile, and whether a later result will appear.
+
+### Evidence failure
+
+The model is available, but the evidence needed to support a useful answer is missing, stale, contradictory, or too weak. This is a semantic failure, not an infrastructure failure.
+
+Evidence failure deserves more caution than availability failure because the system can generate fluent text. A blank response makes the problem visible. An unsupported response makes the product look healthy while making the user responsible for detecting the problem.
+
+Degraded behavior may include showing the retrieved evidence without synthesis, asking the user to provide a source, returning only claims backed by available records, presenting a draft marked for verification, or handing the task to a person. A fallback model rarely repairs missing evidence. It may make the unsupported answer sound more confident.
+
+Define the minimum evidence for each output type. For a low-stakes brainstorming feature, missing retrieval may still allow clearly labeled ideation. For a policy answer, the same missing retrieval may require a stop. The contract should name whether the output is a suggestion, a summary of supplied content, or a verified decision input.
+
+### Uncertainty and ambiguity failure
+
+The system does not know enough about the user’s goal, target, or constraints to act safely. The right degraded state is often a question, not a lower-quality answer.
+
+Microsoft’s HAX guidance explicitly recommends clarification or graceful degradation when the AI system is uncertain about a user’s goals. Its fallback pattern includes automated alternatives and human handoff, with a warning that noticeable fallback should be disclosed when it changes the interaction ([Microsoft HAX, scope services when in doubt](https://www.microsoft.com/en-us/haxtoolkit/guideline/scope-services-when-in-doubt/), [Microsoft HAX fallback pattern](https://www.microsoft.com/en-us/haxtoolkit/pattern/g10-c-fall-back-to-other-strategies/)).
+
+Make the question narrow. “Can you clarify?” pushes the uncertainty back to the user without showing what is missing. “Do you mean the customer’s current subscription or the invoice from March?” reveals the competing interpretations and lets the user correct the system.
+
+The exception is a workflow where asking creates more cost than a safe default. A search filter can apply a documented broad match and show the filters used. A payment recipient cannot be guessed. The contract should record why the default is reversible and what it cannot trigger.
+
+### Policy and safety failure
+
+The system reaches a boundary where the output or action is not permitted. This is not a quality problem to route around. It is a control decision.
+
+The safe degraded mode may be a refusal with a useful alternative, a human review queue, a read-only explanation, or a stop with an incident signal. Do not lower the policy check because the primary model is unavailable. Do not use a cached authorization result past its validity window. Do not ask a second model to bless an action that the system’s policy already forbids.
+
+NIST’s guidance treats risk controls, human oversight, monitoring, and safe failure as lifecycle concerns. It also says that residual negative risk should stay within the organization’s risk tolerance and that response and recovery controls should be documented ([NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/)). For a product team, that means the degraded mode must carry the same authority boundary as the normal mode, and often a narrower one.
+
+### State or tool failure
+
+The AI output may be valid, but the tool that would apply it is unavailable, returns an ambiguous result, or cannot confirm the state change. The correct degraded mode is usually a preview, a saved draft, or a handoff, not a claim of completion.
+
+This is where teams confuse a generated intention with a completed action. The model can write “Done” after the tool call fails. The contract should separate proposed action, submitted action, accepted action, and verified effect. Each state has a different user message and a different permission to continue.
+
+When a tool returns an unknown outcome, do not blindly retry an irreversible operation. First determine whether the original request may have succeeded. If the product cannot establish the state, show an unresolved status and route to a safe reconciliation step. The user may prefer a delay to a duplicate charge or duplicate message.
+
+## How should you order a fallback path?
+
+Order fallbacks by preserved truth and reduced consequence, not by implementation cost alone. The first available option is not automatically the best option. A technically live fallback that returns a misleading result is worse than a visible stop.
+
+AWS’s Agentic AI Lens recommends an ordered chain that can move from an equivalent capability to a simplified agent, then a cached result, and finally a graceful failure response. It also recommends documenting quality trade-offs, checking health proactively, and communicating degradation through structured events ([AWS Agentic AI Lens](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentrel04-bp03.html)).
+
+For a general AI feature, use this sequence as a starting point:
+
+1. Restore the primary path if the failure is transient and the operation is safe to retry.
+2. Reduce the same capability while preserving truth, authority, and the user’s ability to recover.
+3. Preserve useful context without pretending the missing step happened.
+4. Ask the user for the missing information or permission when a question can resolve it.
+5. Hand off to a person or an explicit operational queue when judgment or authority is required.
+6. Stop with a clear explanation when no available path is safe or truthful.
+
+This is not a requirement to implement six layers. It is an ordering test. If the team starts with a second model, ask whether a cache, clarification, preview, or stop would be safer. If the team jumps to a human queue for every timeout, ask whether a bounded read-only result could preserve value without creating risk. The answer depends on the user job.
+
+### Equivalent does not mean similar
+
+A fallback is equivalent only for the capability the contract names. Two models may both return text, but one may not support the same context length, tools, citations, languages, latency, or refusal behavior. A cached result may be equivalent for a static definition but not for a live status. A rule may be equivalent for a classification boundary but not for an explanation.
+
+Write the claim in plain terms:
+
+```text
+Primary capability: summarize the current support policy from approved documents.
+Fallback capability: show the last approved policy snapshot dated 2026-08-01.
+Not preserved: changes published after the snapshot and questions requiring current case data.
+User action: view the date, refresh later, or ask a policy owner.
+```
+
+That is more useful than “fallback to model B.” The former tells the user and the evaluator what changed. The latter names an implementation choice without a product promise.
+
+### Prefer a visible smaller promise to a hidden larger one
+
+When a fallback changes the result’s freshness, confidence, scope, or ability to act, disclose that change. The disclosure does not need to expose internal vendor details. It needs to tell the user what they can rely on.
+
+Examples:
+
+- “Showing the last verified policy snapshot from August 1. Newer changes may not appear.”
+- “I can draft the reply, but I cannot send it until the connection returns.”
+- “The assistant could not verify the current inventory. Search results are shown without availability.”
+- “I’m not confident which account you mean. Choose one before I continue.”
+- “This request needs a human review because the required approval is unavailable.”
+
+The message is part of the contract, not an afterthought. Microsoft’s HAX fallback guidance says that a noticeable fallback may need to be explained or offered as an explicit switch, particularly in high-stakes situations or early versions. It also says that a handoff should be clear enough for the user to consent or react ([Microsoft HAX fallback pattern](https://www.microsoft.com/en-us/haxtoolkit/pattern/g10-c-fall-back-to-other-strategies/)).
+
+## How do you write the degradation contract before coding?
+
+Write one row for every materially different failure state. Keep the fields close to the feature specification, not buried in an incident document. The point is to make product, engineering, design, operations, and risk owners agree on the reduced promise before the implementation makes the decision by accident.
+
+Use this template:
+
+```yaml
+feature: "name of the AI feature"
+mode: "human-readable degraded mode name"
+
+trigger:
+  signal: "what is observed"
+  threshold: "when the mode begins"
+  owner: "who can change the threshold"
+
+preserved_capability:
+  user_goal: "the part of the goal that remains possible"
+  output: "what the feature returns or allows"
+  freshness: "current, delayed, or dated"
+
+forbidden_capability:
+  claims: "what the system must not imply"
+  actions: "what the system cannot execute"
+  data: "what the system must not expose or infer"
+
+user_state:
+  message: "plain-language explanation"
+  affordance: "the next safe action"
+  status: "draft, pending, read-only, blocked, or handed off"
+
+recovery:
+  action: "probe, refresh, retry, clarify, reconcile, or review"
+  return_condition: "what proves normal capability can resume"
+  retained_context: "what survives the transition"
+
+telemetry:
+  mode_event: "event name and reason"
+  outcome: "what success or failure means"
+  primary_comparison: "how normal and degraded results are separated"
+  review_trigger: "when an owner investigates"
+```
+
+The template is not a model-routing configuration. It works for a retrieval assistant, drafting tool, recommender, classifier, or agent with write access. The contract describes the capability the user receives, then lets engineering choose the mechanism.
+
+### Fill the preserved capability field first
+
+Teams often start with the failure and jump straight to an alternative. Start with the user goal instead. A user may want to understand a document, get a recommendation, change a record, or decide whether to take an action. Those goals have different safe partials.
+
+| User goal | Possible preserved capability | Commonly forbidden in degraded mode |
+|---|---|---|
+| Understand | Show supplied evidence, a short extract, or a dated snapshot | Claim current completeness or resolve missing evidence |
+| Create | Save a draft, outline, or suggested edit | Publish, send, or represent the draft as approved |
+| Find | Return deterministic matches or broader results with filters | Claim semantic ranking quality or completeness that is unavailable |
+| Decide | Show inputs, rules, and unresolved questions | Issue a high-consequence decision without required evidence |
+| Act | Prepare a reversible action or queue it | Execute an irreversible action without verification or approval |
+| Learn | Explain the concept, provide a worked example, or ask a diagnostic question | Pretend to see the user’s exact state when the necessary context is missing |
+
+This avoids a false binary between full automation and total outage. A draft can preserve momentum while making the final action explicit. A queue can preserve continuity without claiming completion. A dated snapshot can preserve orientation without pretending to be live data.
+
+### Fill the forbidden capability field with verbs
+
+Vague restrictions are hard to test. Write the forbidden field with observable verbs:
+
+- must not send;
+- must not approve;
+- must not delete;
+- must not claim current;
+- must not claim verified;
+- must not infer identity;
+- must not expose the hidden record;
+- must not retry an unknown side effect;
+- must not pass the degraded output into an automated decision.
+
+This list does not replace authorization or policy design. It gives the degraded mode a smaller surface to enforce. A fallback that returns less but can still trigger the original side effect has not really degraded its authority.
+
+### Give the contract an owner and a review trigger
+
+Every mode needs an owner who can answer three questions during an incident: Is the trigger still valid? Is the reduced capability still useful? What evidence allows normal behavior to return?
+
+Review the mode when the model, prompt, retrieval source, tool, permission, user promise, or downstream workflow changes. Review it after an incident or when fallback use changes user expectations. Google Cloud and NIST both frame AI monitoring and evaluation as ongoing activities ([Google Cloud AI/ML reliability](https://docs.cloud.google.com/architecture/framework/perspectives/ai-ml/reliability?authuser=0), [NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/)).
+
+Do not treat a degraded mode as a permanent second product by accident. If it runs frequently, decide whether to improve the primary path, make the reduced mode an intentional product tier, or retire the feature. Availability without capability tracking can hide that the feature is not delivering its intended value.
+
+## Which signals should trigger a degraded mode?
+
+Use signals that explain a user-visible change. Infrastructure health is necessary, but it is not sufficient. An HTTP success with empty retrieval, an accepted model response with invalid structure, or a completed tool call with an unverified state can all require degradation.
+
+| Signal family | Examples | What it tells you | Typical action |
+|---|---|---|---|
+| Dependency health | Timeout, connection failure, provider error, circuit open | The primary path cannot be reached reliably | Retry if safe, then cache, queue, simplify, or stop |
+| Latency budget | Time to first useful result, total deadline, queue age | The result will arrive too late for the interaction | Move to async, return a draft, or stop waiting |
+| Evidence quality | Empty retrieval, low relevance, stale timestamp, contradiction | The output cannot support the normal claim | Show evidence, ask, narrow, hand off, or stop |
+| Output validity | Invalid schema, missing required field, unsafe content, unsupported citation | The model response cannot enter the next component | Repair only if bounded, otherwise use a safer mode |
+| User ambiguity | Multiple identities, missing scope, unclear recipient, conflicting constraints | The system does not know which goal to execute | Clarify before acting |
+| Permission or policy | Denial, expired approval, tenant mismatch, sensitive-data boundary | The normal action is not authorized | Read-only explanation, handoff, or stop |
+| Tool state | Unknown result, partial write, stale lock, downstream mismatch | The system cannot prove what happened | Reconcile, show pending, or block duplicate action |
+| Resource pressure | Rate limit, queue growth, saturation, budget limit | More primary calls may worsen the incident | Shed load and use a documented lower-cost mode |
+| Model behavior | Drift, refusal, tool-selection failure, repeated invalid output | The system’s behavior no longer meets the contract | Route, constrain, pause, or roll back capability |
+
+The trigger should say what changed, not only how it changed. “Latency above 8 seconds” may be useful for a particular interaction, but “interactive request has passed its response deadline” ties the threshold to the user promise. “Retrieval quality below 0.6” is incomplete unless the team has defined how that signal is measured and what kind of answer it supports.
+
+### Use separate entry and exit conditions
+
+A mode needs hysteresis. If one request enters degraded mode and the next request returns to normal, the product can flap between states. That creates inconsistent behavior and can put load back on a recovering dependency too quickly.
+
+Define:
+
+- an entry condition that is sensitive enough to protect the user and the dependency;
+- a hold condition that keeps the mode stable for a meaningful interval or request scope;
+- an exit probe that tests recovery without sending normal traffic at full volume;
+- an exit condition that requires enough evidence to restore the primary path;
+- a rollback condition if recovery fails again.
+
+AWS’s circuit breaker description gives the infrastructure version of this pattern: closed when requests flow, open when the dependency is unhealthy, and half-open when limited probes test recovery. The same idea applies to semantic health. A retrieval system should not return to “verified answer” just because the endpoint is reachable. It must also show that the required evidence and validation checks work again.
+
+### Do not use self-reported model confidence as the only trigger
+
+A model’s confidence-like field can be one signal, but it does not prove that the answer is correct, supported, authorized, or safe to act on. Pair it with evidence presence, schema checks, policy results, and the consequence of error. A system that is uncertain about a low-stakes draft may continue with a warning. A system that is uncertain about a recipient should clarify before sending.
+
+Microsoft’s HAX pattern asks teams to understand performance and confidence levels, then select a threshold above which failure is more likely or more costly before routing to another strategy or a human ([Microsoft HAX fallback pattern](https://www.microsoft.com/en-us/haxtoolkit/pattern/g10-c-fall-back-to-other-strategies/)).
+
+## How should the user experience expose degraded capability?
+
+Expose the change when it affects what the user can safely believe or do. The interface should name the current status, the missing capability, and the next action. It should not expose internal error strings that do not help the user recover.
+
+Think in state transitions:
+
+| State | User meaning | Example affordance |
+|---|---|---|
+| Working | The primary path is active and within its deadline | Wait, cancel, or continue the surrounding task |
+| Delayed | The result may take longer, but no side effect is complete | Keep the task open, move it to background, or cancel |
+| Read-only | The user can inspect information but cannot apply changes | Copy, review, refresh, or request a handoff |
+| Draft | The system produced a proposal, not a completed action | Edit, approve, save, or discard |
+| Dated snapshot | The result comes from a known earlier state | View date, compare, or refresh later |
+| Clarification needed | The system lacks a key choice or constraint | Select an interpretation or provide missing context |
+| Human review | A person must supply judgment, authority, or reconciliation | See queue status, add context, or wait for response |
+| Blocked | Continuing would be unsafe or misleading | Fix the prerequisite, contact owner, or stop |
+
+The user should not have to infer “degraded” from a missing button or a strangely generic answer. At the same time, do not create a loud warning for an invisible implementation substitution that does not change the product promise. The disclosure threshold is semantic: tell the user when the result’s meaning changes.
+
+### Show what did not happen
+
+Many AI failures are about absent actions, not present output. A degraded state should make non-events clear:
+
+- “The draft was saved, but it was not sent.”
+- “The recommendation was generated without current stock data.”
+- “The answer uses the policy snapshot dated August 1.”
+- “The transfer was not submitted because approval could not be verified.”
+- “The assistant did not choose an account because two records matched.”
+
+This language protects the boundary between intention and effect. It also gives support and operations a useful report. A user who sees “not sent” can take the next step. A user who sees “Something went wrong” may retry an action that already succeeded or abandon work that was recoverable.
+
+### Preserve context across the transition
+
+A handoff or degraded mode should carry the context that the next actor needs, while minimizing unnecessary sensitive data. Preserve the user’s stated goal, relevant inputs, the failure state, actions already taken, actions not taken, and the required next decision. Do not copy an entire conversation into a queue if a structured summary and references are enough.
+
+For an agent that drafts a support response, the human queue might receive the customer’s question, the evidence retrieved, the draft, the reason the send action was blocked, and the approval needed. For a data assistant, the queue might receive the query, the generated plan, the failed validation, and the data access boundary. The handoff is better when a person can continue without asking the user to repeat the task.
+
+Microsoft’s fallback guidance warns that handoff signals can be unclear or too late, and that users need to know how to take over. That turns handoff design into part of graceful degradation rather than a separate support concern ([Microsoft HAX fallback pattern](https://www.microsoft.com/en-us/haxtoolkit/pattern/g10-c-fall-back-to-other-strategies/)).
+
+![Illustration of transparent user communication during AI feature degradation](/blog/how-to-design-graceful-degradation-for-ai-features-inline-4.webp)
+
+## How do you implement a safe fallback path?
+
+Keep the decision outside the model. The model may propose a response or an action, but deterministic application code should decide whether the result is structurally valid, supported by required evidence, authorized, within the time and budget limits, and eligible for the selected mode.
+
+A conceptual request path looks like this:
+
+```text
+request
+  -> classify user goal and consequence
+  -> call primary AI path within a deadline
+  -> validate output, evidence, policy, and state
+  -> if valid: return normal result or execute allowed action
+  -> if transient and safe: bounded retry
+  -> if contract permits: enter named degraded mode
+  -> else: clarify, hand off, or stop
+  -> emit mode, reason, capability, outcome, and recovery events
+```
+
+The pseudocode below is deliberately generic. It does not choose a vendor, framework, model, or threshold.
+
+```ts
+type FeatureMode =
+  | 'normal'
+  | 'delayed'
+  | 'read_only'
+  | 'draft'
+  | 'dated_snapshot'
+  | 'clarification'
+  | 'human_review'
+  | 'blocked';
+
+type DegradationDecision = {
+  mode: FeatureMode;
+  reason: string;
+  preservedCapability: string;
+  forbiddenCapability: string[];
+  userMessage: string;
+  recoveryAction: string;
+};
+
+function decideMode(input: {
+  primary: PrimaryResult;
+  evidence: EvidenceCheck;
+  policy: PolicyCheck;
+  state: StateCheck;
+  deadline: DeadlineCheck;
+  goal: GoalCheck;
+}): DegradationDecision {
+  if (!input.policy.allowed) {
+    return blockedForPolicy(input.policy.reason);
+  }
+
+  if (!input.goal.unambiguous) {
+    return askForClarification(input.goal.options);
+  }
+
+  if (!input.state.verified && input.state.sideEffectMayHaveRun) {
+    return routeToReconciliation(input.state.reference);
+  }
+
+  if (!input.evidence.sufficient) {
+    return degradeToSupportedEvidence(input.evidence.available);
+  }
+
+  if (input.primary.valid && input.deadline.withinLimit) {
+    return normalResult(input.primary);
+  }
+
+  if (input.deadline.expired && input.primary.isSafeToContinueAsync) {
+    return delayedMode(input.primary.resumeToken);
+  }
+
+  return chooseContractedFallback(input.primary.failureClass);
+}
+```
+
+The order matters. Policy and unknown side effects are checked before convenience fallbacks. A cache should not restore a permission that has expired. A second model should not rewrite a result whose required evidence is absent. A retry should not run after an irreversible action has an unknown outcome.
+
+### Separate fallback selection from fallback execution
+
+The selector should return a named mode and a reason. The executor should implement only the behavior allowed by that mode. This separation makes code review and testing easier:
+
+- selector tests ask whether each condition chooses the right mode;
+- executor tests ask whether the mode blocks the right actions;
+- interface tests ask whether the user sees the right state;
+- recovery tests ask whether the system returns to normal only after valid evidence;
+- telemetry tests ask whether operators can distinguish primary success, fallback success, fallback failure, and unresolved state.
+
+Do not let each provider SDK decide the product state. Provider errors should be normalized into feature-level conditions such as `dependency_unavailable`, `evidence_insufficient`, `policy_denied`, or `effect_unverified`. The product contract belongs to the feature, even when the implementation spans several services.
+
+### Make fallback inputs explicit
+
+A fallback can be safer when it has narrower inputs. A cache might accept only a stable key and a freshness limit. A rules path might accept only validated fields. A human queue might accept structured context rather than a raw prompt. A smaller model might receive less tool access than the primary model.
+
+The narrower input surface prevents the degraded path from receiving assumptions that were valid only for the primary path. Live retrieval requires a date in the cached path. A verified identity needs its check time in the handoff. A write-capable normal path needs a read-only token or no write token in draft mode.
+
+### Do not create a fallback loop
+
+Fallbacks can fail too. Define a maximum depth or a final state. Do not route from model A to model B to model C to a second agent and then back to model A without a clear user-facing decision. Each step increases latency and makes the result harder to explain.
+
+The final state can be a safe error, a queue, a dated snapshot, or a user question. A clear stop is a valid product outcome. AWS’s agentic guidance ends its ordered alternatives with a graceful failure response rather than implying that an unlimited chain preserves availability ([AWS Agentic AI Lens](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentrel04-bp03.html)).
+
+![Illustration of an AI feature architecture with fallback components and a circuit breaker](/blog/how-to-design-graceful-degradation-for-ai-features-inline-5.webp)
+
+## How do you test graceful degradation before release?
+
+Test the behavior contract, not just whether the primary API can fail. Every degraded mode needs a case that proves the preserved capability and the forbidden capability at the same time. For the full pre-release release gate, see [How to Evaluate an AI Agent](/blog/how-to-evaluate-an-ai-agent). Here the focus is degraded state and recovery.
+
+Start with one row per contract mode:
+
+| Test field | Example question |
+|---|---|
+| Trigger | Does a provider timeout enter `read_only` after the written deadline? |
+| Preserved capability | Can the user still inspect the last verified policy snapshot? |
+| Forbidden capability | Is sending or approval blocked while the snapshot is stale? |
+| User state | Does the interface name the date and the missing live capability? |
+| Recovery | Does a successful health probe restore normal behavior only after validation? |
+| Telemetry | Can an operator count the degraded mode and reason without reading raw prompts? |
+
+### Cover the five failure dimensions
+
+For each feature, test at least these dimensions:
+
+1. **Availability:** the model, retriever, tool, or network does not answer.
+2. **Quality:** the response is malformed, unsupported, contradictory, or outside the required quality boundary.
+3. **Authority:** permission, approval, identity, policy, or privacy checks fail.
+4. **State:** the result is pending, partial, duplicated, or unknown after a side effect.
+5. **Experience:** the user cannot tell what happened, what remains possible, or how to recover.
+
+This list is a test design aid, not a measured failure distribution. It keeps the team from writing only an outage test and calling the fallback complete. An AI feature can degrade while every dependency returns HTTP 200.
+
+### Test normal, degraded, and recovery paths
+
+Each case should have three related assertions:
+
+- normal path: the full capability works and emits normal telemetry;
+- degraded path: the reduced capability works and blocks the right actions;
+- recovery path: normal behavior returns only after the documented exit condition.
+
+For example, a retrieval assistant might have these cases:
+
+```yaml
+case: retriever_returns_empty
+normal_expected: "answer with citations from approved documents"
+degraded_expected: "show no unsupported answer; ask for a document or route to review"
+forbidden: "present a confident policy conclusion"
+user_state: "evidence unavailable"
+recovery: "retrieval health and a known-good document query pass"
+```
+
+Do not test only the visible text. Assert the state that the system can change, the tool permissions attached to the mode, the event emitted, and the data captured for recovery. A UI that says “draft only” but retains a send token has failed the contract.
+
+### Test combinations, not only isolated failures
+
+Real incidents combine conditions. Retrieval can be stale while the model is slow. The primary model can time out after a tool has already accepted a write. A rate limit can arrive while a human queue is also backed up. A model can return valid JSON with evidence that is outside the user’s tenant.
+
+You do not need every combination on day one. Choose combinations where the fallback ordering could change the safety result. Write the precedence rule explicitly:
+
+| Combined condition | Precedence rule |
+|---|---|
+| Timeout plus unknown side effect | Reconcile state before any retry or fallback action |
+| Missing evidence plus available smaller model | Missing evidence wins; do not generate an unsupported answer |
+| Rate limit plus valid cached response | Use the cache only if freshness and authority rules pass |
+| Policy denial plus human availability | Preserve a safe explanation and hand off; never bypass the denial |
+| Ambiguous goal plus live dependency failure | Clarify the goal before deciding whether a fallback can act |
+| Fallback failure plus primary recovery | Keep the user-visible degraded state until a fresh valid result is proven |
+
+The table is an implementation of the capability contract. It is also a review tool for disagreements. If two owners choose different precedence, the feature’s risk and user promise are not specified clearly enough.
+
+### Test the message as part of the behavior
+
+A fallback that is technically safe can still fail the user if the message creates the wrong expectation. Test whether a person can answer these questions after reading the state:
+
+- Did the system complete the requested action?
+- What information or capability is missing?
+- Is the current result fresh enough for the decision?
+- What can the user do now?
+- What will happen if the user retries?
+
+Use realistic screen sizes, assistive technology where relevant, and the language your users actually see. “AI unavailable” may be true but not actionable. “Current inventory could not be verified. You can save this search and try again later” explains the practical state.
+
+NIST recommends testing in conditions similar to deployment, documenting methods and limitations, and monitoring functionality and behavior in production. Its guidance also says systems should fail safely beyond their knowledge limits ([NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/)). A contract test that ignores the user state is not testing the whole feature.
+
+![Illustration of a test matrix for AI feature degraded modes](/blog/how-to-design-graceful-degradation-for-ai-features-inline-6.webp)
+
+## How should you measure a degraded mode in production?
+
+Measure normal capability and degraded capability as different outcomes. If the dashboard counts both as successful requests, the team can report high availability while the feature quietly delivers less value.
+
+At minimum, record:
+
+| Measurement | Why it matters |
+|---|---|
+| Primary-path success | Shows whether the intended AI capability is healthy |
+| Degraded-mode entry rate | Shows how often users receive reduced capability |
+| Mode by trigger | Separates provider outages from evidence, policy, state, and experience failures |
+| Preserved-capability success | Shows whether the reduced path actually helped the user |
+| Forbidden-action attempts | Shows whether the interface or permissions invite blocked behavior |
+| User recovery | Shows whether users refresh, clarify, edit, accept a handoff, or abandon |
+| Time in mode | Shows whether a temporary state is becoming a second operating mode |
+| Return-to-normal evidence | Shows why the primary path was restored |
+| Repeated failure | Shows whether the same request is cycling through alternatives |
+
+Google Cloud recommends monitoring latency, throughput, error rates, resource utilization, model and data degradation, and custom business metrics for AI systems. NIST calls for production monitoring, regular evaluation, documentation of limitations, and measures of response time for AI system failures ([Google Cloud AI/ML reliability](https://docs.cloud.google.com/architecture/framework/perspectives/ai-ml/reliability?authuser=0), [NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/)). The product-specific addition is to separate the primary promise from the reduced promise.
+
+### Track quality loss without inventing a universal number
+
+The quality gap between normal and degraded behavior matters, but there is no honest universal threshold for every AI feature. Define the gap in terms of the feature’s output and risk:
+
+- a stale answer is unacceptable after a specified date;
+- a draft may omit polish but must retain required facts;
+- a read-only result may be incomplete but must not claim completion;
+- a classifier fallback may reduce recall but must not turn a blocked case into an approval;
+- a human queue may increase delay but preserve judgment and auditability.
+
+If you have a quality evaluator, compare mode-specific results against the contract. If you do not, start with deterministic invariants and sampled review. Never create a percentage because a dashboard wants one. The useful measurement is the one that changes scope, routing, or repair.
+
+### Alert on misleading success
+
+An increase in fallback success can be a good sign during a dependency incident, but it can also indicate that the primary path is broken or that the fallback is being used for cases it cannot support. Alert when:
+
+- degraded mode frequency crosses the owner’s review threshold;
+- a mode runs beyond its freshness or time window;
+- a forbidden action is attempted or reaches an execution boundary;
+- claimed completion differs from verified state;
+- a fallback returns an answer without its required evidence;
+- a recovery probe passes infrastructure health but fails semantic validation;
+- a user retries the same unresolved action repeatedly;
+- a human queue receives context that is incomplete or contradictory.
+
+The purpose of an alert is to start a decision. “Fallback usage high” is less useful than “dated snapshot mode has served requests outside its freshness window; pause the feature or update the snapshot.”
+
+![Illustration of a feedback loop for improving AI feature degradation](/blog/how-to-design-graceful-degradation-for-ai-features-inline-7.webp)
+
+## What does graceful degradation look like in a retrieval-backed answer feature?
+
+For a retrieval-backed answer feature, degrade by preserving grounded evidence and removing unsupported synthesis. Do not switch to a general model and present its memory as if it came from the missing source.
+
+Consider a team knowledge assistant that normally retrieves approved documents, produces an answer, and links to the supporting passages. Its capability contract might look like this:
+
+| Contract field | Design choice |
+|---|---|
+| Trigger | Retrieval service unavailable, no relevant passages, conflicting document versions, or evidence older than the question’s freshness requirement |
+| Preserved capability | Show available approved passages, document metadata, and a question that narrows the request |
+| Forbidden capability | State a policy conclusion as current, fill gaps from model memory, or send the answer into an automated decision |
+| Visible state | “I could not verify this against the current knowledge base. Here are the sources I found, with their dates.” |
+| Recovery action | Retry retrieval, ask the user for a document, route to a knowledge owner, or wait for the index to recover |
+| Telemetry | Retrieval health, evidence count, freshness, conflict reason, mode, user action, and later confirmation |
+
+This feature can have several reduced modes. If retrieval is temporarily unavailable but a fresh cache exists, show the dated cache in read-only mode. If the cache is too old, show the last known document list but not an answer. If the documents conflict, show both versions and ask which policy context applies. If the question is ambiguous, ask a clarifying question before retrieving.
+
+The key decision is not whether the model can produce text. It is whether the product can support the claim it wants the user to rely on. Evidence failure should narrow the claim before it changes the model.
+
+### What to test
+
+- empty retrieval does not produce a confident answer;
+- stale content displays its date and blocks current-policy actions;
+- contradictory sources produce a visible conflict or human review;
+- a cache is tenant-scoped and respects authorization;
+- the user can copy or inspect evidence without assuming it is complete;
+- recovery requires a known-good retrieval and evidence check, not only an HTTP success;
+- the assistant records whether the user accepted, corrected, or escalated the result.
+
+### The principal exception
+
+Some retrieval features are explicitly exploratory. A brainstorming assistant may continue without retrieval if it labels the output as general ideation and never represents it as company policy. The contract can preserve creative momentum because the user goal is different. The same behavior is not acceptable for compliance instructions, current pricing, medical guidance, or any workflow where the answer is used as verified evidence without another control.
+
+## What does graceful degradation look like in an AI drafting feature?
+
+For drafting, the safest reduced mode often keeps the artifact but removes publication, sending, or approval. The user’s work survives, while the system stops short of claiming that a person or downstream system accepted it.
+
+Imagine an AI feature that drafts a customer reply from a ticket, account history, and a policy source. The primary path can generate, cite, save, and propose a send action. A provider timeout occurs after the draft is generated but before the send permission check completes.
+
+The degraded contract should not say “retry the send.” The outcome of the send preparation is unclear. Instead, preserve the draft, record the source context and time, mark it as unsubmitted, and route the next action through reconciliation or a human approval step. If the model call itself failed before a draft existed, the feature may show the ticket and a manual reply box. If the policy source is unavailable, the draft may be blocked even if the model is ready.
+
+| Failure | Safe reduced state | Unsafe shortcut |
+|---|---|---|
+| Draft generation timeout before output | Keep the ticket open and offer a manual editor or delayed draft | Show a blank draft that looks like a completed response |
+| Policy source unavailable | Preserve the ticket and ask for review or a manual source | Draft a policy claim from model memory |
+| Save succeeds but send status is unknown | Show saved, unsubmitted, and reconcile the send state | Send again automatically |
+| Approval service unavailable | Save draft and queue approval | Treat the missing approval as approval |
+| Account identity ambiguous | Ask the operator to choose the account | Use the first matching record |
+
+The rule is simple: retain reversible work; remove irreversible authority. A draft is not a reply sent. A suggested edit is not a record changed. A queue entry is not a human decision.
+
+Marius’s locked observation from teaching product managers applies here. Teams often debate model quality before they have defined what the product considers done. For a drafting feature, “done” should name the artifact state and the approval state separately. A graceful degraded mode is easier to design once those states exist.
+
+### What to test
+
+- the draft remains editable after a model or provider failure;
+- the draft carries its source and freshness context;
+- send, publish, approve, and delete permissions are absent in draft mode;
+- unknown send state starts reconciliation instead of a duplicate retry;
+- the human reviewer receives the needed context without raw unnecessary data;
+- resuming the draft does not silently use a different policy version without notice.
+
+## What does graceful degradation look like in an agentic workflow?
+
+For an agentic workflow, degrade by reducing autonomy and scope while preserving an observable, recoverable piece of work. A failed agent should not force every downstream step to pretend that its output exists.
+
+Marius is building TryUncle, an AI agent that watches the screen and annotates it live. That kind of feature makes latency and human approval product constraints. If the annotation arrives too late, the right response may be a delayed explanation or a request for the user to select a control, not a confident pointer to a location the user has already left. If the agent cannot verify the user’s intent, it should stop at guidance rather than act as if it has approval.
+
+The observation is about a product constraint, not a measured TryUncle performance result. It illustrates why “use a smaller model” is not a complete degradation plan. The smaller path must still meet the interaction’s timing, visual context, and authority contract.
+
+Consider an agent that can inspect a screen, identify a control, and annotate it. Its modes could be:
+
+| Trigger | Mode | Preserved capability | Forbidden capability |
+|---|---|---|---|
+| Screen capture is delayed beyond the interaction window | Delayed guidance | Explain the likely next step after the user confirms the current screen | Pretend the annotation is live or current |
+| The target control is ambiguous | Clarification | Show two candidate controls and ask the user to choose | Point to one as certain |
+| Annotation service unavailable | Text-only assistance | Provide a concise instruction and a user-checkable description | Claim the screen was annotated |
+| User asks for an action outside the approved scope | Human or user-controlled handoff | Explain the action and let the user perform it | Execute or imply approval |
+| Human approval unavailable for a consequential action | Read-only | Prepare the action and display its consequences | Apply the action |
+
+AWS’s Agentic AI Lens says that fallback chains should preserve forward progress with reduced quality, communicate degradation through structured events, and document the trade-off at each level. For an agent, “forward progress” can mean preserving context and a next decision rather than continuing autonomous execution ([AWS Agentic AI Lens](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentrel04-bp03.html)).
+
+### What to test
+
+- delayed screen context never appears as live context;
+- ambiguous targets produce a choice rather than a guess;
+- a text-only mode cannot call visual annotation tools;
+- the mode records whether the user confirmed the target;
+- a human or user handoff includes the last known context and actions already taken;
+- recovery requires a fresh screen observation and a valid interaction state.
+
+## Which fallback patterns usually fail?
+
+Most degraded-mode failures are not caused by choosing the wrong technology. They come from a vague product promise, a missing authority boundary, or a recovery path that was never designed.
+
+### Silent quality loss
+
+The system switches models or data sources without saying that freshness, context, or capability changed. This can be acceptable for an invisible substitution that preserves the same promise. It is dangerous when users make decisions from the result.
+
+Fix it by stating the semantic difference. Tell the user whether the result is dated, read-only, partial, or unverified. Let the contract decide whether disclosure is required.
+
+### Fallback as an unbounded chain
+
+The feature keeps trying providers, models, agents, and tools until the request is slow, expensive, or impossible to explain. Every step can also introduce a different schema, policy, or data boundary.
+
+Fix it by setting a maximum depth and a final state. Each transition should have a named reason and a contract row. If the team cannot explain why the next option is safer or more truthful, stop adding options.
+
+### Retry after an unknown side effect
+
+The primary request may have succeeded, but the client timed out before receiving confirmation. The system retries an operation that is not safe to duplicate.
+
+Fix it with reconciliation. Look for an idempotency key, a state query, an operation record, or a human review path. If the effect cannot be proven, show the unresolved state. Availability is not worth duplicating a consequential action.
+
+### Static content treated as current evidence
+
+A cached answer can keep a page useful during an outage. It can also turn a known old fact into a current-looking claim.
+
+Fix it with freshness limits, visible dates, and action restrictions. A dated snapshot may support orientation while blocking automated decisions. The cache key should include the user or tenant boundary when access differs.
+
+### Human handoff as a trash chute
+
+The system sends every hard case to a queue without enough context, clear ownership, or a user-visible promise. The queue becomes a place where automation hides its unresolved work.
+
+Fix it with a handoff contract: why the case was routed, what has been checked, what has not happened, what the person must decide, and how the user will know the next step. Measure queue age and incomplete handoffs, not only the count of escalations.
+
+### Fallback logic inside a prompt
+
+The model is instructed to “be careful and use a fallback” but the application does not enforce the mode. The model can still emit an answer, call a tool, or claim completion.
+
+Fix it in deterministic code and permissions. Use the model to generate proposals within a capability, not to decide whether its own output is authorized to execute.
+
+### Treating degraded mode as success
+
+The status code is successful, so dashboards report a healthy feature even though most users received a weaker capability. This can delay repairs and create false confidence.
+
+Fix it by splitting normal, degraded, blocked, handed-off, unresolved, and verified-success outcomes. A degraded response can be a valid product result while remaining a reliability signal that deserves review.
+
+![Illustration of decisions that route an AI feature failure to retry, degrade, handoff, or stop](/blog/how-to-design-graceful-degradation-for-ai-features-inline-2.webp)
+
+## How should a small team roll out graceful degradation?
+
+Start with one workflow and one high-consequence failure, then expand the contract from real traces. Do not try to design every possible fallback before the team knows what the primary feature actually promises.
+
+### Step 1: Name the full capability
+
+Write what normal success means in terms a person or system can verify. Include the output, the evidence, the state change, the permission, the freshness, and the user’s next action. If “done” means only “the model returned text,” the feature is not specified enough to degrade safely.
+
+### Step 2: Name the dangerous assumption
+
+Ask what the primary path assumes: live data, a unique identity, an available tool, a human approval, a current policy, a bounded latency, or a valid state change. Choose the assumption whose absence could most change the user’s decision or the system’s authority.
+
+### Step 3: Choose one truthful partial
+
+Decide what remains useful when that assumption disappears. It might be evidence, a draft, a read-only view, a question, a queue, or nothing. Write the forbidden capability next to it. Do not add a fallback because the architecture diagram has an empty box.
+
+### Step 4: Add the user state
+
+Write the message, status, and affordance. Include what did not happen. Test it with someone who did not design the feature. If they cannot say whether the action completed, the state is not clear enough.
+
+### Step 5: Add entry and exit checks
+
+Define the signal, deadline, hold period, probe, and recovery evidence. Distinguish infrastructure recovery from semantic recovery. An endpoint being available is not proof that its output satisfies the feature contract.
+
+### Step 6: Add the smallest telemetry set
+
+Record the mode, reason, preserved capability, forbidden capability, outcome, and recovery. Do not start with a large dashboard. Start with evidence that lets one owner reconstruct why a user received less.
+
+### Step 7: Test the mode and the transition
+
+Simulate the trigger, verify the output and blocked actions, inspect the message, force fallback failure, and test recovery. Include one combination where the failure order matters. Keep the case as a regression test after repair.
+
+### Step 8: Review after real use
+
+Look at whether the reduced mode preserved useful work, whether users understood it, whether the queue received enough context, and whether the primary path is failing more often than the team expected. Then update the contract. A graceful mode is a living part of the product.
+
+![Illustration of a fallback ladder from full AI capability to safe stop](/blog/how-to-design-graceful-degradation-for-ai-features-inline-3.webp)
+
+## What should you still not claim about graceful degradation?
+
+Graceful degradation improves failure behavior. It does not make an AI feature correct, available, or safe in every condition.
+
+This article does not provide universal latency thresholds, confidence cutoffs, cache durations, fallback quality percentages, or provider-specific configurations. Those values depend on the user promise, dependency behavior, data freshness, risk tolerance, and operational capacity of the feature.
+
+The primary sources also have limits. AWS and Google Cloud describe reliability patterns in their own architecture guidance. Their recommendations are useful patterns, not proof that every feature should use the same infrastructure. Microsoft HAX provides human-AI interaction guidance and examples, not a guarantee that one disclosure will produce the right user behavior. NIST provides a risk-management framework, not a feature-specific release decision.
+
+The contract in this article is my synthesis for making those decisions explicit. It is not an industry standard and it has not been measured as a benchmark. The locked Marius observations are also bounded: teaching product managers revealed a recurring definition-of-done problem, and TryUncle’s live screen annotation creates a concrete latency and approval constraint. Neither observation supplies a failure rate.
+
+The main unknown for any team is the value of the partial capability. You need to observe whether users prefer a dated snapshot, a draft, a clarification question, a queue, or a stop in the exact workflow. That is product research. The contract makes the question testable. It does not answer it in advance.
+
+## What is the practical rule to carry into a design review?
+
+Write the fallback as a smaller promise, not a smaller model. If the reduced behavior remains truthful, bounded, and recoverable, it can preserve useful work. If it could be mistaken for verified output, execute an unsafe action, expose protected data, or hide an unknown state, clarify, hand off, or stop.
+
+That rule gives the team a concrete review sequence:
+
+1. What failed?
+2. What capability can still be delivered truthfully?
+3. What claim or action must be removed?
+4. What will the user see?
+5. What proves recovery?
+6. Which event lets the team learn from the mode?
+
+If the answers fit in a contract row, the team has a design to implement and test. If they do not, the feature is still relying on a happy path.
+
+Marius Manolachi helps existing people become capable of building AI products on their own work. If you are defining one of these contracts with a product team, the useful next step is to bring one real workflow, its current definition of done, its permissions, and the failure state you are most worried about to [AI consulting and tutoring](https://mariusmanolachi.com/learn-ai). The article is complete without that next step. The contract is the thing to use first.
