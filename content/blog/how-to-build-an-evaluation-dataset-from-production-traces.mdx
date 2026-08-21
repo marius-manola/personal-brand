@@ -1,0 +1,896 @@
+---
+title: 'How to Build an Evaluation Dataset From Production Traces'
+date: '2026-08-21'
+updated: '2026-08-21'
+excerpt: 'Turn noisy production traces into a private, replayable evaluation dataset with verified outcomes, deliberate sampling, and stable versioning.'
+answer: 'Build it from production traces in five passes: define the evaluation unit, pin the runtime version, redact and sample traces for coverage, label the verified outcome, then freeze a versioned regression set. Keep raw traces separate from replayable cases. The exception is safety or rare edge behavior that production has not exercised yet, which needs authored or synthetic cases.'
+targetQuery: 'how to build an evaluation dataset from production traces'
+queryAliases:
+  - 'build an evaluation dataset from production logs'
+  - 'turn production traces into eval cases'
+  - 'create an eval set from agent traces'
+  - 'production trace to evaluation dataset'
+intent: 'implementation'
+funnel: 'consideration'
+cluster: 'AI evaluation and production reliability'
+kind: 'flagship'
+sourceableAtom: 'A production trace should enter the regression dataset only when it carries both a verified outcome and a named failure hypothesis; otherwise keep it as monitoring evidence, not a test case.'
+tags:
+  - 'AI evaluation'
+  - 'Production AI'
+  - 'AI observability'
+  - 'AI reliability'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-19'
+sources:
+  - 'https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents'
+  - 'https://learn.microsoft.com/en-us/azure/foundry/observability/how-to/traces-to-dataset'
+  - 'https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-agent-spans.md'
+  - 'https://openai.github.io/openai-agents-python/tracing/'
+  - 'https://pair.withgoogle.com/chapter/People%20%2B%20AI%20Guidebook%20-%20Data%20Collection%20%2B%20Evaluation.pdf'
+  - 'https://airc.nist.gov/docs/AI_RMF_Playbook.pdf'
+faq:
+  - q: 'How many production traces should I start with?'
+    a: 'Start with a small, failure-derived set that your team can inspect and replay. Anthropic suggests 20 to 50 simple tasks as an early starting point, but mature systems and high-risk workflows need more coverage. There is no universal count.'
+  - q: 'Can I use raw production traces directly as evaluation cases?'
+    a: 'Usually no. Preserve the raw trace in a protected store, then create a minimized replay case with redacted inputs, pinned versions, a verified outcome, a failure hypothesis, and provenance.'
+  - q: 'What if a production trace has no ground-truth outcome?'
+    a: 'Keep it as monitoring evidence or send it to a review queue. Do not freeze it as a regression case until a person, deterministic check, or trusted system record can define what success means.'
+  - q: 'Should production traces cover every possible AI failure?'
+    a: 'No. They show what real users exercised. Add authored or synthetic cases for rare safety failures, prohibited actions, unavailable tools, and important scenarios that production has not yet visited.'
+cover: '/blog/how-to-build-an-evaluation-dataset-from-production-traces-hero-trace-to-eval.webp'
+coverAlt: 'Illustration of production traces becoming private, labeled evaluation cases through sampling and verification'
+draft: false
+---
+
+Production traces are useful evidence, but they aren’t an evaluation dataset yet. A trace tells you what happened. An evaluation case tells you what to replay, what to check, and why the case belongs in the set.
+
+When I taught product managers to move from writing specs to building and shipping, the recurring failure was usually an undefined “done,” not the model. The same problem appears here. A transcript can look complete while nobody has written down what success meant in the environment.
+
+## What is the right way to turn production traces into an evaluation dataset?
+
+Use five passes: define the evaluation unit, protect the data, sample for coverage, label the verified outcome, and freeze a versioned case. Keep the raw trace in a controlled store and create a smaller replay record for the test harness.
+
+The central decision rule in this article is mine, not a vendor standard:
+
+> **A production trace should enter the regression dataset only when it carries both a verified outcome and a named failure hypothesis. Otherwise, keep it as monitoring evidence, not a test case.**
+
+That rule puts a boundary around the most common shortcut. Teams export logs, delete a few fields, and call the result a golden set. The exported rows may be realistic, but realism alone does not tell a future evaluator what to assert. A case needs a reason to exist.
+
+| Production artifact | What it answers | Can it enter the regression set? |
+| --- | --- | --- |
+| Raw trace | What did the deployed system receive and do? | No. Keep it protected and immutable. |
+| Reviewed trace | What appears to have happened, after a person inspected it? | Not yet, unless the outcome is verifiable. |
+| Replay case | What input and environment should the harness recreate? | Yes, if the expected outcome and failure hypothesis are recorded. |
+| Regression case | What known behavior must a new version preserve or improve? | Yes. Pin it to a dataset version and evaluator. |
+| Monitoring sample | What behavior might deserve investigation? | Not by itself. Route it to review or quarantine. |
+
+This distinction is the sourceable finding. A production trace can be valuable without being ready for a fixed test set. If you keep that boundary, your evaluation score stays connected to an explicit claim rather than to the volume of logs you collected.
+
+This article starts after instrumentation and before the release gate. For the surrounding jobs, see [how to evaluate an AI agent](/blog/how-to-evaluate-an-ai-agent) and [how to monitor an AI agent in production](/blog/how-to-monitor-an-ai-agent-in-production).
+
+![Illustration of a production trace moving through review, verification, and versioning before becoming a regression case](/blog/how-to-build-an-evaluation-dataset-from-production-traces-trace-promotion-boundary.webp)
+
+## What counts as a production trace?
+
+A production trace is the end-to-end record of one live interaction with the system under test, including the input, runtime versions, model turns, tool calls, retrieved context, handoffs, approvals, errors, timing, and final effect when those signals are available.
+
+The exact fields differ by runtime. OpenAI’s Agents SDK describes traces as an end-to-end workflow made of spans, with trace IDs, parent-child relationships, timestamps, and records for generations, tools, handoffs, guardrails, and custom events ([OpenAI Agents SDK tracing](https://openai.github.io/openai-agents-python/tracing/)). OpenTelemetry’s GenAI conventions describe agent invocation, workflow, planning, and tool-execution spans, but the conventions are currently marked Development, so treat their names as an evolving interoperability vocabulary rather than a permanent contract ([OpenTelemetry GenAI agent spans](https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-agent-spans.md)).
+
+For dataset work, “trace” means more than a chat transcript. You need enough context to know which system produced the behavior and whether the environment changed.
+
+At minimum, record:
+
+- the trace ID and the parent conversation or task ID when applicable;
+- the declared user request or event that started the run;
+- the agent, workflow, model, prompt, tool, retrieval, and code versions;
+- the ordered actions, including tool arguments and normalized results where safe;
+- approvals, denials, handoffs, retries, timeouts, and errors;
+- start and end times, latency, token or usage data when available, and budget decisions;
+- the final response and the observed effect on the system of record;
+- privacy classification, retention status, and the reason the trace was selected.
+
+You do not need to copy every raw payload into the evaluation dataset. In fact, copying everything usually creates unnecessary privacy, storage, and replay problems. The raw trace can remain in the observability system while the evaluation row points to it through a controlled reference.
+
+### Trace, outcome, and case are different objects
+
+Anthropic makes a distinction that should survive your data model: the transcript or trace is the complete record of a trial, while the outcome is the final state in the environment ([Anthropic’s agent eval guidance](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)). If an agent says it updated a ticket, the sentence is not the outcome. The ticket state is.
+
+Use these three objects:
+
+1. **Trace**: the observed execution record.
+2. **Outcome**: the state or judgment that establishes what happened.
+3. **Case**: the replayable input and assertions that future runs will be graded against.
+
+The case may preserve part of the trace, but it is not a dump of the trace. It is a test specification extracted from the trace.
+
+This matters for agents that act. A response-only system may have text as its primary result. An agent that changes a record, sends a message, edits a file, or requests approval needs an environmental assertion as well. Otherwise the evaluator can reward a convincing claim that the action happened when it did not.
+
+## When is a production trace ready to become a test case?
+
+Promote a trace only when you can answer four questions: what should be replayed, what should be true afterward, what behavior might fail again, and which data may safely cross into the evaluation environment.
+
+Use this readiness gate:
+
+| Gate | Pass condition | If it fails |
+| --- | --- | --- |
+| Task identity | The trace belongs to one defined workflow or user job. | Keep it in monitoring or split the trace into tasks. |
+| Runtime identity | Model, prompt, tool, workflow, and code versions are known. | Do not compare it as a stable baseline. |
+| Replayability | The harness can recreate the relevant input and permitted environment state. | Mark it observational only or build a fixture. |
+| Outcome evidence | A system record, deterministic check, human label, or explicit rubric supports the expected result. | Send to outcome review. |
+| Failure hypothesis | The case names the behavior it should catch or preserve. | Keep it in the investigation queue. |
+| Privacy clearance | Sensitive fields are removed, transformed, or access-controlled for the intended use. | Do not export it. |
+| Split assignment | The case has a deliberate role such as development, regression, or holdout. | Do not let the harness choose implicitly. |
+
+The outcome and failure-hypothesis gates are the important ones. A trace can be perfectly instrumented and still be a poor evaluation case if nobody knows what “good” looks like. Conversely, a small trace with a clear state assertion can be more useful than a large archive of unreviewed sessions.
+
+NIST’s AI RMF Playbook frames measurement as dependent on the system’s purpose, audience, and use context. It also recommends defining acceptable performance limits and documenting metric selection, including metrics that were considered but not used ([NIST AI RMF Playbook](https://airc.nist.gov/docs/AI_RMF_Playbook.pdf)). Apply that principle at the row level. A case should say what its check measures and what it does not measure.
+
+### When should a trace stay out of the dataset?
+
+Keep a trace out when any of these conditions apply:
+
+- the final state is unknown and the only “success” signal is the agent’s wording;
+- the trace mixes several unrelated user tasks that cannot be replayed as one unit;
+- the runtime version is missing or spans from multiple active versions are mixed together;
+- a tool response contains live secrets, personal data, or mutable records that cannot be safely fixture-controlled;
+- the trace is a duplicate of an existing case and adds no new failure or coverage;
+- the observed behavior was caused by an outage or test environment defect rather than the system under evaluation;
+- the trace contains a potentially unsafe action that needs review before reproduction;
+- the case would reward copying a particular path even though several valid paths exist.
+
+“Keep out” doesn’t mean “discard.” Use a quarantine state with a reason. An unpromoted trace can still tell you where instrumentation, product requirements, or outcome systems are weak.
+
+## What fields should an evaluation case contain?
+
+Use a case schema that separates replay input, expected outcome, provenance, and privacy from the raw trace. The exact database and file format are implementation choices. The boundaries are the important part.
+
+Here is a portable TypeScript-style contract:
+
+```ts
+type CaseSplit = 'development' | 'regression' | 'holdout' | 'quarantine';
+
+type OutcomeKind =
+  | 'state_assertion'
+  | 'structured_output'
+  | 'rubric'
+  | 'human_review'
+  | 'refusal_or_escalation';
+
+interface TraceCase {
+  caseId: string;
+  datasetVersion: string;
+  task: {
+    workflow: string;
+    userGoal: string;
+    replayInput: unknown;
+    initialState?: unknown;
+    allowedTools?: string[];
+  };
+  expectedOutcome: {
+    kind: OutcomeKind;
+    assertion: unknown;
+    prohibitedEffects?: string[];
+    graderId: string;
+  };
+  failureHypothesis: {
+    category: string;
+    statement: string;
+    discoveredIn: 'production' | 'incident' | 'review' | 'support';
+  };
+  provenance: {
+    rawTraceRef: string;
+    observedAt: string;
+    sourceWindow: string;
+    agentVersion: string;
+    modelVersion?: string;
+    promptVersion?: string;
+    selectionReason: string;
+  };
+  privacy: {
+    classification: string;
+    transformations: string[];
+    reviewer: string;
+    approvedAt: string;
+    rawAccessPolicy: string;
+  };
+  split: CaseSplit;
+  notes?: string;
+}
+```
+
+This is an article artifact, not a standard. It makes several choices explicit:
+
+- `rawTraceRef` lets you preserve provenance without duplicating raw content.
+- `replayInput` is the smallest input needed by the harness, not necessarily the original payload.
+- `initialState` matters for stateful workflows. A ticket case without the starting ticket state is not reproducible.
+- `expectedOutcome` can be a state assertion, structured output, rubric, human review, or refusal requirement.
+- `prohibitedEffects` prevents a case from passing because the desired effect happened alongside an unsafe one.
+- `failureHypothesis` gives the row a purpose. “Agent was bad” is not a hypothesis. “Agent claimed success after the update tool timed out” is.
+- `provenance` makes the case traceable to a real observation and records the system version that produced it.
+- `privacy` turns redaction and approval into visible dataset metadata.
+- `split` keeps development examples from quietly becoming the final ruler.
+
+Google’s People + AI Guidebook recommends documenting a dataset’s sources, transformations, history, recommended uses, and responsible-use boundaries. It also frames dataset documentation as useful for comparison, review, sharing, and maintenance ([Google People + AI Guidebook](https://pair.withgoogle.com/chapter/People%20%2B%20AI%20Guidebook%20-%20Data%20Collection%20%2B%20Evaluation.pdf)). The contract above applies that idea to trace-derived cases.
+
+![Illustration of a trace case schema separating replay input, verified outcome, failure hypothesis, provenance, privacy, and split](/blog/how-to-build-an-evaluation-dataset-from-production-traces-trace-case-contract.webp)
+
+## How should you protect production data before sampling?
+
+Protect data before you decide which traces are interesting. Sampling a raw export and planning to redact later creates an unnecessary copy of sensitive material and increases the number of places you must control.
+
+Start by defining the intended use of the dataset. An offline evaluation set, a debugging archive, a model-training corpus, and a public example have different access, retention, and transformation requirements. A trace that is acceptable for a restricted debugging team may not be acceptable for a general evaluation service, and a case approved for evaluation may not be approved for fine-tuning.
+
+Use a two-layer storage model:
+
+| Layer | Contents | Access | Retention purpose |
+| --- | --- | --- | --- |
+| Protected trace store | Original inputs, outputs, tool payloads, IDs, timestamps, and full span relationships. | Small, audited group or service role. | Incident investigation and provenance. |
+| Evaluation case store | Minimized replay inputs, fixtures, assertions, labels, versions, privacy metadata, and a reference to the raw trace. | Evaluation runners and case reviewers. | Repeatable testing and regression history. |
+
+### Redaction is not just string replacement
+
+A safe transformation can include:
+
+- removing direct identifiers such as names, email addresses, phone numbers, account numbers, and access tokens;
+- replacing identifiers with stable per-case placeholders when the relationship matters;
+- converting exact dates into relative or fixture-controlled dates when timing is not the behavior under test;
+- replacing a private document with a synthetic fixture that preserves the relevant structure;
+- removing tool results that contain data irrelevant to the assertion;
+- deleting secrets from both prompts and tool outputs, not only from the final answer;
+- keeping a transformation log that explains what changed and why;
+- checking that the redacted case still tests the intended behavior.
+
+Do not assume a model or a vendor’s sampling feature solves your organization’s data-policy obligations. Microsoft documents intelligent sampling that handles sensitive content including personal data in its Foundry workflow, but the same page is a preview feature with its own prerequisites and terms. Treat that as a vendor capability to verify, not a universal privacy guarantee ([Microsoft trace-to-dataset documentation](https://learn.microsoft.com/en-us/azure/foundry/observability/how-to/traces-to-dataset)).
+
+NIST recommends following privacy and intellectual-property rights related to datasets and their use, constructing datasets with context experts, and checking differences between intended and actual user populations. Those are governance requirements to interpret in your context, not a substitute for your security review ([NIST AI RMF Playbook](https://airc.nist.gov/docs/AI_RMF_Playbook.pdf)).
+
+### Preserve the behavior, not the biography
+
+When removing data, ask which property the case needs to retain:
+
+| Property to preserve | Safer transformation |
+| --- | --- |
+| The user asks for an account-specific action | Replace the person and account with fixture IDs and provide a fake fixture record. |
+| The agent must distinguish two similar records | Use synthetic records with the same ambiguity and stable identifiers. |
+| The agent must ask for missing information | Remove the real value while preserving the missing-field condition. |
+| The agent must respect a permission boundary | Replace the real user with a fixture role and keep the permission matrix. |
+| The agent must respond to a tool timeout | Replay a controlled timeout or error object, not the original infrastructure payload. |
+| The agent must handle a time-sensitive event | Use a fixed clock or explicit event timestamp in the fixture. |
+
+The goal is not to make the case look like the original conversation. The goal is to preserve the decision boundary that mattered.
+
+## How should you sample production traces?
+
+Do not use one sampling method for every purpose. A random sample can describe traffic, but it will underselect rare failures. A failure-only sample can improve regression coverage, but it will not tell you what ordinary users do. Build separate selection lanes and record the lane in `selectionReason`.
+
+| Sampling lane | Question | Selection method | Dataset role |
+| --- | --- | --- | --- |
+| Coverage | What kinds of work are users actually sending? | Time-bounded stratified or diversity-aware sample across workflows, user goals, versions, and outcomes. | Coverage set and monitoring baseline. |
+| Failure mining | What broke or looked suspicious? | Select tool errors, retries, escalations, corrections, negative feedback, missing effects, and incident-linked traces. | Regression candidates. |
+| Incident | What exact behavior must not return? | Narrow window around the incident, plus nearby successful controls. | Targeted regression set. |
+| Drift | What changed after a deployment or traffic shift? | Compare recent traces against a prior window by workflow, version, input shape, and outcome signal. | Review and holdout candidates. |
+| Safety | What prohibited behavior must be tested even if unseen? | Authored or synthetic cases based on policy and threat analysis. | Safety suite, not production-derived evidence. |
+
+Microsoft’s current Foundry documentation uses a bounded time range, a maximum sample cap, version pinning, and intelligent sampling that filters low-intent traffic and seeks diversity. It also says a cap is not a guarantee of output rows and recommends a representative window plus incident-focused windows when appropriate ([Microsoft Foundry](https://learn.microsoft.com/en-us/azure/foundry/observability/how-to/traces-to-dataset)). The portable lesson is to define the window, selection reason, and version before you look at the cases.
+
+### Use time windows deliberately
+
+A time window is not merely a query parameter. It defines which production state the dataset represents.
+
+Choose the window based on the question:
+
+- **Current behavior**: a recent window after the runtime stabilized.
+- **Release comparison**: a window before the change and a window after the change, with versions preserved.
+- **Incident regression**: the incident interval plus at least one control trace from the same workflow where the intended outcome occurred.
+- **Seasonal or periodic work**: a window that contains the relevant workload, even if it is older.
+- **Long-term drift**: multiple smaller windows over time rather than one blended export.
+
+Avoid mixing traces from different prompt, model, tool, or policy versions into one unlabeled pool. If you need a general-purpose case set, stratify by version and retain the version in provenance. Otherwise a future score may combine behavior from a system you are no longer testing.
+
+### Deduplicate without erasing coverage
+
+Near-duplicate prompts are common in production. Deduplication lowers cost, but an aggressive deduplicator can remove meaningful differences:
+
+- a different permission role;
+- a different tool result;
+- a different starting state;
+- a different language or accessibility need;
+- a different failure point in the same workflow;
+- a different user correction after an initially plausible response.
+
+Cluster first, then review the cluster boundaries. If two cases share wording but differ in state or outcome, keep both. If they differ only by a session ID, keep the clearer one and link the duplicate traces in provenance.
+
+Microsoft describes MinHash-based diversity selection in its Foundry workflow. That can be useful for reducing near-identical inputs, but it does not replace domain review. Similarity is not equivalence.
+
+## How do you label the expected outcome?
+
+Label the outcome at the level where the product actually succeeds. Use a deterministic state assertion when possible, a structured-output check when the result is machine-readable, a rubric when quality is open-ended, and human review when the judgment is material or ambiguous.
+
+Anthropic recommends deterministic graders where possible, model graders where needed, and human graders for additional validation. It also warns that a grader can be brittle or wrong, so task specifications and graders need their own review ([Anthropic eval guidance](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)).
+
+| Outcome type | Example assertion | Best first grader | Common mistake |
+| --- | --- | --- | --- |
+| State assertion | The ticket status is `awaiting_customer`, and no refund was issued. | Database or API check. | Grading the agent’s final message instead of the ticket. |
+| Structured output | The response contains a valid category, confidence band, and escalation reason. | Schema and constraint checks. | Checking only that JSON parses. |
+| Tool policy | The agent never calls `issue_refund` without an approval record. | Trace assertion plus approval lookup. | Requiring one exact tool path when valid alternatives exist. |
+| Retrieval grounding | Every cited claim is supported by an allowed document. | Citation and document checks, with human sampling. | Treating retrieval of a document as proof the answer used it correctly. |
+| Rubric | The answer is accurate, complete, and appropriately cautious. | Calibrated model grader plus human review. | One vague score with no criteria or “unknown” option. |
+| Refusal or escalation | The agent declines a prohibited request and routes it to a person. | Policy assertions and route check. | Counting any refusal as success without checking the reason. |
+
+### Exact answers are not the default
+
+For many agent tasks, several outputs can be correct. Requiring the exact production response can make the evaluator reward wording rather than behavior. Preserve an exact expected string only when the string itself is the product requirement, such as a protocol token or a legally controlled notice.
+
+For open-ended work, write a rubric with observable dimensions. For example:
+
+```text
+Task: summarize the approved incident record for the operations team.
+
+Pass when:
+- the summary states the verified cause and current impact;
+- it distinguishes confirmed facts from unknowns;
+- it names the next owner and action when those fields exist;
+- it includes no private identifiers outside the allowed fixture;
+- it does not claim that remediation is complete unless the record says so.
+
+Return Unknown when the trace or fixture does not support a judgment.
+```
+
+That last instruction matters. A grader that must choose “pass” or “fail” when evidence is absent can convert missing data into false confidence.
+
+### Label the source of the label
+
+The case should say how its expected outcome was established:
+
+- `system_record`: a trusted database, file, ticket, or workflow state;
+- `deterministic_check`: a parser, schema, permission, or test assertion;
+- `human_review`: a qualified reviewer inspected the trace and relevant context;
+- `user_feedback`: a user signal, used carefully because feedback can be sparse or self-selected;
+- `rubric_inference`: a model or heuristic proposed the label, pending human calibration.
+
+Do not silently turn a model-generated label into ground truth. If a model suggests a label, preserve that fact and route uncertain cases to review. Google’s guide emphasizes that label quality and labeler instructions affect the quality of the resulting system. The same logic applies when labels are created for evaluation rather than training ([Google People + AI Guidebook](https://pair.withgoogle.com/chapter/People%20%2B%20AI%20Guidebook%20-%20Data%20Collection%20%2B%20Evaluation.pdf)).
+
+![Illustration of human, deterministic, and model-based graders converging on a verified expected outcome](/blog/how-to-build-an-evaluation-dataset-from-production-traces-grader-convergence.webp)
+
+## How do you convert one live trace into a replayable case?
+
+Convert the trace by preserving the task boundary and outcome evidence while replacing mutable production dependencies with controlled fixtures. The following worked example is deliberately generic, so it demonstrates the transformation without pretending to be a client result or a measured incident.
+
+### Raw observation
+
+An internal support agent receives a request to update a customer’s delivery address. It retrieves the customer record, asks for a missing postal code, receives the code, calls an address-validation tool, then calls an update tool. The update tool times out. The agent replies that the address was updated. A later check shows the address did not change.
+
+The raw trace contains the conversation, tool arguments, tool responses, timestamps, user identifiers, and the final answer.
+
+### What the trace tells you
+
+- The user goal was an address update.
+- The agent correctly identified a missing field and requested it.
+- The validation tool returned a result.
+- The write operation timed out.
+- The final answer claimed completion.
+- The system of record shows no address change.
+
+### Failure hypothesis
+
+The agent reports a successful state change when the write tool times out and the system of record remains unchanged.
+
+### Replay case
+
+```json
+{
+  "caseId": "support-address-timeout-001",
+  "datasetVersion": "2026-08-21.1",
+  "task": {
+    "workflow": "address_update",
+    "userGoal": "Update the delivery address for the customer",
+    "replayInput": {
+      "message": "Please change my delivery address to the new address.",
+      "customerId": "fixture_customer_17"
+    },
+    "initialState": {
+      "address": "fixture_old_address",
+      "postalCode": null
+    },
+    "allowedTools": ["lookup_customer", "validate_address", "update_address"]
+  },
+  "expectedOutcome": {
+    "kind": "state_assertion",
+    "assertion": {
+      "addressUnchanged": true,
+      "responseAcknowledgesFailureOrEscalates": true,
+      "falseCompletionClaim": false
+    },
+    "prohibitedEffects": ["update_address_success_without_record_change"],
+    "graderId": "support_state_and_truthfulness_v2"
+  },
+  "failureHypothesis": {
+    "category": "false_completion",
+    "statement": "The agent claims the address changed after the write operation timed out.",
+    "discoveredIn": "production"
+  },
+  "provenance": {
+    "rawTraceRef": "trace://protected/support/trace_abc123",
+    "observedAt": "2026-08-18T09:32:00Z",
+    "sourceWindow": "2026-08-18 support traces",
+    "agentVersion": "support-agent-4.3.1",
+    "modelVersion": "pinned-by-runtime",
+    "promptVersion": "support-policy-12",
+    "selectionReason": "write timeout plus verified missing state change"
+  },
+  "privacy": {
+    "classification": "internal-fixture-only",
+    "transformations": ["replace_customer_id", "replace_address", "remove_raw_tool_payload"],
+    "reviewer": "support-quality-owner",
+    "approvedAt": "2026-08-21T10:00:00Z",
+    "rawAccessPolicy": "restricted-audit-role"
+  },
+  "split": "regression"
+}
+```
+
+Notice what the case does not preserve. It does not need the real customer, the real address, or the full production payload. It does need the missing-field interaction, the timeout condition, the unchanged initial state, and the difference between a true and false completion claim.
+
+The case also does not require the agent to reproduce the exact production sequence. A future version could validate the address differently and still pass if it handles the timeout honestly, avoids the prohibited effect, and leaves the record consistent. That makes the test less brittle.
+
+## How should the dataset represent multi-turn and stateful work?
+
+Represent the smallest complete task, not an arbitrary conversation length. Include prior turns only when they change what a correct system should do.
+
+Keep prior context when it contains:
+
+- a user preference or constraint that the agent must remember;
+- a previous tool result that affects the next decision;
+- a correction that tests whether the agent updates its belief;
+- an approval or denial that controls authority;
+- a handoff boundary where responsibility changes;
+- an earlier failure whose recovery is the behavior under test.
+
+Drop prior context when it is decorative, repetitive, or unrelated to the case. Long transcripts make evaluation slower and can hide the actual task boundary.
+
+For stateful cases, define the starting fixture and the cleanup rule. A test that changes a database row without restoring it can contaminate later trials. Anthropic recommends isolating trials with a clean environment because shared state, cached data, leftover files, or resource exhaustion can create correlated failures unrelated to the agent ([Anthropic eval guidance](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)).
+
+Use one of three fixture patterns:
+
+1. **Resettable fixture**: create the state before each trial and delete or reset it afterward.
+2. **Snapshot fixture**: restore a known database or file snapshot before each trial.
+3. **Read-only fixture**: provide immutable data when the task does not need writes.
+
+If the real trace depended on external data that cannot be replayed, record that limitation in the case. Do not quietly replace it with a more convenient fixture and continue calling the result equivalent.
+
+### Preserve approvals and pauses
+
+An approval is part of the behavior, not a UI detail. If the live system pauses for a human, the case should say whether the test harness supplies an approval, a denial, a timeout, or no response. If the system is expected to escalate, assert the escalation event and the absence of the prohibited action.
+
+This is a constraint I pay attention to while building TryUncle, an AI agent that watches the screen and annotates it live. Latency and human approval are product constraints, not afterthoughts. A trace-derived case for that kind of workflow would need to preserve timing and approval state, not only the final annotation.
+
+The same principle applies to asynchronous jobs. Preserve checkpoints, retries, pause reasons, and resumed execution when they affect the expected outcome. A case that flattens a 30-minute approval workflow into one synchronous request may test a different system.
+
+## How do you choose development, regression, and holdout splits?
+
+Use the split to answer a question, not to satisfy a percentage formula. A fixed percentage is less important than keeping related traces, versions, users, and incidents from leaking across the comparison boundary.
+
+| Split | Purpose | Can it change frequently? | Typical contents |
+| --- | --- | --- | --- |
+| Development | Improve prompts, tools, fixtures, and graders. | Yes. | Newly reviewed traces, duplicates, exploratory examples. |
+| Regression | Protect behavior already accepted as important. | Deliberately. | Promoted failures, critical workflows, release blockers. |
+| Holdout | Estimate behavior on cases not used to tune the candidate. | Rarely. | Time-separated or independently reviewed cases. |
+| Quarantine | Preserve uncertainty while awaiting outcome or privacy review. | Yes, with an audit trail. | Unverified, sensitive, ambiguous, or contaminated traces. |
+
+Google’s guide distinguishes training and test data and emphasizes that evaluation data should be unseen by the model. For trace-derived agent evals, the analogous risk is not only model training leakage. It is tuning the prompt or grader against every case, then treating the tuned score as independent evidence ([Google People + AI Guidebook](https://pair.withgoogle.com/chapter/People%20%2B%20AI%20Guidebook%20-%20Data%20Collection%20%2B%20Evaluation.pdf)).
+
+### Avoid temporal leakage
+
+If you promote an incident from last week into the regression set, do not also leave an almost identical copy in the holdout set. If the candidate was tuned after seeing the incident, that case is useful for regression but no longer independent evidence.
+
+Keep the observed date and the promotion date. Those fields let you ask:
+
+- Was the case available before the candidate was tuned?
+- Did the runtime change after the trace was observed?
+- Does the case represent a current failure or an old behavior?
+- Did the same user, document, or tool fixture appear in both splits?
+
+### Group related traces
+
+Split by groups when rows are not independent. Useful group keys include conversation, user, tenant, document, incident, workflow version, and repeated prompt family. A user’s ten paraphrases should not be counted as ten independent checks if the same underlying task and answer were used to tune the system.
+
+There is no single correct split strategy. State your grouping choice in the dataset card and explain what uncertainty remains.
+
+![Illustration of development, regression, holdout, and quarantine lanes separated by provenance and tuning boundaries](/blog/how-to-build-an-evaluation-dataset-from-production-traces-dataset-split-lanes.webp)
+
+## How do you build graders from production traces?
+
+Derive the grader from the failure hypothesis and the outcome evidence, not from the available tooling. A trace can suggest a problem, but it does not automatically tell you whether a regex, state query, rubric, or human should grade it.
+
+### Start with deterministic checks
+
+Use code when the expected condition is objective:
+
+- a record exists or does not exist;
+- a field has a required value;
+- a permission decision is present;
+- a prohibited tool was not called;
+- a schema validates;
+- a file exists and passes tests;
+- a handoff includes the required context;
+- a budget or retry limit was not exceeded.
+
+Deterministic checks are reproducible, but they can be too narrow. If the test insists on one exact tool order while several safe paths exist, it can punish a correct system. Anthropic recommends grading the produced result rather than forcing an unnecessarily rigid path, while still checking hard constraints where the path is part of safety or policy ([Anthropic eval guidance](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)).
+
+### Use rubrics for open-ended quality
+
+A model grader can help with accuracy, completeness, tone, or explanation quality when a deterministic assertion cannot capture the requirement. Give it a specific rubric, the relevant evidence, and an explicit “unknown” option. Then calibrate it against human review.
+
+Do not use one scalar called `quality` for every dimension. Split the rubric:
+
+```text
+Groundedness: Does the answer stay within the supplied evidence?
+Completeness: Does it cover the required parts of the user goal?
+Honesty: Does it distinguish completed work from proposed or failed work?
+Policy: Does it obey the allowed action and data boundary?
+Usefulness: Does it give the next action a person can take?
+```
+
+The case should retain the evidence that the rubric used. If a grader sees only the final answer and not the tool result or source record, it cannot reliably assess whether the claim was grounded.
+
+### Add human review where the cost of a wrong label is high
+
+Human review is slower, but it is appropriate for ambiguous cases, safety decisions, grader calibration, and domain-specific judgments. Google’s guide emphasizes that labelers need clear instructions and appropriate tools. That applies to reviewers who label evaluation cases as well as to people preparing training data.
+
+Write a short label guide before inviting a large review effort. Include:
+
+- the task and what counts as a successful outcome;
+- the evidence reviewers may use;
+- examples of pass, fail, and unknown;
+- the allowed privacy transformation decisions;
+- what to do when the trace is incomplete;
+- how disagreements are recorded and resolved.
+
+If reviewers cannot agree because the task description is ambiguous, repair the task or the rubric before blaming the model. A dataset can expose an undefined requirement. That is useful.
+
+## How do you mine failures without making the dataset only failures?
+
+Use failures to create cases, then add successful controls and boundary cases so the evaluator can distinguish a real repair from overcorrection.
+
+For each promoted failure, try to add:
+
+1. **The failure case**: the original condition that exposed the bug.
+2. **A successful control**: a nearby case where the desired behavior already occurred.
+3. **A boundary case**: a similar request where the correct action differs.
+4. **A refusal or escalation case**: when the behavior must not occur.
+5. **A missing-context case**: when the agent should ask rather than guess.
+
+This protects against one-sided optimization. Anthropic gives the example of evaluating both cases where a model should search and cases where it should not, because testing only one direction can make the system over-trigger ([Anthropic eval guidance](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)). The same principle applies to trace-derived datasets. If you add only “the agent failed to call the tool,” you may produce an agent that calls the tool for everything.
+
+### A failure taxonomy that starts with the trace
+
+You don’t need a named framework to classify cases. Use categories that map to observable evidence:
+
+| Category | Trace signal | Evaluation question |
+| --- | --- | --- |
+| Wrong intent | The first action serves a different goal. | Did the agent identify the task before acting? |
+| Missing clarification | Required input was absent or ambiguous. | Did the agent ask for the missing fact instead of guessing? |
+| Wrong tool | A tool was called that cannot satisfy the goal or exceeds authority. | Was the selected capability valid for the request? |
+| Bad argument | The right tool received invalid or incomplete parameters. | Did the agent construct a safe, valid call? |
+| Stale or wrong evidence | Retrieval or tool output conflicts with the source of truth. | Did the agent resolve or expose the conflict? |
+| False completion | Final wording says done while the environment is unchanged. | Does the response match the verified effect? |
+| Unsafe completion | The desired effect occurs with a prohibited side effect. | Did the agent respect policy and approval boundaries? |
+| Recovery failure | A timeout, rate limit, or tool error leads to repeated or unsafe actions. | Did the agent retry, escalate, or stop within policy? |
+| Handoff loss | Required context disappears at a handoff. | Can the next actor continue without guessing? |
+| Excess work | The task succeeds only after unnecessary turns, calls, or cost. | Is the path within operating limits? |
+
+This is a practical taxonomy, not a claim about a measured distribution. It gives every case a failure hypothesis that a reviewer can inspect.
+
+On [Udemy](https://www.udemy.com/user/marius-manola/), I have taught 109,753 students across four courses, with 23,929 reviews. The relevant observation is not that this is a dataset of production failures. It is that people often want to start with a framework or a working demo and postpone the definition of done. A trace-derived evaluation set helps reverse that order: define the observable outcome, then choose the implementation and grader.
+
+## What should you do when a trace has no ground truth?
+
+Do not manufacture a label from the agent’s confidence or final wording. Put the trace in quarantine, identify the missing authority, and decide whether the case needs a system assertion, a domain reviewer, a user confirmation, or a new product requirement.
+
+There are four honest outcomes for an unverified trace:
+
+| Situation | Correct status | Next action |
+| --- | --- | --- |
+| The environment has a record, but the exporter did not capture it. | Quarantine | Add the missing join or capture path, then re-review. |
+| The task is subjective and no rubric exists. | Quarantine | Ask a domain owner to define acceptable and unacceptable outcomes. |
+| The user’s feedback is the only quality signal. | Candidate | Use it as evidence, then sample for human review because feedback is sparse and self-selected. |
+| The trace reveals a new risk but no safe replay exists. | Monitoring evidence | Write an authored fixture or policy case rather than copying live data. |
+
+A missing label is itself a finding about your product and instrumentation. If you cannot tell whether a task succeeded, adding more model calls will not solve the evaluation problem. First decide who or what is allowed to establish success.
+
+### Separate absence of evidence from evidence of failure
+
+These statements are different:
+
+- “The update did not happen.”
+- “The trace does not show whether the update happened.”
+- “The user said the result was wrong.”
+- “The system of record says the result is wrong.”
+
+Use different labels and confidence levels for each. A user complaint may be the best signal available, but it should not silently become an objective state assertion. A missing telemetry field should not be counted as a failed tool call.
+
+Your case schema can represent this with an outcome status:
+
+```ts
+type OutcomeEvidence =
+  | { source: 'system_record'; reference: string; confidence: 'high' }
+  | { source: 'deterministic_check'; checkId: string; confidence: 'high' | 'medium' }
+  | { source: 'human_review'; reviewer: string; confidence: 'high' | 'medium' }
+  | { source: 'user_feedback'; feedbackId: string; confidence: 'low' | 'medium' }
+  | { source: 'unknown'; reason: string; confidence: 'unknown' };
+```
+
+That makes it possible to run exploratory analysis on uncertain cases without allowing them to set a hard release threshold.
+
+## Should production traces be the whole evaluation dataset?
+
+No. Production traces are the best evidence of what real users exercised, not a complete map of what the system must handle. Combine them with authored, synthetic, incident, and policy cases.
+
+Microsoft explicitly presents trace-based and synthetic generation as complementary. Production traces reflect real user behavior, while synthetic or authored cases cover scenarios absent from production traffic ([Microsoft trace-to-dataset documentation](https://learn.microsoft.com/en-us/azure/foundry/observability/how-to/traces-to-dataset)). Anthropic likewise places production monitoring, user feedback, transcript review, and automated evaluations together because each catches different problems ([Anthropic eval guidance](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)).
+
+Use production traces for:
+
+- real vocabulary, ambiguity, and request shapes;
+- actual tool and retrieval failures;
+- real workflow transitions and user corrections;
+- distribution coverage, if sampled deliberately;
+- incidents that already reached users;
+- latency, retries, and approval conditions that exist in deployment.
+
+Use authored or synthetic cases for:
+
+- prohibited actions that should never be attempted;
+- rare but high-impact safety and privacy conditions;
+- tool outages not yet encountered;
+- adversarial or abuse cases that you should not wait to observe;
+- new workflows before launch;
+- combinations of constraints that are possible but not yet common;
+- controlled variants needed to understand a failure boundary.
+
+Label the source type in provenance. A synthetic case should not be presented as evidence of a real user failure. A production-derived case should not be treated as proof that unseen scenarios are safe.
+
+### Use production to ground synthetic cases
+
+Synthetic data is more useful when it is generated from observed structure rather than from a blank prompt. A failure trace can supply the task shape, missing condition, tool boundary, and expected assertion. Then an author can create safe variants that preserve the decision boundary without copying private content.
+
+For example, a real trace may reveal that the agent confuses two similarly named tools when the user request contains an ambiguous project name. You can create fixture projects with different names and test:
+
+- the correct choice when one project is an exact match;
+- a clarification when two projects match;
+- a refusal when the user lacks access;
+- an escalation when the project index is unavailable.
+
+Those cases are not “production traces,” but they are justified by a production observation. Keep the provenance chain visible.
+
+## How do you version a trace-derived dataset?
+
+Version the dataset whenever its membership, labels, fixtures, graders, or intended use changes. A date alone is not enough. A useful version tells you what changed and whether a score is comparable with an earlier score.
+
+Track at least:
+
+- dataset version and parent version;
+- added, removed, and changed case IDs;
+- reason for every change;
+- case source and observed date;
+- agent, model, prompt, tool, and code versions represented;
+- fixture version and reset procedure;
+- grader versions and rubric changes;
+- privacy transformation version;
+- split changes;
+- reviewer and approval status;
+- known coverage gaps;
+- next review date.
+
+Do not edit a regression case in place after a new system fails it. Create a new case version or a new dataset version. Otherwise you lose the ability to compare the failure before and after the repair.
+
+### When should a case be retired?
+
+Retire a case when its task no longer exists, its fixture cannot be maintained, its policy is obsolete, or its expected outcome was wrong. Do not retire a case merely because the current system passes it.
+
+For a passing case, ask whether it still protects a meaningful behavior:
+
+- Is the workflow still in scope?
+- Is the failure mode still possible after a runtime change?
+- Does the case still represent a user or policy requirement?
+- Is the grader still measuring the intended property?
+- Is there a newer case that supersedes it without losing coverage?
+
+Mark the reason and date. A retired case can remain in historical reports while leaving the active set.
+
+### Keep a stable core and a moving edge
+
+Use two maintenance lanes:
+
+1. **Stable core**: critical regression and holdout cases change only through review. This is the ruler for release comparisons.
+2. **Moving edge**: new production failures, recent traffic, uncertain labels, and experimental cases can change quickly. They are useful for discovery but should not silently change the release gate.
+
+The sourceable rule from this article applies here. A trace with no verified outcome or failure hypothesis can sit in the moving edge, but it should not enter the stable core.
+
+![Illustration of a stable regression core connected to a moving production edge through review and version approval](/blog/how-to-build-an-evaluation-dataset-from-production-traces-stable-core-moving-edge.webp)
+
+## What should the dataset card say?
+
+Write a short dataset card before the set becomes a team dependency. It should let a new reviewer understand what the set represents, where it came from, how it was prepared, and what claims it can and cannot support.
+
+Use this checklist:
+
+### Purpose
+
+- What system or workflow does the dataset evaluate?
+- Which decisions can this dataset inform?
+- Is it for development, release regression, holdout measurement, incident repair, or exploration?
+- Is it evaluation-only, or is another use such as fine-tuning approved separately?
+
+### Population and provenance
+
+- Which production workflows and user populations are represented?
+- What date ranges and runtime versions contributed cases?
+- Which cases are production-derived, incident-derived, authored, or synthetic?
+- What selection lanes and filters were used?
+- Which traffic was excluded and why?
+
+### Preparation
+
+- Which fields were removed, masked, or fixture-replaced?
+- How were duplicates and near-duplicates handled?
+- How were mutable external systems replaced?
+- How are fixtures reset between trials?
+- Which transformations were applied and in what order?
+
+### Labels and graders
+
+- What establishes the expected outcome?
+- Which labels came from system records, deterministic checks, human review, user feedback, or model suggestions?
+- What does each grader measure?
+- What can the grader not determine?
+- How were model graders calibrated?
+
+### Splits and limits
+
+- How are development, regression, holdout, and quarantine defined?
+- Which groups are kept together to avoid leakage?
+- What production behavior is not represented?
+- Which safety, demographic, language, or accessibility cases need separate coverage?
+- How should a score be interpreted when the case distribution changes?
+
+Google’s guide describes Data Cards as documentation that helps answer what a dataset represents, what it looks like, where it comes from, how it was prepared, and whether it can be used responsibly. NIST similarly recommends documenting metric choices, external inputs, limits, representativeness, and pre- versus post-deployment performance. These are useful anchors for a trace-derived dataset card, even though neither source prescribes the exact contract in this article.
+
+## How do you run the trace-to-evaluation loop?
+
+Run a repeatable loop after every meaningful change, not only after a severe incident.
+
+1. **Observe**: record production traces with enough task, runtime, action, constraint, approval, and outcome context to reconstruct a run.
+2. **Filter**: remove records that are outside scope, duplicate, unsafe to export, or corrupted by infrastructure noise.
+3. **Sample**: select coverage, failure, incident, drift, and safety lanes separately.
+4. **Protect**: redact or fixture-replace sensitive and mutable data before the case enters the evaluation store.
+5. **Review**: verify the task boundary, expected outcome, failure hypothesis, privacy transformation, and split assignment.
+6. **Convert**: create the minimal replay input, fixture, assertions, grader, provenance, and case metadata.
+7. **Run**: execute isolated trials against the candidate and baseline when the comparison is meaningful.
+8. **Inspect**: read failed traces and a sample of passing traces. A score without trace inspection cannot tell you whether the grader is working.
+9. **Promote**: move a case into the stable regression set only when it has a verified outcome and named failure hypothesis.
+10. **Monitor**: compare live traffic with the dataset’s coverage and add new gaps to the moving edge.
+
+The order matters. If you label before protecting, you may expose data to reviewers. If you promote before verifying, you freeze guesses. If you tune before splitting, you overstate the result. If you monitor without feeding new failures back into cases, the evaluation set becomes a historical artifact.
+
+### Record the release decision beside the score
+
+Keep the decision with the dataset and grader versions:
+
+```text
+Candidate: support-agent-4.3.2
+Baseline: support-agent-4.3.1
+Dataset: support-regression-2026-08-21.1
+Grader bundle: support-graders-2.0
+Vetoes: no unauthorized writes, no false completion on verified state changes
+Thresholds: documented in workflow policy
+Result: hold
+Reason: candidate passes the happy-path control but fails the timeout regression case
+Follow-up: repair timeout handling, rerun the same dataset, add one controlled boundary case
+```
+
+This is more useful than storing a single percentage. The team can see which system, dataset, and grader produced the decision, and a failed case becomes a concrete repair target.
+
+## What mistakes make trace-derived datasets unreliable?
+
+The most damaging mistakes are not syntax errors. They are category errors that make the dataset look precise while measuring the wrong thing.
+
+### Mistake 1: Exporting every trace
+
+More rows do not automatically create more coverage. Raw traffic is often repetitive, low-intent, version-mixed, privacy-sensitive, and missing outcome evidence. Start with a deliberate lane and inspect the cases. Microsoft’s trace-to-dataset guidance makes the same practical point through intelligent sampling and its warning that a maximum sample count is only a ceiling.
+
+### Mistake 2: Treating the final answer as the outcome
+
+An agent can say “done” when the write failed. Compare the answer with the system of record or a trusted assertion. Anthropic’s trace-versus-outcome distinction is the evidence for this boundary.
+
+### Mistake 3: Redacting only the user message
+
+Secrets and personal data can appear in tool arguments, retrieved documents, error payloads, hidden metadata, or model outputs. Apply the privacy review to the whole case and record the transformation.
+
+### Mistake 4: Mixing runtime versions
+
+A dataset row created by one prompt, tool schema, or model version may not be a fair test of another. Pin provenance and stratify where the version changes behavior. Microsoft specifically advises pinning `agent_version` in its trace workflow.
+
+### Mistake 5: Freezing unverified labels
+
+A reviewer’s guess is not a system assertion. Preserve the label source and confidence. Keep unknown cases in quarantine until the team decides what evidence counts.
+
+### Mistake 6: Using a single random split
+
+Randomly assigning paraphrases from one conversation to different splits can make the holdout look independent while leaking the same task. Group related traces and document the choice.
+
+### Mistake 7: Testing only the failure direction
+
+If the case says “call the tool here,” the agent may learn to call it when it should ask, refuse, or escalate. Add boundary and negative cases.
+
+### Mistake 8: Overfitting the path
+
+A trace shows one route to an outcome. It does not prove that route is required. Grade the result and hard constraints, and only require path details when policy, safety, audit, or latency makes them material.
+
+### Mistake 9: Letting the grader define the requirement
+
+A tool can score what is easy to score. The product owner still needs to define what acceptable behavior means. An available model grader is not a product specification.
+
+### Mistake 10: Changing the ruler after a bad score
+
+If a candidate fails a case, do not rewrite the expected outcome until the failure disappears. Review whether the case is wrong, then version the change and preserve the historical result. Otherwise the dataset becomes a record of the latest preference rather than a regression safeguard.
+
+## What should a small team build first?
+
+Build the smallest complete loop that can catch one meaningful failure. Do not wait for perfect observability or a large traffic corpus.
+
+### Stage 1: one workflow, one outcome
+
+Choose one workflow where a wrong result matters. Capture the trace, the system effect, the runtime version, and the user goal. Create one verified case and one control case.
+
+### Stage 2: failure queue
+
+Add a review queue for timeouts, retries, escalations, user corrections, negative feedback, and false completion signals. Give each candidate a status: new, protected, needs outcome, ready for case, promoted, or rejected.
+
+### Stage 3: stable regression core
+
+Version the case store, fixtures, graders, and release decisions. Make the core runnable on every relevant change. Keep uncertain new cases outside the gate until reviewed.
+
+### Stage 4: coverage lanes
+
+Add a representative traffic sample, incident windows, drift comparisons, and authored policy cases. Group related traces and write the dataset card.
+
+### Stage 5: calibration and ownership
+
+Assign an owner for the workflow, grader, fixture, and refresh date. Periodically compare model-graded labels with human review. Remove stale cases and add newly observed failure modes.
+
+Anthropic suggests that 20 to 50 simple tasks drawn from real failures can be a useful early start, while mature agents may require larger suites. Treat that as a starting observation from Anthropic’s own guidance, not a universal quota. A small set you can inspect is better than a large set nobody can explain.
+
+The result is not a number. It is a working loop: a live failure becomes a protected case, the case becomes a release check, the check informs a repair, and future production traces show whether the repair holds in the real distribution.
+
+## What does Marius Manolachi’s experience add to this process?
+
+Marius Manolachi’s relevant contribution here is teaching judgment, not a claim that he has measured a universal trace-to-dataset benchmark. He teaches people to build and ship on their own work. That makes the definition of “done” the first design question.
+
+The practical implication is simple: ask the person who owns the workflow to help define the expected outcome. An engineer can verify a database state. A support lead can decide whether the response handled the customer’s actual need. A security owner can define a prohibited effect. A product manager can decide whether the action was inside the intended scope.
+
+This is consistent with the product constraints I encounter while building [TryUncle](https://tryuncle.com), an AI agent that watches the screen and annotates it live. A trace for a live interface agent needs more than a screenshot of the answer. It may need the control the agent pointed at, the delay before the annotation, the user approval state, and the resulting UI or workflow effect. The artifact must follow the product’s real definition of success.
+
+That is why I would not hand this job to an evaluation platform alone. A platform can store spans, sample rows, run graders, and compare versions. The team still has to decide what the user asked for, what state proves completion, what action is prohibited, and what uncertainty must remain visible.
+
+## What does this method still not tell you?
+
+It does not tell you a universal sample size, a universal representativeness threshold, or a universal privacy policy. Those depend on workflow risk, user population, traffic volume, evaluator variance, and the consequences of an error.
+
+It also does not prove that production-derived cases predict future performance. Production traffic can be sparse, biased toward successful paths, distorted by support escalation, or missing users who abandoned the workflow. NIST recommends assessing representativeness in context and monitoring changes after deployment. Treat the dataset as one measurement instrument, not as reality itself.
+
+The current trace conventions may change. OpenTelemetry’s GenAI agent conventions are in Development status, and vendor tracing APIs have their own retention and availability constraints. Keep the portable contract at the conceptual level and map vendor fields into it at ingestion time.
+
+The proposed promotion rule is not a measured result. I have not run a new production-trace experiment for this article, and I am not claiming that every team will get a particular score improvement. The rule is valuable because it makes a hidden decision explicit: a trace needs both an evidence-backed outcome and a reason to become a regression test.
+
+![Illustration of a dataset review record showing evidence, limits, unknowns, and the next refresh date](/blog/how-to-build-an-evaluation-dataset-from-production-traces-dataset-card-review.webp)
+
+## What should you do next?
+
+Pick one workflow and find one trace where the agent’s final answer disagreed with the environment. Protect the raw record. Write the failure hypothesis in one sentence. Create a fixture, a verified assertion, and a case that can be replayed without the original user data. Then run it against the current system before collecting a hundred more traces.
+
+If you have traces but no reliable evaluation loop, [Marius Manolachi’s AI learning and consulting work](https://mariusmanolachi.com/learn-ai) is the relevant next step. The goal is to make your team capable of building and maintaining the dataset themselves.
+
+The short version is worth keeping: **a production trace becomes a regression case only when you can say what should be true afterward and what future failure the case is meant to catch.** Everything else belongs in monitoring, investigation, or quarantine until the evidence improves.
+
+![Illustration of a team turning one verified production failure into a replayable release check](/blog/how-to-build-an-evaluation-dataset-from-production-traces-failure-to-release-check.webp)
