@@ -1,0 +1,948 @@
+---
+title: "How to Write Acceptance Criteria for an AI Feature"
+date: "2026-08-21"
+updated: "2026-08-21"
+excerpt: "Write AI feature acceptance criteria around observable outcomes, evidence, boundaries, and a clear non-success path your team can test."
+answer: "Write each AI feature acceptance criterion as four linked parts: the observable user outcome, the evidence that proves it, the behavior or input that is not acceptable, and the product action when the system cannot satisfy the outcome. Attach the criteria to representative test cases, repeat important cases, and keep safety failures as release blockers even when average quality is good."
+targetQuery: "how to write acceptance criteria for an AI feature"
+queryAliases:
+  - "how to write acceptance criteria for AI features"
+  - "AI feature acceptance criteria"
+  - "acceptance criteria for generative AI"
+  - "how to define done for an AI feature"
+intent: "implementation"
+funnel: "consideration"
+cluster: "AI feature evaluation and product requirements"
+kind: "satellite"
+sourceableAtom: "An AI feature acceptance criterion is release-ready only when it names an observable outcome, the evidence used to judge that outcome, the unacceptable behavior or boundary, and the action the product takes when the system cannot satisfy the criterion."
+tags:
+  - "AI product management"
+  - "AI evaluation"
+  - "Product requirements"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-19"
+sources:
+  - "https://learn.microsoft.com/en-us/agents/agent-evaluation/evaluation-checklist"
+  - "https://learn.microsoft.com/en-us/microsoft-365/copilot/extensibility/evaluation-write-assertions"
+  - "https://scrumguides.org/docs/scrumguide/v2020/2020-Scrum-Guide-US.pdf"
+  - "https://openai.com/index/evals-drive-next-chapter-of-ai/"
+  - "https://airc.nist.gov/airmf-resources/airmf/5-sec-core/"
+  - "https://docs.cloud.google.com/docs/ai-ml/generative-ai/develop-generative-ai-application"
+  - "https://mariusmanolachi.com/learn-ai"
+  - "https://www.udemy.com/user/marius-manola/"
+faq:
+  - q: "Should AI acceptance criteria use percentages?"
+    a: "Use a percentage only when you have a named test set, a clear scoring method, and a threshold tied to the user job and risk. A percentage without those three things creates false precision. Pair aggregate thresholds with hard vetoes for unsafe, unauthorized, or misleading behavior."
+  - q: "What is the difference between acceptance criteria and an AI evaluation?"
+    a: "Acceptance criteria state what must be true for the feature to be accepted. An evaluation is the test method and evidence used to judge those criteria. The criterion says what passes; the evaluation supplies cases, graders, measurements, and records."
+  - q: "Do AI acceptance criteria need a human review step?"
+    a: "They do when quality is contextual, the cost of error is meaningful, or the system must recognize uncertainty. Specify when review happens, what the reviewer decides, what information they see, and whether the feature may proceed without approval."
+  - q: "Can ChatGPT write acceptance criteria for an AI feature?"
+    a: "ChatGPT can draft candidates and find missing edge cases, but a product owner and domain expert must decide the outcome, evidence, boundary, and non-success action. Do not let the model choose the release threshold from vague source material."
+  - q: "When are AI acceptance criteria ready?"
+    a: "They are ready when two people can independently judge the important assertions, the test data and source of truth are named, failure and escalation paths are explicit, and the team agrees what blocks release. If those items are missing, keep refining the criteria."
+cover: "/blog/how-to-write-acceptance-criteria-for-an-ai-feature-ai-feature-acceptance-contract-hero.webp"
+coverAlt: "Illustration of an AI feature acceptance contract connecting user outcome, evidence, boundary, and human review"
+draft: false
+---
+
+The first version of an AI feature often looks better than the decision it is meant to support. A polished summary can omit the one action a reviewer needed. A retrieval answer can sound certain while citing the wrong policy. A classifier can perform well on ordinary examples and fail on the cases that carry the most risk.
+
+I have seen the same problem while teaching product managers to build and ship products. The missing piece was often not a more capable model. It was a definition of done that a person could actually inspect.
+
+![Illustration of an acceptance criteria worksheet turning a vague AI feature request into testable product decisions](/blog/how-to-write-acceptance-criteria-for-an-ai-feature-ai-feature-criteria-worksheet.webp)
+
+## What makes acceptance criteria different for an AI feature?
+
+AI acceptance criteria must describe a reliable product outcome without pretending that every valid output will use the same words, follow the same path, or match one golden answer character for character.
+
+Traditional software often lets you express a criterion as a direct state transition: when a user submits a valid form, the record is saved and a confirmation appears. An AI feature may produce different wording on two successful runs. That variation can be harmless. The product still needs a stable way to decide whether the result is acceptable.
+
+The useful distinction is between the surface of the output and the property the output must have. “The assistant writes this exact paragraph” describes a surface. “The summary contains the decision, the owner, and the due date from the source transcript, and does not add an unsupported commitment” describes properties that a reviewer or evaluator can check.
+
+Microsoft’s evaluation guidance treats a test case as more than a prompt. It pairs the prompt with an expected response or assertion, acceptance criteria, and a test method. Microsoft’s assertion guidance then recommends criteria that are atomic, binary, outcome-focused, and verifiable ([Microsoft’s agent evaluation checklist](https://learn.microsoft.com/en-us/agents/agent-evaluation/evaluation-checklist), [Microsoft’s assertion guidance](https://learn.microsoft.com/en-us/microsoft-365/copilot/extensibility/evaluation-write-assertions)).
+
+That gives you a practical product rule:
+
+> **Write acceptance criteria about observable properties of the user outcome, then allow wording and implementation to vary where those properties remain true.**
+
+The exception is a feature whose exact output is itself the product. If an AI system must emit a strict JSON object consumed by another service, exact field names and types are valid acceptance conditions. If it summarizes a meeting for a person, exact wording is usually the wrong target. In that case, source coverage, factuality, omission of critical items, and a clear review path matter more than textual sameness.
+
+The four-part contract used in this guide is:
+
+| Part | Question it answers | Typical evidence |
+| --- | --- | --- |
+| Outcome | What must the user be able to see, decide, or do? | Product state, response property, completed task, or approved artifact |
+| Evidence | How will we know the outcome happened? | Test case, source of truth, rubric, trace, reviewer verdict, or measurement |
+| Boundary | What must not happen, or which inputs are outside scope? | Forbidden output, denied action, unsupported claim, privacy rule, or exclusion case |
+| Non-success action | What happens when the system cannot meet the outcome? | Clarifying question, refusal, escalation, retry limit, draft state, or visible error |
+
+The atom is not the table by itself. The sourceable finding is the rule that all four parts belong in the same acceptance conversation. A criterion that describes success but has no evidence is a wish. A criterion with evidence but no boundary can reward a dangerous shortcut. A criterion with a boundary but no non-success action leaves the user stranded exactly when the system is least reliable.
+
+## What should an AI acceptance criterion contain?
+
+Start with one observable outcome, then attach evidence, a boundary, and a non-success action. Keep each criterion small enough that two reviewers can make the same pass or fail decision without a private interpretation.
+
+Use this worksheet before you write a polished ticket:
+
+```text
+Feature outcome:
+  What user-visible change must happen?
+
+Evidence:
+  Which test case, source of truth, rubric, or reviewer proves it?
+
+Boundary:
+  What must not happen, or what input is out of scope?
+
+Non-success action:
+  What does the product do when the system cannot satisfy the outcome?
+```
+
+Here is a filled example for a meeting-summary feature:
+
+```text
+Feature outcome:
+  After a recorded project meeting is processed, a participant can review a
+  summary containing the decisions, named owners, and dates stated in the source.
+
+Evidence:
+  Run the feature against the approved meeting-summary test set. A reviewer
+  checks each required decision, owner, and date against the transcript.
+
+Boundary:
+  The summary must not present a new decision, owner, or date that the transcript
+  does not support. It must not expose transcript content to an unauthorized user.
+
+Non-success action:
+  If a required item is ambiguous or missing, mark the item for human review and
+  show the source passage instead of presenting an inferred commitment as fact.
+```
+
+The example does not claim that the summary must be a certain length or use a fixed tone. Those may matter for usability, but they are secondary until the feature can preserve the content that makes the summary useful.
+
+Microsoft’s assertion examples show why this level of specificity matters. “The response is helpful” is too vague. “The response includes the enrollment deadline” is verifiable. “The response contains the correct value and cites the source” is a compound assertion that should be split into separate checks ([Microsoft’s assertion patterns](https://learn.microsoft.com/en-us/microsoft-365/copilot/extensibility/evaluation-write-assertions)).
+
+Use one line per independently judged condition. A criterion can have several lines. It should not have several unrelated decisions hidden inside one sentence.
+
+### The outcome field
+
+The outcome is not “the model responds.” The outcome is the user-visible change that makes the feature worth building.
+
+Weak:
+
+```text
+The AI summarizes the meeting accurately.
+```
+
+Stronger:
+
+```text
+For a meeting transcript with explicit decisions, owners, and dates, the
+summary presents each of those items in a reviewable list.
+```
+
+Stronger still:
+
+```text
+For each decision in the approved test case, the summary presents the decision,
+the person assigned to act, and the date when one is stated in the source. A
+reviewer can open the supporting transcript passage from the summary.
+```
+
+The last version gives the team a user outcome, a completeness condition, and a way to inspect the source. It still allows the model to choose natural wording.
+
+Ask three questions:
+
+1. What changes for the user if this works?
+2. What artifact or state can the team inspect?
+3. Which part of that change is essential rather than decorative?
+
+If the answer is “the user gets a better answer,” keep asking. Better in what way? More complete? Better grounded? Faster to review? More useful for a decision? The answer may create several criteria, and that is healthy. It is better to own three small decisions than one adjective.
+
+### The evidence field
+
+Evidence explains how a team will judge the outcome. It can be deterministic, rubric-based, human, or a combination.
+
+Examples include:
+
+- a database state after a tool call;
+- a required field present in a structured output;
+- a citation that points to the correct source passage;
+- a comparison with a current workflow or baseline;
+- a rubric applied by a trained domain reviewer;
+- a trace showing that the assistant requested approval before an external action;
+- an evaluator record showing which test cases passed and which failed.
+
+Do not write “the QA team will check it” and stop there. Name what QA checks and where the evidence lives. If a person decides whether a summary preserves intent, say what source they compare it with and what counts as a material omission.
+
+Evidence also protects the team from arguing about isolated examples. One example can reveal a failure. It cannot by itself establish that a feature is ready. OpenAI’s guidance on contextual evals recommends examples drawn from real work, edge cases that are rare but costly, domain experts, and continuous review of real outputs ([OpenAI’s guidance on evals for business workflows](https://openai.com/index/evals-drive-next-chapter-of-ai/)).
+
+### The boundary field
+
+Boundaries state what the feature must not do and where its promise ends. AI features need this because a system that tries to answer every prompt can turn uncertainty into a confident-looking defect.
+
+Common boundary types are:
+
+| Boundary | Example criterion |
+| --- | --- |
+| Source boundary | The answer uses only the approved policy collection for this feature. |
+| Authority boundary | The assistant may draft a recommendation but may not approve the transaction. |
+| Privacy boundary | The response does not reveal another user’s private record. |
+| Input boundary | The feature identifies unsupported file types and does not pretend to process them. |
+| Confidence boundary | When required evidence is missing or conflicting, the feature asks for review instead of guessing. |
+| Time boundary | The feature shows a pending state when processing exceeds the agreed interaction window. |
+
+Use negative criteria deliberately. “The assistant answers questions” is incomplete if the product’s safety depends on refusing unsupported questions. “The assistant sends messages” is incomplete if a person must approve the final message.
+
+The boundary must be connected to a realistic failure mode. Do not add a long list of frightening possibilities that nobody will test. Start with the ways the feature could create a wrong decision, unauthorized action, privacy problem, or misleading impression in its intended workflow.
+
+### The non-success action field
+
+A non-success action turns failure from an undefined embarrassment into a product behavior. It answers the question, “What should the user see or be able to do when the system cannot satisfy the outcome?”
+
+Possible actions include:
+
+- ask one focused clarifying question;
+- return a partial answer with the missing evidence made visible;
+- show a draft that requires approval;
+- route the case to a named human queue;
+- refuse the request and explain the supported scope;
+- retry a bounded number of times, then stop;
+- preserve the original input and create an observable error state;
+- fall back to the existing deterministic workflow;
+- do nothing and record the reason.
+
+The right action depends on the cost of being wrong. A low-risk writing assistant may show an editable draft. A feature that changes a customer record may require an approval gate. A feature that answers a policy question may need to route uncertainty to a person rather than improvise.
+
+This is where acceptance criteria become product design. The team is not only deciding whether the model is good enough. It is deciding what the user experiences at the boundary of model competence.
+
+## How do you turn a vague AI feature idea into testable criteria?
+
+Translate the feature in five passes: job, outcome, observable properties, evidence, and exception behavior. Do not start by asking an AI tool to generate Given, When, Then sentences from a vague paragraph.
+
+### Pass 1: write the user job
+
+State what the person is trying to accomplish, not what model capability you want to showcase.
+
+Weak:
+
+```text
+Add an LLM-powered assistant that understands customer requests.
+```
+
+Useful:
+
+```text
+As a support analyst, I want a first-pass classification of an incoming case
+so that I can open the right queue and see the reason for the classification.
+```
+
+The useful version gives you a user, a job, and a consequence. It does not commit you to a chatbot, an agent, retrieval, or a specific model. That keeps the acceptance decision about the product outcome.
+
+### Pass 2: name the state change
+
+Ask what is different after success. The answer may be:
+
+- a draft exists;
+- a record has a proposed label;
+- a reviewer sees supporting evidence;
+- a user can find the right next step;
+- a task is complete in an external system;
+- a question is routed to the correct owner;
+- a person has less work to do while retaining the final decision.
+
+If there is no observable state change, the feature may be an experiment rather than a product slice. That is fine. Label it honestly and write criteria for the experiment, such as what evidence would justify further work.
+
+### Pass 3: split adjectives into properties
+
+Replace each vague adjective with a property a reviewer can inspect.
+
+| Vague word | Questions that make it concrete |
+| --- | --- |
+| Accurate | Accurate against which source, label, or outcome? What errors are critical? |
+| Helpful | Which user action becomes easier, faster, or more complete? |
+| Relevant | Relevant to which request, and what must be excluded? |
+| Natural | What language or interaction problems would make the result unusable? |
+| Safe | Which harms, permissions, or decisions are in scope? What must be refused? |
+| Consistent | Which properties must remain stable across reruns, not which words? |
+| Fast | What interaction state or time boundary matters to the user? |
+| Complete | Which fields, steps, or source claims are required? |
+
+You may end up with several criteria. For a retrieval assistant, “accurate” can become “the answer’s factual claims are supported by the approved policy source” and “the answer identifies when the policy collection does not contain the requested information.” Those are different checks with different evidence.
+
+### Pass 4: choose the source of truth
+
+Every important criterion needs a reference point. It might be a structured record, a policy document, a human label, a completed transaction, or an approved rubric.
+
+Do not call a model’s own answer the source of truth. The output is what you are evaluating. The source of truth sits outside the output or is defined by a reviewer’s explicit rubric.
+
+For example:
+
+| Feature | Possible source of truth |
+| --- | --- |
+| Invoice extraction | Fields in the original invoice, checked by a reviewer or deterministic parser |
+| Policy question answering | The current approved policy document and its access permissions |
+| Meeting summary | Decisions, owners, and dates in the source transcript |
+| Classification | A label set and examples created by domain reviewers |
+| Draft email | The required facts, recipient, tone constraints, and approval decision |
+| Tool-using workflow | The resulting record plus the trace of calls, arguments, and approvals |
+
+If the team cannot identify a source of truth, write that as a discovery blocker. You are not ready to choose a model threshold.
+
+### Pass 5: write the non-success branch
+
+For every material criterion, ask what the product should do when it fails. This can be a single sentence in the ticket or a linked flow, but it must exist before implementation.
+
+```text
+If the source contains conflicting dates, the assistant does not select one as
+fact. It marks the date as conflicting, shows both source passages, and routes
+the item to the meeting owner for confirmation.
+```
+
+The branch may also reveal that the feature should not be automated. If the only safe behavior is to hand every case to a person, the proposed AI feature may not have a useful role yet.
+
+When I taught product managers who went from writing specifications to building and shipping products, this was the recurring shift: the question moved from “Can we make the model do this?” to “What should be true, and what should happen when it is not true?” That is a firsthand teaching observation from `F-pms`, not a measured study. It is still a useful design test.
+
+## How should you separate acceptance criteria, test cases, and Definition of Done?
+
+Keep the three artifacts connected but separate: acceptance criteria state what this feature must achieve, test cases provide the situations used to judge it, and Definition of Done states the shared quality conditions for releasing the increment.
+
+The Scrum Guide defines Definition of Done as a formal description of the increment’s quality state and says work that does not meet it cannot be released ([The Scrum Guide](https://scrumguides.org/docs/scrumguide/v2020/2020-Scrum-Guide-US.pdf)). That is broader than one feature’s behavioral criteria.
+
+Use this distinction:
+
+| Artifact | Main question | Example |
+| --- | --- | --- |
+| Acceptance criterion | What must be true about this feature? | The answer cites the correct policy passage for an in-scope question. |
+| Test case | Under which input and conditions do we test it? | A user asks about the parental-leave rule in the current policy set. |
+| Evaluation method | How do we score or inspect the result? | Deterministic source check plus reviewer judgment for completeness. |
+| Definition of Done | What shared quality state is required before release? | Code reviewed, access controls checked, telemetry present, rollback available, documentation updated. |
+
+The distinction prevents two opposite mistakes.
+
+The first mistake is putting every operational requirement into every story. A single acceptance criterion becomes a miniature release checklist, and nobody can see the feature behavior.
+
+The second mistake is treating feature acceptance as sufficient for release. A feature can meet its content criteria while missing logging, access control, support ownership, monitoring, or rollback. The Definition of Done catches those shared conditions.
+
+For an AI feature, the boundary is especially important. “The summary contains the required fields” may be an acceptance criterion. “The feature records the model version, source set, reviewer action, and error state” may belong in the Definition of Done if it is a shared operational requirement across the product.
+
+The two artifacts can reference one another. They should not replace one another.
+
+## How do you choose test cases for AI acceptance criteria?
+
+Choose test cases from the real decision boundary, not from the easiest examples. Start with one case for each key scenario, then add variants that expose ambiguity, missing evidence, unusual input, and costly failure.
+
+Microsoft recommends a foundational test set that covers key scenarios and suggests starting with one prompt for each key scenario. It also recommends multiple runs because probabilistic systems can vary ([Microsoft’s evaluation checklist](https://learn.microsoft.com/en-us/agents/agent-evaluation/evaluation-checklist)). OpenAI similarly advises using real-world examples and edge cases that are rare but costly if mishandled ([OpenAI’s contextual eval guidance](https://openai.com/index/evals-drive-next-chapter-of-ai/)).
+
+Use a case matrix like this:
+
+| Case class | What it tests | Example for a policy assistant |
+| --- | --- | --- |
+| Typical in-scope | The main user job | “How many days of parental leave are available?” |
+| In-scope variation | Different wording or input shape | The same question with a regional qualifier |
+| Missing evidence | The system’s uncertainty behavior | The policy set has no answer for the question |
+| Conflicting evidence | Source selection and disclosure | Two approved documents state different dates |
+| Out of scope | Boundary and refusal | A request for personal legal advice |
+| Permission edge | Data access behavior | A user asks about a document they cannot view |
+| Operational failure | Tool, retrieval, timeout, or service failure | The policy index is unavailable |
+| High-cost rare case | Risk-sensitive behavior | A question that could cause a payroll or benefits error |
+
+Do not assume that a larger test set is automatically better. A large pile of near-identical happy paths can hide the decisions that matter. Make the cases distinct by scenario, risk, data source, or failure mechanism.
+
+### What makes a test set representative?
+
+Representative does not mean statistically perfect in every project. It means the set resembles the inputs, contexts, and consequences the feature will face closely enough to support the decision you are making.
+
+Document the reason each slice exists. A test set for a consumer writing assistant may need language, tone, and task variation. A test set for a policy assistant may need policy versions, user permissions, regional differences, and unsupported questions. A test set for invoice extraction may need layouts, currencies, missing fields, and low-quality scans.
+
+Google’s generative AI guidance says evaluation datasets need prompts and ground truth or ideal responses, and recommends diverse examples aligned to the task. It also warns that metrics can miss context and nuance, so human evaluation still has a role ([Google Cloud’s generative AI application guidance](https://docs.cloud.google.com/docs/ai-ml/generative-ai/develop-generative-ai-application)).
+
+Label the cases. A useful record includes:
+
+```text
+case_id:
+scenario:
+input:
+required_source_or_reference:
+expected_observable_properties:
+forbidden_properties:
+non_success_action:
+risk_level:
+review_method:
+```
+
+That record is also a communication tool. It lets a product manager, engineer, evaluator, and domain reviewer discuss the same case without relying on memory.
+
+### When should you repeat a test case?
+
+Repeat cases when output variability could change the acceptance decision or when the feature can take different actions across runs. Repeat more important or higher-risk cases and record the number of runs as part of the evaluation context.
+
+Do not turn repeatability into a demand for identical text. The criterion should identify what must stay true. For a classification feature, the label may need to remain stable for an unambiguous input. For a writing feature, the required facts may need to remain present while wording changes.
+
+If a case passes once and fails on a rerun, that is evidence about the feature’s stability. It may lead to a threshold, a human review requirement, a narrower scope, or a decision not to automate the task.
+
+## How should you set quality thresholds without inventing precision?
+
+Set thresholds from the user’s decision, a baseline, and the cost of failure. Do not copy a percentage from another product and call it a requirement.
+
+The threshold question is not “What accuracy can the model achieve?” It is “What level of performance makes this feature useful and acceptable in this workflow, given the consequences of errors?”
+
+Start with four inputs:
+
+1. **Baseline.** How does the current process perform, or what simpler system would you use instead?
+2. **Critical errors.** Which mistakes are unacceptable even if the average result looks good?
+3. **Reviewer capacity.** How much correction can a person realistically perform?
+4. **User value.** What measurable or observable improvement justifies the feature?
+
+For a meeting-summary feature, the team might accept varied language but reject omission of a decision or invention of an owner. For a routing feature, a wrong high-priority label may matter more than several low-impact misclassifications. For a draft-writing feature, the acceptable threshold may be “reviewers can edit the draft faster than they can start from a blank page,” but that needs a defined review method rather than a slogan.
+
+Use a threshold table:
+
+| Question | Weak answer | Useful answer |
+| --- | --- | --- |
+| What is measured? | Quality | Required facts present, unsupported claims absent, and reviewer decision recorded |
+| Against what? | The model’s output | Approved reference, source of truth, baseline, or domain rubric |
+| At what level? | The average | Aggregate target plus critical-case vetoes and per-case inspection |
+| Under which conditions? | Any prompt | Named test set, data version, model configuration, and deployment-like context |
+| What if it misses? | Improve the prompt | Hold release, narrow scope, add review, revise the system, or stop the feature |
+
+The exact numeric threshold is a product decision. If you use one, record how it was chosen and what the number means. “At least 90%” is not self-explanatory. Does 90% mean nine of ten cases? Nine of ten required fields? A reviewer score? A run-level pass rate? Does one prohibited action still block release? The criterion must answer those questions.
+
+Avoid one composite score when a critical failure can be hidden inside it. A feature that is excellent on ordinary cases but leaks private information should not pass because the average is high. Keep safety, authorization, and severe misinformation as veto conditions when the workflow requires it.
+
+NIST’s AI Risk Management Framework recommends documented test sets and metrics, evaluation under conditions similar to deployment, validity limits, and safe failure. It also says measurement should be used to inform management decisions, including mitigation or removal where necessary ([NIST AI RMF Measure](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/)). That is a better foundation than a borrowed benchmark number.
+
+### When is a rubric better than a percentage?
+
+Use a rubric when the outcome has several dimensions that cannot be reduced to one deterministic check without losing important context. A rubric can still be precise if each level describes observable properties and reviewers calibrate on examples.
+
+Weak rubric:
+
+```text
+5 = excellent
+3 = acceptable
+1 = poor
+```
+
+Useful rubric:
+
+```text
+Pass: includes every decision in the source, identifies each stated owner,
+does not add unsupported commitments, and links each item to source evidence.
+
+Review: preserves the central topic but omits or ambiguously states a required
+item. The summary is shown as a draft and cannot be marked complete.
+
+Fail: invents a decision or owner, presents unsupported information as fact,
+or cannot be traced to the source.
+```
+
+The rubric is not a license for subjective taste. It should make the important boundary visible. If two domain experts disagree, the disagreement may show that the criterion or source material is incomplete.
+
+Google Cloud notes that metric-based evaluation can be automated and scaled, but metrics can oversimplify natural-language results. It recommends combining metrics with human evaluations and warns that automated judge methods still require human checks ([Google Cloud’s evaluation guidance](https://docs.cloud.google.com/docs/ai-ml/generative-ai/develop-generative-ai-application)).
+
+## How should you connect criteria to test evidence and release decisions?
+
+Connect every important criterion to the cases that exercise it, the evidence that proves the result, the person who can judge it, and the consequence of failure. A criterion without that trace is easy to approve in a ticket and hard to defend in a release meeting.
+
+Use a small traceability matrix rather than one large acceptance paragraph:
+
+| Criterion | Cases that exercise it | Evidence retained | Owner | Failure consequence |
+| --- | --- | --- | --- | --- |
+| Required policy claim is supported | Typical, regional, and changed-policy cases | Claim-to-passage check and source version | Policy owner | Block the case and show no-answer or review state |
+| User sees the correct next action | In-scope, missing-evidence, and permission cases | Rendered result plus reviewer decision | Product owner | Route the user to the named support path |
+| No unauthorized record is exposed | Allowed and denied-permission cases | Access decision, output, and audit event | Security or data owner | Veto release for the affected path |
+| External change occurs only after approval | Approved, rejected, stale-data, and retry cases | Tool trace, approval record, and final state | Engineering owner | Disable the write path and report failure |
+
+The matrix does not replace the criteria. It shows whether the criteria can actually be judged. It also exposes holes that prose tends to hide. If a line has no case, the team has not decided how to test it. If it has a case but no evidence, the pass decision will depend on memory or a screenshot. If it has evidence but no owner, a disagreement can remain unresolved until release pressure makes the decision for you.
+
+Build the matrix in five passes:
+
+1. Give each criterion an identifier and one decision. Split a line when one reviewer could pass one part and fail another.
+2. Mark the scenario slices that can change the decision. Include at least a normal case, a meaningful variation, and the relevant non-success case.
+3. Name the observable record. This may be a field comparison, source passage, rendered state, tool trace, reviewer rubric, or audit event.
+4. Assign the person who owns the judgment, not merely the person who runs the test. A QA engineer can execute a case while a policy owner decides whether the interpretation is acceptable.
+5. Write the consequence before the run. Decide whether failure blocks the whole feature, blocks one scope slice, requires review, or creates a follow-up experiment.
+
+Consider a support assistant that proposes a category and draft reply. The category criterion may be tested with an unambiguous case, a case that fits two categories, and an unsupported request. The evidence is the proposed label, the supporting fields, and the reviewer verdict. The draft criterion needs a different set of cases because a correct category does not prove that the reply contains the right facts. The matrix keeps those decisions separate.
+
+This separation also makes partial acceptance possible without making the record vague. A team might release English, in-scope policy questions with human review while holding back regional policy questions until the source set is owned. That is a scope decision. It is clearer than declaring the whole feature “mostly ready” or hiding the unsupported slice inside an average score.
+
+The exception is an exploratory prototype whose only purpose is to learn whether a workflow is worth pursuing. It may use a lighter matrix, but it still needs a stated learning question, a stopping rule, and a record of what would count as evidence. Calling something an experiment does not make an unexamined demo into evidence.
+
+## Which runtime conditions belong in AI acceptance criteria?
+
+Include a runtime condition in feature acceptance criteria when changing that condition changes what the user can safely see, decide, or do. Put shared engineering controls in the Definition of Done when they apply across features and are not part of this feature’s user contract.
+
+This boundary matters because AI behavior depends on more than the prompt and model. A retrieval feature can meet its wording criteria against yesterday’s source set and fail against today’s policy. A tool-using feature can produce the right proposal from current data and the wrong proposal from a stale subscription record. A summary can be factually sound but arrive after the user has already made the decision it was meant to support.
+
+Use this split:
+
+| Condition | Feature criterion when... | Evidence or check | Usually shared quality work when... |
+| --- | --- | --- | --- |
+| Source freshness | The user needs the current rule, price, status, or record | Source version, timestamp, and stale-data behavior | The same freshness policy applies to every product area |
+| Permissions | The feature can reveal or change protected information | Allowed and denied access cases plus audit result | The control is a platform requirement already verified centrally |
+| Latency | A delay changes whether the feature is useful or safe | Deployment-like timing cases and visible pending state | The limit is an internal service target with no distinct user behavior |
+| Cost or quota | Exhaustion changes the available user path | Quota case, fallback, and user message | Finance and operations manage a product-wide budget |
+| Model or prompt version | A version change can alter the accepted behavior | Configuration record and rerun of critical cases | Version recording is a standard control for all AI features |
+| Recovery and retry | Repeating an action could duplicate work or change data twice | Failure injection, retry trace, and final state | The platform supplies idempotency for every write operation |
+
+For a policy assistant, “answers from the current approved policy set” is a feature criterion because it defines the user promise. “The pipeline stores the source hash” may be an implementation check that supports the criterion. If every feature must store source hashes, it also belongs in the shared Definition of Done. Both statements can be true at different levels.
+
+Write the deployment context beside the criterion when it affects validity. Name the source version, permission state, language, region, model configuration, retrieval index, and relevant tool availability. You do not need to freeze every internal detail forever. You do need to know what was true when the team made the release decision and which changes require a rerun.
+
+The same rule applies to monitoring. “The feature records an error” is usually an operational requirement. “When the source is unavailable, the user sees a pending state instead of an answer presented as current” is a feature criterion because it describes the product behavior at the boundary. A monitor can tell the team that the failure occurred. The acceptance criterion tells the user what the product does about it.
+
+Do not turn this into a demand that every story contain infrastructure inventory. Overloading a criterion with queue names, vendor settings, and internal implementation steps makes it brittle and distracts from the user decision. Keep the criterion at the observable boundary, then link the engineering checks that make the boundary testable.
+
+The principal exception is a safety-critical or regulated workflow where an internal control is itself part of the promised outcome. In that case, require the control explicitly, name the evidence, and treat its absence as a release blocker. The right level is determined by the consequence of failure, not by whether the check happens in a backend service.
+
+## How do you write criteria for failure, refusal, and uncertainty?
+
+Write the non-success path as a positive product requirement. Tell the team what the system should do when it cannot provide a reliable answer or complete the action.
+
+This is not just defensive writing. It shapes the user’s mental model. A visible “I could not verify this from the approved sources” can be a successful outcome if the feature’s job is to prevent unsupported decisions. A confident answer with no supporting evidence is a failure even when the prose sounds useful.
+
+Use this pattern:
+
+```text
+When [condition that makes the normal outcome unreliable],
+the feature [visible action],
+does not [forbidden shortcut],
+and gives the user [next step or evidence].
+```
+
+Examples:
+
+```text
+When the retrieval set contains no document that supports the user’s question,
+the assistant says that the approved knowledge does not answer it, does not
+invent a response, and offers the support route for an authoritative answer.
+```
+
+```text
+When an invoice has a missing total or conflicting line items, the extraction
+feature leaves the field unresolved, shows the source region for review, and
+does not submit the invoice for payment.
+```
+
+```text
+When a requested account change requires authority the current user does not
+have, the assistant explains that approval is required, does not call the write
+tool, and provides the approval path.
+```
+
+These examples define success in the failure state. They also give engineering and QA something concrete to test.
+
+### How should you specify uncertainty?
+
+Do not require the model to “be confident.” Confidence is often an internal score or a vague natural-language impression. Specify the observable condition that should trigger a different product behavior.
+
+Possible signals are:
+
+- no approved source supports the answer;
+- required fields are missing;
+- sources conflict;
+- the input is outside the supported type or language;
+- a permission check fails;
+- a tool returns an error or stale result;
+- a reviewer cannot verify the output;
+- the answer depends on a policy version that is no longer current.
+
+Then specify the route. A system can ask a clarifying question, offer a narrower supported action, create a review task, or stop. The route should match the risk and the user’s ability to recover.
+
+Do not use “always ask a human” as a universal answer. Human review has cost and capacity limits. A low-risk draft may not need approval for every output. A high-impact action may require it. The criterion should state the decision boundary, not hide it behind a general promise of oversight.
+
+## How do you write acceptance criteria for retrieval features?
+
+For retrieval features, write separate criteria for source selection, answer support, permissions, and no-answer behavior. Do not collapse retrieval quality into “the answer is accurate.”
+
+A retrieval feature usually has at least two user-visible jobs:
+
+1. find the relevant approved material;
+2. present an answer that stays within that material and shows enough evidence for the user to judge it.
+
+Example feature story:
+
+```text
+As a new manager, I want to ask questions about the current leave policy so I
+can find the rule and understand what I need to do next.
+```
+
+Possible acceptance criteria:
+
+```text
+Given an in-scope question answered by the current policy collection,
+when the user submits it,
+then the response states the applicable rule in plain language.
+
+The response includes a citation or source passage that supports each material
+policy claim.
+
+The response does not use a document the user is not permitted to access.
+
+Given a question that the approved policy collection does not answer,
+the response says that the available policy does not specify the answer and
+routes the user to the named policy owner.
+
+Given conflicting approved documents,
+the response identifies the conflict and does not select a policy version as
+current without the product’s defined version rule.
+```
+
+The first criterion can use semantic or human evaluation. The source and permission criteria may be partly deterministic. The no-answer and conflict criteria are negative and boundary cases. They should not be left to a general quality score.
+
+If the feature includes citations, define what “supports” means. A citation that merely appears in the answer is not enough if it points to a neighboring section with a different rule. Test the claim-to-source connection, not just the presence of a link.
+
+The approved source set must have an owner and update process. If the content is stale, a good retrieval criterion cannot rescue the feature. Add a Definition of Done item for source versioning or freshness where that is part of the product’s operating model.
+
+## How do you write acceptance criteria for generative features?
+
+For generation features, specify required content, unacceptable invention, format constraints, and edit or approval behavior. Do not treat a sample output as the only definition of quality.
+
+Take an AI feature that drafts a customer-facing reply from a case record. The user does not need one exact paragraph. They need a draft that contains the right facts, respects the allowed tone, avoids claims the record does not support, and remains visibly a draft until a person approves it.
+
+Example criteria:
+
+```text
+For a case with a verified order number, delivery status, and next action,
+the draft includes those three facts and does not introduce a refund, deadline,
+or policy claim that is absent from the case record.
+
+The draft identifies the customer and recipient correctly, uses the configured
+language, and does not expose internal notes that are not approved for the
+customer-facing channel.
+
+If the case record is missing a required fact, the draft marks the missing fact
+for the reviewer instead of filling it with an assumption.
+
+The product labels the output as a draft and requires the configured approval
+step before sending.
+```
+
+Notice what is absent. There is no claim that the draft is “human-like,” “warm,” or “perfect.” If tone is part of the user job, define it through examples, a rubric, or explicit constraints. Use a small number of examples to calibrate the review, but do not make one sample the only acceptable surface.
+
+Also distinguish omission from invention. In a customer reply, an omitted optional sentence may be tolerable. An invented refund promise may be a release-blocking failure. Criteria should reflect that asymmetry.
+
+For creative generation, the source of truth may be a brief, style guide, or user-selected constraint rather than a factual record. State which constraints are mandatory and which are preferences. “The image feels on brand” is not ready until the team can explain the brand properties that matter and who decides borderline cases.
+
+## How do you write acceptance criteria for classification and routing?
+
+For classification features, specify the label set, the evidence or rationale a reviewer needs, the confidence or ambiguity route, and the cost of a wrong label. For routing features, verify both the destination and the reason the destination was selected.
+
+Example story:
+
+```text
+As an operations coordinator, I want incoming requests grouped by work type
+so that each request reaches the right queue with enough context for the owner.
+```
+
+Criteria might include:
+
+```text
+For an input that clearly matches one supported work type, the feature assigns
+one label from the published label set.
+
+The result includes the fields or phrases that support the label, or links to
+the evidence record used by the reviewer.
+
+For an input that matches multiple labels or none of the supported labels, the
+feature marks it ambiguous and routes it to the review queue.
+
+The feature does not create a new label, silently discard the request, or route
+the request to a restricted queue without the required authorization.
+```
+
+If the system proposes a priority, define what makes a priority error serious. A wrong low-priority label may be corrected later. A wrong urgent label may trigger expensive work. A wrong urgent label can also cause genuinely urgent work to be missed if the queue becomes noisy. The product decision is not just a classifier score. It is a policy about what happens after the label.
+
+Do not hide label ambiguity inside a single “classification accuracy” metric. A confusion table, per-class review, and explicit out-of-scope behavior are often more informative. Use the simplest evaluation that answers the product question.
+
+## How do you write acceptance criteria for tool-using AI features?
+
+For a tool-using feature, accept the result only when the intended state changed correctly and the system used the right authority, arguments, approvals, and failure path. A successful final message is not proof that the action happened.
+
+Example story:
+
+```text
+As an account owner, I want the assistant to prepare a subscription change so
+that I can review the details before the change is applied.
+```
+
+Possible criteria:
+
+```text
+The assistant retrieves the current subscription before preparing a change.
+
+The proposed change includes the account, selected plan, effective date, and
+price shown by the system of record.
+
+The assistant does not call the write operation before the user approves the
+proposal.
+
+After approval, the write call contains the approved account and plan and the
+resulting subscription state matches the confirmed request.
+
+If the write operation fails, the assistant reports that the change was not
+confirmed and does not claim success.
+```
+
+Microsoft’s assertion guidance separates tool invocation, tool parameters, response handling, and error handling. That separation is useful in product criteria because each check can fail for a different reason ([Microsoft’s tool and error assertions](https://learn.microsoft.com/en-us/microsoft-365/copilot/extensibility/evaluation-write-assertions)).
+
+Use the system of record for the result. Use the trace for the path. The trace may show that the assistant called a read tool, received a current value, requested approval, then called the write tool with the approved value. The final message alone cannot prove those events.
+
+Include idempotency, retry, and stale-data behavior where they affect the user outcome. A retry that duplicates an external action is not a harmless implementation detail. A stale subscription price can make the proposal wrong before the user approves it.
+
+The acceptance criterion does not need to name an internal function if the user outcome is the real requirement. It can require the resulting state and the approval record. Add implementation-specific assertions when a particular tool, parameter, or permission is itself a safety condition.
+
+## How should you handle non-deterministic output?
+
+Allow acceptable variation at the wording layer and demand repeatable properties at the decision layer. Record which parts may vary and which parts may not.
+
+Use a table like this during review:
+
+| Output property | May vary? | Acceptance decision |
+| --- | --- | --- |
+| Sentence order | Often | Accept if required facts remain easy to find |
+| Wording and synonyms | Often | Accept if meaning is preserved |
+| Required fields | Usually no | Fail if a material field is missing |
+| Unsupported claims | No | Fail or route to review |
+| Source citation | Usually no when grounding matters | Fail if the claim cannot be traced |
+| Tool choice | Sometimes | Accept different paths if authority and outcome are equivalent |
+| Final state | No | Fail if the intended state is not reached |
+| Safety refusal | No for a defined forbidden case | Fail if the feature acts instead of refusing or escalating |
+
+This table turns “the model is probabilistic” into a product decision. Probabilistic output does not mean the team cannot write criteria. It means criteria should target the properties that matter and include a test method suited to them.
+
+Microsoft notes that varying responses can cause a case to pass or fail depending on how strict the criteria are, which is why repeated runs and realistic thresholds matter ([Microsoft’s evaluation checklist](https://learn.microsoft.com/en-us/agents/agent-evaluation/evaluation-checklist)). The lesson is not to lower the bar until runs pass. It is to decide which variability the user can tolerate and which signals a defect.
+
+## How do you test subjective quality without making it arbitrary?
+
+Make subjective judgment explicit. Define the dimensions, show calibration examples, name the reviewer, and keep a record of disagreement rather than hiding it behind a single score.
+
+Subjective does not mean untestable. It means the team needs a shared rubric and a review method.
+
+For an AI tutor that explains a technical concept, a rubric might ask whether the explanation answers the learner’s question, uses the learner’s stated context, avoids claiming certainty where the evidence is incomplete, and gives a next action the learner can attempt. The exact phrasing can vary.
+
+For a generated design brief, a domain reviewer may assess whether the brief captures the decision to be made, names the constraints, and exposes unresolved assumptions. Again, the reviewer needs examples and a way to record why an output passed or failed.
+
+Calibrate with three kinds of examples:
+
+- clearly passing output;
+- clearly failing output;
+- borderline output that forces the team to discuss the boundary.
+
+Do not manufacture a quality score because it looks scientific. If the rubric has four dimensions, keep the dimensions visible. A single average can hide a critical omission.
+
+If you use an LLM grader, treat it as a measurement instrument that needs validation. Google Cloud says model-based evaluation can scale but recommends human evaluation because automated metrics and judges have limitations. OpenAI likewise recommends that domain experts audit model graders and review system logs ([Google Cloud’s evaluation guidance](https://docs.cloud.google.com/docs/ai-ml/generative-ai/develop-generative-ai-application), [OpenAI’s eval guidance](https://openai.com/index/evals-drive-next-chapter-of-ai/)).
+
+## What should the release gate look like?
+
+Use a gate with hard blockers and tradeable measures. A feature should not pass because a good average hides one prohibited behavior or because a green dashboard cannot show the evidence behind the score.
+
+Here is a practical release table:
+
+| Gate | Release question | Typical decision |
+| --- | --- | --- |
+| User outcome | Does the feature complete the job or produce the intended reviewable artifact? | Block if the job cannot be completed |
+| Evidence | Can the team reproduce the pass decision from named cases and sources? | Block if the result cannot be inspected |
+| Boundary | Does the feature stay within its scope, permissions, and source rules? | Treat unauthorized or unsafe behavior as a veto |
+| Non-success | Does the feature fail visibly and give the user a next step? | Block if it guesses, claims success, or strands the user |
+| Stability | Does it meet the criteria across important reruns and variants? | Narrow scope or add review if not stable enough |
+| Operations | Can the team monitor, support, and reverse the feature? | Usually a Definition of Done blocker |
+
+Do not confuse this table with a universal checklist. It is a starting point for deciding what must be true in your product. The thresholds and vetoes depend on the workflow.
+
+For an internal writing assistant, a weak output may be recoverable through editing. For a feature that changes a financial record, a wrong action may be unacceptable even when the feature saves time on most cases. The release gate should reflect the consequence, not the novelty of the model.
+
+NIST’s framework says measurement should support decisions about mitigation, recalibration, removal, or continued use, and that systems should be evaluated before deployment and while operating. That supports keeping the release gate connected to a later monitoring plan rather than treating acceptance as the final measurement ([NIST AI RMF](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/)).
+
+If you need a deeper release decision for an agent rather than a single feature, use the acceptance contract as the input to [How to Evaluate an AI Agent: A Practical Release Gate](/blog/how-to-evaluate-an-ai-agent). That guide owns the broader question of evaluating result, actions, integrity, limits, and stability. This page supplies the earlier product-language layer. The handoff should be explicit: every release-gate check should be traceable to a feature outcome, a boundary, or a shared operational requirement.
+
+The same relationship applies to a proof of concept. A PoC criterion should answer whether the bounded proposition is worth taking to the next stage, not quietly pretend to establish production readiness. If the team is still deciding what workflow to test, [How Do I Scope an AI Agent Proof of Concept?](/blog/how-to-scope-an-ai-agent-proof-of-concept) is the better prerequisite. Once the workflow is chosen, this article helps turn its desired outcome into cases a team can inspect.
+
+That sequencing matters because criteria written too late often inherit the prototype’s behavior. The team sees what the model happened to produce, then writes a requirement that describes the demo instead of the user job. Writing the contract before the final implementation leaves room for a simpler system, a safer fallback, or a decision not to automate. It also makes disagreements useful. If the product owner and domain reviewer cannot agree on the boundary before testing, the conflict is product discovery, not an evaluation bug.
+
+### What evidence should a reviewer see?
+
+The reviewer needs enough context to judge the criterion without reconstructing the whole system from a screenshot.
+
+For each important case, retain:
+
+```text
+case and scenario:
+input and relevant user context:
+source or reference version:
+system configuration:
+output or resulting state:
+tool and retrieval trace where relevant:
+criterion-level pass or fail:
+reviewer or grader:
+failure reason:
+follow-up decision:
+```
+
+The record does not have to expose private chain-of-thought or every internal token. It does need to preserve the observable inputs, outputs, actions, evidence, and decision basis needed to audit the product behavior.
+
+That record also makes criteria maintainable. When a failure appears, you can tell whether the problem was a bad test case, a stale source, a system change, a flawed criterion, or a genuine product defect.
+
+## When should acceptance criteria be written?
+
+Write acceptance criteria before implementation is locked, then refine them as the team learns from representative outputs. They should be concrete enough to guide a prototype and provisional enough to change when a real discovery invalidates an assumption.
+
+There are three useful moments:
+
+1. **At discovery.** Write the first contract while the team is still choosing whether the feature should be a model call, a retrieval flow, a deterministic rule, or a human-assisted process. The goal is to expose the user outcome and the boundary.
+2. **Before evaluation.** Convert the contract into cases, references, rubrics, and test methods. Resolve missing source ownership and decide which failures block the decision.
+3. **Before release.** Confirm that the implemented behavior, data version, permissions, fallback, and operational controls still match the contract. Record any approved scope change instead of silently editing the original requirement.
+
+Writing criteria only after the prototype is impressive creates a subtle bias. The team starts treating the prototype’s strengths as the product and its weaknesses as acceptable variation. Early criteria reverse that direction. The prototype is evidence about whether the proposed contract can be met, not the source of the contract.
+
+This does not mean every unknown must be solved before a first experiment. Mark unknowns. For example, the team may not yet know whether reviewers prefer a short summary or a detailed one. The criterion can say that the experiment will compare both formats using a named review task, while the release decision waits for that evidence. An unknown becomes a research question instead of an accidental promise.
+
+The acceptance contract should also have an owner. A product manager may own the user outcome, a domain expert may own the correctness rubric, an engineer may own observable traces and state checks, and a risk or operations partner may own escalation and recovery. Shared authorship is useful. Unowned decisions are not.
+
+When Marius Manolachi led a ChatGPT workshop at Orange, the practical starting point was the work people already did, not an abstract tour of AI capabilities. That locked observation from `F-orange` applies here: begin with the existing decision or workflow, then ask where an AI feature could change it safely. Criteria written from a real job have something to measure. Criteria written from a demo usually have only a style preference.
+
+## How can AI help write acceptance criteria without owning the decision?
+
+Use AI to expand, challenge, and rewrite candidate criteria. Keep the product owner and domain expert responsible for the outcome, evidence, boundary, and threshold.
+
+AI is useful for mechanical work:
+
+- turn a feature brief into several candidate outcomes;
+- identify vague adjectives;
+- propose missing edge cases;
+- split compound assertions;
+- generate input variations;
+- check whether each criterion has a test method;
+- rewrite a criterion in plain language;
+- produce a draft case matrix from approved source material.
+
+AI is not the authority for:
+
+- deciding what the user actually values;
+- defining acceptable risk;
+- choosing a legal, safety, privacy, or financial boundary;
+- inventing a ground truth set;
+- choosing a performance threshold without a baseline;
+- deciding that a persuasive example represents the whole workflow;
+- declaring a feature done because its own generated tests pass.
+
+Give the model a structured prompt that asks for gaps, not a final release decision:
+
+```text
+You are reviewing a proposed AI feature contract.
+
+Feature job:
+[insert the user job]
+
+Known source of truth:
+[insert the documents, records, labels, or rubric]
+
+Allowed behavior:
+[insert the supported scope]
+
+Forbidden behavior:
+[insert unsafe, unauthorized, or misleading behavior]
+
+For each candidate criterion, return:
+1. one observable outcome;
+2. the evidence or test method needed to judge it;
+3. one boundary or negative case;
+4. the product action when the normal outcome cannot be met;
+5. assumptions that a human must confirm.
+
+Do not choose a numeric threshold unless the provided material contains one.
+Mark every missing source of truth, unresolved risk, or ambiguous decision.
+```
+
+Then review the output against the contract. Delete anything the model inferred without evidence. Ask a domain expert to challenge the failure cases. Use the model’s creativity to widen the search space, not to make the final commitment.
+
+The same principle applies when an AI coding agent will implement the feature. Clear criteria can help the agent work, but a generated implementation is not proof that the criteria are good. The product team still owns the decision about whether the feature solved the user’s problem.
+
+## How do you revise criteria after a pilot or launch?
+
+Revise criteria from observed failures, changed context, and new evidence. Do not quietly lower the threshold to make the dashboard green, and do not add every unusual case to the release gate without deciding whether the product scope changed.
+
+Use a failure review with five questions:
+
+1. Did the feature fail the user outcome, or did the test measure the wrong thing?
+2. Was the input within the published scope?
+3. Was the source of truth current and accessible?
+4. Was the non-success behavior missing, wrong, or not implemented?
+5. Should the system change, the criterion change, the scope narrow, or the feature stop?
+
+OpenAI describes a loop of specifying, measuring, and improving. It recommends adding new error types to the analysis and updating the evaluation as expectations and failure modes evolve. It also says that evals continue after launch and should incorporate real user outputs ([OpenAI’s specify, measure, improve guidance](https://openai.com/index/evals-drive-next-chapter-of-ai/)).
+
+A criterion can be wrong in several ways:
+
+| Failure in the criterion | Symptom | Repair |
+| --- | --- | --- |
+| Too vague | Reviewers disagree for different reasons | Replace adjectives with observable properties |
+| Too narrow | The feature passes examples but fails real variants | Add scenario slices and deployment-like inputs |
+| Too strict on wording | Valid outputs fail for superficial differences | Move the criterion to meaning or required properties |
+| Missing boundary | The system succeeds through an unsafe shortcut | Add a negative or authorization condition |
+| Missing non-success path | The feature guesses or claims completion | Define refusal, escalation, draft, or fallback behavior |
+| Wrong source of truth | Review debates the “right” answer | Assign an owner and version the reference |
+| Threshold without context | The number is easy to quote but hard to defend | Tie it to baseline, risk, reviewer capacity, and user value |
+
+Keep the history of material changes. If the criterion changes because the product scope changed, record that as a product decision. If it changes because the team discovered that the measurement was invalid, record that as an evaluation correction. Both are legitimate. Silent changes are what make release claims impossible to interpret later.
+
+## What should you still not promise with AI acceptance criteria?
+
+Acceptance criteria make a decision clearer. They do not make an uncertain system certain, and they do not replace product judgment.
+
+Do not promise that:
+
+- one successful demo proves production readiness;
+- a model score transfers unchanged from one workflow to another;
+- a single benchmark predicts user value;
+- a citation’s presence proves that the cited passage supports the claim;
+- human review is free or infinitely scalable;
+- a model grader can replace domain experts without calibration;
+- a feature with a high average score is safe if critical failures remain possible;
+- a criteria document can compensate for missing source data or unclear ownership.
+
+OpenAI notes that evaluations designed for broad model behavior cannot reveal every nuance of a specific business workflow. NIST asks teams to document validity limits and test under conditions similar to deployment. Those are reminders to keep the claim proportional to the evidence ([OpenAI’s contextual eval guidance](https://openai.com/index/evals-drive-next-chapter-of-ai/), [NIST AI RMF](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/)).
+
+The principal exception to the four-part contract is a feature whose acceptance is entirely deterministic. If the AI component only produces an intermediate representation that another validator checks exactly, the product may have a narrow criterion set. Even then, define what happens when the validator rejects the output. A deterministic downstream gate does not remove the need for a visible non-success path.
+
+![Illustration of a release decision separating acceptable variation from hard safety and authorization blockers](/blog/how-to-write-acceptance-criteria-for-an-ai-feature-ai-feature-release-vetoes.webp)
+
+## What is the shortest useful checklist for an AI feature?
+
+Before moving a feature to implementation or acceptance testing, check that each important line has all four parts.
+
+```text
+[ ] The user-visible outcome is stated without naming a model as the solution.
+[ ] Each criterion tests one independently judgeable condition.
+[ ] The source of truth, test case, or rubric is named.
+[ ] Acceptable variation is explicit where wording or path may differ.
+[ ] Required properties are observable in the output or resulting state.
+[ ] Unsupported, unsafe, unauthorized, or out-of-scope behavior is named.
+[ ] The non-success action is visible and gives the user a next step.
+[ ] Important cases include representative variants and costly edge cases.
+[ ] Any percentage has a named test set, scoring method, and reason.
+[ ] Critical failures are vetoes, not averages hidden in a composite score.
+[ ] Acceptance criteria are separate from the shared Definition of Done.
+[ ] The team knows what evidence will be retained for the decision.
+[ ] A product owner and domain expert have reviewed the boundary.
+[ ] The criteria have a revision path after real outputs appear.
+```
+
+If several boxes are unchecked, do not solve the discomfort by choosing a model. Improve the contract first. A better model may improve a known criterion. It cannot decide an unknown one.
+
+The question “How do we write acceptance criteria for this AI feature?” should end with a document that a user, product manager, engineer, evaluator, and reviewer can all read and act on. It should say what success looks like, how success will be known, what must not happen, and what the product does when success is unavailable.
+
+If you have a real feature and the hard part is agreeing on those decisions, [Marius Manolachi’s AI consulting and tutoring work](https://mariusmanolachi.com/learn-ai) is the next step. The goal is not to outsource the product decision. It is to make the people who own the work capable of making and testing it themselves.
+
+![Illustration of a product team reviewing an AI feature contract beside test cases, source evidence, and a human approval path](/blog/how-to-write-acceptance-criteria-for-an-ai-feature-ai-feature-team-review.webp)
+
+![Illustration of a decision table mapping AI feature types to deterministic checks, rubrics, human review, and refusal paths](/blog/how-to-write-acceptance-criteria-for-an-ai-feature-ai-feature-evaluation-methods.webp)
+
+![Illustration of a meeting summary example with required facts, source passages, unresolved ambiguity, and reviewer status](/blog/how-to-write-acceptance-criteria-for-an-ai-feature-ai-meeting-summary-criteria.webp)
+
+![Illustration of a retrieval assistant checking source support, permissions, conflicting documents, and an explicit no-answer route](/blog/how-to-write-acceptance-criteria-for-an-ai-feature-ai-retrieval-boundary.webp)
+
+![Illustration of a tool-using AI feature showing read, approval, write, result verification, and failure handling as separate checks](/blog/how-to-write-acceptance-criteria-for-an-ai-feature-ai-tool-approval-path.webp)
