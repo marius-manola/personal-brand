@@ -1,0 +1,812 @@
+---
+title: "When Should I Use Structured Outputs vs Function Calling?"
+date: "2026-08-21"
+updated: "2026-08-21"
+excerpt: "Choose structured outputs for typed model responses, function calling for executable capabilities, and both when a workflow crosses both boundaries."
+answer: "Use structured outputs when your application needs the model's answer in a predictable schema for parsing, rendering, or typed state. Use function calling when the model must request external data or an executable action. Use both when a tool must run and the final answer also needs a schema. The exception is safety: neither schema validity nor a tool call authorizes an action."
+targetQuery: "when should I use structured outputs vs function calling"
+queryAliases:
+  - "structured outputs vs function calling"
+  - "when to use structured outputs"
+  - "when to use function calling"
+  - "structured output or tool calling"
+intent: "comparison and implementation decision"
+funnel: "consideration"
+cluster: "ai-application-architecture"
+kind: "satellite"
+sourceableAtom: "Choose by the next consumer: structured outputs for a parser, UI, or typed application state; function calling for executable capability or external data; both only when the workflow contains both boundaries, with separate schemas for tool input and final response."
+tags:
+  - "structured outputs"
+  - "function calling"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-19"
+sources:
+  - "https://developers.openai.com/api/docs/guides/structured-outputs"
+  - "https://developers.openai.com/api/docs/guides/function-calling"
+  - "https://help.openai.com/en/articles/8555517-function-calling-in-the-openai-api"
+  - "https://ai.google.dev/gemini-api/docs/structured-output"
+  - "https://ai.google.dev/gemini-api/docs/function-calling"
+  - "https://ai.google.dev/gemini-api/docs/tools"
+  - "https://platform.claude.com/docs/en/build-with-claude/structured-outputs"
+  - "https://platform.claude.com/docs/en/agents-and-tools/tool-use/how-tool-use-works"
+  - "https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools"
+  - "https://json-schema.org/understanding-json-schema/reference"
+faq:
+  - q: "Can structured outputs trigger a function?"
+    a: "No. Structured outputs shape the model response. Your application can choose to run code after parsing that response, but that is application logic, not a model tool call. Use function calling when the model must request an external capability or data source."
+  - q: "Can I use structured outputs and function calling together?"
+    a: "Yes, when the workflow has both boundaries. Let a tool call request and receive external data or an action, then use a separate structured response schema for the final typed answer. Keep the tool-input and final-output schemas separate."
+  - q: "Does strict schema validation make an action safe?"
+    a: "No. Strict validation checks shape and permitted fields. Your application still needs authorization, business-rule validation, confirmation for risky actions, idempotency, and error handling before execution."
+cover: "/blog/when-should-i-use-structured-outputs-vs-function-calling-structured-outputs-vs-function-calling-hero.webp"
+coverAlt: "Illustration of a model response branching into a typed output and an executable tool call"
+draft: false
+---
+
+The difficult part is usually not writing the JSON Schema. It is deciding what the response is allowed to do next.
+
+When I taught product managers to move from writing specifications to building and shipping products, the gap was often a missing definition of done. The same gap appears here. A schema can describe a response, but it cannot tell you whether that response should be displayed, parsed, authorized, or executed.
+
+## The decision in one table
+
+Choose the interface by naming the next consumer of the model response. If the next consumer is a parser, a UI, or typed application state, use structured outputs. If the next consumer is an external capability, a data source, or code with side effects, use function calling. If the workflow has both, use both at separate boundaries.
+
+| What happens immediately after the model response? | Use | Why |
+| --- | --- | --- |
+| Your code parses fields and stores, renders, or passes them to another deterministic function | Structured outputs | The response itself is the product of the model call, and your application needs a predictable shape. |
+| The model needs current data from a database, API, search system, or file service | Function calling | The model must request a capability that exists outside the response. |
+| The model needs to send an email, create a record, update a ticket, or control another system | Function calling | The model is proposing an executable operation. Your application owns authorization and execution. |
+| A model response must render a typed UI, form, or report after the model has all required context | Structured outputs | The final response needs a contract that a renderer can consume. |
+| A tool must run first and the final answer must also feed a typed UI | Both | The tool schema controls the request into the capability; the output schema controls the answer after the result returns. |
+| Nothing will parse, render, fetch, or execute the result | Neither is required | Plain text may be the simplest honest interface. |
+
+This is the sourceable rule for this page: **structured outputs describe what the model says; function calling describes what the model asks your application to do.** The rule is a practical synthesis of the distinctions in the [OpenAI structured outputs guide](https://developers.openai.com/api/docs/guides/structured-outputs), [Google's Gemini tools documentation](https://ai.google.dev/gemini-api/docs/tools), and [Anthropic's structured outputs documentation](https://platform.claude.com/docs/en/build-with-claude/structured-outputs). It is not a claim that the APIs are implemented identically.
+
+The rest of the decision becomes easier once you keep three questions separate:
+
+1. What shape must the model response have?
+2. Must the model choose or request a capability outside that response?
+3. What is your application allowed to execute after receiving it?
+
+The first question points to structured outputs. The second points to function calling. The third is your application contract, not something a schema can answer.
+
+![Illustration of a model response splitting into a typed data path and an executable capability path](/blog/when-should-i-use-structured-outputs-vs-function-calling-structured-outputs-vs-function-calling-boundary.webp)
+
+## What structured outputs actually solve
+
+Structured outputs solve a response-format problem. You give the model a schema, and the provider constrains the returned object to that schema on supported models and request paths. Your code can then parse fields without asking a regular-expression parser to recover intent from prose.
+
+That makes structured outputs useful for extraction, classification, typed summaries, UI descriptions, moderation decisions, workflow state, and other results that should remain data. The model may still be wrong about the values. A field called `priority` can contain a valid enum value while the priority judgment is poor. The guarantee is about the contract's shape, not the truth of every value.
+
+OpenAI describes Structured Outputs as a way to make model responses adhere to a supplied JSON Schema. Its current guide exposes two forms: structured output through function calling, and structured output through a JSON schema response format, named `text.format` in the Responses API. The guide says the response-format form is better suited when you want the model's response to the user to follow a schema rather than when the model is calling a tool. See the [OpenAI structured model outputs guide](https://developers.openai.com/api/docs/guides/structured-outputs).
+
+Google makes the same conceptual distinction in Gemini's documentation. Its structured-output feature controls the final response format, while function calling connects the model to an external tool or data system for an intermediate step. [Google's tools guide](https://ai.google.dev/gemini-api/docs/tools) states that structured output is for a strict final schema and function calling is for an intermediate step through your tools or data systems.
+
+Anthropic's current vocabulary is slightly different but the boundary is the same. Its [structured outputs guide](https://platform.claude.com/docs/en/build-with-claude/structured-outputs) describes JSON outputs as controlling Claude's response format. It separately describes strict tool use as validating the names and inputs of tool calls. The guide explicitly says the two features can be used independently or together.
+
+The important word is response. A structured response does not automatically retrieve a row from your database. It does not invoke a payment API. It does not send the email described by an `email_to` field. It returns a typed object. Your application may inspect that object and run deterministic code afterward, but the action is then owned by your application logic.
+
+### A structured response is not a permission
+
+Suppose the model returns this object:
+
+```json
+{
+  "action": "refund_order",
+  "order_id": "ord_1842",
+  "reason": "duplicate charge"
+}
+```
+
+The object can be perfectly valid against a schema and still be unsafe to execute. The order might belong to another user. The user might not have asked for a refund. The order might already have been refunded. The reason might be unsupported. The model might have copied the wrong identifier from a long conversation.
+
+A typed object gives you a good handoff into validation. It does not skip validation. The application must still authenticate the actor, authorize the operation, check business rules, and decide whether a human confirmation is required. This is why I prefer to name the downstream consumer before I name the API option. The consumer makes the responsibility visible.
+
+### Structured outputs fit a typed read path
+
+Use structured outputs when your application needs to read the model's result as data. Typical cases include:
+
+- Extracting invoice fields from text or an image.
+- Classifying a request into a fixed set of categories.
+- Returning a set of UI components for a renderer.
+- Producing a report with known sections.
+- Converting a conversation into a draft record that a human reviews.
+- Returning a workflow state that a deterministic state machine consumes.
+- Producing a response object for a client that expects typed fields.
+
+In each case, the model's response is the thing you asked the model to produce. No external capability is necessary for the response to exist. You may later use the parsed object in a separate step, but that is a new boundary with its own controls.
+
+## What function calling actually solves
+
+Function calling solves a capability problem. You expose one or more tools with names, descriptions, and input schemas. The model can choose to request a tool call. Your application receives that request, validates it, executes the corresponding function if allowed, and returns the result so the model can continue.
+
+OpenAI calls this function calling or tool calling and describes it as a way for models to interface with external systems and access data outside their training data. The [OpenAI function calling guide](https://developers.openai.com/api/docs/guides/function-calling) separates three pieces: the tool or function you make available, the tool call the model returns, and the tool-call output your application generates. That output can be structured JSON or plain text.
+
+Gemini's [function calling guide](https://ai.google.dev/gemini-api/docs/function-calling) describes the same application responsibility. You define a function declaration, send it with the user prompt, inspect the returned function call, execute the function in your application, and then create a user-friendly response. Google's wording is useful because it makes the boundary hard to miss: the model does not execute your function.
+
+Anthropic gives the loop a particularly clear shape. A client tool returns a `tool_use` block, your code runs the operation, and you send a `tool_result` block back in the next request. Its [tool-use guide](https://platform.claude.com/docs/en/agents-and-tools/tool-use/how-tool-use-works) says tool use fits actions with side effects, fresh or external data, and calls into existing systems. It also says a one-shot question with no side effect may not need a tool round trip.
+
+### A tool call is a request, not an execution receipt
+
+The model's call should be treated as an intent-bearing request. It is not evidence that the operation succeeded. A function call such as `create_invoice` means the model asked for that operation with those arguments. Your system must still determine whether the request is permitted, whether the call ran, and what result came back.
+
+This distinction matters for user-facing language. Do not display “Invoice created” merely because a model emitted a `create_invoice` call. Display it only after your application receives a successful result from the invoicing system. If the call failed, return an error or ask for a correction. If it requires approval, stop at the approval gate.
+
+The same pattern applies to read-only tools. A `get_customer` call is not the customer record. It is a request to look it up. The returned result may be empty, stale, unauthorized, or malformed. The model should not be asked to make up a result when the tool fails.
+
+### Function calling fits a typed action path
+
+Use function calling when the model needs to cross into a capability that your code owns. Common cases include:
+
+- Looking up current account or inventory data.
+- Searching internal documents through a retrieval service.
+- Running a calculation that must use a trusted implementation.
+- Creating, updating, or deleting a record.
+- Sending a message or scheduling an appointment.
+- Calling a business API with user-provided context.
+- Taking an action in a desktop or browser environment.
+
+The tool's input schema still matters. It is the typed request into the capability. But it is not the final response schema, even if the two objects happen to look similar.
+
+## Why the two options feel interchangeable
+
+Both interfaces use JSON Schema. Both can return an object. Both can have required properties, enums, descriptions, and strict validation. Some SDK helpers even implement one feature with another under the hood. That similarity is real, but it is not the decision axis.
+
+The decision axis is what the object means in the application.
+
+An object returned under a response format means, “Here is the model's result in the shape you requested.” An object emitted as a function call means, “Here is a request to invoke the named capability with these arguments.” The syntax overlaps because typed interfaces are useful on both sides. The control flow does not.
+
+Consider these two objects:
+
+```json
+{
+  "title": "Three ways to reduce onboarding delay",
+  "risks": ["unclear ownership", "missing access", "late review"]
+}
+```
+
+and:
+
+```json
+{
+  "name": "create_task",
+  "arguments": {
+    "title": "Clarify onboarding ownership",
+    "assignee_id": "usr_19"
+  }
+}
+```
+
+The first is a typed answer. The second is a typed request. A renderer can use the first immediately. The second must pass through a policy and execution layer before it can change anything.
+
+This difference also explains why a fake tool is often a bad design. If you define a `return_extracted_invoice` function only to force the model to emit an invoice object, you have represented a response as an action. You may now have to handle tool selection, tool-call IDs, tool results, and a loop that was never required. Use a response schema when there is no capability to call.
+
+![Illustration of the same JSON schema shape carrying either a final result or a request to execute a capability](/blog/when-should-i-use-structured-outputs-vs-function-calling-typed-result-versus-tool-request.webp)
+
+## The downstream-consumer rule, step by step
+
+Use this procedure before choosing an API field or SDK helper. It is short enough to apply in a design review and specific enough to expose ambiguous cases.
+
+### Step 1: Write the next consumer in one noun phrase
+
+Complete this sentence:
+
+> After the model responds, the next consumer is _____
+
+Good answers are “a React renderer,” “a Pydantic validator,” “the CRM API,” “the inventory service,” “a human approval screen,” or “the next model turn after a database lookup.” Bad answers are “the AI layer,” “the workflow,” or “the app,” because they hide what happens next.
+
+If the answer is a renderer, parser, validator, or typed state machine, start with structured outputs. If the answer is a database, API, file operation, message sender, browser action, or computation service, start with function calling.
+
+If the next consumer is a human, ask what the human is reviewing. If the human reviews a model-produced draft, structured outputs may be enough. If the human approves a proposed external action, function calling may be the right representation, but the tool must stop at an approval gate rather than execute automatically.
+
+### Step 2: Ask whether the model must choose a capability
+
+Does the model need to choose among multiple operations, or decide whether an operation is needed at all?
+
+If yes, function calling is usually the honest interface. The tool name carries the capability choice, and the tool arguments carry the request. The model can answer directly when no tool is needed if the provider and your configuration allow that behavior.
+
+If no, do not add a tool merely to obtain JSON. A schema-constrained response makes the data boundary clearer.
+
+This is not the same as asking whether the output will eventually cause code to run. Almost every useful application runs code after parsing a response. The question is whether the model is selecting or requesting the capability at this boundary, or whether deterministic application code owns that decision.
+
+### Step 3: Identify the owner of the side effect
+
+If a value can change the world, identify who owns the final decision:
+
+- The model proposes and the application authorizes and executes.
+- A human reviews and approves, then the application executes.
+- A deterministic rule executes after the model supplies data.
+- A downstream service applies its own authorization and idempotency checks.
+
+Function calling is appropriate when the model proposes a capability call. It does not decide which owner is allowed to execute it. If a deterministic rule always runs after extraction, structured outputs plus ordinary application code may be safer and simpler than letting the model choose a tool.
+
+### Step 4: Decide whether a final response also needs a schema
+
+Many workflows need an action and a typed answer. For example, a support assistant may search the order system and then return a response with `status`, `customer_message`, and `needs_human_review`. Use a tool call for the lookup and a separate structured response for the final object.
+
+Do not force the final response into the tool's input schema. The tool input describes what the capability accepts. The final response describes what the client needs after the capability has returned.
+
+### Step 5: State the exception and the validation boundary
+
+Write down what the schema does not guarantee. At minimum, record whether it does not guarantee:
+
+- factual correctness;
+- current data;
+- user authorization;
+- business-rule validity;
+- successful execution;
+- safe side effects;
+- a complete result after truncation or provider failure.
+
+This final step prevents the most expensive category error: treating a valid object as a verified action.
+
+## A comparison that includes the responsibility boundary
+
+The usual comparison table stops at “structured data versus actions.” The more useful table includes who executes what and what the schema protects.
+
+| Dimension | Structured outputs | Function calling |
+| --- | --- | --- |
+| Primary job | Constrain the model's response shape | Let the model request an external capability |
+| Model chooses a tool? | No tool is required | Yes, if multiple tools or optional use are exposed |
+| Who runs application code? | Your ordinary response handler | Your tool executor, or the provider for a provider-owned server tool |
+| Main schema | Final response schema | Tool name and tool-input schema |
+| Typical next step | Parse, render, validate, store draft state | Authorize, execute, return tool result, continue or finish |
+| Can it fetch fresh data by itself? | No | Yes, by requesting a data tool |
+| Can it cause a side effect by itself? | No | It can request one, but your application must authorize and execute it |
+| What strict validation protects | Shape of the model response | Shape of tool name and arguments, where supported |
+| What it does not protect | Meaning, truth, authorization, business rules | Authorization, implementation safety, result correctness, idempotency |
+| When it is overkill | Plain text is already sufficient | No external capability or data is needed |
+| Common misuse | Treating a field like `action` as authorization | Creating a fake no-op tool only to get JSON |
+
+The practical payoff is that a reviewer can inspect the “who runs application code?” row. If nobody can answer it, the design is not ready.
+
+## When structured outputs are the better choice
+
+Structured outputs are the better choice when the model has enough context to produce the requested data and the application needs that data in a stable shape.
+
+### Extraction from text or images
+
+An invoice parser, resume parser, meeting-note extractor, or email classifier usually has a typed read path. The model receives content and returns fields. A response schema can require `vendor_name`, `invoice_number`, `currency`, and `total`, with nullable fields for values that are absent.
+
+The absence rule matters. Do not make the model invent a value simply because a field is required. Design the schema so “not present” is representable, perhaps with a nullable value or an explicit status field. Then validate the meaning in application code. OpenAI's documentation warns that Structured Outputs do not prevent mistakes inside values, and Google's documentation likewise says syntactically correct structured output still needs semantic validation. See the [OpenAI Structured Outputs announcement](https://openai.com/index/introducing-structured-outputs-in-the-api/) and [Google's structured-output guidance](https://ai.google.dev/gemini-api/docs/structured-output).
+
+Use function calling only if extraction must immediately request another capability. For example, extracting an invoice is structured output. Looking up the vendor's tax profile after extraction is a separate function call. Combining those steps may be right, but the extraction response and lookup request remain different contracts.
+
+### Classification and routing labels
+
+Suppose a support message must be classified as `billing`, `technical`, `account`, or `other`, with a confidence explanation and a list of missing details. A structured response is a direct fit if your deterministic router consumes the classification.
+
+The word routing can be misleading. If the model returns a label and your code uses a fixed map to select a queue, the model produced data and the application routed it. If the model must choose among callable capabilities with different input contracts, function calling exposes that choice directly.
+
+That distinction is useful for review. A classifier's output can be evaluated as a prediction. A tool call must also be evaluated as an authorization-bearing request. These are different failure surfaces even when both eventually send a ticket somewhere.
+
+### UI generation and typed presentation
+
+If a model generates a form, card, chart specification, or tutoring response that a renderer will display, structured outputs give the renderer a defined object. The renderer should still enforce an allowlist of components, attributes, and actions. A schema that permits arbitrary HTML or arbitrary event handler strings is not a safe UI boundary.
+
+OpenAI's Structured Outputs guide includes examples for generating structured UI representations. Google documents structured output as useful for a final response that must adhere to a schema, and Anthropic lists structured reports and API response formatting as use cases. These examples support the same choice: the model is producing a typed description for your application, not invoking an unknown capability.
+
+If a rendered button will later call `delete_account`, the button schema does not authorize deletion. The event handler must be deterministic, authenticated, and protected by a confirmation or policy check. The model's output describes the interface; the application controls the capability.
+
+### Draft records that a human reviews
+
+A common workflow extracts a draft purchase order, a proposed reply, or a candidate knowledge-base entry. The next consumer is a human review screen, so a structured response is often the clearest first boundary.
+
+The human can see the fields, edit them, and approve the next step. Only after approval should the application call the external system. At that later point, function calling may represent the approved action, or ordinary deterministic code may call the service directly. The model does not need to remain in the execution path merely because it created the draft.
+
+This is a good example of why “will this eventually trigger an API call?” is the wrong first question. The answer may be yes, but the model's immediate output is still a draft record. The human and application own the transition to execution.
+
+### Workflow state and deterministic orchestration
+
+A model can return a state object such as:
+
+```json
+{
+  "state": "needs_customer_detail",
+  "missing": ["order_number"],
+  "reply": "Please share your order number so I can look this up."
+}
+```
+
+If a deterministic state machine consumes the object, structured outputs keep the model's suggestion separate from any action. Your orchestrator can decide that `needs_customer_detail` means “ask a question,” while `ready_for_lookup` means “run the lookup tool.”
+
+You could also expose the lookup as a function and let the model decide when to call it. The correct choice depends on who should own the transition. If the workflow state determines the transition, use structured state. If the model must choose among capabilities based on the conversation, use function calling. The schema choice follows control ownership.
+
+![Illustration of a typed workflow state flowing into deterministic application rules before any side effect](/blog/when-should-i-use-structured-outputs-vs-function-calling-structured-workflow-state.webp)
+
+## When function calling is the better choice
+
+Function calling is the better choice when the model needs capabilities or information that cannot be supplied by the response format alone.
+
+### Fresh or private data
+
+A model cannot know the current balance, inventory count, account status, calendar availability, or contents of a private database from a response schema. Give it a retrieval tool when it must request that information.
+
+For example, a shipping assistant may need to answer “Where is order 1842?” The model can call `get_order_status` with an order identifier. Your application checks that the user is allowed to see the order, calls the carrier or order system, returns the result, and lets the model write a natural answer or a typed final response.
+
+Do not call the response schema a data source. A field named `current_status` is only a model-generated claim unless your system populated it from a current source. If freshness matters, the call to the data system needs to be visible in the workflow.
+
+### External actions
+
+If the user asks the system to schedule, send, create, update, or delete, the model must not simulate completion in a structured response. Expose a function or tool that your application can authorize and execute.
+
+The action tool should have a narrow input schema. `send_email` might accept a recipient, subject, body, and a request ID. It should not accept an arbitrary executable instruction. Your server should derive the sender identity and permission context from the authenticated session rather than trusting a model-produced field.
+
+The call should also produce an auditable record. Capture the user request, model call, tool name, normalized arguments, authorization result, execution result, and any human approval. This is not optional decoration for a high-impact action. It is part of knowing what happened.
+
+### Computation that needs trusted code
+
+A model can propose a calculation, but if the result matters, call a deterministic calculator, pricing engine, policy evaluator, or rules service. The function call expresses the request into the trusted implementation. The tool result then becomes input to the final response.
+
+For a tax estimate, the model might identify the relevant jurisdiction and transaction facts in a structured response, while deterministic code calculates the amount. Or the model might call `calculate_quote` with typed inputs. The team should decide whether the model owns field extraction, tool selection, or both. It should not pretend that a well-formed `total` field is equivalent to a trusted calculation.
+
+### Multiple capabilities and optional use
+
+Function calling is particularly useful when the model must decide whether to answer from context or reach for one of several capabilities. An assistant may have `search_orders`, `search_policy`, and `create_return`. Each tool has a different purpose, risk, and input schema.
+
+The model's decision to call a tool is not a substitute for a policy. You can restrict available tools by user, account state, workflow stage, or approval status. You can require a specific tool choice when the workflow demands it. OpenAI, Google, and Anthropic all expose controls or guidance around tool choice, but the exact parameters differ by provider. Read the current provider guide before copying an example.
+
+The more tools you expose, the more important the descriptions and boundaries become. Anthropic's tool definition guidance asks for detailed descriptions that explain what a tool does, when to use it, when not to use it, the meaning of each parameter, and important limitations. That is evidence for a design principle: a callable capability needs an operational contract, not only a JSON shape. See [Anthropic's tool definition guide](https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools).
+
+## When you should use both
+
+Use both when one request crosses two distinct boundaries:
+
+1. The model must request or receive a capability result.
+2. The application needs the final model response in a predictable shape.
+
+The tool input schema and the final response schema should be separate even when fields overlap.
+
+### Example: search, then render a support answer
+
+A support UI might require:
+
+```json
+{
+  "status": "answerable",
+  "answer": "Your replacement shipped today.",
+  "citations": [
+    {"label": "Order status", "source_id": "order_1842"}
+  ],
+  "needs_human_review": false
+}
+```
+
+To produce that object responsibly, the model first calls `get_order_status`. The tool input may be:
+
+```json
+{
+  "order_id": "ord_1842"
+}
+```
+
+Those schemas solve different problems. The first says what the UI can render. The second says what the order service accepts. If the order service returns a failure, the final response may use a different status such as `unable_to_verify`.
+
+The workflow is:
+
+1. Receive the user request.
+2. Let the model decide whether `get_order_status` is needed.
+3. Validate the tool call against the schema.
+4. Authorize the lookup for the authenticated user.
+5. Execute the lookup.
+6. Return the tool result to the model.
+7. Ask for the final response using the response schema.
+8. Validate the final values and render the UI.
+
+Google documents supported combinations of structured outputs with tools for some Gemini 3 models, and Anthropic explicitly describes JSON outputs and strict tool use as features that can be combined. OpenAI describes structured output through function calling as a separate form from response-format structured output. These provider details mean “use both” is a workflow pattern, not a promise that one configuration flag works identically everywhere.
+
+### Example: extract, then save after deterministic checks
+
+Imagine an expense intake flow. The model extracts merchant, date, amount, currency, and category into a structured response. Your application validates the amount, checks duplicate receipts, shows a review screen, and then writes the approved record.
+
+You do not necessarily need a `save_expense` tool in the model conversation. If the application always performs the save after human approval, ordinary deterministic code can call the database. Add function calling only if the model must choose among capabilities or request the write as part of an open-ended workflow.
+
+This distinction is subtle but important. A system can contain both structured outputs and a database write without using function calling. Function calling is about the model-to-capability boundary, not about whether any code in the entire product eventually touches a database.
+
+### Example: search, then ask a question
+
+A tutor might call a document search tool, receive relevant passages, and then return a typed answer with `explanation`, `next_question`, and `confidence_label`. The search is a function call. The answer is a structured output. The final schema does not prove that the passages support the answer, so your evaluation must still check grounding and citation behavior.
+
+Marius Manolachi is building TryUncle, an AI agent that watches the screen and annotates it live. That is a useful action-oriented boundary case. The system cannot help a person by merely returning a valid annotation object if the product must decide where and when to place that annotation. The agent needs an execution path, timing decisions, and a human-facing control boundary. The observation here is about the product constraint, not a measured latency claim.
+
+![Illustration of a two-stage workflow with a tool request followed by a typed final response](/blog/when-should-i-use-structured-outputs-vs-function-calling-tool-then-final-response.webp)
+
+## The four ambiguous cases that cause bad architecture
+
+The simple rule is useful, but real designs often sit between columns. These cases deserve explicit decisions.
+
+### “I need to save the structured output”
+
+Saving data does not automatically mean function calling. Ask who chooses the save and when.
+
+If the application receives a structured object, validates it, and always stores it as part of the request handler, structured outputs are enough for the model boundary. The storage call is deterministic application code.
+
+If the model must decide whether to save, which storage operation to run, or which system to update, function calling makes that capability explicit. You still need authorization and business rules.
+
+The same database can appear on either side of the boundary. The database is not the deciding factor. Ownership of the decision is.
+
+### “I need an action field in the response”
+
+An `action` enum can be useful as a plan or classification. It is not a function call by itself. Treat it as data unless your application maps it to a capability through a controlled, deterministic allowlist.
+
+This can be a good design when you want a model to produce a plan for review. A human can inspect `action: "issue_refund"` before any code runs. It is a poor design when the code executes every enum value without authorization or confirmation.
+
+If the model must request the capability now, use a tool call. The tool call carries intent in the API's control flow instead of hiding it in a data field.
+
+### “I want the model to choose a schema”
+
+A schema-selection problem may be a classification problem, a tool-selection problem, or a union response problem. Decide which one it is.
+
+If the model should return one of several response shapes for a renderer, use a discriminated structured output if the provider supports that schema pattern. If each option represents a distinct external capability with different authorization, use function calling and define each capability explicitly. If a fixed workflow chooses the schema from a known state, let deterministic code choose it.
+
+Avoid making a single broad tool such as `do_anything` with an unconstrained payload. It may make the schema look flexible while moving the real contract into opaque text.
+
+### “The tool returns JSON, so isn't that structured output?”
+
+The tool result can be JSON. That describes the capability's output, not the model's final response format. You may want to validate the tool result against a schema before returning it to the model, and you may want a second schema for the final answer.
+
+Think of a tool as an API endpoint inside the model loop. Its request and response each have contracts. Structured outputs are the mechanism for constraining a model response on the response path. The names overlap because both paths benefit from typed data.
+
+## Provider mappings without confusing the concepts
+
+The conceptual rule is stable, but parameter names and capabilities change. Use the provider documentation for the current syntax. The following mapping is a guide to the boundary, not a copy-paste promise for every model version.
+
+### OpenAI
+
+In the current Responses API, OpenAI's structured-output guide uses `text.format` with a JSON schema for a typed model response. OpenAI's function calling guide uses tools or functions that the model can call, and your application supplies tool outputs before the model continues.
+
+OpenAI also supports Structured Outputs on function definitions. Setting `strict: true` in a function definition constrains the generated arguments to the supplied schema when the schema meets strict-mode requirements. That does not turn the tool call into a final user response, and it does not authorize execution. The [OpenAI Help Center explanation of function calling](https://help.openai.com/en/articles/8555517-function-calling-in-the-openai-api) states both the argument guarantee and the need to distinguish it from JSON mode.
+
+For OpenAI, ask whether you want `text.format` for the answer or a tool definition for a capability. If you need both, use a tool call for the external step and a final response format for the returned answer where the chosen model and endpoint support that combination. Check the current compatibility rules before implementing the combination.
+
+### Google Gemini
+
+Gemini's structured-output documentation configures a response format with JSON MIME type and a schema. Its function-calling documentation defines function declarations, returns a function call with a name and arguments, and leaves execution to your application.
+
+Google's [tools guide](https://ai.google.dev/gemini-api/docs/tools) is unusually direct about the choice: use function calling when the model needs an intermediate step connecting to your tools or data systems, and use structured outputs when the final response must follow a specific schema. The same page documents supported combinations with tools for Gemini 3 series models, with preview availability that can change.
+
+The implementation lesson is to separate the stable concept from the volatile field name. Your design document should say “tool request” and “final typed response” before it says `response_format` or a particular SDK method.
+
+### Anthropic Claude
+
+Anthropic's current docs call the final response feature JSON outputs under `output_config.format` and the tool-input feature strict tool use with `strict: true`. The [structured outputs page](https://platform.claude.com/docs/en/build-with-claude/structured-outputs) says JSON outputs control what Claude says, while strict tool use validates how Claude calls your functions. It also says they can be used together.
+
+Anthropic's [tool-use overview](https://platform.claude.com/docs/en/agents-and-tools/tool-use/how-tool-use-works) makes the execution loop explicit. A client tool produces a `tool_use` block, your code executes the operation, and you return a `tool_result`. That sequence is the reason a tool call deserves action-specific logging and retry handling.
+
+The provider mapping is useful, but it should not lead your design. If you start with field names, a provider migration can make the architecture feel different when only the syntax changed. Start with the next consumer and the owner of execution.
+
+![Illustration of three provider interfaces converging on the same response-versus-capability boundary](/blog/when-should-i-use-structured-outputs-vs-function-calling-provider-boundary-mapping.webp)
+
+## Schema design: shape is only the first contract
+
+A schema is a contract, but it is not the whole contract. Design the shape, then define the meaning and the checks around it.
+
+### Make absence representable
+
+Models often receive incomplete information. If the input may omit a field, your schema should represent absence explicitly. Depending on provider support, that may be a nullable property, an enum such as `unknown`, or a status field that explains why a value is missing.
+
+Do not use a required string field as a request for the model to guess. A required field means the output must contain a value, not that the input contained evidence for it. Your semantic validator should reject or flag unsupported guesses.
+
+### Keep tool inputs narrow
+
+A tool input should describe the minimum data needed to run the capability. Derive identity, authorization context, and server-controlled defaults from your application where possible. Do not ask the model to send a user ID that your server already knows from the session.
+
+Narrow tools are easier to review and safer to expose. A `create_calendar_event` tool with `title`, `start`, `end`, and `attendees` is easier to authorize than a `run_calendar_operation` tool with an arbitrary command string.
+
+### Use names that carry the boundary
+
+`final_answer` and `tool_request` communicate different roles. A field called `result` is ambiguous. A tool called `get_customer_balance` communicates a capability and its read direction. A tool called `customer` does not tell the model or reviewer what will happen.
+
+Descriptions matter because the model selects tools from descriptions, not from your implementation. Include what the tool does, when to use it, when not to use it, the units and meaning of each parameter, and whether the operation has side effects.
+
+### Keep schemas versionable
+
+Treat tool-input schemas and final-response schemas as separate versioned interfaces. A client renderer may need a new field while the tool API remains unchanged. Conversely, a tool may need a new authorization or idempotency field while the final UI stays the same.
+
+When the tool boundary already exists, its operational contract deserves its own review. Marius Manolachi's guide to [designing idempotent tools for AI agents](/blog/how-to-design-idempotent-tools-for-ai-agents) covers the retry question that a response schema cannot solve. For the input side, [validating AI agent inputs before a run](/blog/how-to-validate-ai-agent-inputs-before-a-run) is a useful neighboring concern. These are downstream controls, not alternatives to the choice in this article.
+
+For additive changes, decide whether the provider requires every field to be present under strict mode. Some providers require all object fields to be listed as required, with null used when a value is absent. Read the current provider rules. Do not assume generic JSON Schema semantics are identical to constrained decoding support.
+
+The [JSON Schema reference](https://json-schema.org/understanding-json-schema/reference) is useful for the general vocabulary of types, enums, validation, and composition. Provider structured-output features may support a subset, so validate your actual schema against the provider API rather than relying only on a generic validator.
+
+## Validation: separate five different checks
+
+When a model response or tool call arrives, run the checks in the right order. Calling all of them “validation” hides important responsibility.
+
+### 1. Transport and parse validation
+
+Can your application read the response at all? Check the provider status, stop reason, refusal or error state, truncation, and parseability. A response that ended at a token limit may not be a complete object. Handle provider-specific failure signals before applying business logic.
+
+### 2. Schema validation
+
+Does the object have the permitted keys, types, enum values, and required fields? Strict structured outputs and strict tool use can reduce this class of error on supported paths. They do not remove the need to handle unsupported schemas, API errors, or provider changes.
+
+### 3. Semantic validation
+
+Does the value make sense for the input and domain? Is the date plausible? Does the currency match the amount? Does the order exist? Is the proposed recipient a valid address? Is a classification supported by the evidence?
+
+OpenAI's Structured Outputs announcement is explicit that schema adherence does not prevent mistakes within values. That sentence should be part of every team's mental model. A parser can accept a wrong answer perfectly.
+
+### 4. Authorization and policy validation
+
+Is this actor allowed to request this operation on this resource? Has the user confirmed the action? Is the workflow stage permitted to perform it? Does a policy require a human gate?
+
+This check is necessary for both approaches. A structured response can contain a proposed action. A function call can contain a requested action. Neither carries authority merely because its fields are valid.
+
+### 5. Execution and outcome validation
+
+Did the external operation succeed? Did it write one record or two? Did the message provider accept the request? Did the search service return fresh data? Did the tool response match the expected result contract?
+
+Only after this check should your final response say that an action completed. If the model is asked to summarize the result, use the actual tool result as context, not a guessed success state.
+
+## Failure modes and their repairs
+
+The following failures are common because they confuse formatting, capability, and authority.
+
+### Failure: using a fake tool for extraction
+
+Symptom: a team defines `extract_invoice` as a function but never performs an operation. The only reason for the function is to make the model emit invoice fields.
+
+Repair: use structured outputs for the extracted record. If a later service call is needed, add a separate tool boundary for that service. The extraction result should remain data until the application decides what to do with it.
+
+### Failure: putting an action in a response schema and executing blindly
+
+Symptom: the model returns `{"action":"delete_user","user_id":"..."}`, and the handler maps every action to a mutation.
+
+Repair: treat the object as a proposal. Apply an allowlist, authorization, resource ownership check, confirmation requirement, and idempotency strategy. If the model should request the operation as part of a tool-enabled conversation, use a function call, but keep all application checks.
+
+### Failure: expecting structured output to contain current facts
+
+Symptom: a schema includes `stock_level` or `account_balance`, but no data tool runs.
+
+Repair: add a retrieval function call, inject trusted data before the structured response, or use ordinary application code to fetch the data. Make freshness visible in the design.
+
+### Failure: expecting a tool call to be the final UI object
+
+Symptom: the same tool schema is passed directly to a frontend that expects `answer`, `citations`, and `needs_review`.
+
+Repair: define a final response schema. The tool input should remain focused on the capability. The tool result may have its own schema. The final response can combine the result with the original request.
+
+### Failure: checking only JSON parsing
+
+Symptom: the application calls `JSON.parse`, sees no exception, and treats the result as correct.
+
+Repair: add schema, semantic, authorization, and outcome checks. A valid object is a starting point, not a release gate.
+
+### Failure: putting both contracts in one giant schema
+
+Symptom: one schema contains user-facing prose, tool parameters, authorization fields, internal IDs, and execution results.
+
+Repair: split the workflow into contracts. Name each schema by its boundary, such as `OrderStatusToolInput`, `OrderStatusToolResult`, and `OrderStatusResponse`. This makes ownership and tests clearer.
+
+### Failure: letting provider syntax choose the architecture
+
+Symptom: a team uses whichever helper is easiest in a framework, then discovers that a “structured output” is actually implemented as a hidden tool call or that tool calling is unavailable on the chosen model.
+
+Repair: document the logical contract first. Then confirm the provider's implementation and compatibility. Framework abstractions are helpful, but they can obscure the execution loop.
+
+### Failure: treating strict mode as a business guarantee
+
+Symptom: a developer assumes `strict: true` means a refund, message, or deletion is safe.
+
+Repair: write “shape guarantee” beside the strict flag in the design. Keep authorization, confirmation, idempotency, and domain validation in application code.
+
+![Illustration of a validation pipeline separating parsing, schema, semantics, authorization, and execution outcome](/blog/when-should-i-use-structured-outputs-vs-function-calling-validation-boundaries.webp)
+
+## A worked decision: customer support lookup
+
+Assume a customer asks, “Where is my replacement?” The system has an order database and a shipping provider. It must show a concise answer in a typed UI.
+
+### The wrong first design
+
+The team asks the model for a structured object with `tracking_number`, `carrier`, `status`, and `estimated_delivery`. This parses neatly, but no system supplied current order data. The object is only a well-formed guess.
+
+### The better design
+
+First, expose a read-only `get_replacement_status` tool with `order_id` or a server-derived order reference. The application checks access, calls the order and shipping systems, and returns a trusted result. Then ask the model for a final response schema such as:
+
+```json
+{
+  "status": "in_transit",
+  "headline": "Your replacement is on the way.",
+  "details": "The carrier received it today.",
+  "tracking_link": null,
+  "needs_human_review": false
+}
+```
+
+The tool fetched current data. The structured response prepared the UI. Each contract has a different owner and failure mode.
+
+### What if the user is not authorized?
+
+The tool should return an authorization failure or no data. Do not ask the model to infer permission from the request. The final response schema can represent `unable_to_verify` without exposing private details.
+
+### What if the carrier is down?
+
+Return a tool error or a result with a known unavailable status. The final response should say the status could not be verified. It should not fill `estimated_delivery` from memory.
+
+### What if the result requires an update?
+
+That is a new capability. Do not reuse the read tool with a hidden `operation` field. Expose a separate `request_replacement_update` or `contact_support` capability, with its own authorization and approval rules.
+
+## A worked decision: expense intake
+
+Now assume an employee uploads a receipt. The product needs to create a draft expense and route it for review.
+
+### The first boundary is extraction
+
+Use structured outputs for merchant, date, amount, currency, and category. Make absent fields representable. Have the application validate amount formatting, date range, and duplicate receipt detection.
+
+### The second boundary is review
+
+Render the object for a human. The human can correct the merchant or category. Do not call a finance API yet. A structured draft is the right representation because the model's job is to populate a reviewable record.
+
+### The third boundary is persistence
+
+After approval, deterministic application code can write the expense. Function calling is not required if the model does not need to choose or request the write. The product still performs an action, but that action belongs to the application workflow.
+
+### When function calling would make sense
+
+If the user says, “Read this receipt, create the draft, and submit it if it is under my approval limit,” the system may use function calls for `create_draft_expense` and `submit_expense`, with an application policy deciding whether submission is allowed. The extracted fields can still come from structured output. Do not collapse extraction, authorization, and mutation into one model-produced object.
+
+## A worked decision: live teaching assistant
+
+Consider an assistant that watches a screen and points at the control a person needs. A final annotation object might contain a target area, label, explanation, and confidence. That looks like structured output. But the product also needs to observe the screen, decide whether an annotation is needed, and place it at the right time.
+
+This is a combined case. The annotation description can use a typed response schema. The interaction with the screen and any control operation needs an execution interface with permissions and a human-facing boundary. Marius Manolachi's TryUncle work is a bounded example of this kind of system: it watches the screen and annotates it live. The lesson is not a claimed benchmark. It is that the product requirement is action and timing, not only valid JSON.
+
+If the assistant only generates an annotation for a separate renderer, structured outputs may be enough. If it must inspect a screen or act on a desktop, the system has capability calls. If it does both, keep the annotation contract separate from the capability contract.
+
+## Performance, latency, and cost without fake precision
+
+Teams often ask whether structured outputs are faster or cheaper than function calling. There is no universal answer that can be stated honestly without naming the provider, model, schema, prompt, tool behavior, network, and whether a second model turn is required.
+
+There is one structural difference you can reason about. A client-executed function call creates at least one extra application boundary: the model emits the call, your application runs the function, and the result goes back into the conversation if the model must continue. Anthropic documents this round trip explicitly. OpenAI and Google describe the same pattern for application-executed functions. A structured response that requires no external capability can finish in one model response, although schema compilation, constrained decoding, and output length still affect the request.
+
+Do not convert that structural observation into a latency number. Measure your own workflow if latency matters. Record:
+
+- provider and dated model identifier;
+- endpoint and SDK version;
+- schema size and tool descriptions;
+- input and output token counts;
+- number of model turns;
+- time spent in the external tool;
+- retries, refusals, truncation, and validation failures;
+- whether the final response required a second model call;
+- the success definition.
+
+The right optimization may be to remove an unnecessary tool call, cache a stable lookup, shorten tool descriptions, combine a tool result with a final response where supported, or move deterministic work out of the model loop. It may also be to keep the extra round trip because fresh data and a safe action are worth more than a shorter response.
+
+Do not use a fake tool to save one parsing step. That trades a small formatting convenience for a less honest control flow.
+
+![Illustration of a measured request timeline comparing a one-response path with a tool loop, without fabricated performance numbers](/blog/when-should-i-use-structured-outputs-vs-function-calling-request-timeline.webp)
+
+## How to choose an owner for each decision
+
+The interface choice is clearer when you draw decision ownership explicitly. Use this table in a design review.
+
+| Decision | Good owner | Why |
+| --- | --- | --- |
+| Whether a string can be parsed as the declared response type | Provider plus application validator | The provider constrains shape; the application handles actual errors and compatibility. |
+| Whether the model should request a capability | Model within an allowed tool set, guided by descriptions and policy | Function calling exposes a capability choice while the application controls what is available. |
+| Whether the user may perform an operation | Application authorization and policy | The model cannot establish identity or authority. |
+| Whether a risky action needs confirmation | Application workflow and human reviewer where required | The tool call is a proposal, not consent. |
+| Whether a database write is idempotent | Tool implementation and persistence layer | A schema cannot prevent duplicate effects. |
+| Whether the external operation succeeded | Tool executor and downstream service | Only the actual result can support a completion claim. |
+| What the final UI can render | Final response schema and renderer | Keep user-facing output separate from tool arguments. |
+| Whether the answer is semantically correct | Domain validator, evaluator, or human reviewer | Valid syntax is not valid meaning. |
+
+The table also shows why a format decision cannot solve every reliability problem. Structured outputs and function calling are interface mechanisms. They are valuable precisely because they make the next responsibility visible, not because they eliminate it.
+
+## A release checklist for the choice
+
+Before shipping, answer these questions in the code review or design document.
+
+### Boundary
+
+1. What is the exact next consumer of the model response?
+2. Is it a parser or renderer, an external capability, or both?
+3. If it is both, where is the boundary between tool input, tool result, and final response?
+
+### Control flow
+
+4. Can the model answer without a tool, or must a tool always run?
+5. Who executes application code after the model response?
+6. What happens when the model refuses, truncates, returns an invalid response, or chooses no tool?
+7. Can the tool return an error without the model claiming success?
+
+### Schema
+
+8. Does the schema represent missing or unknown values honestly?
+9. Are tool inputs narrower than the full application object?
+10. Are user-facing response fields separated from internal authorization and persistence fields?
+11. Does the provider support the schema features you used?
+12. Are schema versions independent where the two boundaries evolve independently?
+
+### Safety and correctness
+
+13. Where are authentication and authorization checked?
+14. Which values come from the session or server rather than the model?
+15. Which actions require confirmation or human approval?
+16. Are writes idempotent and safe to retry?
+17. What validates semantic correctness after schema validation?
+18. What proves that an external action succeeded?
+
+### Operations
+
+19. Do traces distinguish a model response, a tool request, a tool result, and a final response?
+20. Can you measure tool latency separately from model latency?
+21. Are provider, model, endpoint, schema, and SDK changes visible in logs?
+22. Is the next review date set for current provider behavior and support status?
+
+If the team cannot answer question 5, pause. The system has not yet chosen an execution owner. If it cannot answer question 17, do not treat strict mode as a quality guarantee.
+
+## What I would choose in common designs
+
+Here is the compact recommendation after applying the rule.
+
+| Design | First choice | Add the other interface when |
+| --- | --- | --- |
+| Extract fields from a document | Structured outputs | You then need a model-selected lookup or action. |
+| Classify and queue a request | Structured outputs | The model must choose among callable systems or operations. |
+| Answer with current account data | Function calling | The final client needs a typed response object. |
+| Send a message | Function calling | The application wants a structured final receipt or status object. |
+| Render a model-generated form | Structured outputs | Form submission invokes a capability, which should be separate from the rendering schema. |
+| Search, then answer with citations | Both | Rarely, if the tool result can be passed to a plain-text answer and no typed client contract exists. |
+| Build a draft for human review | Structured outputs | Approval or execution is delegated back to the model in an open-ended flow. |
+| Run a deterministic workflow | Structured state output or plain text | The model must choose a capability rather than return state. |
+| Plain conversation with no parser or tool | Neither | A later consumer needs a stable contract. |
+
+The word first matters. A workflow can start with a structured extraction and later use a tool. It can start with a tool lookup and later return plain text. Choosing one interface at one boundary does not commit the whole product to that interface.
+
+## The principal exception: the model may need both a tool and a final contract
+
+The principal exception to the simple choice is a workflow that needs external capability and a typed final answer. In that case, do not ask which one wins. Use the pair at the correct boundaries.
+
+OpenAI documents Structured Outputs through function calling and through a response format. Google documents structured output with tools for supported Gemini 3 models. Anthropic says JSON outputs and strict tool use work together. These are current provider capabilities, not permanent guarantees. Confirm support for the exact endpoint and model.
+
+The architecture remains provider-neutral:
+
+```text
+user request
+    |
+    v
+model decides whether a capability is needed
+    |
+    v
+tool request -> authorization -> execution -> tool result
+    |
+    v
+model produces final typed response
+    |
+    v
+semantic validation -> renderer or next deterministic step
+```
+
+The two schemas should be named and tested separately. If you reuse a single schema because the fields look similar, you lose the ability to evolve the capability without changing the UI or to test authorization independently from presentation.
+
+## What this page does not claim
+
+This decision rule does not claim that structured outputs are always more reliable than function calling. Strict tool arguments can be more appropriate than a response schema when the model must call a capability. Structured final responses can still contain wrong values. Tool selection can still be wrong. A tool can still return stale data. A provider can support one combination and reject another.
+
+This page also does not claim that one provider's feature names transfer to another. OpenAI, Google, and Anthropic currently document similar concepts with different request shapes, model support, and restrictions. Use the provider's current docs when implementing.
+
+Finally, this page does not claim a measured latency, cost, or accuracy advantage. Those depend on the model and workflow. If someone publishes a number, check the method before applying it to your application.
+
+## A final test before you write code
+
+Take the response you are about to design and describe it without the words JSON, schema, structured, function, or tool.
+
+Say either:
+
+> The model will return a typed description that my application will parse, validate, and render or store.
+
+or:
+
+> The model will request a capability that my application will authorize, execute, and report back.
+
+If both sentences are true, draw two boundaries. If neither is true, plain text may be the better interface.
+
+That test catches the confusion earlier than an SDK does. It also gives a team a common language for review. The question is not “Which feature produces nicer JSON?” The question is “What is this response allowed to mean next?”
+
+If you are learning to build an AI feature on your own work, Marius Manolachi's [AI learning and consulting work](https://mariusmanolachi.com/learn-ai) follows the same practical direction: define the boundary, make the next step explicit, and ship a small contract that a person can test. The article is complete without that next step. The useful decision is already here.
