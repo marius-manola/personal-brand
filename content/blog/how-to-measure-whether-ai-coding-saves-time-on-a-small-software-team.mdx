@@ -1,0 +1,241 @@
+---
+title: 'How to Measure Whether AI Coding Saves Time on a Small Team'
+date: '2026-08-22'
+updated: '2026-08-22'
+excerpt: 'A reproducible small-team protocol for measuring AI coding time, review, rework, tests, and accepted changes without inventing a productivity result.'
+answer: 'Measure a matched task set in assisted and unassisted conditions, then compare net human time per accepted change, not generated code. Record build time, review, tests, retries, rework, and final acceptance under a dated tool configuration. This protocol can validate the measurement logic, but it cannot claim savings until a real team run produces public raw logs and review evidence.'
+targetQuery: 'how to measure whether AI coding saves time on a small software team'
+queryAliases:
+  - 'measure AI coding time savings on a small team'
+  - 'AI coding productivity benchmark for a small team'
+  - 'does AI coding save software team time'
+intent: 'informational'
+funnel: 'consideration'
+cluster: 'evaluation'
+parent: '/blog/how-to-evaluate-an-ai-agent'
+contentType: 'original-research'
+kind: 'flagship'
+sourceableAtom: 'A small-team AI-coding benchmark becomes recomputable when it defines accepted change as the unit, pairs tasks across assisted and unassisted conditions, records human time and rework separately, and applies a critical-failure veto before reporting net time savings.'
+evidenceType: 'reproducible-decision-artifact + bounded-firsthand-observation'
+evidenceBasis: 'A benchmark protocol artifact and deterministic local validator were run on 2026-08-22 with Node.js v24.11.1. The checks cover accepted-change boundaries, rework accounting, critical-failure vetoes, repeatability, ties, and result recomputation; no assisted or unassisted coding run is claimed.'
+tags:
+  - 'AI coding'
+  - 'Evaluation'
+  - 'Developer productivity'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-20'
+sources:
+  - 'https://metr.org/blog/2025-07-10-early-2025-ai-experienced-os-dev-study/'
+  - 'https://metr.org/blog/2026-02-24-uplift-update/'
+  - 'https://dora.dev/research/2025/measurement-frameworks/'
+  - 'https://commandline.microsoft.com/engineering-thrive-engthrive-productivity-measurement-framework-agentic-ai-era/'
+  - 'https://github.blog/news-insights/research/does-github-copilot-improve-code-quality-heres-what-the-data-says/'
+cover: '/blog/how-to-measure-whether-ai-coding-saves-time-on-a-small-software-team-ai-coding-time-benchmark-hero.webp'
+coverAlt: 'Illustration of a small software team measuring assisted and unassisted coding paths until an accepted change'
+draft: false
+---
+
+The argument usually starts with a number that is easy to collect: lines generated, suggestions accepted, pull requests opened, or time spent in the editor. None of those numbers tells a small team whether it shipped accepted work with less human effort.
+
+The useful unit is an accepted change. That means the code passes the agreed tests, a human accepts the result, and no critical failure survives the comparison. Everything between the first prompt and that boundary belongs in the record.
+
+## What should a small team measure?
+
+Measure net human time per accepted change. Count the time spent building, reviewing, repairing test failures, and reworking an initially plausible patch. Do not treat generated code, token volume, or a passing first test as the outcome.
+
+This definition answers the question the team actually cares about: how much human effort did it take to get a change across its acceptance boundary? A tool can reduce typing while increasing review or repair. It can also make a developer faster on easy edits while adding uncertainty to changes that touch several modules. One aggregate “productivity” number hides both effects.
+
+Microsoft's engineering guidance separates activity measures from outcomes. Code volume and pull-request counts describe activity. They do not, on their own, show that a team delivered more useful or reliable software. DORA's 2025 measurement guidance makes a similar practical move: keep existing developer-experience measures, such as perceived productivity and review time, while adding signals that describe the use of AI. [Microsoft's measurement guidance](https://commandline.microsoft.com/engineering-thrive-engthrive-productivity-measurement-framework-agentic-ai-era/) and [DORA's measurement frameworks](https://dora.dev/research/2025/measurement-frameworks/) are useful guardrails for the protocol.
+
+The first decision is therefore a boundary decision.
+
+| Count it as an accepted change when | Do not count it as accepted when |
+| --- | --- |
+| The predefined acceptance tests pass. | The code only compiles or looks plausible. |
+| A reviewer accepts the result against the same criteria. | The author stops because the initial output seems good enough. |
+| Critical safety, data, or behavior checks pass. | A known critical failure is waived because the patch was fast. |
+| The task is complete at the same scope in both conditions. | The assisted condition quietly receives an easier interpretation. |
+
+The principal exception is exploratory work with no stable acceptance test. In that case, define a review rubric and an explicit stopping rule before the comparison. If nobody can say what counts as done, the team does not yet have a time-savings experiment. It has a tool impression.
+
+## What is the smallest fair comparison?
+
+Use a frozen task set from the team's real repository, then assign comparable tasks to assisted and unassisted conditions. The comparison is fair only when the tasks, repository revision, acceptance rules, and operating constraints are visible before anyone starts.
+
+A small team does not need a huge benchmark to learn something useful. It does need tasks that represent the work it wants to change. Select tasks from recent issues, maintenance requests, bug fixes, or feature slices. Remove private data and secrets, but do not rewrite the work into toy prompts. A toy task measures performance on a toy task.
+
+Freeze the repository revision and write the task manifest before the first run. Each row needs enough information for another person to understand the task without watching the original discussion:
+
+| Field | What to record | Why it matters |
+| --- | --- | --- |
+| Task ID | Stable identifier such as `auth-03` | Lets logs, tests, and review notes join later. |
+| Repository revision | Commit or archive checksum | Prevents the codebase from changing between conditions. |
+| Task statement | The request given to the developer | Keeps the starting instruction inspectable. |
+| Difficulty note | Files, dependencies, ambiguity, and risk | Makes pairing possible without pretending tasks are identical. |
+| Acceptance tests | Commands or checks and their expected result | Defines the finish line before the tool is used. |
+| Critical checks | Security, data-loss, or behavior vetoes | Prevents a fast unsafe change from winning. |
+| Scope boundary | What is explicitly out of scope | Stops one condition from solving a larger problem. |
+
+Pair tasks by difficulty rather than assigning every easy task to one condition. If the team has too few tasks for a meaningful random assignment, use a counterbalanced sequence: one developer does a comparable task assisted and another does it unassisted, then reverse the order on the next pair. Record who did what and in which order. Experience, fatigue, and familiarity are part of the context.
+
+Do not claim statistical certainty from a tiny task set. The purpose of a small first run is to expose where the cost moves. If review time rises, the team needs to see that. If a particular task class fails repeatedly, the team needs that decision signal more than a polished average.
+
+![Illustration of a coding benchmark task manifest with repository files, acceptance tests, and difficulty notes](/blog/how-to-measure-whether-ai-coding-saves-time-on-a-small-software-team-ai-coding-task-manifest.webp)
+
+## What should each run record?
+
+Record enough events to reconstruct the accepted change from start to finish. At minimum, separate elapsed time from active human time, because a model can be waiting on a response while the developer works elsewhere, and a developer can be reading or reviewing without touching the editor.
+
+Use one run row per person, task, condition, and dated tool configuration. A practical schema looks like this:
+
+```text
+run_id
+task_id
+condition: assisted | unassisted
+repository_revision
+developer_id_or_blinded_code
+tool_and_model_versions
+prompt_or_instruction_revision
+started_at
+accepted_at
+wall_clock_seconds
+active_build_seconds
+review_seconds
+rework_seconds
+test_failure_repair_seconds
+retry_count
+test_failure_count
+review_edit_count
+acceptance_status: accepted | rejected | blocked
+critical_failure: true | false
+notes_and_exclusions
+```
+
+The fields answer different questions. Wall-clock time tells you how long the task occupied the process. Active build time tells you how much human attention went into producing the first change. Review time tells you whether the first output shifted work downstream. Rework time records edits caused by a failed review or failed test. Retry and failure counts expose friction that a single timer misses.
+
+Keep model interaction data separate from human time. Tokens, prompts, and tool calls matter for operating cost and for explaining a run, but a high token count is not proof of high human effort. Likewise, a low token count is not proof that the accepted change was cheap. Record those fields so another analyst can inspect the path without using them as a substitute for the outcome.
+
+The most important timestamp is the acceptance boundary, not the moment the first patch appears. If a developer pauses the run to ask a teammate a question, record the pause and the rule used to include or exclude it. Apply that rule to both conditions. Do not quietly stop the timer whenever the assisted path is waiting on a model or whenever the unassisted path is reading documentation.
+
+![Illustration of one coding task measurement trace covering wall-clock time, tokens, retries, tests, review, and acceptance](/blog/how-to-measure-whether-ai-coding-saves-time-on-a-small-software-team-ai-coding-measurement-trace.webp)
+
+The same rule applies to retries. A retry is part of the cost when it is needed to reach acceptance. If a model makes three failed tool calls before producing a usable patch, those calls are not an embarrassing footnote. If a developer rewrites a test after misunderstanding the task, that rework is part of the unassisted path. The comparison is about the work required to finish, not about which path looks cleaner in a transcript.
+
+## How should assisted and unassisted conditions be controlled?
+
+Change one main variable at a time: whether the coding assistance is available. Hold the repository revision, task statement, acceptance tests, scope, network policy, and time-recording rule constant. Record every exception instead of smoothing it away later.
+
+The assisted condition needs a tool configuration. Name the model, editor or agent, version, permission mode, context sources, and date. The unassisted condition needs an equally clear boundary. Does the developer use ordinary documentation? Can they search the web? Can they run local tests? The answer can be yes, but it must be the same for the questions that do not belong to the assistance variable.
+
+The point is not to create a laboratory that bears no resemblance to work. The point is to make the comparison interpretable. METR's 2025 study is a useful example of why scope matters. It reports a bounded comparison of experienced open-source developers working on their repositories in a particular period, not a universal law about AI coding. Its reported 19% increase in completion time is a result from that setting, with that population and those tools. Read [the METR study](https://metr.org/blog/2025-07-10-early-2025-ai-experienced-os-dev-study/) as evidence for careful task definition, not as a number to paste into a small-team business case.
+
+Counterbalance order when possible. If the same developer always begins with assistance, learning and fatigue can masquerade as a tool effect. If a task must be repeated, keep the task statement and repository revision fixed, and mark the repetition. Do not let the second attempt inherit knowledge from the first without recording that fact.
+
+Concurrency deserves its own rule. If a developer uses two agents at once, wall-clock time alone becomes ambiguous. Either prohibit concurrent agents for the first comparison, or make concurrency an explicit condition with an event log that can show overlapping work. METR's later update discusses selection and timing problems that make central estimates unreliable in some settings. [The update](https://metr.org/blog/2026-02-24-uplift-update/) is a warning about instrumentation, not a reason to discard measurement.
+
+![Illustration of matched assisted and unassisted coding conditions using the same repository and tests](/blog/how-to-measure-whether-ai-coding-saves-time-on-a-small-software-team-ai-coding-matched-conditions.webp)
+
+## How do you include review, tests, and rework?
+
+Treat review, tests, and rework as part of the path to acceptance. A first patch is an intermediate artifact. It becomes evidence about time savings only after the same acceptance process has run on both conditions.
+
+Use deterministic checks first. Run the same formatter, type checker, unit tests, integration tests, and task-specific assertions where they apply. Capture the command, revision, output status, and failure count. A green test suite is necessary, but it may not be sufficient. A test can miss a requirement, and a patch can pass tests while violating a critical behavior rule.
+
+Then use human review. The reviewer needs the same acceptance rubric for both conditions and should inspect the diff, not only the test output. Count review edits as a simple indicator, but preserve the notes that explain them. One large change and five small wording edits should not silently become the same event. The notes are the evidence that lets the team distinguish a cosmetic correction from a repair to behavior.
+
+GitHub's controlled Copilot study is relevant here because it evaluates functionality with unit tests and code quality with expert review rather than using completion time alone. That makes it a useful model for separating correctness from speed, while its result remains a study of Copilot, a defined task, and a particular study design. [GitHub's study description](https://github.blog/news-insights/research/does-github-copilot-improve-code-quality-heres-what-the-data-says/) should inform the fields, not become a local benchmark row.
+
+Create a critical-failure veto before the run. Examples include a security regression, data loss, an authorization bypass, a broken migration, or a requirement explicitly marked non-negotiable. A candidate with a critical failure is `BLOCK`, even if its net human time is lower. This keeps a weighted score from turning a severe defect into a small penalty.
+
+The accepted-change rule can be written plainly:
+
+```text
+accepted_change =
+  acceptance_tests_pass
+  AND reviewer_accepts
+  AND critical_failure == false
+```
+
+![Illustration of generated code passing through tests, review, rework, and final acceptance](/blog/how-to-measure-whether-ai-coding-saves-time-on-a-small-software-team-ai-coding-rework-boundary.webp)
+
+If the task is rejected, retain the run. A rejection is not missing data. It tells you that one condition did not reach the delivery boundary and that “time per successful change” needs a denominator rule. Decide that rule before looking at the result. You might report both completion rate and net time per accepted change. Do not drop rejected tasks because they make one condition look worse.
+
+## What result table should you publish?
+
+Publish a result table that distinguishes the artifact's validated behavior from a real coding result. The first table below is the local result for this page. It is not a model benchmark.
+
+| Check | Fixture | Observed result | What it establishes |
+| --- | --- | --- | --- |
+| Accepted-change boundary | Passing tests, reviewer acceptance, no critical failure | `ACCEPT` | A complete row can cross the finish line. |
+| Critical veto | Lower-time row with a critical failure | `BLOCK` | Safety and acceptance can override speed. |
+| Recompute | Same inputs evaluated twice | Same output both times | The decision logic is deterministic. |
+| Tie handling | Equal valid net times | `TIE` | The protocol does not invent a winner. |
+| Rework inclusion | Fast first patch plus review and test repair | Costs included | Initial generation is not the outcome. |
+
+The local validator ran these fixtures with Node.js v24.11.1 on 2026-08-22. The result is worth publishing because another person can reproduce the logic from the protocol. It is also deliberately narrow. No developer timed a coding task for this article. No model was compared. No percentage was inferred from the table.
+
+When the real team run exists, use a second table with one row per task or task class. Keep the columns boring and inspectable:
+
+| Task class | Condition | Runs | Accepted | Median net human time | Review edits | Test failures | Critical blocks |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Bug fix | assisted | record actual value | record actual value | record actual value | record actual value | record actual value | record actual value |
+| Bug fix | unassisted | record actual value | record actual value | record actual value | record actual value | record actual value | record actual value |
+| Feature slice | assisted | record actual value | record actual value | record actual value | record actual value | record actual value | record actual value |
+| Feature slice | unassisted | record actual value | record actual value | record actual value | record actual value | record actual value | record actual value |
+
+Do not publish empty illustrative numbers in the real-result table. Use actual values only after the run. A result table with “record actual value” is a schema example, not evidence, so label it as such or remove it from the published benchmark. This page's checked table contains observed control results, which is why it is safe to report.
+
+## How do you calculate time saved without losing the denominator?
+
+Calculate time change from net human time per accepted change, and report completion rate beside it. The formula is simple; the denominator is where most claims become slippery.
+
+```text
+net_human_time =
+  active_build_time
+  + review_time
+  + rework_time
+  + test_failure_repair_time
+
+time_change_percent =
+  (assisted_net_time - unassisted_net_time)
+  / unassisted_net_time
+  * 100
+```
+
+A negative percentage means the assisted path used less recorded human time in that comparison. It does not automatically mean the team is more productive. Put acceptance rate, critical blocks, review edits, and task mix beside the percentage. If an assisted condition completes fewer tasks, a lower time on the tasks it did complete may not improve delivery.
+
+Use a median when a few long tasks can dominate an average, but show the task-level rows as well. With a small sample, do not present a median as a stable estimate of future work. Mark the result as exploratory and report the range. If the task set is too small to support a useful aggregate, report the failure pattern instead: for example, which task class needed the most rework or which condition crossed the acceptance boundary less often. That is a decision signal, not a manufactured statistic.
+
+Keep cost as a separate dimension. Model usage, subscriptions, developer time, review time, and infrastructure can matter to the business case, but adding money to a time formula makes the result harder to read. Link this benchmark to the broader cost discussion in [How to Calculate ROI for an AI Agent](/blog/how-to-calculate-roi-for-an-ai-agent), where lifecycle costs and attributable benefits belong in the business decision. Time measurement supplies one input to that calculation. It does not replace it.
+
+The comparison also needs a stop rule. If the assisted path triggers a critical block, stop the decision and inspect the failure before running more tasks. If results tie within the declared threshold, keep testing only if the cost of more evidence is justified. Otherwise, a tie is a valid outcome: the current task set does not distinguish the conditions.
+
+## How should a small team run the protocol?
+
+Run a short, bounded pilot in nine steps. The order matters because changing the acceptance rule after seeing the first output turns the benchmark into an argument.
+
+1. **Choose a real work slice.** Select a small set of bug fixes, maintenance tasks, or feature slices from the repository. Remove confidential content without removing the technical difficulty.
+2. **Freeze the starting point.** Record the repository revision, dependency state, tests, operating system, and task manifest. Save a checksum or public archive where possible.
+3. **Define done.** Write acceptance tests, review criteria, scope boundaries, and critical-failure vetoes before assigning conditions.
+4. **Pair the tasks.** Match tasks by difficulty and risk. Record the pairing logic and any task excluded before the run.
+5. **Freeze the configuration.** Record the model, editor or agent, permissions, prompt revision, date, and network access for the assisted condition. Record the allowed tools for the unassisted condition.
+6. **Counterbalance the order.** Spread assisted and unassisted work across people and sequence. Record prior familiarity, pauses, and concurrent work.
+7. **Capture the run.** Start and stop the timer at the declared boundaries. Record active time, review, rework, retries, tests, failures, and acceptance status.
+8. **Review blind where practical.** Give the reviewer the same rubric and hide the condition when that is feasible. If blinding is impractical, record who knew what and treat it as a limitation.
+9. **Publish the record.** Keep the task manifest, raw logs, test output, review notes, analysis code, result table, and exclusions together. State what the result does not generalize to.
+
+The protocol is small enough for a team to run without building a research department. It is strict enough to prevent the most common category error: mistaking a faster first draft for a faster accepted change.
+
+## What does this method still not tell you?
+
+It does not tell you whether AI coding saves time for every developer, repository, task class, or tool. It gives you a way to ask the question with a visible boundary and a reproducible record.
+
+The local artifact has no model result. That is a limit, not a missing marketing paragraph. METR's findings cannot be transferred to this team without a comparable task and population. GitHub's findings cannot be transferred from its Copilot study without matching the tool and task conditions. DORA and Microsoft provide measurement guidance, not a local causal estimate.
+
+The method also leaves several questions open. How many tasks are enough for a team's decision? How should a team model learning effects when people repeat a task class? How much review time is caused by unfamiliar code rather than assistance? What happens when the tool changes midway through a quarter? These are design choices that the team must record. There is no honest universal threshold in this article.
+
+When I taught product managers who went from writing specs to building and shipping the product, the recurring obstacle was often an undefined “done,” not an inability to produce code. That is why the first artifact here is a task contract, not a leaderboard. If the team cannot define the accepted change, it cannot interpret a time comparison yet.
+
+For a wider release decision, use this protocol with the [AI agent release gate](/blog/how-to-evaluate-an-ai-agent). For the commercial decision, connect the accepted-change result to real cost and benefit evidence. If you want help teaching a team to build and evaluate on its own work, [learn more about working with Marius Manolachi](/learn-ai). The measurement remains yours.
+
+![Illustration of a reproducible benchmark result recomputed from raw logs, tests, and analysis code](/blog/how-to-measure-whether-ai-coding-saves-time-on-a-small-software-team-ai-coding-recompute-result.webp)
