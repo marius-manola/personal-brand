@@ -9,7 +9,6 @@ import LinkedInQuote from '@/app/components/LinkedInQuote';
 import PhotoStrip from '@/app/components/PhotoStrip';
 import QualifyForm from '@/app/components/QualifyForm';
 import MobileLearnAI from '@/app/components/MobileLearnAI';
-import MobileConsultingPopup from '@/app/components/MobileConsultingPopup';
 import {
   fit,
   guarantee,
@@ -323,7 +322,6 @@ export default function LearnAI() {
         </div>
       </div>
       </div>
-      <MobileConsultingPopup />
     </>
   );
 }

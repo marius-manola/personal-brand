@@ -1,69 +1,51 @@
 'use client';
 
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 
-const DISMISSED_KEY = 'mobile-consulting-offer-dismissed';
+const REVEAL_PROGRESS = 0.05;
 
-export default function MobileConsultingPopup() {
-  const pathname = usePathname();
+export default function MobileConsultingPopup({ calendarUrl }: { calendarUrl: string }) {
   const [shouldShow, setShouldShow] = useState(false);
-  const [formInView, setFormInView] = useState(false);
   const [removed, setRemoved] = useState(false);
-  const onLearnPage = pathname === '/learn-ai';
-  const visible = shouldShow && !formInView && !removed;
+  const visible = shouldShow && !removed;
 
   const dismiss = useCallback(() => {
     setShouldShow(false);
-    try {
-      window.sessionStorage.setItem(DISMISSED_KEY, '1');
-    } catch {
-      // The offer can still be dismissed when session storage is unavailable.
-    }
     window.setTimeout(() => setRemoved(true), 420);
   }, []);
 
   useEffect(() => {
     if (!window.matchMedia('(max-width: 767px)').matches) return;
-    try {
-      if (window.sessionStorage.getItem(DISMISSED_KEY) === '1') {
-        setRemoved(true);
-        return;
-      }
-    } catch {
-      // Continue without persistence when storage access is blocked.
-    }
 
-    const reveal = () => setShouldShow(true);
-    const timer = window.setTimeout(reveal, 4800);
-    const onScroll = () => {
-      if (window.scrollY > window.innerHeight * 0.55) reveal();
+    const article = document.querySelector<HTMLElement>('[data-blog-article]');
+    if (!article) return;
+
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const articleTop = window.scrollY + article.getBoundingClientRect().top;
+      const scrollableLength = Math.max(article.offsetHeight - window.innerHeight, 1);
+      const progress = (window.scrollY - articleTop) / scrollableLength;
+      if (progress >= REVEAL_PROGRESS) setShouldShow(true);
+    };
+    const scheduleUpdate = () => {
+      if (!frame) frame = window.requestAnimationFrame(update);
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') dismiss();
     };
 
-    window.addEventListener('scroll', onScroll, { passive: true });
+    update();
+    window.addEventListener('scroll', scheduleUpdate, { passive: true });
+    window.addEventListener('resize', scheduleUpdate);
     window.addEventListener('keydown', onKeyDown);
     return () => {
-      window.clearTimeout(timer);
-      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('scroll', scheduleUpdate);
+      window.removeEventListener('resize', scheduleUpdate);
       window.removeEventListener('keydown', onKeyDown);
+      if (frame) window.cancelAnimationFrame(frame);
     };
   }, [dismiss]);
-
-  useEffect(() => {
-    if (!onLearnPage) return;
-    const application = document.querySelector('#mobile-apply');
-    if (!application) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => setFormInView(entry.isIntersecting),
-      { threshold: 0.05 },
-    );
-    observer.observe(application);
-    return () => observer.disconnect();
-  }, [onLearnPage]);
 
   if (removed) return null;
 
@@ -88,14 +70,13 @@ export default function MobileConsultingPopup() {
         <h2>Bring the work you are stuck on.</h2>
         <span>We build it together, on your screen, until you can do it without me.</span>
       </div>
-      <Link
-        href={onLearnPage ? '#mobile-apply' : '/learn-ai'}
+      <a
+        href={calendarUrl}
         className="mobile-consult-link"
-        onClick={() => setShouldShow(false)}
         tabIndex={visible ? 0 : -1}
       >
-        See if it fits <span aria-hidden="true">→</span>
-      </Link>
+        Schedule a call <span aria-hidden="true">→</span>
+      </a>
     </aside>
   );
 }

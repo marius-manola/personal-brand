@@ -203,7 +203,7 @@ export default async function BlogPostPage({ params }: PageProps) {
           <Link href="/">Marius Manolachi</Link>
         </nav>
 
-        <article>
+        <article data-blog-article>
           <header className="blog-article-header">
             <p className="m-blog-kicker mobile-experience">Field note · {post.metadata.cluster || 'AI products'}</p>
             <div className="blog-post-meta desktop-experience">
