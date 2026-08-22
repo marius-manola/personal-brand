@@ -1,0 +1,173 @@
+---
+title: 'Should a Small Company Use a Local LLM or an API?'
+date: '2026-08-22'
+updated: '2026-08-22'
+excerpt: 'Use a workflow scorecard to choose a local LLM, an API, or a hybrid pilot based on data boundaries, workload shape, quality, and ownership.'
+answer: 'Most small companies should start with an API for a new workflow because usage is irregular and the provider carries model operations. Choose a local LLM when offline use, a prohibited external data path, or predictable high utilization is non-negotiable and someone can run the service. If the score is close, pilot a hybrid split instead of forcing one company-wide answer.'
+targetQuery: 'should a small company use a local LLM or an API'
+queryAliases:
+  - 'local LLM vs API for a small business'
+  - 'should a small business run an LLM locally'
+  - 'self-hosted LLM or API'
+intent: 'architecture and commercial investigation'
+funnel: 'consideration'
+cluster: 'architecture'
+parent: '/blog/when-to-use-an-ai-agent'
+contentType: 'decision-tool'
+kind: 'satellite'
+sourceableAtom: 'A reproducible workflow-level scorecard with hard vetoes for offline or prohibited external processing, an operations-owner check against unmanaged self-hosting, and a three-point margin for choosing Local, API, or a hybrid pilot.'
+evidenceType: 'reproducible decision artifact'
+evidenceBasis: 'Original scorecard, hard-veto rules, decision thresholds, and worked scenarios grounded in current OpenAI, Ollama, and NIST documentation. No local-versus-API benchmark is claimed.'
+tags:
+  - 'AI architecture'
+  - 'AI strategy'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-20'
+sources:
+  - 'https://developers.openai.com/api/docs/guides/your-data#default-usage-policies-by-endpoint'
+  - 'https://platform.openai.com/pricing'
+  - 'https://docs.ollama.com/api/introduction'
+  - 'https://docs.ollama.com/faq'
+  - 'https://www.nist.gov/itl/ai-risk-management-framework/nist-ai-rmf-playbook'
+faq:
+  - q: 'Is a local LLM automatically more private?'
+    a: 'It can keep prompts on infrastructure you control, but privacy still depends on network exposure, access controls, logs, backups, model files, and the operator. Local is a data-path choice, not a complete security program.'
+  - q: 'Can a small company use both a local LLM and an API?'
+    a: 'Yes. Use a local model for bounded or sensitive transformations and an API for harder reasoning, bursts, or tasks that need managed capacity. Keep the routing rule and data boundary explicit.'
+  - q: 'Should we buy hardware before testing an AI workflow?'
+    a: 'Usually no. Establish the task, evaluation set, and API baseline first unless offline operation or prohibited external processing is already a hard requirement.'
+cover: '/blog/should-a-small-company-use-a-local-llm-or-an-api-hero.webp'
+coverAlt: 'Illustration of a small company choosing between a local LLM server and an API connection'
+draft: false
+---
+
+The first mistake is making this a company-wide decision. A small company can use an API for one workflow and a local model for another without being inconsistent.
+
+When I taught product managers who moved from writing specs to building and shipping products, I saw the same pattern: teams wanted to pick the stack before they had defined what “done” meant. The model location has the same trap. Decide the workflow, its data boundary, and its operating owner first.
+
+### The decision artifact
+
+Use the scorecard below per workflow. It is the original decision artifact in this post, not a benchmark. It gives you a reproducible answer without pretending that “local” or “API” is always cheaper or better.
+
+| First question | Decision | Why it overrides the score |
+| --- | --- | --- |
+| Must the workflow run offline, or is external processing prohibited? | Start Local | An API cannot satisfy a hard data-path or connectivity constraint. |
+| Is there no named owner for model updates, access control, monitoring, capacity, and incidents? | Start API | Unmanaged infrastructure creates operational risk even if the model stays on your network. |
+| Is the workflow high impact without a representative evaluation set? | Choose neither for autonomous use | You need a test and approval path before choosing where the model runs. |
+
+After the vetoes, award points using the six dimensions in the section below. Local wins at `Local points >= API points + 3`. API wins at `API points >= Local points + 3`. A margin of 0-2 means the right answer is a hybrid pilot or more measurement.
+
+![Illustration of a workflow decision tree separating local LLM, API, and hybrid pilot choices](/blog/should-a-small-company-use-a-local-llm-or-an-api-inline-1.webp)
+
+## Start with the workflow, not the model
+
+Choose a local LLM when the workflow needs a controlled data path, offline operation, predictable utilization, or a bounded capability that your team can run. Choose an API when the workflow is new, bursty, quality-sensitive, or better served by provider-managed capacity.
+
+A local LLM means the model runs on hardware or infrastructure your company controls. “Local” can mean a developer machine, an office server, or a private environment. Those are not equal deployments. They differ in uptime, access control, backups, hardware headroom, and who responds when inference stops working.
+
+An API means your application sends requests to a model provider and receives responses over a network. The provider handles the model-serving layer, but your company still owns the prompt, application security, data minimization, evaluation, and spending controls. OpenAI’s documentation is a useful example of the distinction: API data is not used to train models by default, but the platform still documents abuse-monitoring logs, application-state retention, endpoint eligibility, and regional-processing limits ([OpenAI’s data controls](https://developers.openai.com/api/docs/guides/your-data#default-usage-policies-by-endpoint)).
+
+That is why “API equals unsafe” is too simple. It is also why “the provider does not train on our data” does not answer every privacy question. Your legal, security, and data-processing requirements decide whether the provider’s controls are sufficient.
+
+## How should a small company score the choice?
+
+Give one point to the option that fits each condition. Score the workflow, not the whole company.
+
+| Dimension | Give the point to Local when | Give the point to API when |
+| --- | --- | --- |
+| Workload shape | Requests are steady enough to keep hardware useful | Requests are bursty, seasonal, or still unknown |
+| Quality requirement | A bounded task is good enough on the selected open-weight model | The workflow needs the strongest available general reasoning or multimodal quality |
+| Connectivity | Offline or controlled-network operation matters | Reliable internet is available and simpler operations matter |
+| Operations | A named owner can run the service, hardware, updates, and incidents | The team wants provider-managed capacity and upgrades |
+| Control | The company needs tight control over model version, placement, and data path | The company values fast model substitution and managed access |
+| Cost evidence | Hardware is already available and utilization is predictable | Usage is low, irregular, or still being discovered |
+
+The threshold matters because a close score is not a real decision. If Local leads by one point, the missing evidence may be more important than the winner. If API leads by two points, a small change in traffic or quality requirements could reverse the result.
+
+Treat the score as a prompt for evidence. For example, “steady enough to keep hardware useful” means you have a workload estimate, not a hope that employees will use the system. “Good enough” means you have representative cases and an acceptance threshold, not a demo that looked convincing once.
+
+NIST’s AI Risk Management Framework places risk work across design, development, deployment, use, and evaluation. Its playbook organizes suggested actions around Govern, Map, Measure, and Manage, and is intended to scale to organizations of different sizes ([NIST’s AI RMF Playbook](https://www.nist.gov/itl/ai-risk-management-framework/nist-ai-rmf-playbook)). That supports a practical rule here: the deployment choice comes after the owner, data path, evaluation, and failure response are visible.
+
+## When does a local LLM win?
+
+Local wins when the data path or operating environment is non-negotiable, and the company can afford to own the service.
+
+The clearest case is offline work. If the workflow must run without a reliable connection, an API is excluded before cost or quality enters the discussion. The same is true when a contract or internal policy prohibits sending a particular class of data to an external provider. That does not mean any local model is acceptable. You still need a suitable model license, access controls, encrypted storage, backups, and a plan for updates.
+
+Local also becomes more credible for steady, bounded work. A classification, extraction, or drafting task that runs continuously can make existing hardware useful. The word *can* matters. Hardware is not free just because it is already in the building. Include power, replacement, storage, monitoring, and the engineering time to keep the service available.
+
+Ollama’s documentation makes the operational boundary concrete. Its local API runs at `http://localhost:11434/api`, and its FAQ says local runs do not send prompts and data back to Ollama ([Ollama’s API introduction](https://docs.ollama.com/api/introduction), [Ollama’s FAQ](https://docs.ollama.com/faq)). But the same FAQ explains how to bind the server to a network address or put it behind a proxy. Once other machines can reach it, you need authentication, network restrictions, logging, and an owner. Local processing narrows one data path. It does not remove security work.
+
+Capacity is another local constraint. Ollama documents that concurrent processing depends on available system memory or VRAM, that requests can queue, and that an overloaded server can return a 503 response. A local decision therefore needs a capacity test with the expected context length and concurrency. A single successful prompt is not capacity evidence ([Ollama’s concurrency guidance](https://docs.ollama.com/faq)).
+
+## When does an API win?
+
+An API wins for most first production versions when the workflow is still being discovered, traffic is irregular, the team has no model-operations owner, or quality matters more than deployment control.
+
+Small companies often have enough engineering capacity to build the application but not enough spare capacity to operate a model service. That distinction is easy to miss. Running a local model means owning model files, hardware compatibility, memory limits, upgrades, access, observability, capacity, and recovery. An API moves some of that burden to the provider. It does not make your application reliable by itself, but it removes one layer of infrastructure from your team’s queue.
+
+An API is also a sensible baseline for learning. You can measure task quality, cost, latency, and failure modes before buying hardware or committing to a local model. If the workflow never earns enough value to justify its own evaluation and operations, you have avoided an expensive side project.
+
+Cost must be calculated from current usage rather than a subscription comparison. OpenAI publishes API pricing separately from ChatGPT subscriptions, with model and feature rates that can change ([OpenAI API pricing](https://platform.openai.com/pricing)). Use the live pricing page for the provider you are considering. Do not compare a local server with an individual chat subscription when your product is making API calls.
+
+The principal exception is sensitive data. An API may still be acceptable if its contractual, regional, retention, and security controls meet your requirements. OpenAI documents that default abuse-monitoring logs may retain certain content for up to 30 days and that some retention controls require approval. That is enough to make “we heard API data is not used for training” an incomplete review. Read the exact endpoint and contract terms for your use case before sending data.
+
+![Illustration of the operating responsibilities and cost inputs for local LLM inference versus an API](/blog/should-a-small-company-use-a-local-llm-or-an-api-inline-2.webp)
+
+## How do you compare cost without fooling yourself?
+
+Use total cost per successful task, not the model’s headline price.
+
+For an API, calculate:
+
+```text
+monthly API cost = input tokens at current rate
+                 + output tokens at current rate
+                 + tool, storage, and retrieval charges
+                 + observability and application overhead
+```
+
+For local inference, calculate:
+
+```text
+monthly local cost = hardware amortization
+                    + power and cooling
+                    + storage and backups
+                    + maintenance and upgrades
+                    + operator time
+                    + monitoring and recovery
+```
+
+Then divide each by the number of successful tasks that meet your acceptance threshold. If a local model needs more human correction, the lower inference bill may not be the lower cost per useful outcome. If an API produces stronger first-pass results but needs a large context on every call, its token bill may dominate. You will not know which effect wins from a generic comparison article.
+
+Run the calculation with a low, expected, and high workload. Keep hardware and engineering costs fixed across those cases. Keep API rates dated. If your answer flips between low and high usage, that is useful information: build the application behind a provider-neutral interface and keep a local pilot as an option.
+
+## What should the first pilot look like?
+
+Start with one workflow and one evaluation set. Do not build a company-wide local platform or a provider-specific abstraction layer before you know what the task requires.
+
+1. **Name the task and owner.** Write the trigger, user, output, forbidden actions, and person accountable for the result.
+2. **Create representative cases.** Include normal inputs, missing context, long inputs, sensitive records, malformed data, and cases that must escalate. Define what “successful” means before comparing models.
+3. **Run an API baseline.** Record task quality, correction time, latency, token usage, and failure categories. The baseline is for your workflow, not a vendor benchmark.
+4. **Apply the vetoes and scorecard.** Record why each point went to Local or API. If a score depends on an unknown, label it as unknown rather than awarding a convenient point.
+5. **Pilot the losing option on a safe slice.** If the score is close, test the local model on bounded cases or test the API with the exact data controls you would contract for production.
+6. **Choose the deployment boundary.** Keep sensitive transformations local, route quality-critical reasoning to an API, or select one option when the margin and hard constraints are clear.
+7. **Write the exit rule.** Define when you will abandon the local pilot, change providers, add hardware, or stop the workflow. A pilot without an exit rule turns into infrastructure by inertia.
+
+If the project is actually an agent, decide that separately. [When Should You Use an AI Agent?](/blog/when-to-use-an-ai-agent) covers the prior question: whether the workflow needs flexible, multi-step action at all. Choosing local inference for a workflow that should have been ordinary software is still the wrong decision.
+
+![Illustration of a small-company AI pilot moving from evaluation cases to a local, API, or hybrid deployment](/blog/should-a-small-company-use-a-local-llm-or-an-api-inline-3.webp)
+
+## What if the score is close?
+
+Use both, but split by responsibility rather than adding complexity for its own sake.
+
+A sensible hybrid might keep redaction, extraction, or a narrow classification step inside the controlled environment, then send a minimized representation to an API for a harder reasoning task. Another hybrid might use a local model for predictable background work and an API for bursts. In both cases, define exactly what data crosses the boundary, which model can see it, and how you verify the combined result.
+
+Do not use “hybrid” to avoid choosing an owner. You still need monitoring, rate and spend limits, evaluation cases for each route, and a fallback when either side is unavailable. If the hybrid adds two systems but removes no meaningful risk or cost, choose the simpler architecture.
+
+For the next planning step, compare the decision with [How to Set a Budget for an AI Agent](/blog/how-to-set-a-budget-for-an-ai-agent) and [How to Roll Out a New AI Model in Production](/blog/how-to-roll-out-a-new-ai-model-in-production). Those are downstream operating questions, not substitutes for the workflow scorecard.
+
+If you want to turn the scorecard into an evaluation your team can run, [Marius Manolachi’s AI consulting and tutoring](https://mariusmanolachi.com/learn-ai) is built around making existing people capable of building AI products on their own work. The architecture decision still belongs to the people who own the workflow.
+
+The default is simple: start with an API unless local constraints or utilization make local inference clearly worth owning. Keep the scorecard with the design, date the provider terms, and let the workflow earn a more controlled deployment.
