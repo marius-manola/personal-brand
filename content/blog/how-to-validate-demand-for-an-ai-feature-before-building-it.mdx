@@ -1,0 +1,197 @@
+---
+title: 'How to Validate Demand for an AI Feature Before Building It'
+date: '2026-08-22'
+updated: '2026-08-22'
+excerpt: 'Use a one-page hypothesis sheet, seven cheap tests, and explicit stop rules to separate real demand from AI novelty before you spend engineering time.'
+answer: 'Validate demand before building by writing a falsifiable feature hypothesis, then testing seven separate gates: demand, willingness to pay, workaround strength, data feasibility, quality tolerance, unit economics, and product fit. Start with interviews and a manual prototype, then seek a fake-door action or paid pre-commitment. Build only when every gate passes its threshold. The exception is a learning-only prototype with a fixed, non-production budget.'
+targetQuery: 'how to validate demand for an AI feature before building it'
+queryAliases:
+  - 'how to validate demand for an AI feature'
+  - 'how to validate an AI feature before building'
+  - 'how to test demand for an AI feature'
+intent: 'informational, practical demand validation'
+funnel: 'consideration'
+cluster: 'opportunity'
+parent: '/blog/how-to-prioritize-ai-use-cases-in-a-small-business'
+contentType: 'decision-tool'
+kind: 'satellite'
+sourceableAtom: 'A pre-build AI feature earns a build decision only when seven separate gates each have a named observable test, a precommitted threshold, and an owner; a positive interest signal cannot compensate for a failed willingness-to-pay, data, quality, economics, or product-fit gate.'
+evidenceType: 'decision-artifact'
+evidenceBasis: 'Reusable one-page hypothesis sheet and seven-gate decision grid with explicit team-set thresholds, cheapest observable tests, illustrative cost assumptions, a hypothetical worked decision, and falsifiers. No claimed conversion rate or client result is used.'
+tags:
+  - 'AI product strategy'
+  - 'Demand validation'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-20'
+sources:
+  - 'https://learn.microsoft.com/en-us/microsoft-cloud/dev/copilot/isv/business-envisioning'
+  - 'https://airc.nist.gov/airmf-resources/airmf/5-sec-core/'
+  - 'https://www.gov.uk/service-manual/user-research/start-by-learning-user-needs'
+  - 'https://prototype-kit.service.gov.uk/docs/prototyping'
+  - 'https://www.gov.uk/government/publications/the-magenta-book/test-and-learn-html'
+  - 'https://www.thoughtworks.com/content/dam/thoughtworks/documents/e-book/tw_ebook_product_thinking_playbook_digital.pdf'
+  - 'https://www.linkedin.com/posts/marius-manolachi_its-just-beautiful-seeing-a-handful-of-activity-7455595265333346304-XO9x'
+faq:
+  - q: 'Can customer interviews validate an AI feature by themselves?'
+    a: 'No. Interviews can establish that a recent problem and workaround exist, but they do not prove willingness to pay, acceptable output quality, data feasibility, or product fit. Pair them with a manual prototype and a behavior or commitment signal.'
+  - q: 'Do I need to build an AI prototype to validate demand?'
+    a: 'Usually not. Start with the cheapest test that exposes the riskiest assumption: interviews for the problem, a concierge service for workflow value, a fake door or pre-commitment for action, and a small data sample for feasibility. Build code only when it is the cheapest honest test.'
+  - q: 'What if an AI feature has demand but fails the quality gate?'
+    a: 'Pause the AI version. Narrow the job, add human review, switch to a deterministic workflow, or keep collecting evidence. Demand does not make an unreliable mechanism acceptable.'
+cover: '/blog/how-to-validate-demand-for-an-ai-feature-before-building-it-ai-feature-demand-validation-hero.webp'
+coverAlt: 'Illustration of a pre-build AI feature validation decision grid'
+draft: false
+---
+
+Most AI feature requests arrive as conclusions: “Customers want an assistant,” “We need automatic summaries,” or “This workflow should be agentic.” None of those sentences tells you what to test.
+
+I have shipped NotClass, a consumer app used by 10,000+ people. That is evidence that I shipped a product, not evidence that the hypothetical feature below has demand. Keeping those claims separate matters. Shipping evidence and demand evidence are different things. [Marius Manolachi's public NotClass post](https://www.linkedin.com/posts/marius-manolachi_its-just-beautiful-seeing-a-handful-of-activity-7455595265333346304-XO9x) supports only the former.
+
+This is the sourceable artifact from this page:
+
+> A pre-build AI feature earns a build decision only when seven separate gates each have a named observable test, a precommitted threshold, and an owner. A positive interest signal cannot compensate for a failed willingness-to-pay, data, quality, economics, or product-fit gate.
+
+The thresholds below are team-set planning rules, not universal benchmarks. Replace them with your price, risk tolerance, traffic, staffing, and quality bar.
+
+![Illustration of a seven-gate decision grid separating demand, payment, workaround, data, quality, economics, and product fit](/blog/how-to-validate-demand-for-an-ai-feature-before-building-it-ai-feature-demand-validation-grid.webp)
+
+## What does demand validation need to prove?
+
+Demand validation must prove that a specific person has a recurring job, cares about the outcome, and will change behavior to get it. It does not need to prove that the proposed AI mechanism is the right implementation yet.
+
+That distinction is easy to lose. “People like the idea of an AI assistant” is concept feedback. “The proposal owner already checks the same fields on every quote, has a named consequence when the check is missed, and will submit the next quote to a manual review” is demand evidence.
+
+Start with the current workflow. The [GOV.UK user research guidance](https://www.gov.uk/service-manual/user-research/start-by-learning-user-needs) says to learn what people are trying to do, how they do it now, and what problems they experience before testing feature ideas. Microsoft’s AI use-case guidance asks teams to define the problem, opportunity, business objective, success measure, and accountable stakeholder before prioritizing a use case. [Its business-envisioning guide](https://learn.microsoft.com/en-us/microsoft-cloud/dev/copilot/isv/business-envisioning) is written for ISVs, but the questions work for a small product team too.
+
+Write the hypothesis in this form:
+
+```text
+For [specific user in a real workflow], [current problem] causes [observable consequence].
+If we provide [mechanism], the user will [behavior] to achieve [outcome].
+We will build only if [pass thresholds] are met and [falsifier] does not occur.
+Owner: [person who decides]
+Evidence window: [dates]
+```
+
+The mechanism belongs in the hypothesis, but it should not dominate the interview. Ask about the last real instance, the workaround, the cost, and what changed afterward. Show the feature only after you understand the job.
+
+## What should the one-page hypothesis sheet contain?
+
+The sheet should fit on one page because its job is to expose a decision, not become a strategy document. Put unknowns in the open. An explicit unknown is more useful than a confident guess because it tells you what to test next.
+
+| Field | What to record |
+| --- | --- |
+| User and job | Who does what, for whom, and when? |
+| Current workaround | What happens today? Include tools, manual steps, delays, and who checks the result. |
+| Proposed mechanism | What would the AI do, and what would remain deterministic or human-controlled? |
+| Expected outcome | What changes in time, quality, revenue protection, customer experience, or learning? |
+| Buyer and price hypothesis | Who can approve payment, at what price or budget, and on what buying path? |
+| Data boundary | Which inputs are permitted, available, representative, and safe to use? |
+| Quality tolerance | What is acceptable, what requires correction, and what is a critical failure? |
+| Product home | Where would the feature live in the existing workflow? Who owns it after launch? |
+| Cheapest next test | The smallest observable action that can change the decision. |
+| Pass and fail rules | Write them before collecting evidence. |
+| Falsifier | What result would make you pause, narrow, redesign, or reject the idea? |
+| Decision owner and date | One person, one decision date, one next action. |
+
+This layout deliberately separates seven gates. Microsoft’s framework groups viability into business, experience, and technology dimensions. NIST’s AI RMF adds context, benefits, costs, risk tolerance, knowledge limits, and human oversight before an initial go or no-go decision. [NIST’s AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/) supports the separation, but it does not prescribe this sheet or these thresholds.
+
+The sheet is not a claim that all seven gates deserve equal weight. Some are vetoes. If the system cannot safely use the data, cannot meet the quality needed for the job, or has no positive unit economics at the proposed price, a large interest signal should not rescue it.
+
+## What is the cheapest test for each gate?
+
+Use the cheapest test that creates an observable behavior or artifact. A conversation can test a past problem. It cannot test whether someone will pay. A fake door can test an action. It cannot test whether the AI output is accurate enough. Each test has a different job.
+
+The cash estimates below are illustrative planning assumptions. They exclude internal labor and paid traffic. If you use €100 per hour as an internal planning rate, multiply the time range by your own rate instead.
+
+| Gate | Definition | Cheapest observable test | Example pass threshold | Fail threshold and next move | Illustrative cost |
+| --- | --- | --- | --- | --- | --- |
+| Demand | A specific user has a recent, recurring problem with a meaningful outcome. | Five problem interviews using recent examples, plus a request to submit or schedule the next real case. | At least four describe the problem without being led, and at least three agree to a next-case test. | Fewer than three can recall a recent case, or nobody accepts a next-case test. Reframe the job or stop. | 3-5 hours, €0-€50 cash |
+| Willingness to pay | A buyer will trade money, budget, procurement effort, or a real commercial commitment for the outcome. | State the price and ask for a paid pilot, deposit, purchase order step, or written commitment. | At least one target buyer completes the agreed commitment at the stated price. | Only verbal enthusiasm or free-trial requests. Change the offer, price, buyer, or stop. | 1-2 hours, €0-€50 cash |
+| Workaround strength | The current workaround is strong enough to prove the job exists, but weak enough that your outcome can change behavior. | Observe one real workflow and map tools, manual steps, delay, error risk, and switching cost. | The workaround is repeated and costly, and the buyer names a specific advantage that would justify switching. | The workaround is already fast, trusted, and cheap enough, or the new feature adds review work. Build a non-AI improvement or stop. | 2-4 hours, €0 cash |
+| Data feasibility | The required data exists, can be accessed lawfully, and contains the fields and variation the job needs. | Manually sample representative records from the intended source and mark missing, forbidden, stale, or ambiguous inputs. | Every required field is present in the sample, access is permitted, and no unresolved blocker remains. | Missing or restricted inputs prevent the core job. Narrow the scope, find another source, or stop. | 2-4 hours, €0-€50 cash |
+| Quality tolerance | The output can meet the error tolerance of the job with an acceptable review burden. | Run a manual or concierge prototype on representative cases using a written rubric. | All critical checks pass, and the review effort is lower than the current workaround under the team’s stated bar. | A critical error appears, or human review costs as much as the old process. Narrow the job, add controls, or use rules instead. | 4-8 hours, €0-€100 cash |
+| Unit economics | The feature can create positive contribution after variable model, infrastructure, human-review, and support costs. | Build a spreadsheet from the proposed price, observed case volume, measured review time, and current provider pricing. | Price minus variable cost remains positive at expected usage, with the team’s chosen margin floor. | Cost is unknown, negative, or depends on optimistic usage. Reprice, cap usage, reduce review, or stop. | 1-2 hours, €0 cash |
+| Product fit | The feature has a natural home, owner, trigger, and adoption path in the existing product or workflow. | Add a transparent fake door, clickable prototype, or manual handoff at the real point of work. | Users encounter it in the existing flow, understand the next action, and an owner accepts ongoing responsibility. | It requires a new destination, new habit, or owner nobody can name. Move it, narrow it, or stop. | 2-4 hours, €0-€50 cash |
+
+The ladder should move from low-cost evidence to higher-commitment evidence. A prototype can test ideas before production code and at lower risk, according to the [GOV.UK Prototype Kit](https://prototype-kit.service.gov.uk/docs/prototyping). The UK government’s [Test and Learn guidance](https://www.gov.uk/government/publications/the-magenta-book/test-and-learn-html) also recommends small controlled tests that combine observation, short interviews, and simple take-up or drop-off signals. These sources support the sequence. They do not validate the example thresholds above.
+
+For the fake door, tell users the truth immediately after the click. A fake door is an option that does not exist yet, presented to measure engagement, as described in the [Thoughtworks Product Thinking Playbook](https://www.thoughtworks.com/content/dam/thoughtworks/documents/e-book/tw_ebook_product_thinking_playbook_digital.pdf). Use it for a new feature, not a critical path. Never make a user think a real action failed when you are actually measuring demand.
+
+## How do you score the gates without fooling yourself?
+
+Score each gate as pass, fail, or unknown, then attach the evidence and owner. Do not average unknowns into a flattering total. An unknown is a reason to run a test.
+
+| Status | Meaning | Decision |
+| --- | --- | --- |
+| Pass | The precommitted threshold is met and the evidence is attached. | Keep moving to the next gate. |
+| Fail | The evidence contradicts the hypothesis or crosses a veto condition. | Pause, redesign, choose a non-AI version, or reject. |
+| Unknown | The test has not been run or the evidence is ambiguous. | Do not build. Name the cheapest next test and its owner. |
+
+Use this decision rule:
+
+1. **Build a controlled version** only when all seven gates pass, the owner is named, the test evidence is recorded, and the first build remains reversible.
+2. **Run a concierge or manual version** when demand and willingness to pay pass but quality, data, or economics remain unknown.
+3. **Build a non-AI version** when the outcome matters but deterministic rules, search, workflow changes, or better content can deliver it more safely.
+4. **Pause or reject** when demand, willingness to pay, product fit, or a critical quality or safety condition fails.
+
+This is why the grid has both demand and feasibility. A user can want the outcome and still reject an AI mechanism because it is slow, hard to review, too expensive, or too unreliable. NIST says AI systems should be tested before deployment and that benefits, costs, limitations, and human oversight should be documented as context changes. The practical implication is simple: interest is evidence for one gate, not a verdict on the whole feature.
+
+![Illustration of a hypothesis sheet with pass, fail, unknown, owner, and falsifier fields](/blog/how-to-validate-demand-for-an-ai-feature-before-building-it-ai-feature-hypothesis-sheet.webp)
+
+## What does a worked decision look like?
+
+Here is a hypothetical example, not a client case or observed research result.
+
+**Feature request:** “Add an AI proposal reviewer to a small B2B consultancy product.”
+
+**Hypothesis:** Proposal owners need help spotting missing scope, inconsistent claims, and unsupported assumptions before they send a proposal. They will submit a real draft for review and pay for the outcome if the review is faster than their current check and does not create false confidence.
+
+The team writes the following illustrative evidence record before testing:
+
+| Gate | Illustrative status | Why the status is not enough to build |
+| --- | --- | --- |
+| Demand | Pass | The hypothetical interview set contains recent proposal-review work and users agree to submit a next draft. This proves a job to test, not a market. |
+| Willingness to pay | Unknown | Users like the idea but nobody has completed a paid pilot or other pre-commitment. |
+| Workaround strength | Mixed | A spreadsheet and a senior reviewer already catch some issues. The feature must beat that process, not merely repeat it. |
+| Data feasibility | Pass | The hypothetical sample contains proposals and source notes, but the team still needs permission and coverage checks before automation. |
+| Quality tolerance | Unknown | A missed pricing assumption or invented correction could be worse than no review. A concierge rubric is required. |
+| Unit economics | Unknown | The team has not measured model cost, review time, or support burden at the proposed price. |
+| Product fit | Pass | The feature can appear at the existing proposal review step with a named product owner. |
+
+The decision is **pause and de-risk**. Do not build the AI feature. Run a transparent concierge review on the next real proposals, record every correction, ask for a paid commitment at the intended price, and calculate the cost of delivering each review. At the same time, compare a deterministic checklist against the AI-assisted version.
+
+The correct next move might be a non-AI checklist. If the main value is forcing a proposal owner to check five known fields, generation adds cost without adding much value. If the manual review discovers varied, hard-to-enumerate inconsistencies and buyers pay for the result, an AI-assisted workflow may earn a narrow build.
+
+That is the point of the artifact. It makes “AI proposal reviewer” compete with “better checklist,” “senior review,” and “do nothing” on evidence rather than novelty.
+
+## What would falsify the idea?
+
+Write the falsifiers before collecting evidence. Otherwise every weak signal becomes a reason to continue.
+
+For the hypothetical proposal reviewer, I would record these stop conditions:
+
+- Target users cannot describe a recent proposal-review problem without being shown the feature.
+- The buyer will not take a paid pilot or a defined procurement step at the stated price.
+- The existing spreadsheet and senior review are faster, cheaper, and trusted enough that users will not change behavior.
+- Required source notes are missing, inaccessible, or too inconsistent for the core checks.
+- The concierge version produces a critical false positive or false negative that users cannot safely review.
+- Human review takes as long as the current process, so the AI mechanism creates no usable margin.
+- No owner will place the feature in the proposal workflow or handle an uncertain result.
+- Users want a checklist, template, or clearer source data instead of an AI reviewer.
+
+The last falsifier is easy to ignore. A failed AI hypothesis can reveal a valid non-AI product improvement. That is not a wasted test. It is a cheaper answer to the original job.
+
+If you need a broader portfolio view, start with [how to prioritize AI use cases in a small business](/blog/how-to-prioritize-ai-use-cases-in-a-small-business). If the feature survives the demand decision, move to [how to test an AI feature before you have production data](/blog/how-to-test-an-ai-feature-before-you-have-production-data). If the output is still vague, write its contract with [acceptance criteria for an AI feature](/blog/how-to-write-acceptance-criteria-for-an-ai-feature).
+
+![Illustration of a hypothetical proposal-review feature paused at a veto gate and redirected to a concierge test](/blog/how-to-validate-demand-for-an-ai-feature-before-building-it-ai-feature-concierge-pause.webp)
+
+## When should you finally build the AI feature?
+
+Build when every gate has evidence, every critical failure has a response, and the smallest version still teaches you something without creating an irreversible dependency.
+
+Keep the first build narrow. Freeze the user, workflow, input boundary, output, review method, price hypothesis, and stop condition. Record the model and provider assumptions separately from the demand decision because they can change while the job remains stable.
+
+The exception is a learning-only prototype. You may build before all demand gates pass if the budget is fixed, the prototype is clearly non-production, no consequential action is automated, and the purpose is to answer one unresolved question cheaper than any non-code test. Call it a learning experiment, not validation.
+
+The practical handoff is a completed hypothesis sheet with one owner and one decision date. If a gate is unknown, the decision is not build. It is the cheapest next test.
