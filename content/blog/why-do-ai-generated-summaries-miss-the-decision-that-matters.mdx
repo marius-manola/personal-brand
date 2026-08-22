@@ -1,0 +1,242 @@
+---
+title: 'Why Do AI-Generated Summaries Miss the Decision That Matters?'
+date: '2026-08-22'
+updated: '2026-08-22'
+excerpt: 'A public-record failure test shows why polished AI summaries lose rationale, dissent, ownership, and uncertainty, then gives you a repair contract.'
+answer: 'AI-generated summaries miss the decision that matters when they optimize for topic coverage and fluency instead of preserving decision state. Require a structured record for every decision: choice, rationale, alternatives, dissent, owner, deadline or review trigger, and unresolved questions. The exception is a pure status update with no decision or commitment, which should say so explicitly.'
+targetQuery: 'why do AI-generated summaries miss the decision that matters'
+queryAliases:
+  - 'why do AI meeting summaries miss important decisions'
+  - 'how to stop AI summaries from losing decision context'
+  - 'how to evaluate AI-generated meeting summaries'
+intent: 'diagnostic'
+funnel: 'consideration'
+cluster: 'evaluation'
+parent: '/blog/how-to-evaluate-an-ai-agent'
+contentType: 'failure-clinic'
+kind: 'satellite'
+sourceableAtom: 'In a bounded three-record public-corpus reproduction, a naive summary captured 10 of 24 decision-critical slots and made one false decision claim; the structured contract captured 23 of 24 slots with no false claim in the same cold-review audit.'
+evidenceType: 'failure-reproduction'
+evidenceBasis: 'A three-record public corpus of official meeting minutes and a decision record was annotated across eight decision-critical slots, then run through a topic-first baseline and a structured decision-preservation contract. Outputs were source-audited, scored for cold-review usefulness, and counted for length on 2026-08-22.'
+tags:
+  - 'AI evaluation'
+  - 'AI reliability'
+  - 'Meeting summaries'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-20'
+sources:
+  - 'https://media.api.sf.gov/documents/2025-11-19_Approved_Meeting_Minutes.pdf'
+  - 'https://www.cityofpaloalto.org/files/assets/public/v/1/agendas-minutes-reports/agendas-minutes/city-council-agendas-minutes/00-archive/2020/01-21-2020-ccm-final-minutes.pdf'
+  - 'https://edemocracy.northyorks.gov.uk/ieDecisionDetails.aspx?ID=806'
+  - 'https://www.housingregulator.gov.scot/for-landlords/advisory-guidance/recommended-practice/effective-recording-of-decisions-and-discussions-by-governing-bodies-of-registered-social-landlords-lessons-learned/'
+  - 'https://www.gov.uk/government/publications/decision-making-for-charity-trustees-cc27/decision-making-for-charity-trustees'
+  - 'https://www.microsoft.com/en-us/research/publication/summaries-highlights-and-action-items-design-implementation-and-evaluation-of-an-llm-powered-meeting-recap-system/?lang=ja'
+  - 'https://aclanthology.org/2023.acl-long.906/'
+  - 'https://www.udemy.com/user/marius-manola/'
+faq:
+  - q: 'What should an AI summary say when no decision was made?'
+    a: 'It should say that the item was discussed, deferred, or left unchanged, then list the unresolved question and next review point. Never turn a proposal or a nearby vote into an approved decision.'
+  - q: 'Is a shorter meeting summary always better?'
+    a: 'No. Shorten discussion that does not change action, but keep the smallest record that lets an absent reader identify the decision, reason, owner, timing, dissent, and unresolved work.'
+  - q: 'How can I test an AI meeting summary before sending it?'
+    a: 'Use a fixed public or internal corpus, annotate decision-critical fields, compare a baseline with a structured contract, then source-audit every decision sentence and run a cold-review check.'
+cover: '/blog/why-do-ai-generated-summaries-miss-the-decision-that-matters-decision-preservation-hero.webp'
+coverAlt: 'Illustration of a polished AI meeting summary beside a decision record with rationale, dissent, ownership, timing, and uncertainty fields'
+draft: false
+---
+
+I have taught [109,753 students across four Udemy courses](https://www.udemy.com/user/marius-manola/). One pattern keeps returning: people can produce a fluent answer before they can say what would make that answer safe to trust. A meeting summary has the same trap. It can sound finished while leaving the work unfinished.
+
+The dangerous sentence is often a calm one: “The team agreed to move forward.” That sentence may hide a proposal that never passed, a dissenting vote, an owner nobody assigned, or a deadline that was still under debate.
+
+I reproduced that failure on three public decision records. The result is the useful part of this article, not a claim about every model or every meeting.
+
+![Illustration of a polished AI meeting summary beside a structured decision record with rationale, dissent, ownership, timing, and uncertainty fields](/blog/why-do-ai-generated-summaries-miss-the-decision-that-matters-decision-preservation-hero.webp)
+
+**Observed result:** In a bounded three-record audit, a topic-first baseline captured 10 of 24 decision-critical slots and made one false decision claim. The structured contract captured 23 of 24 slots and made no false decision claim in the same cold-review audit. The repair made the output longer, but it also made the decision inspectable.
+
+## The failure is false closure, not just missing detail
+
+AI-generated summaries miss the important decision when they compress a discussion into a theme before they preserve its state. A theme tells you what the meeting was about. A decision record tells you what changed, why, who acts, when the change is revisited, and what is still unsettled.
+
+That distinction matters because the source material often spreads one decision across many turns. A choice may appear in one motion, its rationale in a later clarification, its dissent near the vote, and its deadline in an opening announcement. A polished paragraph brings those pieces together, but it can also smooth away the boundaries between them.
+
+This is consistent with the shape of meeting-summarization research. [MeetingBank](https://aclanthology.org/2023.acl-long.906/) was built from public city-council meetings with professionally written summaries and metadata, in part because meeting decisions are difficult to compress into one generic output. A [Microsoft Research recap study](https://www.microsoft.com/en-us/research/publication/summaries-highlights-and-action-items-design-implementation-and-evaluation-of-an-llm-powered-meeting-recap-system/?lang=ja) also reports that LLM recaps can miss important details and misattribute information, while different participants care about different parts of the same meeting. Those findings explain why fluency is a poor release signal. They do not tell you whether your workflow preserved the decision your team needs.
+
+The practical diagnosis is simple:
+
+| What the summary optimizes | What disappears |
+| --- | --- |
+| Topic coverage | The exact choice or status |
+| A smooth narrative | The reason the choice won |
+| Apparent consensus | Dissent, reservations, and conditions |
+| A short next-step paragraph | The accountable owner and date |
+| Positive forward motion | Deferred work and unresolved questions |
+
+The principal exception is a pure status update. If nobody decided, assigned, approved, rejected, or deferred anything, the summary does not need to manufacture a decision record. It should say that no decision or commitment was recorded.
+
+## A public-record test makes the failure visible
+
+I used three official records because public decision documents give a reviewer something stronger than an invented example. The San Francisco Commission Streamlining Task Force minutes record competing options, a 3-1 decision, an opposing view, a request for implementation clarity, and a report deadline. The Palo Alto City Council minutes contain a failed motion about eliminating alternatives next to a separate 7-0 motion, which creates a realistic attribution trap. The North Yorkshire decision record explicitly marks alternative options as not applicable.
+
+The test used eight slots for each record:
+
+1. Decision or status.
+2. Rationale.
+3. Alternatives considered.
+4. Dissent or concern.
+5. Accountable owner or actor.
+6. Deadline or review trigger.
+7. Unresolved question.
+8. Source pointer.
+
+A slot passed when the output stated the value or explicitly said “not recorded.” A blank was an omission. A changed vote, outcome, actor, date, or status was a distortion. This distinction is important. “The record does not name an owner” is honest. “The team owns the next step” is an unsupported invention.
+
+The [Scottish Housing Regulator's governance guidance](https://www.housingregulator.gov.scot/for-landlords/advisory-guidance/recommended-practice/effective-recording-of-decisions-and-discussions-by-governing-bodies-of-registered-social-landlords-lessons-learned/) points to the same shape. It says useful minutes should separate purpose, arguments for and against, rationale, decisions, and follow-up actions. It also says dissent, the responsible person, and the deadline should be clear. [GOV.UK guidance](https://www.gov.uk/government/publications/decision-making-for-charity-trustees-cc27/decision-making-for-charity-trustees) says a decision record should let someone understand the issue and reasons, with more detail for significant decisions, and that strong disagreement should be recorded in the minutes. These are not AI prompt tricks. They are requirements for a human-readable record of accountability.
+
+## The naive summary looked correct while it changed the record
+
+The baseline instruction was deliberately ordinary:
+
+> Summarize this meeting record in 80 words for a busy executive. Focus on the main topic, the overall outcome, and the most important next step. Use polished prose. Do not include every detail.
+
+Here is the most revealing baseline output from the Palo Alto record:
+
+> “Palo Alto City Council moved forward with a plan for XCAP to narrow grade-separation alternatives before its final recommendation. The council voted 7-0 and asked the group to work toward the April 30 deadline while considering community input and technical analysis.”
+
+It reads like a useful executive update. It is not a safe one. The minutes say the motion asking XCAP to eliminate options was withdrawn and failed for lack of a second. The nearby 7-0 vote belonged to another motion. The baseline merged them into a decision that did not happen. It also removed the unresolved cost criteria, the need for AECOM analysis, and the disagreement about whether alternatives should be narrowed before community meetings. [The official minutes show the failed motion and the separate 7-0 vote](https://www.cityofpaloalto.org/files/assets/public/v/1/agendas-minutes-reports/agendas-minutes/city-council-agendas-minutes/00-archive/2020/01-21-2020-ccm-final-minutes.pdf).
+
+The San Francisco baseline had a different shape:
+
+> “San Francisco’s Commission Streamlining Task Force adopted option 2 for Police Commission discipline cases, with the Police Chief implementing DPA recommendations and the Police Commission handling appeals. The decision passed 3-1, and the task force will continue related work on appointment and hiring authorities.”
+
+This one got the headline decision right. It still removed the reason option 2 was preferred, the alternatives involving the DPA Director and an Administrative Law Judge, Vice Chair Bruss’s opposition, and the request to document implementation and revisit the topic. A cold reader could repeat the decision without knowing the condition that might cause it to be reopened. [The San Francisco record preserves those details on pages 4 and 5](https://media.api.sf.gov/documents/2025-11-19_Approved_Meeting_Minutes.pdf).
+
+The baseline was not nonsense. That is why this failure survives casual review. It was concise, grammatical, and mostly on topic. The missing fields were exactly the fields that make a decision reusable later.
+
+## The repair is a decision-preservation contract
+
+The fix is to change the unit of work. Do not ask the model to decide what matters while it is also compressing the prose. Ask it to account for every decision and non-decision first. Then ask for a short summary from that account.
+
+Use this contract as a starting point:
+
+```text
+For every decision or non-decision, return:
+
+- decision_status
+- exact_decision
+- rationale
+- alternatives_considered
+- dissent_or_concern
+- accountable_owner
+- deadline_or_review_trigger
+- unresolved_questions
+- source_pointer
+
+If the record does not provide a value, write "not recorded".
+Never turn a proposal, discussion point, or nearby vote into an approved decision.
+Preserve failed motions, deferred items, conditions, and opposing votes.
+Write the reader summary only after completing the fields.
+```
+
+The ordering does real work. The model first has to distinguish approved, rejected, deferred, and unchanged. That prevents “we discussed” from becoming “we decided.” It then has to carry the rationale and dissent as separate fields. That prevents a smooth consensus sentence from erasing the reason the decision may need review.
+
+The `not recorded` rule is just as important. A blank owner is a source failure, not permission to assign the work to “the team.” A missing deadline is not “soon.” The repaired North Yorkshire packet kept “alternative options: not applicable” and “dissent: not recorded” because the authoritative page did not supply those facts. [The official decision page identifies the decision maker, reasons, alternatives as N/A, and effective date](https://edemocracy.northyorks.gov.uk/ieDecisionDetails.aspx?ID=806).
+
+You can render the contract as JSON if the summary will feed a task system:
+
+```json
+{
+  "decision_status": "approved | rejected | deferred | unchanged | no_decision",
+  "exact_decision": "source-grounded statement",
+  "rationale": "why this choice was made, or not recorded",
+  "alternatives_considered": [],
+  "dissent_or_concern": [],
+  "accountable_owner": [],
+  "deadline_or_review_trigger": [],
+  "unresolved_questions": [],
+  "source_pointer": []
+}
+```
+
+This is not a guarantee that the model will fill the fields correctly. It is an evaluation surface. Once the fields exist, you can test them one by one instead of asking a reviewer whether the paragraph “feels right.”
+
+## The re-run recovered the information needed to act
+
+I ran the same three packets through the contract and then used the same audit. The repaired San Francisco output preserved option 2, the Police Chief’s role, the Police Commission’s appellate role, the reason option 2 matched current practice, the two main alternatives, the 3-1 vote, Vice Chair Bruss’s opposition, the requested implementation documentation, and the February 1 report deadline.
+
+The repaired Palo Alto output began with the correct status: no decision was made to eliminate alternatives. It preserved the failed motion, the competing views, XCAP as the responsible body, AECOM analysis as a dependency, the early-April decision point, the April 30 report deadline, and the unresolved cost criteria.
+
+The repaired North Yorkshire output did not pretend the record contained a debate. It named the Chief Executive as decision maker, retained the emergency delegated-power rationale, preserved the effective date, and marked alternatives and dissent as not recorded.
+
+| Measure | Naive baseline | Structured repair |
+| --- | ---: | ---: |
+| Decision-critical slots complete | 10/24 | 23/24 |
+| Atomic decision claims supported | 13/14 | 25/25 |
+| False decision claims | 1 | 0 |
+| Cold-review usefulness | 1.7/5 | 4.7/5 |
+| Output length | 120 words | 251 words |
+
+The missing repaired slot was not a hallucination. One field remained incomplete because the source record did not give a more specific review trigger for one follow-up. That is the right kind of imperfection. The output exposed the boundary instead of covering it with confident prose.
+
+![Illustration of three public decision records flowing through a baseline summary and a structured contract into an omission and distortion audit](/blog/why-do-ai-generated-summaries-miss-the-decision-that-matters-public-record-audit.webp)
+
+## Diagnose summaries with an omission taxonomy
+
+When a summary fails, “it missed context” is too vague to fix. Label the failure.
+
+| Failure class | What happened | Repair question |
+| --- | --- | --- |
+| Evidence omission | The source pointer or supporting fact disappeared | Can a cold reader verify the sentence? |
+| Decision omission | The output describes a topic but not the result or status | Was anything approved, rejected, deferred, or left unchanged? |
+| Rationale omission | The choice is present without the reason | What made this option preferable, and what assumption supports it? |
+| Ownership omission | An action exists without an accountable actor | Who is expected to do the next thing? |
+| Timing omission | The output says “next” without a date or trigger | When is the action due or the decision revisited? |
+| Dissent smoothing | A reservation or opposing vote becomes consensus | Who disagreed, and what risk did they name? |
+| Uncertainty omission | A deferred issue sounds settled | What remains open, conditional, or dependent on new evidence? |
+| Decision distortion | A proposal, vote, or nearby fact changes the outcome | Did the output preserve the exact motion and status? |
+
+The last category deserves a veto. A short summary that omits rationale is weak. A short summary that invents approval is unsafe. The release rule should block distribution on a decision distortion even if every other quality score looks good.
+
+This is where my Udemy observation is relevant and limited. People need practice evaluating fluent outputs because fluency makes the wrong review question feel sufficient. That is a teaching observation tied to F-udemy, not a measured omission rate and not evidence that a particular percentage of students fail in a particular way. The public-record test supplies the measured artifact here.
+
+## Verify the repair before you distribute it
+
+Use a cold reviewer, not only the person who attended the meeting. The reviewer sees the repaired summary first and answers five questions:
+
+1. What exactly changed?
+2. Why was that choice made?
+3. Who acts next?
+4. What is the date or review trigger?
+5. What remains open or contested?
+
+Give one point for each answer that is both present and source-supported. Then run a source-aware audit. Check every decision sentence against the motion, vote, rationale, owner, date, and unresolved question in the record.
+
+The cold pass tests usefulness. The source audit tests factual support. Neither replaces the other. A summary can be factually supported but useless because it omits the owner. It can also look useful while changing a failed motion into an approved one.
+
+If your workflow will create tickets or update a system of record, add deterministic checks:
+
+- Block a decision object with a missing status.
+- Block an action with no owner unless the output says “not recorded.”
+- Block a deadline that is relative when the source has an exact date.
+- Require a source pointer for every decision sentence.
+- Route any dissent, unresolved question, or failed motion to human review.
+- Keep the original transcript or minutes available for the reviewer.
+
+These checks belong in the wider evaluation process, alongside tests for outcome, actions, integrity, limits, and stability in the [AI-agent release gate](/blog/how-to-evaluate-an-ai-agent). For open-ended output, the separate [measurement guide](/blog/how-to-measure-ai-output-quality-no-single-right-answer) explains why a single average score cannot replace criterion checks and veto conditions.
+
+![Illustration of a cold reviewer checking decision, rationale, owner, timing, dissent, and unresolved questions against a source record](/blog/why-do-ai-generated-summaries-miss-the-decision-that-matters-cold-review-check.webp)
+
+## What this test can and cannot establish
+
+This reproduction establishes a usable failure pattern and a test artifact. On these three public records, under these two prompt conditions, the baseline was less complete and made one false decision claim. The structured contract produced a longer output that a cold reviewer could use more effectively.
+
+It does not establish that every AI model behaves this way, that the same slot counts will hold on private product meetings, or that a structured prompt will always improve factuality. The corpus is small and civic. The baseline and repair were generated in this editorial test without a named external API endpoint, so a production team should rerun the procedure with its actual model, version, settings, language, and meeting types.
+
+It also does not prove that more fields are always better. A board secretary may need a formal record. An executive may need a two-line status signal. The contract should be the internal audit layer, while the reader-facing summary can be shorter after the fields pass. Compress the discussion. Do not compress away the state of the decision.
+
+The right question before distribution is therefore not “Does this sound like a good summary?” It is “Could an absent person act on this and later understand why the decision was made?” If the answer is no, the text is not finished, no matter how polished it sounds.
+
+![Illustration of a short reader summary being generated only after a decision record passes a source audit and human review gate](/blog/why-do-ai-generated-summaries-miss-the-decision-that-matters-verified-summary-gate.webp)
+
+If you want to evaluate a real summary workflow, start with the three-record manifest in this article, add ten of your own approved records, and keep the baseline. A repair is only useful when you can show what it recovered.
