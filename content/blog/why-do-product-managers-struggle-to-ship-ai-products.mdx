@@ -1,0 +1,381 @@
+---
+title: "Why Do Product Managers Struggle to Ship AI Products?"
+date: "2026-08-22"
+updated: "2026-08-22"
+excerpt: "Product managers struggle to ship AI products when demos outrun the shipping contract: clear outcomes, tests, controls, ownership, and checks."
+answer: "Product managers struggle to ship AI products because a demo proves that a model can produce an output, while a release must prove a user outcome, acceptable behavior across real cases, safe boundaries, an independently checked result, and a named owner for change. The principal exception is a low-risk feature where a person reviews every output and no external state changes."
+targetQuery: "why do product managers struggle to ship ai products"
+queryAliases:
+  - "what makes ai products hard to ship"
+  - "why do ai products get stuck before production"
+  - "why do ai features fail to reach production"
+intent: "informational / capability"
+funnel: "awareness"
+cluster: "capability"
+parent: "/blog/what-to-learn-before-building-ai-agents"
+contentType: "original-research"
+kind: "flagship"
+sourceableAtom: "Across a five-document primary-source audit, evaluation test-set guidance was explicit in 4 of 5 documents, but independent verification of the real-world outcome was explicit in only 1 of 5 and an accountable release decision was explicit in only 1 of 5."
+evidenceType: "primary-source document audit"
+evidenceBasis: "A five-document, seven-field content audit performed on 2026-08-22 using a fixed 0-2 scoring rubric, preserved in research.md with its corpus, row-level scores, method, result, and limitations."
+tags:
+  - "AI product management"
+  - "AI product development"
+  - "AI evaluation"
+  - "Shipping AI"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-20"
+sources:
+  - "https://pair.withgoogle.com/old-gb/"
+  - "https://pair.withgoogle.com/guidebook-v2/patterns"
+  - "https://www.atlassian.com/blog/ai-at-work/pm-guide-to-good-ai"
+  - "https://airc.nist.gov/airmf-resources/airmf/5-sec-core/"
+  - "https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents"
+  - "https://learn.microsoft.com/en-us/agents/agent-evaluation/evaluation-checklist"
+  - "https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/"
+  - "https://www.anthropic.com/engineering/building-effective-agents"
+faq:
+  - q: "Do product managers need to become machine learning engineers to ship AI products?"
+    a: "No. They need enough technical fluency to specify the user outcome, inspect data and tool boundaries, read an evaluation trace, understand uncertainty, and ask what external state proves success. They do not need to train a foundation model, but they cannot delegate the shipping contract to a framework or a model."
+  - q: "What is the biggest difference between an AI demo and an AI product?"
+    a: "A demo shows a plausible output on a chosen example. A product has a defined user job, representative test cases, an unacceptable-behavior policy, controlled permissions, a way to verify the real outcome, and an owner for regressions and change."
+  - q: "Should an AI product manager write the evaluation set?"
+    a: "The product manager should own the user scenarios, stakes, acceptance criteria, and edge cases with domain experts. Engineering can build the harness and graders, but the team closest to the user should not outsource the definition of success."
+  - q: "When should a team stop trying to ship an AI product?"
+    a: "Stop or narrow the product when the user outcome cannot be observed, the cost of a wrong result is unacceptable for the available controls, the team cannot produce representative cases, or nobody has authority to block a release. A smaller deterministic workflow may still be worth shipping."
+cover: "/blog/why-do-product-managers-struggle-to-ship-ai-products-ai-product-shipping-hero.webp"
+coverAlt: "Illustration of a product manager moving an AI feature from a promising demo through evidence, boundaries, outcome verification, and release ownership"
+draft: false
+---
+
+A prototype can answer the happy-path question in an afternoon: can a model produce something that looks useful? Shipping asks harder questions. Who is it for, what counts as good, what happens when it is wrong, and who can stop the release?
+
+I audited five primary documents that teams use to answer those questions. The result explains why product managers often feel stuck even when the model works.
+
+![Illustration of an AI product moving from a fast demo into a longer release path with outcome, evaluation, boundary, and ownership gates](/blog/why-do-product-managers-struggle-to-ship-ai-products-ai-product-demo-to-release.webp)
+
+## What did the five-document audit find?
+
+The audit found that guidance is not missing. It is distributed. Evaluation sets, quality rules, human control, monitoring, and accountability usually live in different documents, owned by different functions, with no single compact release artifact connecting them.
+
+Across the five documents, test-set guidance was explicit in four. Independent verification of the real-world outcome was explicit in one. An accountable release decision was explicit in one.
+
+That is the sourceable result from this page. It is a document-content audit, not a survey of product managers and not a claim that only one in five AI products verifies outcomes.
+
+| Primary document | User job | Definition of good | Evaluation set | Independent outcome check | Human control | Change monitoring | Release accountability | Total / 14 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Google PAIR Guidebook | 2 | 2 | 2 | 0 | 2 | 1 | 1 | 10 |
+| Atlassian PM quality guide | 2 | 2 | 2 | 1 | 1 | 2 | 1 | 11 |
+| NIST AI RMF Core | 2 | 1 | 1 | 1 | 2 | 2 | 2 | 11 |
+| Anthropic evals guide | 1 | 2 | 2 | 2 | 1 | 2 | 1 | 11 |
+| Microsoft evaluation checklist | 2 | 2 | 2 | 1 | 1 | 2 | 1 | 11 |
+| Field total / 10 | 9 | 9 | 9 | 5 | 7 | 9 | 6 | 54 / 70 |
+
+The scoring is simple. Zero means the field is absent as an actionable shipping practice. One means it is mentioned or partly covered. Two means the document gives a reusable practice, worksheet, test structure, checklist, or decision instruction. I opened and scored all 35 cells on August 22, 2026. The corpus, definitions, and limitations are recorded in [the research artifact for this post](#how-was-the-audit-run).
+
+The pattern matters more than the total. Four documents tell you to create cases. Only one makes the external state the explicit judge of whether the task happened. Only one makes release accountability an explicit field. A team can therefore become good at testing answers while remaining vague about the result and the authority to ship.
+
+## Why does a working demo fail to become a product?
+
+A demo answers, “Can the model do this once?” A product must answer, “Can the system create a useful result for the right person, often enough, inside acceptable boundaries, with a recovery path when it cannot?”
+
+Those are different objects. A demo is usually selected by the builder. The prompt is clean. The context is known. The output is judged by appearance. A product receives incomplete inputs, strange phrasing, stale data, permission boundaries, repeated use, changing models, and users who interpret the interface differently from the team that built it.
+
+Google’s People + AI Guidebook was written specifically for UX professionals and product managers. Its chapters follow more than the model output: user needs and success, data collection and evaluation, mental models, explainability and trust, feedback and control, and errors and graceful failure. That is a product lifecycle, not a prompt checklist. [Google PAIR’s guidebook](https://pair.withgoogle.com/old-gb/) makes the broader shape visible.
+
+Atlassian’s first-party guide for PMs makes the same transition concrete. Before building, it asks what the user’s end goal is, how the user will use the output, and what happens if the output is wrong. It then turns those answers into quality rules and an evaluation dataset that includes real prompts, messy prompts, and edge cases. [Atlassian’s PM guide](https://www.atlassian.com/blog/ai-at-work/pm-guide-to-good-ai) calls the gap plainly: a handful of promising examples is not evidence that a feature is good enough to ship.
+
+The product manager’s difficulty is not that AI has no product requirements. It is that the requirements must now describe behavior across a distribution of inputs and states. The old feature sentence might be, “The assistant drafts a project update.” The shippable version needs more detail:
+
+- Which project update job does it support?
+- Who reads the draft, and what decision will it influence?
+- Which facts must be present and sourced?
+- What may the system infer, and what must it mark as unknown?
+- What counts as a useful draft rather than a fluent draft?
+- What should happen when the project data is stale or incomplete?
+- Which user action is still required before anything is sent?
+- How do we verify that the intended project state, if any, actually changed?
+
+Each question creates work across product, design, engineering, data, security, and operations. A PM who keeps the old boundary of “write the requirements and accept the feature” will discover the missing work late. A PM who owns the whole decision packet can move the work forward without pretending to own every implementation detail.
+
+The exception is a deliberately low-risk feature that produces a draft for a person who reviews every output and does not change external state. That feature still needs a quality definition, but its release burden is lower because the human and the lack of side effects limit the blast radius.
+
+## Where does an AI product manager’s definition of done break?
+
+The definition of done usually breaks at one of five boundaries. Each boundary creates a different kind of delay, so the repair has to match the failure.
+
+### The output looks good, but the user outcome is undefined
+
+“Good answer” is not a product outcome. A summary may be accurate and still fail because it arrives too late, omits the decision the user needs, or cannot be trusted without a second manual investigation.
+
+Write the user’s job as an observable change. For a project update assistant, that might be: “A delivery lead can prepare a review-ready update in ten minutes using current project evidence, with missing facts clearly marked.” That sentence gives the team something to test. It names the user, the work, the evidence, the time constraint, and the failure behavior.
+
+Google PAIR says product teams should decide what data is required to meet user needs and evaluate the tradeoff between precision and recall according to the product goal. In a high-stakes setting, the cost of a false positive can make precision the better choice. In a discovery setting, broader recall may be useful. There is no model-independent answer to “is this accurate enough?” The product decides which error matters more. [The PAIR patterns guide](https://pair.withgoogle.com/guidebook-v2/patterns) gives the relevant product distinction.
+
+If the team cannot state which error is more expensive, the feature is not ready for a quality threshold. It is ready for discovery.
+
+### The acceptance criterion describes a sentence, not a state
+
+AI output is easy to inspect and easy to overvalue. The user sees a polished response. The system’s actual result may be elsewhere.
+
+Anthropic’s evaluation guidance separates the transcript from the outcome. A transcript can say that a booking happened while the environment contains no booking. For a product that acts on records, sends messages, changes files, or starts downstream work, the system must inspect the source of truth independently. [Anthropic’s eval definitions](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents) make this distinction explicit.
+
+The same idea applies to less dramatic products. A research assistant might claim that every recommendation is supported by a current source. The acceptance test should inspect the source IDs, dates, and quoted passages, not only whether the answer sounds careful. A planning assistant might say it updated a plan. The test should inspect the saved plan or return a clear no-change result.
+
+This is where many product requirements become misleading. “The assistant gives a helpful answer” is a quality aspiration. “Every recommendation contains a source ID that resolves to a current document, otherwise the feature returns needs review” is a testable contract.
+
+The repair is to add a separate outcome row to every important acceptance criterion:
+
+| Product claim | Response check | External outcome check |
+| --- | --- | --- |
+| The assistant prepared an update | The draft contains the required sections and marks unknowns | Every cited project fact resolves to the current project record |
+| The assistant identified a blocker | The blocker includes evidence and a confidence qualifier | The linked task or incident exists and is still open |
+| The assistant updated a plan | The response names the changed items | The source-of-truth plan contains exactly those changes, once |
+
+The response check and the outcome check may share a test case. They should not be the same assertion.
+
+### The test set is too clean to represent the product
+
+A clean test set measures the builder’s intention. A useful test set measures the user’s environment.
+
+Atlassian recommends a mix of simple and complex prompts, well-formed and messy examples, core capabilities, and edge cases. Microsoft’s checklist likewise starts with foundational scenarios, acceptance criteria, and test methods, then expands into robustness, architecture, and boundary cases. It also says to repeat evaluations because probabilistic outputs can pass or fail the same criterion across runs. [Microsoft’s evaluation checklist](https://learn.microsoft.com/en-us/agents/agent-evaluation/evaluation-checklist) turns “test it” into a sequence a team can operate.
+
+The PM’s job is not to invent every test alone. It is to provide the scenarios that represent the product promise and the cases that carry the product risk. Domain experts can supply the awkward examples. Engineers can build the harness. Designers can check whether the interface invites the wrong level of trust. The PM keeps the cases connected to the user job.
+
+Start with one case for each of these categories:
+
+1. The ordinary case that represents the main job.
+2. A short or incomplete input.
+3. A long or messy input.
+4. A case with stale or conflicting data.
+5. A case where the correct response is uncertainty or refusal.
+6. A case outside the product’s scope.
+7. A tool, dependency, or permission failure.
+8. A repeated request that should not duplicate a side effect.
+
+If the team can only produce happy-path examples, it does not yet understand the product well enough to release it. That is not a criticism of the PM. It is a discovery finding.
+
+### The team optimizes the model before choosing the product boundary
+
+AI makes technical progress visible. A new model can improve a demo before the team has decided whether the workflow should be a model call, a fixed workflow, a retrieval feature, or an agent.
+
+OpenAI’s practical guide recommends validating the use case before committing to an agent and establishing a performance baseline before optimizing cost or latency. Anthropic recommends finding the simplest solution possible, because agentic systems can trade latency and cost for improved task performance. [OpenAI’s guide to building agents](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/) and [Anthropic’s agent guidance](https://www.anthropic.com/engineering/building-effective-agents) agree on the direction even though they describe different products.
+
+The PM can make this decision explicit:
+
+| Product boundary | Choose it when | Do not add yet when |
+| --- | --- | --- |
+| Single model call | The input is bounded and no tool decision is required | The model needs current data or must take action |
+| Retrieval-assisted feature | The user needs grounded information from a known corpus | The job requires multi-step action or changing records |
+| Fixed workflow | The steps are known and repeatability matters | The workflow contains meaningful, hard-to-specify variation |
+| Agent | The system must choose among steps or tools in an ambiguous workflow | The team cannot define stop conditions, authority, or outcome checks |
+
+Every added layer increases the number of things that can vary. A PM who narrows the boundary may ship sooner even if the resulting product sounds less ambitious.
+
+### No one owns the release decision after the prototype phase
+
+Product managers often coordinate the release without holding all the authority needed to make it safe. Engineering owns implementation. Security owns some controls. Legal owns some risks. Operations owns incidents. Leadership owns the pressure to show progress. The feature can reach a state where everyone contributed and nobody can answer, “Who can block this?”
+
+NIST’s AI RMF Core says roles and responsibilities related to managing AI risks should be documented and clear. It also says executive leadership takes responsibility for decisions about AI risks and that the mapping work should inform an initial go or no-go decision. [NIST’s AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/) treats accountability as part of the system, not a meeting that happens after the system is built.
+
+The release owner does not have to be the PM. The PM does need to make the owner visible, define the vetoes, and record what evidence the owner will review. If no one has that role, the delay is not a motivation problem. It is an unfinished product design.
+
+![Illustration of the difference between an AI response assertion and an independently verified source-of-truth outcome](/blog/why-do-product-managers-struggle-to-ship-ai-products-ai-response-vs-external-outcome.webp)
+
+## What should a PM put in the AI shipping packet?
+
+Use one compact packet that ties the product promise to evidence, boundaries, outcome verification, and ownership. It should fit in a document that a PM, engineer, designer, domain expert, and release owner can read together.
+
+The packet is the practical artifact produced from the audit. It is not a new industry framework. Its purpose is to stop the most common handoff failure: each function has a partial definition of done, but no one can see the whole release contract.
+
+Copy this structure:
+
+```text
+AI SHIPPING PACKET
+
+User and job:
+  Who is using the feature, and what work are they trying to complete?
+
+User outcome:
+  What observable change means the job helped?
+
+Cost of error:
+  What happens if the system is wrong, incomplete, late, or overconfident?
+
+Quality rules:
+  What must be present, absent, cited, formatted, or clearly marked unknown?
+
+Representative test cases:
+  Ordinary, incomplete, messy, stale, out-of-scope, refusal, dependency failure,
+  and repeated-side-effect cases.
+
+Human and runtime boundaries:
+  What may the system read, decide, write, send, or never do?
+  Where does a person review, approve, correct, or take over?
+
+Independent outcome check:
+  Which source of truth proves the intended result happened?
+
+Release owner:
+  Who can approve, narrow, pause, or roll back the feature?
+
+Release vetoes:
+  Which failures block release regardless of the average score?
+
+Change triggers:
+  Which model, prompt, data, tool, policy, or incident changes require re-evaluation?
+
+Post-launch signal:
+  Which traces, user reports, outcome checks, and failure samples will be reviewed?
+```
+
+The packet solves a different problem from a product requirements document. A requirements document explains what the team intends to build. The shipping packet explains what evidence permits the team to release it and what evidence will cause the team to reconsider it.
+
+### The user outcome row
+
+Avoid outcomes such as “users like the answer” or “the assistant is accurate.” Those phrases hide the decision that quality is meant to support.
+
+Use this form instead:
+
+> For [user] doing [job], the feature is useful when [observable result] using [allowed evidence], within [time or effort condition]. It must return [review, refusal, or partial state] when [known limitation].
+
+Example:
+
+> For a delivery lead preparing a weekly review, the feature is useful when it produces a current, review-ready update from the project record in ten minutes or less. It must mark missing evidence and stop short of inventing a status.
+
+The time condition is optional. The observable result is not. If the product cannot tell whether the user’s work improved, the team can still release a draft tool, but it should not claim that it shipped a reliable workflow.
+
+### The quality rules row
+
+Quality rules turn taste into checks. They do not need to be all numeric. A rule can be binary, categorical, or judged by a calibrated human rubric.
+
+Examples:
+
+- Every material status statement names its project source.
+- Unknown or conflicting facts appear in a separate review section.
+- The feature does not send or publish without explicit user approval.
+- A missing project record produces `needs_review`, not a plausible replacement.
+- A repeated request does not create a second update.
+
+These rules are closer to product requirements than to prompt wording. Atlassian notes that system prompts often read like encoded product requirements, with task context, output format, rules, domain logic, and examples. That observation is useful, but do not confuse encoding a requirement in a prompt with enforcing it in the runtime. A prompt can explain the rule. A validator, permission check, or outcome assertion must enforce the boundary.
+
+### The test-case row
+
+Every case should have four parts:
+
+| Part | Question |
+| --- | --- |
+| Input | What does the user or system provide? |
+| Expected behavior | What should the system say, call, refuse, or ask? |
+| Acceptance criteria | What passes, and what blocks the case? |
+| Outcome assertion | What external state or evidence is inspected? |
+
+For variable outputs, add the model or grader version, trial count, and the human calibration rule. Anthropic defines a trial as one attempt at a task and recommends multiple trials because outputs vary. Microsoft similarly recommends repeated evaluation for probabilistic behavior. The point is not to force a universal trial count. The point is to make the count visible rather than letting one attractive run stand in for reliability.
+
+### The boundary row
+
+Write boundaries as permissions and states, not as wishes.
+
+Weak: “The assistant should be careful with confidential data.”
+
+Stronger: “The assistant may read the project records for the requesting team. It may not read private HR notes. It may draft an update. It may not send the update. The user must approve any publication, and the runtime records the approved version.”
+
+If the product has no side effect, say so. “No external state changes in version one” is a meaningful boundary. It lowers the verification burden and lets the team learn from real use before adding authority.
+
+### The owner and veto row
+
+A release owner needs evidence, not a general invitation to review. Name the decision, the evidence, and the vetoes.
+
+| Decision | Evidence | Veto example |
+| --- | --- | --- |
+| Release to internal pilot | Core cases pass, scope is narrow, users know what the system cannot do | Any unauthorized data access |
+| Expand to more users | Edge-case suite is stable, support route exists, outcome checks are sampled | No owner for incidents or regression review |
+| Add a write action | Dry-run and approval path work, duplicate effects are prevented, source of truth is checked | The system can claim success without an outcome check |
+| Change model or prompt | Baseline and regression suite are rerun | A critical refusal, privacy, or integrity case regresses |
+
+This is where the PM’s coordination becomes product capability. Someone may still disagree with the threshold, but the disagreement now has a named decision and a visible artifact.
+
+## How do you turn the packet into a release decision?
+
+Run the packet in sequence. Do not wait until the last day of the sprint to discover that the team never agreed what success meant.
+
+1. **Write the user outcome before choosing the model.** If the outcome is vague, interview users or narrow the job. Do not repair a vague product with a better model.
+2. **Choose the smallest system boundary that can test the outcome.** Start with a single call, retrieval, or fixed workflow when that is enough. Add an agent only when model-directed steps are necessary.
+3. **Collect real cases before polishing the prompt.** Include messy inputs, missing evidence, refusal cases, and the inputs that make the team nervous.
+4. **Separate response assertions from outcome assertions.** Check what the system said and what the source of truth contains.
+5. **Define the human control point.** Specify who reviews, what they can see, what they can approve, and what happens when the system asks for help.
+6. **Run the smallest baseline that can falsify the idea.** The goal is not a flattering score. The goal is to learn whether the feature can meet the outcome under representative conditions.
+7. **Name the release owner and vetoes.** If a failure is serious enough to block release, write it down before the team sees the average score.
+8. **Record change triggers.** Model updates, knowledge changes, new tools, production incidents, and major prompt edits should have a known re-evaluation path.
+9. **Ship the narrow version or stop.** A smaller supervised product is a valid result. So is a decision not to automate the workflow.
+
+NIST describes testing as something that happens before deployment and regularly while the system operates. Microsoft’s checklist gives concrete change triggers such as model changes, knowledge updates, new connectors, and incidents. The release is therefore not a final ceremony. It is the first version of an operating agreement.
+
+![Illustration of the seven-field AI shipping packet as a product document connecting user outcome, tests, boundaries, outcome proof, owner, and change triggers](/blog/why-do-product-managers-struggle-to-ship-ai-products-ai-shipping-packet-artifact.webp)
+
+## When is the product manager not the bottleneck?
+
+Sometimes the packet will show that the missing capability is not product management. The PM should say that plainly.
+
+The bottleneck may be data access. The user job is clear, the quality rules are testable, and the team still cannot obtain representative or legally usable data. The right action is a data decision, not a new prompt.
+
+It may be integration work. The feature can produce a useful proposal, but the source system has no reliable read path or cannot expose the state needed for verification. The right action is an integration boundary or a read-only pilot.
+
+It may be risk tolerance. The output is useful, but the cost of a wrong decision is too high for the available review capacity. The right action is to narrow the user population, remove write permissions, or keep the feature as an advisory tool.
+
+It may be operational ownership. The product passes the test set, but no team will review incidents, refresh the cases, or respond when a model changes. The right action is to delay expansion until the operating role exists.
+
+It may be a model capability limit. The product requirement is clear, the data is available, and the model does not meet the threshold even with a reasonable design. The right action is to change the task, use deterministic software, improve the evidence, or wait. It is not automatically to add another agent.
+
+The packet makes these distinctions useful because it gives each failure a home. “AI is hard” is not a diagnosis. “We cannot verify the external state because the source system exposes no stable identifier” is a decision.
+
+The principal exception is a low-risk, human-reviewed feature. If a person checks every output and the system cannot change external state, it may be reasonable to ship with lighter automation and a smaller test set. The packet still needs an outcome, quality rules, and an owner, but the control path is simpler.
+
+## What changes after launch?
+
+Post-launch work is part of the product, not a maintenance footnote. AI behavior can change when the model, prompt, retrieval corpus, tool schema, policy, or user population changes.
+
+Microsoft’s checklist recommends continuous quality improvement and identifies model changes, major knowledge updates, new tool or connector integrations, and production incidents as triggers for a full evaluation run. NIST likewise describes regular testing and documented measurement as part of the measure function. The exact cadence belongs to the product’s risk and volume. The trigger logic should exist before launch.
+
+Keep three evidence streams separate:
+
+1. **Evaluation evidence:** repeatable cases run before a release or change.
+2. **Production evidence:** traces, user reports, failures, and observed outcomes from real use.
+3. **Business evidence:** whether the feature improves the user’s work, reduces effort, increases completion, or changes the relevant product metric.
+
+An evaluation score cannot replace business evidence. A usage number cannot replace outcome verification. A user complaint cannot tell you whether the issue came from the model, the data, the interface, or the workflow unless the trace and source-of-truth state are available.
+
+Set a review loop that answers four questions:
+
+- Which new failure cases should enter the evaluation set?
+- Which failures are product failures rather than model failures?
+- Which changes require the release owner to re-approve the feature?
+- What evidence would make us narrow or remove the feature?
+
+Marius Manolachi has taught product managers who went from writing specs to building and shipping the product and automating work around it. That is a qualitative teaching observation, not a measured rate. It matters here because AI makes the gap visible: a PM who can only describe the output has not yet described the product.
+
+![Illustration of a post-launch AI quality loop where evaluation cases, production traces, user feedback, and business outcomes feed a named release owner](/blog/why-do-product-managers-struggle-to-ship-ai-products-ai-post-launch-quality-loop.webp)
+
+## How was the audit run?
+
+The audit used five primary documents and a fixed seven-field rubric. The documents were selected because they represent different parts of the shipping problem: product design, first-party PM practice, risk governance, agent evaluation, and an operational evaluation checklist.
+
+The five sources were Google PAIR, Atlassian, NIST, Anthropic, and Microsoft. Each source was opened directly on August 22, 2026. The audit did not use search snippets as evidence. Each cell received zero, one, or two points using the definitions recorded in the research artifact above.
+
+The seven fields were user job and outcome, definition of good, evaluation set and edge cases, independent outcome check, human control and user understanding, change and post-launch monitoring, and accountable release decision.
+
+The result table has 35 scored cells. The field totals are 9, 9, 9, 5, 7, 9, and 6 out of 10. The two lowest fields are independent outcome checking and release accountability. The audit therefore supports a narrow conclusion: current primary guidance makes it easier to find advice about testing than to find one compact release contract that says who verifies the real-world result and who can block release.
+
+That conclusion is stronger than a list of common AI product problems because the scoring rule can be repeated. It is also narrower than a claim about the entire market. A different corpus or a second auditor could change individual cells. The limitation is part of the finding.
+
+## What does this mean for a product manager this week?
+
+Do not begin by reading another framework or comparing another model. Open the feature that is stuck and fill the seven fields.
+
+If the user outcome is unclear, return to the workflow. If the test cases are clean, ask the people who perform the work for the awkward inputs. If the response is the only evidence, name the source of truth. If no one can block a release, make that the decision to resolve. If the product boundary requires an agent but the team cannot define a stop condition, narrow it to a fixed workflow.
+
+You do not need to become a machine learning researcher to do this work. You do need enough technical fluency to understand what the system reads, what it can change, how its output varies, how to inspect a trace, and what proves that the user’s work improved. That is the capability the parent guide develops in sequence. Start with [what to learn before building AI agents](/blog/what-to-learn-before-building-ai-agents), then use [the AI feature acceptance criteria guide](/blog/how-to-write-acceptance-criteria-for-an-ai-feature) to turn the packet’s quality rules into testable requirements. When the feature is ready for a fuller gate, use [the AI agent evaluation guide](/blog/how-to-evaluate-an-ai-agent).
+
+Marius Manolachi helps people and teams build AI products on their own work as an AI consultant and AI tutor. If the packet exposes a capability gap, [bring the real workflow to an AI learning session](/learn-ai). The article is complete without that next step. The packet is the thing to use.
+
+![Illustration of a product manager using the shipping packet to choose between ship, narrow scope, supervised pilot, and stop](/blog/why-do-product-managers-struggle-to-ship-ai-products-ai-release-decision-branches.webp)
