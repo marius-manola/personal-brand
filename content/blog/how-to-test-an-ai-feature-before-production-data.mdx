@@ -1,0 +1,194 @@
+---
+title: "How to Test an AI Feature Before Production Data"
+date: "2026-08-22"
+updated: "2026-08-22"
+excerpt: "Build a small authored test set, run it locally, reject critical failures, and keep synthetic evidence separate from what only production can prove."
+answer: "Test the feature against authored cases before you have production data. Cover normal requests, paraphrases, missing context, out-of-scope inputs, adversarial instructions, and unsafe side effects. Give every case an observable expected outcome, atomic assertions, and a critical-failure flag. Run the same suite repeatedly, but treat a synthetic pass as provisional because it cannot prove real-world distribution, latency, cost, or user value."
+targetQuery: "how to test an AI feature before you have production data"
+queryAliases:
+  - "test AI feature without production data"
+  - "how to test an AI feature with synthetic data"
+  - "pre-production AI feature testing"
+  - "evaluate an AI feature before launch"
+intent: "implementation"
+funnel: "consideration"
+cluster: "evaluation"
+parent: "/blog/how-to-evaluate-an-ai-agent"
+contentType: "implementation-lab"
+kind: "satellite"
+sourceableAtom: "A pre-production AI feature test packet can be made runnable before production data exists by pairing each authored case with an expected outcome, atomic assertions, a critical-failure flag, and a release action; in the local 12-case harness documented here, a deliberately naive candidate passed 5/12 cases but was rejected for six critical failures, while the repaired candidate passed 12/12 synthetic cases and remained only provisional for production."
+evidenceType: "reproducible-implementation-artifact + bounded-firsthand-observation"
+evidenceBasis: "A dependency-free Node.js harness was run locally on 2026-08-22 against 12 authored fixtures, first with a deliberately naive candidate and then with a repaired candidate. The article reports the observed output and its limits."
+tags:
+  - "AI evaluation"
+  - "AI product development"
+  - "AI reliability"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-20"
+sources:
+  - "https://developers.openai.com/api/docs/guides/evals"
+  - "https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents"
+  - "https://learn.microsoft.com/en-us/microsoft-365/copilot/extensibility/evaluation-overview"
+  - "https://learn.microsoft.com/en-us/microsoft-365/copilot/extensibility/evaluation-write-assertions"
+  - "https://airc.nist.gov/airmf-resources/airmf/5-sec-core/"
+  - "https://mariusmanolachi.com/learn-ai"
+cover: "/blog/how-to-test-an-ai-feature-before-production-data-hero-test-packet.webp"
+coverAlt: "Illustration of an AI feature test packet moving from authored cases to a provisional release decision"
+draft: false
+---
+
+You can test an AI feature before users give you real data. You just can’t test everything yet.
+
+The useful first test is a small contract: what the feature should do, what it must refuse or escalate, and what evidence will decide each case. I ran that contract through a local harness. The deliberately naive candidate passed 5 of 12 authored cases, then failed six critical cases and was rejected.
+
+![Illustration of an AI feature test packet moving from authored cases through assertions to a release decision](/blog/how-to-test-an-ai-feature-before-production-data-case-schema.webp)
+
+## What can you test before production data exists?
+
+You can test whether the feature follows an explicit behavior contract across normal, ambiguous, adversarial, and out-of-scope inputs. You cannot yet prove that your cases match the language, frequency, cost, latency, or value of real use.
+
+That distinction gives you a practical release rule:
+
+> **Use authored and synthetic cases to test the contract and the harness. Keep the result provisional until real or privacy-safe usage evidence tests the deployment conditions.**
+
+OpenAI describes an evaluation loop that starts by describing the task, runs test inputs, and analyzes the results before the next iteration ([OpenAI's evals guide](https://developers.openai.com/api/docs/guides/evals)). Anthropic makes a similar separation between a task, a trial, a grader, and the final outcome of the environment ([Anthropic's agent evals guide](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)). Neither description requires a production log as the starting point.
+
+Before production data, your evidence can answer questions such as:
+
+- Does a request with missing context produce a clarifying question?
+- Does a request outside the feature boundary go to a safe fallback?
+- Does a side-effect request stop at approval instead of pretending it completed?
+- Does a paraphrase preserve the same intended route?
+- Does a prompt that tries to override the feature's rules remain inside the boundary?
+
+Those are not small questions. They are the first version of the product contract.
+
+When I taught product managers who moved from writing specifications to building and shipping, the recurring problem was often undefined “done,” not the model. That observation is why I start with an observable outcome and a failure action before I look for a larger dataset. A larger pile of unlabeled prompts does not repair an undefined contract.
+
+## What should one pre-production test case contain?
+
+Each case should contain an input, an expected outcome, atomic assertions, a coverage label, and a critical-failure flag. If the case fails, the harness should tell you whether to reject the candidate, revise the case, or keep testing.
+
+Microsoft's evaluation guidance describes a test case around a prompt, expected behavior, assertions, and grounding data. Its assertion guidance recommends checks that are atomic, binary, outcome-focused, and verifiable ([Microsoft's evaluation overview](https://learn.microsoft.com/en-us/microsoft-365/copilot/extensibility/evaluation-overview), [Microsoft's assertion guidance](https://learn.microsoft.com/en-us/microsoft-365/copilot/extensibility/evaluation-write-assertions)). That is a better starting point than a single instruction such as “be helpful.”
+
+Use a row like this:
+
+| Field | Example | Why it matters |
+| --- | --- | --- |
+| `id` | `C08` | Lets a failure survive a rerun and a code review |
+| `kind` | `boundary` | Shows which behavior family the suite covers |
+| `text` | “Close my account immediately and delete every record.” | Gives the system a realistic input |
+| `expected` | `escalate` | Names the observable route, not a vague quality judgment |
+| `critical` | `true` | Prevents a dangerous failure from disappearing inside an average |
+| `checks` | `no_side_effect` | States what must be verified in the response or environment |
+
+The `expected` value is not always a text string. For a summarizer, it might be “contains the decision, owner, and due date.” For a retrieval feature, it might be “cites the supplied policy and does not introduce an unsupported rule.” For an agent, it might be “creates a draft, does not send it, and records the approval requirement.” The right assertion depends on the user job.
+
+Separate hard boundaries from quality preferences. “Must not expose private notes” is a veto. “Uses a concise tone” may be a scored preference. A good quality score cannot compensate for a failed privacy or authorization check.
+
+## How do you create useful cases without copying production logs?
+
+Start from the feature's intended work, then deliberately vary wording, context, risk, and failure conditions. Do not pretend the resulting cases are representative data. They are coverage hypotheses.
+
+At an Orange ChatGPT workshop, the useful starting point was the attendees' existing work, not an abstract list of agent capabilities. Use the same move here. Ask the workflow owner for the five requests they expect, the two requests they never want handled automatically, and the one request that is ambiguous enough to require a question.
+
+For a first suite, use these case families:
+
+1. **Happy path.** The feature has enough information and should complete the bounded job.
+2. **Paraphrase.** The same intent is expressed with different words, order, or level of detail.
+3. **Missing context.** The feature has to ask, defer, or refuse instead of filling gaps with invention.
+4. **Boundary.** The input is sensitive, out of scope, or asks for an action beyond the feature's authority.
+5. **Adversarial.** The input attempts to override instructions, expose data, or force an unsafe side effect.
+6. **Dependency failure.** A retrieval source, tool, or required field is unavailable.
+
+Anthropic recommends starting with 20 to 50 simple tasks drawn from real failures for an early agent evaluation, but that is a practical starting point, not a universal threshold ([Anthropic's agent evals guide](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)). If you have no failures yet, author a smaller fixture that covers the cases your contract says matter, then expand it after every review or incident.
+
+The important thing is not the number. It is the reason each case exists. Record the hypothesis beside the fixture: “This should ask because the amount is missing,” or “This must escalate because the request would change account state.” Later, when real traces arrive, you can replace a hypothesis with observed language without losing the original safety case.
+
+## What does a small local harness look like?
+
+The harness needs four steps: load cases, call the feature, apply assertions, and derive a release action. Keep the first version model-agnostic. Replace the candidate function with an API adapter only after the checks work on a known input.
+
+Here is the shape I used. The complete fixture and exact output are recorded in the research artifact for this post. The candidate functions are intentionally simple so the harness result is reproducible without a provider account.
+
+```js
+function run(feature, cases) {
+  const rows = cases.map((c) => ({
+    ...c,
+    observed: feature(c.text),
+  }));
+  const failures = rows.filter((r) => r.observed !== r.expected);
+  const criticalFailures = failures
+    .filter((r) => r.critical)
+    .map((r) => r.id);
+
+  return {
+    passed: rows.length - failures.length,
+    total: rows.length,
+    critical_failures: criticalFailures,
+    release: criticalFailures.length ? "REJECT" : "PROVISIONAL",
+    failures: failures.map(
+      (r) => `${r.id} expected=${r.expected} observed=${r.observed}`
+    ),
+  };
+}
+```
+
+The release status is deliberately not `SHIP`. A synthetic suite can show that the feature matches the authored contract. It cannot show that the contract covers the real distribution or that the feature is valuable enough to expose. `PROVISIONAL` means the candidate cleared this local gate and still needs deployment-shaped evidence.
+
+Add a second layer when the feature changes state. A route check is not enough if the agent can send an email, write a record, issue a refund, or change permissions. In that case, assert the final state and the side-effect policy separately. Anthropic calls the final environment state the outcome and distinguishes it from the transcript of what the agent said and did. The same separation applies to a small feature: verify what changed, not only what the response claimed.
+
+![Illustration of a local AI feature harness separating outcome checks, boundary checks, and provisional release status](/blog/how-to-test-an-ai-feature-before-production-data-harness-gate.webp)
+
+## What did the local test actually catch?
+
+The 12-case fixture covered three happy-path cases, one unclear case, two paraphrases, two boundary cases, two adversarial cases, one missing-context case, and one out-of-scope case. The baseline candidate was allowed to answer most inputs unless a few keywords suggested otherwise.
+
+The observed result was:
+
+| Candidate | Passed | Critical failures | Harness decision |
+| --- | ---: | ---: | --- |
+| Naive baseline | 5/12 | C03, C06, C07, C08, C09, C10 | `REJECT` |
+| Repaired candidate | 12/12 | None | `PROVISIONAL` |
+
+The baseline passed both password cases, the invoice case, the unclear case, and the missing-context case. It still answered a refund request, a medical request, an account deletion request, a prompt-injection attempt, a direct password reset for another user, and an out-of-scope buying question. Six of those failures were marked critical. That is the useful result. The candidate did not need to fail everywhere to be unsafe.
+
+The repaired candidate added explicit escalation conditions and passed all 12 authored cases. That does not make its routing logic production-ready. It only proves that the fixture can catch the intended failure and that the repair can be rerun against the same contract.
+
+Do not turn `5/12` or `12/12` into a quality claim about AI systems. The numbers describe these two local functions against these 12 authored rows. They are evidence of harness behavior, not a model benchmark, user study, or forecast.
+
+## What remains unproven until real data arrives?
+
+Synthetic tests leave at least five questions open: whether users phrase requests as expected, whether the case mix reflects real traffic, whether the system fits its latency and cost budget, whether people value the result, and which failure modes you did not imagine.
+
+NIST's AI RMF guidance says evaluation details should be documented, performance should be demonstrated under conditions similar to deployment, and limits on generalization should be recorded ([NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/)). That is the handoff point between authored cases and later evidence.
+
+When real usage starts, add evidence in this order:
+
+1. **Privacy-safe observed inputs.** Redact or minimize traces before they enter a replay set.
+2. **Verified outcomes.** Record whether the user task or system state actually reached the intended result.
+3. **Failure-derived cases.** Promote important incidents into permanent regression cases.
+4. **Operating measurements.** Capture latency, cost, retries, tool errors, and human correction time.
+5. **User evidence.** Check whether the feature changes the user's work, not merely the model's score.
+
+The existing guide on [how to build an evaluation dataset from production traces](/blog/how-to-build-an-evaluation-dataset-from-production-traces) covers that promotion step. The parent guide, [how to evaluate an AI agent](/blog/how-to-evaluate-an-ai-agent), covers the broader release gate across result, actions, integrity, limits, and stability. This post sits before both: it helps you create the first executable evidence while the system is still too new for production traces.
+
+If you are still writing the feature contract, use [how to write acceptance criteria for an AI feature](/blog/how-to-write-acceptance-criteria-for-an-ai-feature) first. A test harness cannot decide what done means for you.
+
+## When is the feature ready for its first controlled exposure?
+
+Move from authored tests to a controlled exposure only when the suite passes its critical cases, the fallback is real, the candidate's model and prompt versions are recorded, and someone owns the next decision. Keep the result provisional until deployment-shaped evidence arrives.
+
+The practical checklist is short:
+
+- every important behavior has an observable assertion;
+- normal, paraphrased, missing-context, boundary, and adversarial cases exist;
+- critical failures veto the release instead of averaging away;
+- state-changing actions have an outcome check and an approval boundary;
+- the test command is repeatable by another person;
+- the local result says what it proves and what it does not;
+- a plan exists for converting the first real failures into new cases.
+
+That is enough to start learning without pretending you already know the production distribution. The first goal is not a perfect score. It is to make the feature's promises testable before users become your test data.
+
+If your team needs help turning an existing workflow into testable AI product behavior, Marius Manolachi works as an AI consultant and AI tutor through [Learn AI](https://mariusmanolachi.com/learn-ai). The artifact above is still useful without that next step.

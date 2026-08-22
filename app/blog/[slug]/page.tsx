@@ -5,11 +5,13 @@ import { notFound } from 'next/navigation';
 import { MDXRemote } from 'next-mdx-remote/rsc';
 import Copyright from '@/app/components/Copyright';
 import BlogCallCard from '@/app/components/BlogCallCard';
+import MobileConsultingPopup from '@/app/components/MobileConsultingPopup';
 import MobileReadingProgress from '@/app/components/MobileReadingProgress';
 
 import { getAllBlogPosts, getBlogPost, prepareBlogMdx } from '@/lib/server/blog.server';
 import { isLocalBlogImage, localBlogImageSize } from '@/lib/server/blog-image';
 import { sameAs } from '@/app/data/about';
+import { calendarUrl } from '@/app/data/learn-ai';
 
 const SITE_URL = 'https://mariusmanolachi.com';
 
@@ -307,6 +309,7 @@ export default async function BlogPostPage({ params }: PageProps) {
         </footer>
       </main>
       </div>
+      <MobileConsultingPopup calendarUrl={calendarUrl} />
     </div>
   );
 }

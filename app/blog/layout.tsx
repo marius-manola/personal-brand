@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import MobileConsultingPopup from '@/app/components/MobileConsultingPopup';
 
 export const metadata: Metadata = {
   title: {
@@ -16,10 +15,5 @@ export const metadata: Metadata = {
 };
 
 export default function BlogLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <>
-      {children}
-      <MobileConsultingPopup />
-    </>
-  );
+  return children;
 }
