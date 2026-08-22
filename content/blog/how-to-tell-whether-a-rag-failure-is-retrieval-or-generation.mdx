@@ -1,0 +1,203 @@
+---
+title: 'How to Tell Whether a RAG Failure Is Retrieval or Generation'
+date: '2026-08-22'
+updated: '2026-08-22'
+excerpt: 'A reproducible paired-context test for finding out whether a wrong RAG answer came from missing evidence or bad use of available evidence.'
+answer: 'Capture the exact chunks sent to the model, then rerun the same prompt with a verified answer-bearing context. If the answer becomes correct, retrieval failed. If it stays wrong even with the verified context, generation or context use failed. The exception is a disputed or incomplete reference, which is a mixed or unresolved failure.'
+targetQuery: 'how to tell whether a RAG failure is retrieval or generation'
+queryAliases:
+  - 'RAG retrieval or generation failure'
+  - 'how to diagnose a RAG failure'
+  - 'RAG debugging retrieval versus generation'
+  - 'is my RAG retriever or generator failing'
+intent: 'diagnostic'
+funnel: 'consideration'
+cluster: 'evaluation'
+parent: '/blog/how-to-evaluate-an-ai-agent'
+contentType: 'failure-clinic'
+kind: 'satellite'
+sourceableAtom: 'A four-case deterministic paired-context reproduction classified 4 of 4 seeded RAG failures, splitting them into two retrieval failures and two generation or context-use failures.'
+evidenceType: 'reproduction-trace'
+evidenceBasis: 'A Python 3 deterministic test double was run on 2026-08-22. Each case compared a baseline run using retrieved context with an oracle-context run using verified answer-bearing context while holding the generator mode fixed. The result was 4 of 4 correct classifications in the fixture, not an LLM benchmark.'
+tags:
+  - 'AI evaluation'
+  - 'AI reliability'
+  - 'RAG'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-20'
+sources:
+  - 'https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/rag/rag-information-retrieval'
+  - 'https://learn.microsoft.com/en-in/azure/foundry/concepts/evaluation-evaluators/rag-evaluators?view=foundry'
+  - 'https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/rag/rag-prompt-engineering'
+  - 'https://learn.microsoft.com/en-us/fabric/data-science/tutorial-evaluate-rag-performance'
+  - 'https://aclanthology.org/2024.eacl-demo.16.pdf'
+  - 'https://cloud.google.com/use-cases/retrieval-augmented-generation'
+faq:
+  - q: 'Can a correct answer still hide a retrieval failure?'
+    a: 'Yes. A model can answer from parametric memory even when the answer-bearing chunk was not retrieved. Check the retrieved context directly instead of treating a correct final answer as proof that retrieval worked.'
+  - q: 'What if the answer-bearing document is not in the corpus?'
+    a: 'Treat that as a knowledge or corpus-coverage failure first. Do not label it generation until you have verified that the required evidence exists in the indexed collection and is allowed for the query.'
+  - q: 'What if retrieval and generation both fail?'
+    a: 'Record both defects when the retrieved context is incomplete and the model also mishandles the context it receives. Fix the earliest proven defect, then rerun the same case to expose the next one.'
+cover: '/blog/how-to-tell-whether-a-rag-failure-is-retrieval-or-generation-hero.webp'
+coverAlt: 'Illustration of a RAG failure splitting into retrieval and generation diagnosis paths'
+draft: false
+---
+
+The wrong answer is the visible symptom. It isn't the diagnosis.
+
+When I taught product managers to move from writing specs to building and shipping, the recurring failure was usually an undefined “done,” not the model. RAG systems have the same problem: teams grade the answer before defining what evidence had to reach the model and what the model had to do with it.
+
+**Observed result:** I ran a four-case deterministic reproduction on 2026-08-22. Replacing the retrieved context with verified answer-bearing context classified all four seeded failures correctly: two were retrieval failures and two were generation or context-use failures. The fixture is a debugging artifact, not a benchmark of an LLM.
+
+![Illustration of a RAG failure splitting into retrieved evidence, generated answer, and two diagnosis paths](/blog/how-to-tell-whether-a-rag-failure-is-retrieval-or-generation-inline-1.webp)
+
+## What is the fastest way to separate retrieval from generation?
+
+Run the same question and generation settings twice. First, use the exact context your retriever returned. Then replace only that context with a verified gold context that contains the evidence needed for the answer.
+
+| Baseline with retrieved context | Oracle-context probe | Diagnosis |
+| --- | --- | --- |
+| Wrong answer | Correct answer | Retrieval failure is proven for this case |
+| Wrong answer | Still wrong | Generation, prompt, or context-use failure is implicated |
+| Incomplete answer | Complete answer | Retrieval recall or context assembly failed |
+| Wrong answer | Gold context is disputed or incomplete | Mixed or unresolved; do not force a binary label |
+
+This counterfactual works because it holds the generator constant while changing the input evidence. It doesn't prove that every retriever defect is the only defect in the system. It tells you which layer you can blame first from the evidence you have.
+
+Microsoft's RAG guidance separates process evaluation of retrieved documents from system evaluation of groundedness, relevance, and response completeness. That is the same split expressed as a debugging action: inspect what arrived, then inspect how the answer relates to it ([Microsoft's RAG evaluators](https://learn.microsoft.com/en-in/azure/foundry/concepts/evaluation-evaluators/rag-evaluators?view=foundry)).
+
+The principal exception is a bad reference. If your “gold” answer is stale, incomplete, or not actually supported by the corpus, an oracle probe creates false confidence. Verify the reference before you use it as a control.
+
+## What does a retrieval failure look like?
+
+A retrieval failure means the evidence needed to answer the question was absent, buried, truncated, or incorrectly selected before generation. The model may produce a fluent answer, but the trace cannot show the required source in the context packet it received.
+
+Look for these patterns:
+
+- The answer-bearing document or chunk is not in the top-k results.
+- A relevant document is retrieved, but the required sentence was lost during parsing or chunking.
+- The right chunk appears below a context limit or is removed by a reranker or metadata filter.
+- Only one part of a multi-part question is retrieved.
+- A stale or lower-authority chunk outranks the current policy.
+
+The useful question is not “Was the retrieved text vaguely related?” It is “Does the retrieved packet contain enough verified evidence to derive the expected answer?” That distinction matters. A semantically similar chunk can have high relevance to the topic and still fail to contain the one number, exception, or condition the user asked about.
+
+For a labeled test set, measure the retrieval layer directly. Microsoft's information-retrieval guidance defines Precision@K as the proportion of returned results that are relevant, Recall@K as the proportion of relevant results found in the top K, and mean reciprocal rank as a measure of where the first relevant result appears ([Microsoft's retrieval evaluation guidance](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/rag/rag-information-retrieval)). On one failing trace, you don't need a dashboard first. You need the chunk IDs, ranks, text, filters, and context assembly output.
+
+A retrieval repair changes the path that selects or packages evidence. Typical repairs include fixing document parsing, changing chunk boundaries, adding lexical search for exact identifiers, adjusting metadata filters, reranking, increasing top-k for a narrow case, or resolving source precedence. Re-run the same question after one material change so you know which change moved the evidence.
+
+## What does a generation failure look like?
+
+A generation failure means the answer-bearing evidence was available to the model, but the model did not use it correctly. It may ignore the context, contradict it, answer only one part, follow an instruction embedded in a retrieved document, or invent a detail that the context does not support.
+
+The strongest signal is a wrong answer with a correct answer-bearing context packet. That is why reading only the final answer is insufficient. You need the actual prompt, the exact context string, the model and version, generation settings, and the output.
+
+The language used by RAGAS is useful here. Its paper distinguishes faithfulness, which asks whether answer claims can be inferred from context, answer relevance, which asks whether the answer addresses the question, and context relevance, which asks whether the retrieved context is focused ([RAGAS: Automated Evaluation of Retrieval Augmented Generation](https://aclanthology.org/2024.eacl-demo.16.pdf)). These are different checks. A response can be relevant to the question and still be unfaithful to the context.
+
+Generation-side repairs include making the grounding instruction explicit, adding a clear no-answer behavior, separating instructions from retrieved data, handling conflicting sources, reducing irrelevant context, and requiring the model to identify supporting evidence for material claims. Microsoft's prompt guidance recommends telling the model to answer only from provided context and defining behavior for no relevant context, partial context, and conflicting sources ([Microsoft's RAG prompt guidance](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/rag/rag-prompt-engineering)).
+
+Do not call every wrong answer a generation failure because the model is the visible component. If the gold context makes the answer correct, repair retrieval first. A better prompt cannot make a missing policy exception appear in the context.
+
+## How do you run the paired-context test?
+
+Use one failed trace and make the comparison boring. Boring is good here because it preserves causality.
+
+1. **Freeze the case.** Store the question, expected answer, model and version, system prompt, generation settings, retriever version, filters, top-k, chunk IDs, chunk text, and final context packet.
+2. **Verify the reference.** Point to the authoritative document and the exact passage that supports the expected answer. If the passage is not in the corpus, mark the case as corpus coverage, not generation.
+3. **Run the baseline.** Reproduce the failure with the original retrieved context. Save the answer, citations, latency, token counts, and any refusal or fallback.
+4. **Build the oracle packet.** Replace the retrieved context with the smallest verified passage set that fully answers the question. Keep the question, prompt, model, settings, and output format unchanged.
+5. **Run the oracle probe.** Save the second answer. Do not alter the generator at the same time. If you change retrieval and prompt together, you lose the diagnostic comparison.
+6. **Classify the evidence.** Baseline wrong and oracle correct points to retrieval. Both wrong points to generation or context use. A disputed reference or two independent failures is mixed or unresolved.
+7. **Repair one layer.** Change the retriever or the generator, not both. Keep the failed case as a regression test.
+8. **Verify the repair.** Run the original case, its paraphrase, a no-answer case, and a conflict or partial-context case. A fix that helps one exact question but breaks abstention is not ready.
+
+This is a diagnostic procedure, not a claim that an oracle packet is available in every production system. If you cannot construct a trusted oracle packet, you need better labeling and source verification before you need a new model.
+
+## What did the reproducible diagnostic run show?
+
+I used four synthetic cases with a deterministic generator test double. Two cases removed or withheld required evidence. Two cases supplied the required evidence but used a generator mode that produced an incorrect answer or ignored context. The only variable in the paired comparison was the context packet.
+
+| Case | Baseline with retrieved context | Oracle-context probe | Diagnosis |
+| --- | --- | --- | --- |
+| Retrieval miss | “Founder pricing is $29.99 per month.” | “Refunds are available within 14 days.” | Retrieval |
+| Present context, bad synthesis | “The model approves every production write.” | Same wrong answer | Generation |
+| Partial retrieval | “Record the model version.” | “Record the model version and the prompt version.” | Retrieval |
+| Context ignored | “Do not escalate; answer from general knowledge.” | Same wrong answer | Generation |
+
+Observed total: `checked=4 retrieval=2 generation=2 correct=4`.
+
+The compact decision logic is:
+
+```python
+baseline = generate(question, retrieved_context)
+oracle = generate(question, verified_gold_context)
+
+if baseline_is_wrong and oracle_is_correct:
+    diagnosis = "retrieval"
+elif baseline_is_wrong and oracle_is_wrong:
+    diagnosis = "generation_or_context_use"
+else:
+    diagnosis = "no_failure_or_unresolved"
+```
+
+The test double makes the result reproducible without an API, but it also limits what the result means. It does not tell you that a particular embedding model, reranker, or production LLM will behave the same way. Its value is narrower: it shows how to make the layer distinction observable and how to keep a repair from becoming a guess.
+
+![Illustration of a baseline RAG context packet being replaced by a verified oracle context while the generator stays fixed](/blog/how-to-tell-whether-a-rag-failure-is-retrieval-or-generation-inline-2.webp)
+
+## Which measurements confirm the diagnosis?
+
+Use component metrics to confirm the trace, not to replace it. A single end-to-end answer score hides the layer you need to repair.
+
+| What to measure | What it tells you | Strong interpretation | Important limit |
+| --- | --- | --- | --- |
+| Answer-bearing source in top-k | Whether required evidence arrived | Missing source supports retrieval diagnosis | Requires a verified label and can miss lost text inside a chunk |
+| Precision@K | How much of the returned set is relevant | Low precision suggests noisy retrieval | Relevant does not mean sufficient |
+| Recall@K | How much relevant evidence was found | Low recall supports a retrieval coverage problem | It does not show whether the model used the evidence |
+| MRR | Where the first relevant result appears | A low rank can expose ranking or reranking problems | One relevant source may not cover a multi-hop answer |
+| Groundedness or faithfulness | Whether answer claims follow from context | Low score with good context supports generation or context-use work | Judge quality and context correctness still matter |
+| Response completeness | Whether required facts are present in the answer | Missing facts with complete context supports generation or prompt work | It needs a reference or explicit required-fact set |
+| Answer relevance | Whether the response addresses the question | Low relevance can point to prompt or task interpretation issues | It does not prove factual correctness |
+
+Microsoft's RAG evaluator documentation makes the same precision and recall distinction on the response side: groundedness focuses on content outside the context, while response completeness focuses on missing critical information relative to ground truth ([Microsoft's evaluator definitions](https://learn.microsoft.com/en-in/azure/foundry/concepts/evaluation-evaluators/rag-evaluators?view=foundry)). The RAGAS paper also warns, by its definitions, that context relevance and faithfulness are not interchangeable.
+
+For a small team, start with four saved fields per failure: `retrieved_chunk_ids`, `context_text_sent_to_model`, `expected_claims`, and `answer_claims`. Add model-based grading only after those fields are stable. Otherwise a judge is being asked to explain a trace you did not preserve.
+
+## How should you repair and verify each failure class?
+
+Repair the earliest layer that the paired test proves. Then rerun the original failure before expanding the test set.
+
+### If retrieval failed
+
+Check parsing first. A search system cannot retrieve a fact that extraction dropped. Then inspect chunk boundaries, exact-match behavior, filters, source freshness, rank position, and context truncation. For a multi-part question, label each required claim separately. A document hit is not the same as complete evidence.
+
+Your verification should show that the answer-bearing evidence appears in the assembled context, not merely in an intermediate search result. Run the original question and a paraphrase. Also run a negative query that the corpus should not answer. A retrieval change that increases broad matches but makes abstention worse needs more work.
+
+### If generation failed
+
+Keep the context fixed and test one prompt or model change. Require the model to use only the provided context, state what it cannot answer, expose conflicts, and avoid following instructions inside retrieved data. Then grade claim support and completeness separately.
+
+Microsoft's prompt guidance recommends changing one variable at a time and recording prompt versions with evaluation results. That is basic experimental discipline, but it matters because a simultaneous chunking, model, and prompt change leaves you unable to explain the improvement ([Microsoft's prompt experimentation guidance](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/rag/rag-prompt-engineering)).
+
+### If both failed
+
+Record both defects. Fix retrieval first because the generator cannot use evidence it never receives. Then rerun the case with the repaired context. If the answer is still wrong, you have uncovered the generation defect that was hidden behind the retrieval miss.
+
+![Illustration of a RAG repair matrix connecting trace evidence to retrieval fixes, generation fixes, and verification cases](/blog/how-to-tell-whether-a-rag-failure-is-retrieval-or-generation-inline-3.webp)
+
+## When is the retrieval-versus-generation split not enough?
+
+The binary split is useful, but a RAG system has more failure points than two boxes.
+
+- **Corpus coverage:** The required fact does not exist in the indexed collection. Add or authorize the source before tuning retrieval.
+- **Parsing or chunk assembly:** The right document is selected, but tables, headings, citations, or neighboring conditions disappear before generation.
+- **Context packing:** The answer-bearing chunk is retrieved but truncated, placed after too much noise, or displaced by a token budget.
+- **Reference disagreement:** Two sources conflict, and the expected answer depends on authority, date, or scope. Treat precedence as part of the test case.
+- **Question interpretation:** The query is ambiguous. A correct retrieval for one interpretation can look wrong for another. The system should state its interpretation or ask a clarifying question.
+- **Security contamination:** Retrieved text can contain instructions that try to redirect the model. Keep data and instructions distinct, and test prompt injection separately from ordinary grounding.
+
+Google Cloud describes RAG as a combination of external retrieval and generative model output, which is why an end-to-end failure can have several contributing causes ([Google Cloud's RAG overview](https://cloud.google.com/use-cases/retrieval-augmented-generation)). The practical rule is to label the earliest proven defect and preserve the other possibilities as hypotheses.
+
+If you are building a broader release gate, connect this failure clinic to [How to Evaluate an AI Agent: A Practical Release Gate](/blog/how-to-evaluate-an-ai-agent). For the evaluation dataset, keep the failed trace, the verified reference, the diagnosis, and the repair result together. [How to Build an Evaluation Dataset From Production Traces](/blog/how-to-build-an-evaluation-dataset-from-production-traces) covers that transition.
+
+The next time a RAG answer is wrong, don't start by changing the model. Save the context packet, run the oracle-context probe, and make the repair follow the evidence. That one comparison turns a plausible complaint into a testable failure.
