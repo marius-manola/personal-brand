@@ -1,0 +1,366 @@
+---
+title: 'How to Compare AI Models on Your Own Business Tasks'
+date: '2026-08-22'
+updated: '2026-08-22'
+excerpt: 'Compare AI models on representative business tasks with a reusable scorecard, hard vetoes, human checks, and cost and latency evidence.'
+answer: 'Compare models on a fixed set of representative tasks from your own workflow, using the same prompt, context, tools, and limits for each candidate. Score task success, correctness, operating cost, latency, and human correction, then block any candidate with a critical failure. The exception is open-ended quality: calibrate model graders with human review before trusting the winner.'
+targetQuery: 'how to compare AI models on your own business tasks'
+queryAliases:
+  - 'how to compare AI models for a business'
+  - 'compare LLMs on custom business tasks'
+  - 'how to choose an AI model for a business workflow'
+intent: 'evaluation'
+funnel: 'consideration'
+cluster: 'evaluation'
+parent: '/blog/how-to-evaluate-an-ai-agent'
+contentType: 'original-research'
+kind: 'flagship'
+sourceableAtom: 'A reproducible evaluation packet that joins representative business tasks, acceptance rules, critical-failure vetoes, operating measurements, weighted scoring, tie handling, and a local validation result.'
+evidenceType: 'reproducible-decision-artifact + bounded-firsthand-observation'
+evidenceBasis: 'The packet was specified in research.md and its veto, repeatability, weighted-comparison, and tie-handling checks were run locally on 2026-08-22 with Node.js v24.11.1. No cross-provider model benchmark is claimed.'
+tags:
+  - 'Evaluation'
+  - 'AI agents'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-20'
+sources:
+  - 'https://developers.openai.com/api/docs/guides/evals'
+  - 'https://platform.claude.com/docs/en/test-and-evaluate/develop-tests'
+  - 'https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/evaluation-dataset'
+  - 'https://cloud.google.com/docs/ai-ml/generative-ai/develop-generative-ai-application'
+  - 'https://airc.nist.gov/airmf-resources/airmf/5-sec-core/'
+faq:
+  - q: 'Should I compare models with the same prompt?'
+    a: 'Start with the same task instructions, context, tools, output schema, and operating limits. After the baseline comparison, tune each candidate separately in a second phase. Otherwise you are comparing both models and prompt engineering at once.'
+  - q: 'How many business tasks do I need?'
+    a: 'Start with the smallest set that covers normal work, important variants, known failures, and high-risk edge cases. The right number depends on task diversity and consequence, not a universal quota. Expand the set from real failures.'
+  - q: 'Can an LLM judge which model is better?'
+    a: 'It can help with open-ended quality, but calibrate it against human labels first. Keep deterministic checks for exact fields, permissions, state changes, and policy violations, and treat a judge disagreement as a review case.'
+cover: '/blog/how-to-compare-ai-models-on-your-own-business-tasks-hero.webp'
+coverAlt: 'Illustration of two AI model evaluation paths being tested against the same business task gate'
+draft: false
+---
+
+A model can look excellent in a demo and still be the wrong choice for the one task your team needs every day. It may miss a required field, take too long, cost too much, or produce an answer that sounds right but needs a human rewrite.
+
+The useful comparison is not “which model is smartest?” It is “which complete model setup meets our acceptance rules on our work, at an acceptable operating cost?”
+
+## The result: compare task performance, not model reputation
+
+Use a fixed, representative task set and compare candidates under the same conditions. Treat task success and critical safety conditions as gates, then use quality, correction time, latency, and cost to choose among candidates that pass. A public benchmark can help you shortlist models, but it cannot replace a test set built from your own workflow.
+
+I built a small evaluation packet for this article and ran its validator locally. The validator is not a model benchmark. It checks that the decision procedure behaves predictably before you trust it with model results.
+
+| Artifact check | Fixture | Observed result | Why it matters |
+| --- | --- | --- | --- |
+| Critical veto | A high-scoring row with `critical: false` | `BLOCK` | A weighted score cannot hide a disqualifying failure |
+| Repeatability | The same valid row scored twice | `true` | A decision record should be reproducible |
+| Weighted comparison | A 5/5 row versus a 4/5 row | Scores 5 and 4 | The comparison is explicit rather than intuitive |
+| Tie handling | Two identical valid rows | `TIE` | Uncertainty becomes a review action, not a forced winner |
+
+The full command and method are documented in the research record behind this article. The decision packet itself appears below so you can copy its structure into a spreadsheet, JSONL file, or evaluation tool.
+
+![Illustration of one business task compared through two identical AI model evaluation lanes](/blog/how-to-compare-ai-models-on-your-own-business-tasks-inline-01.webp)
+
+This boundary matters. I am not claiming that Model A, Model B, Claude, ChatGPT, or any other named system won this test. No cross-provider model calls were available in the local runtime, so the observed result is about the evaluation packet. When you run the packet with your own outputs, the model result becomes yours to cite and maintain.
+
+## Start with the business decision the model must support
+
+Write the decision before you choose a metric. A model comparison needs a consequence, an owner, and a release rule, not just a collection of prompts.
+
+Start with this sentence:
+
+> We will use the candidate model for [workflow] when it can [acceptable outcome] without [critical failure], within [operating limit], and with [human role] responsible for exceptions.
+
+For example:
+
+> We will use the candidate model to turn an approved product brief into a draft ticket set when every ticket has the right owner, priority, and acceptance criteria, no confidential text leaves the approved boundary, the batch finishes within the agreed window, and a product manager reviews the output before creation.
+
+That is a better starting point than “test summarization” because it tells you what must be true in the environment. It also makes the exception visible. If a product manager must review every ticket, the model is assisting a decision, not making it alone.
+
+OpenAI describes an eval as a task definition, test inputs, and an analysis loop. The point is to compare outputs with criteria you specify, especially when trying a new model or changing an application ([OpenAI's evaluation guide](https://developers.openai.com/api/docs/guides/evals)). Anthropic makes the same move from vague quality to specific, measurable, achievable, and relevant success criteria ([Anthropic's evaluation guidance](https://platform.claude.com/docs/en/test-and-evaluate/develop-tests)).
+
+The first row in your packet should therefore name:
+
+| Field | What to write | Example |
+| --- | --- | --- |
+| Workflow | The business process, not the model capability | Product brief to draft tickets |
+| Decision owner | The person who can accept or reject the result | Product manager |
+| Intended outcome | The state or deliverable that counts as done | Complete draft tickets in the review queue |
+| Critical failure | An outcome that blocks release regardless of score | Confidential text appears in output |
+| Operating limit | A hard boundary on cost, latency, steps, or review time | Batch finishes within the team's review window |
+| Human role | What a person must approve, correct, or escalate | Review before ticket creation |
+
+If the owner cannot agree on these fields, you are not ready to compare models. You are still defining the job.
+
+This is where my own teaching experience changes the order of work. When I taught product managers who moved from writing specs to building and shipping, the recurring failure was not that the model was weak. It was that nobody could say what “done” meant. That is the F-pms observation in the locked entity facts, and it is why acceptance criteria come before a model leaderboard in this method.
+
+## Build a task set from real work
+
+Your evaluation set should be a small, sanitized sample of the work the model will actually receive. Do not begin with prompts that are impressive in a demo. Begin with the inputs people already handle, including the awkward ones.
+
+Anthropic recommends that evals mirror the real-world task distribution and include edge cases ([Anthropic's test-design guidance](https://platform.claude.com/docs/en/test-and-evaluate/develop-tests)). Google's evaluation dataset guidance similarly says prompts should represent the types of inputs processed in production, and it supports fields for prompts, responses, references, conversation history, and intermediate events when those details matter ([Google's evaluation dataset documentation](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/evaluation-dataset)).
+
+Use four buckets:
+
+1. **Normal cases.** The ordinary requests that make up the core workflow.
+2. **Important variants.** Different lengths, formats, languages, roles, or levels of missing context that occur often enough to matter.
+3. **Known failures.** Past errors, support escalations, rejected drafts, bad tool calls, or manual corrections.
+4. **Boundary cases.** Ambiguous, forbidden, high-impact, or out-of-scope inputs where the model must ask, refuse, or escalate.
+
+The buckets are not a quota. They are a check against a polished but narrow test set. A workflow with many routine records and one dangerous exception needs a different distribution from a creative drafting workflow where quality judgments vary widely.
+
+Marius Manolachi led a ChatGPT workshop at Orange, and the locked observation for using that experience is simple: the workshop started from the work attendees already did. That is the right source for model comparisons too. Ask the people who own the workflow for recent, sanitized inputs. Ask what they corrected. Ask which mistakes they would never accept. Those answers contain the evaluation set.
+
+### The case contract
+
+Store one case per row. YAML is readable for a first version, while JSONL is convenient for batch evaluation. The important part is the fields, not the file format.
+
+```yaml
+id: brief-to-draft-tickets-017
+owner: product-operations
+risk: medium
+
+system_under_test:
+  model: "candidate identifier and dated version"
+  prompt_version: "prompt-2026-08-22.1"
+  tool_policy_version: "read-only-ticket-tools-3"
+  retrieval_version: "product-handbook-2026-08-20"
+
+input: "sanitized task input"
+context: "the exact approved context supplied to every candidate"
+
+expected_outcome:
+  required_fields:
+    - title
+    - owner
+    - acceptance_criteria
+  forbidden_changes:
+    - create_ticket
+  escalation_required_when: "source requirements conflict"
+
+graders:
+  - type: schema_check
+  - type: forbidden-action_check
+  - type: human_rubric
+
+measure:
+  latency_ms: true
+  input_tokens: true
+  output_tokens: true
+  retries: true
+  human_correction_seconds: true
+
+pass_rule:
+  critical: "no forbidden change, privacy breach, or missing required field"
+  quality: "workflow owner rates the result at least 4 of 5"
+```
+
+Keep the input, the expected outcome, and the model response together. If you only keep a final score, you lose the evidence needed to understand a disagreement.
+
+## Define what counts as a pass before you run the models
+
+Use the cheapest valid check for each part of the task. A deterministic check is stronger than a model judge for a required JSON field or a forbidden action. A human is stronger than a loose “helpfulness” prompt for a high-stakes or disputed decision.
+
+Anthropic groups graders into code-based, human, and LLM-based methods. Code is fast and repeatable but can be brittle. Human grading is flexible but expensive. LLM grading can scale nuanced judgments, but its reliability should be tested first ([Anthropic's grader guidance](https://platform.claude.com/docs/en/test-and-evaluate/develop-tests)).
+
+Use this order:
+
+| Output property | First grader | Pass evidence | Exception |
+| --- | --- | --- | --- |
+| Exact field or label | Code | Exact match, schema check, or allowed-value check | Allow equivalent values only when the business meaning is unchanged |
+| State change | Code or database check | Expected record, file, or queue state exists | Use a human when the state itself is ambiguous |
+| Forbidden action | Trace assertion | The action did not happen and the denial or escalation is logged | Any confirmed critical violation is a veto |
+| Grounded extraction | Code plus reference check | Required facts are present and unsupported facts are absent | Human review for ambiguous source wording |
+| Tone, clarity, or open-ended usefulness | Human-calibrated rubric | An agreed scale with examples | Use a model judge only after calibration |
+| Latency and cost | Instrumentation | Recorded time, tokens, retries, and provider price | Recheck when provider pricing or model version changes |
+
+Make the rubric concrete. “Good answer” is not a pass rule. “Includes the three required fields, cites the supplied policy text, does not invent a deadline, and needs no more than one minor edit” is closer.
+
+A five-point rubric can work when the anchors are written down:
+
+- **5:** ready for the next human step with no substantive correction;
+- **4:** usable after a small correction that does not change the decision;
+- **3:** partly useful but needs substantive editing;
+- **2:** misses a required part or creates rework;
+- **1:** unsafe, irrelevant, or unusable.
+
+Do not average a critical privacy failure into a 4.8. Put a binary veto beside the quality score. The score answers “how good was the passing work?” The veto answers “did anything happen that makes this candidate unacceptable?”
+
+## Hold the comparison conditions constant first
+
+Run every candidate against the same task cases, instruction text, context, tools, output schema, permissions, and stopping limits. Record the model identifier and dated version. If you tune each model differently in the first pass, you are evaluating different systems, not just different models.
+
+The first pass should answer a narrow question: under one fair, controlled setup, which candidate gives the better trade-off on this workflow? A second optimization pass can then improve each candidate's prompt or routing. Keep those phases separate in the record.
+
+Control these variables:
+
+| Variable | Why it can change the result | What to freeze |
+| --- | --- | --- |
+| Prompt | A wording change can alter format, caution, and detail | Versioned system and user instructions |
+| Context | More or better retrieval can make a weaker model look stronger | Same approved documents and context budget |
+| Tools | Tool access changes what the model can accomplish | Same tools, schemas, permissions, and mock responses |
+| Sampling | Randomness can change output quality and failure rate | Record temperature or equivalent settings and run multiple trials when relevant |
+| Output contract | A strict schema can trade prose quality for parseability | Same schema and validation rules |
+| Limits | More retries or tokens can hide a slow or expensive model | Same timeout, retry, token, and step limits |
+| Judge | A judge can prefer its own style or provider | Freeze the rubric and calibrate on human-labeled examples |
+
+Google describes side-by-side evaluation as comparing two model outputs against ground truth, with a third model selecting the higher-quality response. It also notes that this judge must be larger than the evaluated models and can introduce bias ([Google's generative AI application guidance](https://cloud.google.com/docs/ai-ml/generative-ai/develop-generative-ai-application)). Use pairwise judgments as one signal, not as an oracle.
+
+For open-ended tasks, blind the response labels if you can. Let the reviewer see Output A and Output B without knowing which provider produced each. If blinding is impossible, record that limitation. It is better to name a source of bias than to pretend the comparison is neutral.
+
+![Illustration of a controlled AI model comparison with frozen inputs and anonymized outputs](/blog/how-to-compare-ai-models-on-your-own-business-tasks-inline-02.webp)
+
+## Score with gates first and weights second
+
+Do not let one blended score decide everything. Use a release matrix with a veto layer, a quality layer, and an operating layer.
+
+| Layer | Example measures | Decision rule |
+| --- | --- | --- |
+| Veto | Privacy breach, forbidden tool call, missing approval, unsafe escalation | Any confirmed critical failure blocks the candidate for that scope |
+| Task success | Required fields, correct classification, correct state, accepted deliverable | Meet the workflow owner's threshold across representative cases |
+| Quality | Human rubric, groundedness, completeness, style, correction severity | Compare passing candidates using a defined scale |
+| Operations | Cost, latency, retries, token use, review time | Stay within the operating limit or document the trade-off |
+| Stability | Repeated trials, paraphrases, missing context, tool errors | No material regression on known cases; investigate variance |
+
+The artifact's sample weighted score is deliberately plain:
+
+```text
+weighted_score = 0.30 * quality
+               + 0.30 * correctness
+               + 0.20 * completion
+               + 0.20 * operations
+```
+
+The four values are 0 to 5 scores that have already passed the veto layer. “Operations” should be a normalized score derived from measures you actually care about, such as cost per accepted case, p95 latency, retry count, and human correction time. Write the normalization rule in the packet. Otherwise two people can assign the same word, “cheap,” to different numbers.
+
+Weights are not facts. They are a decision owner's preference made explicit. If a support workflow values correctness above speed, correctness may deserve more than 30%. If the model writes a low-risk internal draft, correction time may matter more than a small cost difference. Keep the original weights with the result so a future reader can see what changed.
+
+Use a threshold for meaningful differences. A one-hundredth-point lead should not trigger a migration if your human rubric has wider uncertainty. My default is to record `TIE` when the score difference is below the declared threshold, then review the failure cases and operating measures. The exact threshold belongs to the task owner.
+
+## Run the evaluation in a sequence you can explain
+
+Follow a short, repeatable sequence. The goal is not to produce a beautiful dashboard. The goal is to make the release decision inspectable.
+
+1. **Freeze the packet.** Version the task set, prompt, context, tools, model identifiers, and scoring rules. Do not edit cases while a comparison is running.
+2. **Run a smoke set.** Use a few normal cases to catch wiring, schema, permissions, and context errors before spending time on the full set.
+3. **Run the representative set.** Send every candidate the same cases. Capture raw outputs, traces, validation errors, time, tokens, retries, and cost inputs.
+4. **Apply deterministic gates.** Check format, required fields, forbidden actions, state changes, and known regression cases before subjective scoring.
+5. **Score open-ended quality.** Use a human-calibrated rubric. If you use a model judge, compare its decisions with known human labels and retain disagreements.
+6. **Aggregate by task bucket.** Report normal cases, variants, known failures, and boundary cases separately. An overall average can hide a failure concentrated in the riskiest bucket.
+7. **Review the exceptions.** Read cases where candidates disagree, tie, fail a veto, or differ sharply in cost, latency, or correction time.
+8. **Write the decision before changing the system.** Choose a candidate, keep the current model, narrow the scope, or run another test. Record the reason and the conditions under which the decision expires.
+
+OpenAI's current evaluation documentation describes the same basic loop: describe the task, run test inputs, analyze results, then iterate ([OpenAI](https://developers.openai.com/api/docs/guides/evals)). NIST adds a useful constraint for business teams: document the test set, metrics, and tools; test under conditions similar to deployment; and record the limits of generalizing beyond those conditions ([NIST AI RMF](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/)).
+
+### What to retain for every row
+
+Keep the raw evidence long enough to reproduce the decision:
+
+- task ID and sanitized input;
+- model and dated version;
+- prompt, context, tools, permissions, and output schema versions;
+- response and intermediate events when the workflow acts through tools;
+- deterministic grader outputs;
+- human or model-judge labels, rubric version, and disagreements;
+- latency, token counts, retries, cost inputs, and correction time;
+- final decision, reviewer, date, and scope.
+
+The record is part of the evaluation. Without it, “Model B scored higher” is a conclusion with no audit trail.
+
+![Illustration of an AI model evaluation evidence packet with trace and operating measures](/blog/how-to-compare-ai-models-on-your-own-business-tasks-inline-03.webp)
+
+## Use the score to choose a scope, not just a winner
+
+The best result is often not “deploy Model B everywhere.” It may be “Model A handles routine extraction, while a human reviews boundary cases,” or “keep the current model because the candidate saves money but fails the one case that matters.”
+
+Write the decision in one of four forms:
+
+| Decision | When it fits | What happens next |
+| --- | --- | --- |
+| Adopt for the tested scope | Candidate passes vetoes and thresholds, with an acceptable operating profile | Stage it with monitoring and a rollback path |
+| Keep the baseline | Candidate does not improve the trade-off enough to justify change | Preserve the current system and keep the failed cases |
+| Narrow the scope | Candidate passes routine work but fails a boundary or high-risk bucket | Route those cases to a human or another system |
+| Collect more evidence | Results are tied, noisy, underpowered, or judge disagreement is high | Add cases, trials, human labels, or a better instrument |
+
+This is why model comparison belongs inside a larger evaluation gate. The parent guide, [How to Evaluate an AI Agent: A Practical Release Gate](/blog/how-to-evaluate-an-ai-agent), covers result state, actions, integrity, limits, and stability for a complete agent. This post isolates the model-choice question and gives you the packet needed before that release decision.
+
+It also connects to rollout. If the candidate wins offline, use [How to Roll Out a New AI Model in Production](/blog/how-to-roll-out-a-new-ai-model-in-production) for a staged change, baseline comparison, and rollback plan. Offline evidence narrows the risk. It does not remove it.
+
+## A worked decision without pretending the numbers are universal
+
+Suppose a team has two passing candidates for the product-brief-to-draft-ticket task. The team has already checked that neither candidate makes a forbidden ticket change, exposes restricted text, or drops a required field. The workflow owner then scores each candidate on a 0 to 5 scale using the rubric in the packet.
+
+| Candidate | Quality | Correctness | Completion | Operations | Weighted score | Decision |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| Candidate A | 4 | 5 | 4 | 3 | 4.2 | Passes, inspect operating trade-off |
+| Candidate B | 4 | 4 | 5 | 5 | 4.4 | Provisional winner, inspect correction cases |
+
+Candidate B leads by 0.2 points. That is not enough information by itself. The reviewer should inspect what produced the difference. Did B finish more cases with no extra correction? Did its faster result come from omitting context? Did A's lower operations score come from a measurable latency problem or from an arbitrary impression? Are the two scores based on enough cases to distinguish a real difference from reviewer noise?
+
+Now change one fact. Suppose Candidate B has a privacy breach in one boundary case. The weighted score stays 4.4, but the decision becomes `BLOCK` because the veto is applied before the weighted comparison. Candidate A may remain in scope, or both candidates may be rejected until the workflow is redesigned.
+
+This is a worked decision pattern, not a measured model result. The numbers are transparent fixtures that show how the packet behaves. When you publish a real result, replace the fixture with your task IDs, dated model versions, raw measures, reviewer labels, and limitations.
+
+### A spreadsheet version
+
+If your team is not ready for an evaluation platform, use one row per model and one column per task measure. Keep the raw case-level sheet beside the summary.
+
+```text
+model,task_bucket,task_id,critical_pass,quality,correctness,completion,operations,latency_ms,cost_per_case,correction_seconds,decision
+candidate-a,normal,brief-001,true,4,5,4,3,0,0,0,pass
+candidate-b,normal,brief-001,true,4,4,5,5,0,0,0,pass
+```
+
+The zero values in this illustration are not measurements. They mean “fill from instrumentation before using the row.” In a real packet, a blank latency or cost field should block the final comparison if those measures are part of the release rule. Do not turn missing evidence into a zero score.
+
+That distinction is easy to miss. A missing cost is not free. A missing latency is not instant. A missing human label is not neutral. Use `unknown` or a blank that fails validation, then collect the evidence.
+
+![Illustration of an AI model comparison scorecard with task buckets, vetoes, and operating measures](/blog/how-to-compare-ai-models-on-your-own-business-tasks-inline-04.webp)
+
+## Know when model comparison is the wrong experiment
+
+Sometimes changing the model will not fix the problem. If the task definition is vague, the retrieved context is wrong, the tool schema is ambiguous, or the human review step has no owner, the comparison may produce noise with excellent formatting.
+
+Stop and fix the experiment when:
+
+- reviewers disagree on what a passing result means;
+- the task set contains only easy demos;
+- candidates receive different context or different tool permissions;
+- the evaluator checks wording instead of the business outcome;
+- the score changes after the prompt or rubric is edited without a new version;
+- the only evidence is a public benchmark unrelated to your workflow;
+- a model judge is used without calibration against human labels;
+- cost, latency, retries, or correction time are absent even though they affect the decision;
+- a high-risk case is averaged into a general quality score;
+- the team cannot explain what would make it keep the current model.
+
+The last point is important. A comparison should be allowed to produce “no change.” If the process is designed to find a winner, the team will eventually call a near-tie a win.
+
+NIST describes validity as a condition that includes the operating context and the limits of generalizing beyond it. It also recommends ongoing evaluation as knowledge, risks, and conditions change ([NIST's measurement guidance](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/)). A model comparison is therefore a dated decision about a defined scope. It is not a permanent ranking of model intelligence.
+
+## What this artifact still cannot tell you
+
+The method has clear limits.
+
+First, the local validation result covers the packet's control flow, not model capability. I did not run the business task fixtures through two provider models, so this post does not contain a cross-model performance claim. That is a limitation, not a missing conclusion to hide.
+
+Second, a task set can be representative and still omit a failure. Production inputs change. People phrase requests differently. Source documents become stale. Tools fail. A staged rollout and production monitoring remain necessary.
+
+Third, human rubrics contain judgment. Calibration helps, but it does not make a subjective score objective. Keep examples of a 1, 3, and 5. Review disagreements. If the disagreement changes the release decision, involve the workflow owner.
+
+Fourth, weights can encode the wrong business priority. Revisit them after a real correction, complaint, incident, or cost change. A cheap model that creates expensive review work may not be cheap. A slower model that avoids a critical correction may be the better choice.
+
+Fifth, the comparison is about the whole setup, even when the question says “model.” Prompt, context, retrieval, tools, permissions, judge, and rollout controls all shape the observed result. Keep the model name in the record, but do not pretend the model is the only variable.
+
+![Illustration of an AI model evaluation loop from offline tests to staged rollout and regression learning](/blog/how-to-compare-ai-models-on-your-own-business-tasks-inline-05.webp)
+
+## The practical release rule
+
+Compare AI models on your own business tasks when the workflow has an owner, a clear outcome, a representative task set, and enough instrumentation to measure the trade-offs. Keep the current model when the candidate's improvement is smaller than the uncertainty, when a critical case fails, or when the evidence is too thin to explain the decision.
+
+The reusable packet is the point. It gives your team a shared object to edit, run, review, and rerun when a model, prompt, tool, price, or workflow changes. It also turns “this model feels better” into a question another person can inspect.
+
+That is the standard I use when I teach people to build and evaluate AI products. People do not need another leaderboard. They need a way to connect a model choice to the work they already own, with enough evidence to say yes, no, or not yet.
+
+If your team can name the workflow but cannot yet build this packet, [Marius Manolachi's AI consulting and tutoring work](/learn-ai) is designed to make existing people capable of building and evaluating AI products on their own work. The article is complete without that next step. The next useful action is to take one real, sanitized task and write its pass rule before opening another model comparison page.
