@@ -1,0 +1,207 @@
+---
+title: "How to Grade an AI Output Against a Rubric"
+date: "2026-08-23"
+updated: "2026-08-23"
+excerpt: "Grade an AI output against a rubric built from real work, with separate criteria for fidelity, usefulness, risk, format, and the next intervention."
+answer: "Grade an AI output against a rubric built from its real task: define the source of truth, acceptable outcome, failure cost, and separate quality dimensions. Compare the output with the rubric, record vetoes and missing evidence, label the likely intervention, and retest on an unfamiliar case. For high-stakes work, keep qualified human review."
+targetQuery: "how to grade an AI output against a rubric"
+queryAliases:
+  - "how to grade AI outputs on a real work sample"
+  - "learn AI evals with a real work sample"
+  - "AI output grading rubric"
+  - "how to compare AI outputs with a rubric"
+intent: "informational / capability building"
+funnel: "awareness / consideration"
+cluster: "capability"
+parent: "/blog/what-to-learn-before-building-ai-agents"
+contentType: "capability-guide"
+kind: "satellite"
+sourceableAtom: "A complete grading packet turns one real work sample into an AI-output rubric exercise with a case pack, separated rubric, annotated two-output comparison, error-to-intervention decision, transfer case, self-check, and progression rule."
+evidenceType: "learning-exercise"
+evidenceBasis: "Reusable exercise artifact grounded in current Anthropic, NIST, OpenAI, and retrieval-practice guidance, with bounded rationale from Marius Manolachi's locked F-udemy and F-pms facts. No learner outcome is measured."
+tags:
+  - "AI evaluation"
+  - "Learning AI"
+  - "Capability building"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents"
+  - "https://www.nist.gov/ai-measurement-and-evaluation"
+  - "https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence"
+  - "https://developers.openai.com/api/docs/guides/evals"
+  - "https://doi.org/10.1126/science.1152408"
+  - "https://www.udemy.com/user/marius-manola/"
+cover: "/blog/how-to-grade-an-ai-output-against-a-rubric-hero.webp"
+coverAlt: "Illustration of a learner comparing two AI work outputs against a real-world rubric"
+faq:
+  - q: "Do I need to know machine learning before grading AI outputs?"
+    a: "No. Start with the work, its source of truth, acceptable outcomes, and failure cost. You need enough technical understanding to identify where an error entered the system, but you can grade outputs before studying model training or advanced statistics."
+  - q: "Can an AI model grade the work for me?"
+    a: "It can help with a first pass on open-ended criteria, but it should not be your only judge. Use deterministic checks where possible, compare model grading with a human reviewer, and keep a human decision-maker for high-stakes or disputed work."
+draft: false
+---
+
+I learned this the hard way while teaching people to build with AI: a polished demo can hide a missing definition of “done.” When I taught product managers who went from writing specs to building and shipping the product, the useful shift was not learning another model name. It was learning to inspect the work against a real outcome. [That is the capability this parent guide points toward](/blog/what-to-learn-before-building-ai-agents).
+
+The capstone below gives you one work sample, two outputs, an answer key, and a transfer check. It is a reusable exercise, not a claim that completing it makes you an evaluator overnight.
+
+![Illustration of a capstone flow for grading AI outputs from real work](/blog/how-to-grade-an-ai-output-against-a-rubric-inline-1.webp)
+
+## How do you grade an AI output against a rubric?
+
+Use one real, sanitized work sample and turn it into a small evaluation suite. Define the task and failure cost, collect cases that vary in difficulty, split quality into separate dimensions, compare two outputs, explain every lost point, and test the same rubric on an unfamiliar case.
+
+That sequence is the sourceable artifact on this page. It combines a task definition, representative input pack, rubric template, annotated comparison, error taxonomy, reviewer checklist, transfer case, and progression rule. Anthropic uses similar building blocks in its evaluation vocabulary: a task has inputs and success criteria, a trial is one attempt, a grader scores part of the performance, and an outcome is the final state rather than the agent’s claim about it. ([Anthropic’s evaluation definitions](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents))
+
+You do not need to begin with a benchmark or an evaluation platform. A spreadsheet and two saved outputs are enough for the first pass. The purpose is to make your judgment visible, so another person can disagree with a specific criterion instead of arguing about whether an answer “feels good.”
+
+## 1. Define the work sample and the cost of being wrong
+
+Choose a recurring task where a person already has a source of truth. Good candidates include turning notes into a decision brief, classifying inbound requests, extracting fields from documents, drafting a response from a policy, or converting research into a short recommendation. Avoid a task whose quality exists only as taste.
+
+Write this brief before asking an AI system to produce anything:
+
+| Field | Your entry |
+| --- | --- |
+| Task | What does the worker need to produce or decide? |
+| Input | Which real document, record, thread, or file will you provide? |
+| Source of truth | What can a reviewer check independently? |
+| Acceptable outcome | What must be true for the work to be usable? |
+| Cost of failure | What happens if the output is wrong, incomplete, late, or overconfident? |
+| Human boundary | What must remain a human decision or approval? |
+
+Write the failure cost in operational language. “Bad quality” is not enough. “A wrong owner causes a missed handoff” is useful. “An unsupported compliance claim reaches a customer” is more serious and changes the review boundary.
+
+NIST describes AI measurement and evaluation as context-dependent. The characteristic you measure, the task you create, and the method you use should fit the system’s context, not a generic scorecard. ([NIST on AI measurement and evaluation](https://www.nist.gov/ai-measurement-and-evaluation))
+
+My own teaching bias is to start here because people often want to begin with prompt wording. Marius Manolachi has taught 109,753 students across four Udemy courses, with 23,929 reviews. That is teaching scale, not a controlled study of evaluation skill. It is still a useful warning: a working-looking output is not the same thing as a verified work result. ([Marius Manolachi on Udemy](https://www.udemy.com/user/marius-manola/))
+
+## 2. Build a representative input pack
+
+Start with five cases from the same work sample type. Keep the task constant and vary the evidence or risk. OpenAI’s evaluation documentation describes the same basic pattern: define a task, run test inputs, analyse the results, and iterate. Its examples pair test data with ground-truth labels and testing criteria. ([OpenAI’s evals guide](https://developers.openai.com/api/docs/guides/evals))
+
+Use this input-pack template:
+
+| Case | What changes | What the evaluator must know before grading |
+| --- | --- | --- |
+| 1. Ordinary | Complete, representative input | The normal success condition |
+| 2. Missing detail | One field or fact is absent | Whether the output asks, flags, or invents |
+| 3. Conflicting evidence | Two sources disagree | Which source wins, or whether escalation is required |
+| 4. High-cost edge | A small error has a large consequence | Which criterion becomes a veto |
+| 5. Transfer | New domain or format, same evaluation logic | Whether you understand the rubric rather than the example |
+
+For a worked, public example, use the abstract for NIST’s *Artificial Intelligence Risk Management Framework: Generative Artificial Intelligence Profile*. Ask the model to write a 150-word product note for a team deciding how to use the profile. The note must explain what the profile is, what it does not certify, name the relevant lifecycle activity, and mark one uncertainty that the source does not answer. The public abstract says the profile is a voluntary companion resource intended to help organisations incorporate trustworthiness into the design, development, use, and evaluation of generative AI. ([NIST’s Generative AI Profile](https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence))
+
+Create four related variants before you run the model: remove the phrase “voluntary” from the context and see whether the model overstates authority; add a second source with a narrower recommendation; include an input that asks for a numerical benefit the sources do not provide; and give the same task to a colleague who works in an unfamiliar function. These variants are not a benchmark. They are probes for whether your rubric can see the failure you care about.
+
+## 3. Separate the rubric dimensions
+
+Do not grade “overall quality” first. That invites fluency to cover a factual error. Give each important property its own row, define observable anchors, and record vetoes separately from scores.
+
+Use this five-dimension rubric for the public worked case, then rewrite the nouns for your own work:
+
+| Dimension | 0 points | 1 point | 2 points |
+| --- | --- | --- | --- |
+| Fidelity | Adds a material claim the source contradicts | Mostly faithful but blurs a limit | Every material claim is supported or marked uncertain |
+| Decision usefulness | Cannot guide a next step | Gives context but leaves the decision vague | Names a usable next step and its boundary |
+| Completeness | Omits a required element | Includes the element weakly | Covers every required element |
+| Risk and uncertainty | Hides uncertainty or invents precision | Mentions a limit without explaining its effect | States what is known, unknown, and what needs review |
+| Format and audience | Misses the requested form or audience | Understandable but needs substantial editing | Fits the word limit, audience, and requested format |
+
+Add a veto column for errors that a weighted score must not forgive. For the NIST exercise, “claims the profile is mandatory” is a fidelity veto. For a customer-facing policy task, “invented eligibility condition” might be the veto. This is why the dimensions stay separate: a fluent paragraph can score well on format while failing truthfulness.
+
+The rubric is a specification, not a universal measure. NIST’s profile is voluntary and cross-sectoral, while your work sample may have a local policy or a different source of truth. Keep the criteria stable enough to compare outputs, but change the anchors when the work changes.
+
+## 4. Compare two outputs before choosing a fix
+
+Run the same task with two outputs. Hide which prompt, model, or revision produced each one. If you know that Output B came from the newer model, you will start grading the story instead of the work.
+
+Here is a worked comparison for the NIST product-note task. These are example outputs for the exercise, not a reported model test.
+
+**Output A**
+
+> NIST’s Generative AI Profile is a required standard for companies using generative AI. It certifies whether a system is trustworthy and gives teams a complete checklist for compliance. Adopt it to prove your AI is safe.
+
+**Output B**
+
+> NIST’s Generative AI Profile is a voluntary companion to the AI Risk Management Framework. It helps a team consider trustworthiness during the design, development, use, and evaluation of generative AI. It is guidance, not a certification or a guarantee that a system is safe. Use it to identify which risks and evaluation questions apply to your system, then assign owners for the evidence you still need.
+
+Fill the answer key before you discuss prompts:
+
+| Output | Fidelity | Decision usefulness | Completeness | Risk and uncertainty | Format and audience | Veto | Verdict |
+| --- | ---: | ---: | ---: | ---: | ---: | --- | --- |
+| A | 0 | 1 | 1 | 0 | 2 | Yes, calls voluntary guidance required and certifying | Reject |
+| B | 2 | 2 | 2 | 2 | 2 | No | Accept for human review |
+
+The important finding in this exercise is not that B sounds better. It is that B preserves the source’s scope, answers the team’s next decision, covers the required elements, and states the boundary. A fails even though it is concise and confident.
+
+This also gives you a reviewer checklist:
+
+- Can I point to the source for every material claim?
+- Did the output distinguish a recommendation from a requirement?
+- Did it answer the work question, not just restate the input?
+- Did it name missing evidence instead of filling the gap with confidence?
+- Did it satisfy the requested format and audience?
+- Is there a veto failure that the total score should not average away?
+- Would a second reviewer reach the same verdict from the rubric alone?
+
+Anthropic notes that code, model, and human graders have different trade-offs. For your first work sample, use a deterministic check for exact fields or forbidden claims, your rubric for open-ended quality, and a human reviewer for high-cost or disputed judgments. ([Anthropic on grader types](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents))
+
+If you need to measure open-ended quality across a system rather than practise grading one work sample, see [How to Measure AI Output Quality When There Is No Single Right Answer](/blog/how-to-measure-ai-output-quality-no-single-right-answer).
+
+![Illustration of a blind two-output AI evaluation with separate rubric dimensions](/blog/how-to-grade-an-ai-output-against-a-rubric-inline-2.webp)
+
+## 5. Label the error before changing the prompt
+
+When an output fails, label the failure by where the intervention belongs. Otherwise every problem becomes “write a better prompt,” which teaches the wrong lesson.
+
+| Error label | Diagnostic question | First intervention |
+| --- | --- | --- |
+| Prompt | Did the input contain the needed fact, but the instruction failed to make the task or constraint clear? | Rewrite the task, output format, or explicit constraint, then rerun the same case. |
+| Data | Was the source missing, stale, contradictory, badly segmented, or too ambiguous to support the answer? | Repair the input pack or source selection. Do not ask the model to infer missing evidence. |
+| Workflow | Did the system need a clarification, approval, retrieval step, or deterministic check before generating? | Add the missing step or human boundary. |
+| Model | Did the same task and evidence remain available, but the model repeatedly fail a capability it needs? | Compare another model or reduce scope. Record the trade-off rather than assuming the model is the only cause. |
+
+The labels are hypotheses, not metaphysical truths. Test the smallest intervention that can distinguish them. If adding a clear constraint fixes one case but the same unsupported claim appears when the source is incomplete, you have found two failures, not one prompt failure.
+
+Keep an intervention log with five columns: case ID, observed error, label, change, and result. OpenAI’s documentation frames evaluation as an iteration loop, while Anthropic separates capability evaluations from regression evaluations. Your learning exercise can borrow both ideas: use one failing case to learn what the system can improve, then keep the original case to check that a later change did not break it. ([OpenAI’s eval iteration loop](https://developers.openai.com/api/docs/guides/evals), [Anthropic on capability and regression evals](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents))
+
+## 6. Prove transfer with an unfamiliar case
+
+A learner who can grade only the example has memorised the answer key. Give yourself a new work sample with the same rubric shape but unfamiliar subject matter.
+
+Use this transfer case:
+
+> Find a public or sanitised pricing, access, or approval policy from a domain you do not work in. Ask an AI system to turn it into a short exception note for an operations manager. Require the note to state the policy rule, identify the evidence for the exception, mark anything the policy does not answer, and recommend whether the request should be approved, rejected, or escalated.
+
+Do not carry over the NIST vocabulary. Carry over the evaluation logic: fidelity, usefulness, completeness, uncertainty, format, and vetoes. Before reading the output, write your expected anchors in plain language. Then grade it and explain one disagreement you would want a second reviewer to resolve.
+
+Finish with a self-check. Close the source and answer these questions from memory:
+
+1. What is the task’s source of truth?
+2. Which error would be most costly?
+3. Which rubric dimension catches it?
+4. What would make you change the prompt, data, workflow, or model?
+5. What evidence would prove that your change helped?
+
+This last step is not decoration. Research by Karpicke and Roediger found that repeated retrieval improved delayed recall more than repeated studying, and learners’ predictions did not track their later performance. Your self-check is a small retrieval event, not proof of mastery. ([The Critical Importance of Retrieval for Learning](https://doi.org/10.1126/science.1152408))
+
+![Illustration of an AI evaluation transfer check on unfamiliar work](/blog/how-to-grade-an-ai-output-against-a-rubric-inline-3.webp)
+
+## 7. Use a progression rule for independent performance
+
+Do not declare yourself ready because one comparison felt clear. Move from assisted grading to independent performance in stages:
+
+| Stage | What you do | Advance when |
+| --- | --- | --- |
+| Assisted | Use the rubric and answer key to grade the public worked case | You can explain every score and every veto without copying the key |
+| Repeated | Grade three new cases from your real work sample, then compare with a qualified reviewer | Your disagreements are traceable to a rubric anchor, not a preference |
+| Transfer | Grade the unfamiliar case before seeing any reference judgement | You identify the highest-cost failure and propose a testable intervention |
+| Independent | Build the next case pack and rubric for a different work task | A reviewer can run your packet without asking what “good” means |
+
+The progression rule is intentionally qualitative. This article has not measured how many cases produce competence, and no honest threshold can be universal across tasks. Use the rule as a release gate for your next learning step, not as a credential.
+
+When a task is high stakes, stop at assisted or repeated practice until a qualified person reviews the work. NIST’s Generative AI Profile is a voluntary resource, not a certificate, and the same principle applies to your learning artifact: a rubric makes judgment clearer, but it does not transfer accountability.
+
+If you want help turning your own workflow into a sequence of work samples, rubrics, and review sessions, [Marius Manolachi’s AI tutoring and consulting work](/learn-ai) follows the same capability goal: existing people become able to build and judge AI work on their own tasks.
