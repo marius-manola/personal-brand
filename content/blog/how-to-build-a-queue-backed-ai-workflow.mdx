@@ -1,0 +1,277 @@
+---
+title: 'How to Build a Queue-Backed AI Workflow'
+date: '2026-08-23'
+updated: '2026-08-23'
+excerpt: 'Build a queue-backed AI workflow with durable job records, restart recovery, bounded retries, timeouts, artifacts, and a tested dead-letter path.'
+answer: 'Build the workflow around a durable job record, not a background thread. Enqueue validated input, return a job ID with HTTP 202, let a worker claim the job through a lease or visibility timeout, persist status and artifacts, retry only transient failures within a bound, and route malformed or exhausted work to dead letter. Keep the business function separate from queue control.'
+targetQuery: 'how to build a queue-backed ai workflow'
+queryAliases:
+  - 'AI workflow queue worker'
+  - 'queue-backed AI job'
+  - 'how to run long-running AI tasks'
+  - 'AI workflow retry and dead letter'
+intent: 'implementation'
+funnel: 'consideration'
+cluster: 'implementation'
+parent: '/blog/how-to-scope-an-ai-agent-proof-of-concept'
+contentType: 'implementation-lab'
+kind: 'satellite'
+sourceableAtom: 'A deterministic provider-free run completed success in one attempt, exposed queued > running > completed to a poller, requeued a claimed job after worker restart, sent malformed output directly to dead letter, and sent a transient failure to dead letter after three attempts.'
+evidenceType: 'build-measurement'
+evidenceBasis: 'A self-contained Python standard-library bundle was run on 2026-08-23 against a deterministic fake model. It produced sample records, artifacts, failure traces, restart recovery, bounded timeout output, and retry exhaustion without a paid provider call.'
+tags:
+  - 'AI workflows'
+  - 'AI implementation'
+  - 'Distributed systems'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-21'
+sources:
+  - 'https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status/202'
+  - 'https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html'
+  - 'https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html'
+  - 'https://www.postgresql.org/docs/current/sql-select.html'
+  - 'https://docs.aws.amazon.com/step-functions/latest/dg/concepts-error-handling.html'
+  - 'https://developers.openai.com/api/reference/java/resources/beta/subresources/responses'
+faq:
+  - q: 'Should every AI task use a queue?'
+    a: 'No. Keep a short, cheap, user-visible operation synchronous when its timeout and failure handling fit inside the request. Use a queue when the task can outlive the request, needs retries or restart recovery, produces an artifact, or deserves a user-visible lifecycle.'
+  - q: 'What should an AI job record contain?'
+    a: 'Store a stable job ID, validated input or a protected input reference, workflow version, status, attempt count, timestamps, lease data, error history, event history, artifact references, and ownership metadata. Do not use a growing prompt transcript as the job record.'
+  - q: 'Should malformed model output be retried?'
+    a: 'Usually not by the same policy as a transient provider failure. Validate the output against the expected schema, preserve the raw response safely, and send a malformed result to review or dead letter unless a separate repair step is explicitly bounded and tested.'
+cover: '/blog/how-to-build-a-queue-backed-ai-workflow-queue-backed-ai-workflow-hero.webp'
+coverAlt: 'Illustration of a queue-backed AI workflow with a durable job record, worker, artifact store, and status endpoint'
+draft: false
+---
+
+A queue in an AI feature is not there to make the model smarter. It is there to give the work an identity after the HTTP request is gone.
+
+When I taught product managers to move from writing specifications to building and shipping products, the failure was almost never the model. It was that nobody could say what done meant. That observation is why the queue in this article owns execution and evidence, while a normal function still owns the business rule. ([Marius Manolachi's AI teaching work](https://mariusmanolachi.com/learn-ai))
+
+On 2026-08-23, I ran a small provider-free implementation against a deterministic fake model. The run produced the following result:
+
+| Test case | Observed result | Attempts | Evidence |
+| --- | --- | ---: | --- |
+| success | `completed` | 1 | JSON artifact written |
+| slow | `dead_letter` | 2 | `timeout, timeout`, 73.7 ms local elapsed time |
+| malformed | `dead_letter` | 1 | `malformed_output` |
+| worker restart | `completed` | 2 | `requeued_after_restart` event |
+| user polling | `queued > running > completed` | 1 | status reads |
+| retry exhaustion | `dead_letter` | 3 | three `upstream_unavailable` errors |
+
+That table is the useful artifact. It says what the system promises when the happy path stops being interesting. The timing is only an observation from this local run, not a latency guarantee.
+
+![Illustration of a queue-backed AI workflow moving from enqueue to worker execution, artifact storage, and status polling](/blog/how-to-build-a-queue-backed-ai-workflow-queue-backed-ai-workflow-lifecycle.webp)
+
+## What should the durable job contract contain?
+
+A queue-backed AI workflow needs one durable job record that can explain what happened without opening a model transcript. At minimum, store the job ID, validated input or a protected input reference, workflow version, status, attempt count, error history, event history, timestamps, lease data, and artifact references.
+
+Use a small state vocabulary:
+
+| State | Meaning | Allowed next states |
+| --- | --- | --- |
+| `queued` | Accepted and waiting for a worker | `running` |
+| `running` | Claimed by a worker lease | `completed`, `queued`, `dead_letter` |
+| `completed` | Valid output and artifact are durable | terminal |
+| `dead_letter` | No automatic retry remains, or the error is terminal | manual review or replay |
+
+The important part is not the names. It is that each transition is written before the worker moves on. A record that only says `done: true` cannot distinguish a timeout, a malformed response, a crash after a side effect, or a successfully stored artifact.
+
+If you use PostgreSQL as the queue store, a transaction can claim one eligible row with row locking. PostgreSQL documents `SKIP LOCKED` as useful for reducing lock contention in queue-like tables, while warning that it gives an inconsistent view and is not a general-purpose read-consistency tool. That is exactly the trade-off a worker claim needs: find available work without waiting behind another worker, then treat the claim as an execution lease. ([PostgreSQL locking clause](https://www.postgresql.org/docs/current/sql-select.html))
+
+The smallest useful record from my run looked like this:
+
+```json
+{
+  "id": "retry-exhaustion",
+  "status": "dead_letter",
+  "attempt": 3,
+  "errors": [
+    "upstream_unavailable",
+    "upstream_unavailable",
+    "upstream_unavailable"
+  ],
+  "events": [
+    "queued", "running", "queued", "running",
+    "queued", "running", "dead_letter"
+  ]
+}
+```
+
+This is more useful than a log line saying “worker failed.” It tells a reviewer that the job was retried twice after its first attempt and then stopped. It also makes a future replay an explicit decision instead of an accidental side effect of restarting a process.
+
+## How should enqueue and status endpoints work?
+
+The enqueue endpoint should validate the request, create the durable record, publish the job reference, and return a status URL. It should not wait for the model. HTTP `202 Accepted` describes a request accepted for processing while the work may not have completed or even started. MDN's example returns a task ID and a URL the client can use to track status. ([MDN's 202 Accepted reference](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status/202))
+
+```http
+POST /ai-jobs
+Content-Type: application/json
+
+{"workflow":"invoice_summary","input_ref":"uploads/abc.pdf"}
+```
+
+```http
+HTTP/1.1 202 Accepted
+Content-Type: application/json
+
+{"job_id":"job_123","status":"queued","status_url":"/ai-jobs/job_123"}
+```
+
+The status endpoint should return a stable shape even while work is incomplete:
+
+```json
+{
+  "job_id": "job_123",
+  "status": "running",
+  "attempt": 1,
+  "artifact": null,
+  "error": null,
+  "updated_at": "2026-08-23T10:15:00Z"
+}
+```
+
+When the job completes, the endpoint can return an artifact reference, not a giant model response embedded in the database record. When it fails, return a safe error code and a reviewable job ID. Keep provider details and sensitive input behind authorization checks.
+
+Polling is not a failure of the design. It is a clear contract for a long-running request. In my test, the client saw `queued`, then `running`, then `completed`. A real client can poll with backoff, use server-sent events, or subscribe to a notification later. Those transport choices do not change the durable state machine.
+
+## Where does the AI function belong?
+
+Put the domain operation behind a normal function. The worker should provide execution control around it, not turn the queue into a second business-logic layer.
+
+```python
+def build_invoice_summary(input_data, model):
+    prompt = make_invoice_prompt(input_data)
+    raw = model.run(prompt)
+    result = validate_summary(raw)
+    return write_summary_artifact(result)
+```
+
+The queue worker then decides when and how often to call that function:
+
+```python
+def process(job, store, model, timeout_seconds, max_attempts):
+    store.mark_running(job.id)
+    try:
+        artifact = run_with_timeout(
+            lambda: build_invoice_summary(job.input, model),
+            timeout_seconds,
+        )
+        store.complete(job.id, artifact)
+    except MalformedOutput:
+        store.dead_letter(job.id, code="malformed_output")
+    except RetryableFailure as error:
+        store.retry_or_dead_letter(job.id, error, max_attempts)
+    except TimeoutError:
+        store.retry_or_dead_letter(job.id, "timeout", max_attempts)
+```
+
+This separation gives you a useful test boundary. The business function can be tested with fixed inputs and outputs. The worker can be tested with a fake function that succeeds, sleeps, returns the wrong shape, or raises a transient exception. You do not need a live model to test whether a retry counter increments or whether a dead-letter record is reviewable.
+
+Structured output from a provider can reduce malformed responses, but it is still an input to your application. The current OpenAI Responses API reference describes JSON Schema structured outputs as a way to make supported model output match a supplied schema. Your worker still needs to validate the received object, record the workflow version, and decide what happens when the provider returns an incomplete or refused result. ([OpenAI Responses API reference](https://developers.openai.com/api/reference/java/resources/beta/subresources/responses))
+
+## How should retries, timeouts, and dead letters interact?
+
+Classify the failure before choosing the next state. Retry a transient dependency error or a timeout when another attempt has a reasonable chance of succeeding. Do not automatically retry malformed output forever. A malformed response may indicate a prompt, schema, model, or parser defect that another identical call will reproduce.
+
+Use an explicit policy table:
+
+| Failure | Automatic action | Terminal evidence |
+| --- | --- | --- |
+| transient provider or network error | Requeue with bounded backoff | Error code and attempt number |
+| worker timeout | Requeue only within the attempt budget | Timeout and elapsed limit |
+| malformed output | Dead letter or send to a separate repair step | Raw response reference and validator error |
+| retry budget exhausted | Dead letter | Full error list and last event |
+| success | Write artifact, then complete record | Artifact URI and checksum |
+
+AWS Step Functions uses the same separation in its workflow error model: timeout errors can be matched distinctly, retry rules can set maximum attempts and backoff, and catchers can route exhausted failures to another state. That is a useful design reference even if your application uses a database-backed queue. ([AWS Step Functions error handling](https://docs.aws.amazon.com/step-functions/latest/dg/concepts-error-handling.html))
+
+Amazon SQS makes the operational reason concrete. A message becomes visible again when its visibility timeout expires, delivery is at least once, and persistent failures can be routed to a dead-letter queue. A lease or visibility timeout prevents two workers from immediately processing the same message, but it does not make duplicate delivery impossible. ([Amazon SQS visibility timeout](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html))
+
+Set three different limits, not one vague “retry setting”:
+
+1. **Execution timeout:** how long one attempt may run.
+2. **Attempt budget:** how many attempts the job may consume.
+3. **Queue age or deadline:** how long the job may remain useful.
+
+If you only set the first limit, a job can time out forever. If you only set the attempt budget, a slow job can occupy a worker too long. If you omit queue age, a successful answer can arrive after it is no longer relevant to the user.
+
+![Illustration of an AI job failure lifecycle with transient retry, timeout, malformed output, and dead-letter branches](/blog/how-to-build-a-queue-backed-ai-workflow-queue-backed-ai-workflow-failure-paths.webp)
+
+## What happens when the worker restarts?
+
+A worker restart is normal control flow. Treat a `running` job as recoverable until its lease expires, then requeue it or move it to a recovery state. Never leave a claimed record stuck in `running` because the process that claimed it disappeared.
+
+My restart test persisted this sequence:
+
+```text
+queued,running,requeued_after_restart,running,completed
+```
+
+The test did not kill an operating-system process. It claimed the job, constructed a new store instance, called the recovery routine, and started a new worker. That proves record persistence and recovery logic. It does not prove that two production workers cannot race. Production needs an atomic claim, lease expiry, and an idempotent side-effect boundary.
+
+If the queue is a managed service, the lease may be called a visibility timeout. If it is a database table, it may be `lease_until` with a conditional update. Either way, store the worker identity and expiry. A heartbeat is useful for tasks whose normal execution time varies, but it must not extend a job past the business deadline without a policy decision.
+
+The most dangerous case is a timeout after an external side effect. The model call may have finished, the email may have been sent, or the artifact may have been written even though the worker did not receive the response. A retry then needs an idempotency key or reconciliation check. A queue makes execution durable. It does not make side effects safe by itself. For that boundary, use the separate guide on [idempotent tools for AI agents](/blog/how-to-design-idempotent-tools-for-ai-agents).
+
+## How do you test the workflow without paying for model calls?
+
+Replace the provider with a deterministic fake that exposes the failure modes you need. The fake used here had four modes: return a valid object, sleep past the timeout, return a string, or raise `upstream_unavailable`.
+
+The test harness was a single Python standard-library file. Its critical seam was:
+
+```python
+class FakeModel:
+    def run(self, payload):
+        if payload["mode"] == "slow":
+            time.sleep(0.20)
+        if payload["mode"] == "malformed":
+            return "not-json"
+        if payload["mode"] == "always_fail":
+            raise TransientError("upstream_unavailable")
+        return {"summary": "queue path completed"}
+```
+
+Run the tests in this order:
+
+1. Enqueue a success case and assert one attempt, `completed`, and an artifact path.
+2. Enqueue the slow case with a 10 ms timeout and a two-attempt limit. Assert two timeout errors and `dead_letter`.
+3. Return malformed output and assert it reaches dead letter without consuming a transient retry budget.
+4. Persist a running job, reload the store, requeue it, and assert the replacement worker completes it.
+5. Read the status after enqueue, claim, and completion. Assert `queued > running > completed`.
+6. Raise a transient error repeatedly and assert exactly three attempts before dead letter.
+
+The observed output was:
+
+```text
+PASS success status=completed attempts=1 artifact=artifacts/success.json
+PASS slow status=dead_letter attempts=2 errors=timeout,timeout elapsed_ms=73.7
+PASS malformed status=dead_letter attempts=1 error=malformed_output
+PASS restart recovered=1 status=completed events=queued,running,requeued_after_restart,running,completed
+PASS polling states=queued>running>completed
+PASS retry-exhaustion status=dead_letter attempts=3 errors=upstream_unavailable,upstream_unavailable,upstream_unavailable
+```
+
+The test proves the contract, not a provider's quality. It does not tell you how often a model produces a correct summary, whether a cloud queue meets your throughput target, or how much a real provider costs. An optional smoke test can replace the fake only after you pin the model version, prompt, schema, redaction rules, timeout, and spending limit. Record its exact request, output, latency, and provider limits separately. I did not run one for this article.
+
+## What should deployment add to the local bundle?
+
+The local file-backed store is useful for learning because every record and artifact is inspectable. It is not a production queue. Before deployment, make these substitutions explicit:
+
+- durable database or managed queue with atomic claim semantics;
+- lease or visibility timeout plus heartbeat or expiry reaper;
+- object storage for larger artifacts, with access control and retention;
+- API authentication and authorization on enqueue, status, and artifact reads;
+- worker concurrency and queue-age limits;
+- structured logs correlated by job ID and attempt;
+- a dead-letter review path with alerting and a safe replay command;
+- idempotency or reconciliation for every external side effect;
+- input redaction, output retention, and deletion rules;
+- a deployment assumption that the worker can be restarted without losing a job record.
+
+Amazon SQS describes a dead-letter queue as a place to isolate messages for debugging and later redrive. That is the right operational posture: dead letter is not silent deletion and not an infinite retry loop. It is a visible handoff to diagnosis. ([Amazon SQS dead-letter queues](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html))
+
+The queue is ready when a person can answer five questions from the record: what was requested, what is happening now, what was tried, what artifact exists, and what decision is needed next. If the system cannot answer those questions, adding a model call will only make the missing control harder to see.
+
+If you are still deciding whether the work deserves a queue, start with [how to scope an AI agent proof of concept](/blog/how-to-scope-an-ai-agent-proof-of-concept). If the task already has a bounded workflow, implement the record and failure tests before adding another provider feature.
