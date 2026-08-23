@@ -1,0 +1,149 @@
+---
+title: "How to Check an AI Vendor's Data Retention Before Buying"
+date: "2026-08-23"
+updated: "2026-08-23"
+excerpt: "Use a 12-row worksheet to verify prompts, files, caches, abuse logs, deletion, and model-improvement use before an AI vendor sees sensitive work."
+answer: "Ask the vendor to complete a row-by-row retention worksheet for prompts, outputs, files, conversation state, caches, abuse-monitoring samples, support access, backups, subprocessors, geography, deletion, and model-improvement use. Buy only when each row has a dated policy or contract answer that matches your workflow. The main exception is low-sensitivity work where documented residual risk is acceptable."
+targetQuery: "how to check an AI vendor's data retention before buying"
+queryAliases:
+  - "AI vendor data retention checklist"
+  - "how to evaluate AI vendor data retention"
+  - "what to ask an AI vendor about data retention"
+intent: "commercial investigation"
+funnel: "consideration"
+cluster: "commercial"
+parent: "/blog/choose-between-ai-consultant-agency-internal-team"
+contentType: "commercial-decision"
+kind: "satellite"
+sourceableAtom: "A dated 12-row retention worksheet applied to OpenAI, Anthropic, Gemini Developer API, and Azure Foundry shows which parts of a no-training claim remain unanswered before purchase."
+evidenceType: "commercial-model"
+evidenceBasis: "Original 12-row buyer worksheet, 2026-08-23 review of current first-party provider policies and feature documentation, explicit unresolved-question log, sensitivity decision rule, and a worked low-sensitivity go/no-go example."
+tags:
+  - "AI strategy"
+  - "Buying AI services"
+  - "AI security"
+  - "AI governance"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-15"
+sources:
+  - "https://developers.openai.com/api/docs/guides/your-data"
+  - "https://openai.com/enterprise-privacy/"
+  - "https://privacy.claude.com/en/articles/7996866-how-long-do-you-store-my-organization-s-data"
+  - "https://platform.claude.com/docs/en/manage-claude/api-and-data-retention"
+  - "https://ai.google.dev/gemini-api/terms"
+  - "https://ai.google.dev/gemini-api/docs/zdr"
+  - "https://ai.google.dev/gemini-api/docs/logs-policy"
+  - "https://learn.microsoft.com/en-us/azure/foundry/responsible-ai/openai/data-privacy"
+  - "https://cloud.google.com/terms/data-processing-addendum"
+faq:
+  - q: "Does a no-training promise mean an AI vendor does not retain my data?"
+    a: "No. Model-improvement use and operational retention are separate. A vendor can exclude prompts from training while retaining abuse-monitoring samples, uploaded files, conversation state, caches, support records, or backups."
+  - q: "What if an AI vendor will not state its backup retention period?"
+    a: "Treat the row as unresolved. That may be acceptable for low-sensitivity, reversible work if you record the residual risk. For medium or high-sensitivity data, pause approval until the vendor answers in a policy, DPA, or contract."
+  - q: "Should I use an API instead of a consumer AI chat app for sensitive work?"
+    a: "An API can offer clearer controls, but the answer still depends on the exact endpoint, features, plan, region, and contract. An API label is not evidence of zero retention."
+cover: "/blog/how-to-check-an-ai-vendors-data-retention-before-buying-ai-vendor-retention-worksheet-hero.webp"
+coverAlt: "Illustration of a buyer checking an AI vendor's data retention worksheet"
+draft: false
+---
+
+When I taught product managers who moved from writing specs to building and shipping products, the hard part was rarely the first model call. It was knowing what the team could safely change, inspect, and own. Buying an AI service creates the same problem earlier: you need evidence before you send it real work.
+
+Here is the sourceable result of this policy review: a vendor's “no training” sentence answers one row, not the purchase decision. I applied the worksheet below to the current public documentation for OpenAI, Anthropic, Google Gemini, and Azure Foundry. Every comparison entry is dated 2026-08-23, and the unknowns stay visible.
+
+![Illustration of a buyer separating model improvement from storage and access evidence](/blog/how-to-check-an-ai-vendors-data-retention-before-buying-ai-vendor-retention-evidence-separation.webp)
+
+## What does “no training” fail to tell you?
+
+It does not tell you whether the vendor stores the request, keeps the uploaded file, creates a conversation record, writes a cache, samples the content for abuse monitoring, or lets support personnel access it.
+
+OpenAI says data sent to its API is not used to train or improve its models unless the customer opts in, but its API documentation separately describes abuse-monitoring logs and application state. By default, those abuse logs can include prompts and responses and can be retained for up to 30 days, subject to legal and safety exceptions. ([OpenAI data controls](https://developers.openai.com/api/docs/guides/your-data))
+
+That is not a contradiction. Training and retention answer different questions:
+
+| Question | What it controls |
+| --- | --- |
+| Is the content used to improve a model? | Model development, evaluation, or product improvement use |
+| Is the content stored? | The time it remains in an active service, feature store, log, cache, or backup |
+| Who can access it? | Provider staff, support, safety reviewers, subprocessors, or connected services |
+| Can we delete it? | The buyer's ability to remove it and prove removal across systems |
+
+If a sales page answers only the first question, your security review has not finished.
+
+## Use this 12-row retention worksheet before you buy
+
+Ask for a dated answer to each row for the exact product, plan, endpoint, feature, model, region, and contract you will use. “We take privacy seriously” is not an answer. A policy link is useful only when it identifies the default and the exception.
+
+| Row | Ask the vendor to state | Evidence to keep in the purchase packet |
+| --- | --- | --- |
+| Prompts | Are inputs stored after the response, and for how long? | Endpoint policy, default setting, and retention period |
+| Outputs | Are generated outputs stored, logged, or used for review? | Output retention and review wording |
+| Uploaded files | Do Files API, vector stores, tuning, batch, or attachments persist? | File deletion control, expiry setting, and exception list |
+| Conversation state | Does the product save threads, runs, messages, or memory by default? | Feature configuration and delete behavior |
+| Caches | Are raw text, embeddings, hashes, or key-value cache representations retained? | Cache type, TTL, scope, isolation, and expiry |
+| Abuse-monitoring samples | Can prompts or outputs be sampled for automated or human safety review? | Sampling trigger, access path, retention, and opt-out eligibility |
+| Support access | Can support or engineering staff view content, and under what ticket or incident condition? | Access policy, audit method, and support boundary |
+| Backups | How long do deleted data and logs remain in backups? | Backup TTL, restore behavior, and deletion SLA |
+| Subprocessors | Which entities can process the data, in which locations, for which functions? | Current list, notice process, and objection right |
+| Geographic processing | Where is inference run, where is data stored, and where can support or safety work occur? | Region setting, routing default, and transfer terms |
+| Deletion | What can the buyer delete, how quickly, and what evidence is returned? | API or admin control, deletion window, legal-hold exception |
+| Model-improvement use | Are prompts, outputs, files, cached content, and feedback excluded from improvement by default? | Exact clause, opt-in state, and scope of the exclusion |
+
+Mark each row `documented`, `configurable`, `feature-dependent`, or `unresolved`. Do not mark a row documented because a neighboring row sounds reassuring. For example, “files are encrypted” describes protection at rest. It does not describe when files are deleted.
+
+## How do OpenAI, Anthropic, Gemini, and Azure answer the worksheet?
+
+The short answer is that all four publish useful controls, but none lets a buyer skip feature-level review. The table covers business/API paths, not consumer chat products.
+
+| Worksheet row | OpenAI API | Anthropic API | Gemini Developer API | Azure Direct Models in Foundry |
+| --- | --- | --- | --- | --- |
+| Prompts and outputs | Not used for training or improvement by default. Abuse logs can retain them up to 30 days. ([data controls](https://developers.openai.com/api/docs/guides/your-data)) | Inputs and outputs are deleted within 30 days by default. ZDR changes this for eligible features. ([retention policy](https://privacy.claude.com/en/articles/7996866-how-long-do-you-store-my-organization-s-data)) | Paid Services do not use prompts or responses to improve products. Paid abuse logging lasts a “limited period,” without one duration in the terms. ([terms](https://ai.google.dev/gemini-api/terms)) | Prompts and completions are not used to improve base models or Microsoft products without permission or instruction. ([data privacy](https://learn.microsoft.com/en-us/azure/foundry/responsible-ai/openai/data-privacy)) |
+| Uploaded files | Files can be deleted manually or with `expires_after`. Fine-tuning files remain until the customer deletes them. Image and file inputs have a CSAM-review exception. ([data controls](https://developers.openai.com/api/docs/guides/your-data)) | Files API is not ZDR eligible and files remain until explicitly deleted. | File API files remain until deleted or expired. Files are independent of ZDR logging. ([ZDR](https://ai.google.dev/gemini-api/docs/zdr)) | Files and vector-store data are stored in the customer geography and can be deleted, but preview features may differ. |
+| Conversation state | Responses application state is 30 days by default when stored. Assistants objects remain indefinitely until deleted, then 30 days. | Standard Messages calls do not retain conversation content by default, but stateful products and managed agents have separate retention. | Interactions stores state by default unless `store=false`; Live session handles can retain state up to 24 hours. | Responses, Threads, and Stored completions create service-side stores according to feature configuration. |
+| Caches | Prompt caching can store encrypted key-value tensors in GPU-local storage for up to 24 hours. | Raw prompt and response text are not stored; cache representations and hashes are held in memory for a 5-minute or 1-hour TTL. ([prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)) | Implicit in-memory cache has a 24-hour TTL; explicit cached content uses a buyer-defined expiry. | The overview does not give one cache TTL. Treat model and feature documentation as required evidence. |
+| Abuse-monitoring samples | Default logs can contain prompts and responses for up to 30 days. ZDR and Modified Abuse Monitoring require approval; safety retention can still apply. | Covered Models require 30-day retention for safety work. Usage Policy and legal exceptions remain. ([Covered Models](https://privacy.claude.com/en/articles/15425996-data-retention-practices-for-covered-models)) | Paid prompts and responses can be logged for prohibited-use detection. Approved ZDR sanitizes content before logging. Grounding with Search or Maps stores prompt context and output for 30 days with no disable control. ([ZDR](https://ai.google.dev/gemini-api/docs/zdr)) | Flagged prompts and completions can be sampled for automated and human review. Modified monitoring removes the described storage and human review path, but automated review can remain. |
+| Support access | Stored API data may be accessed by authorized employees and specialized contractors for engineering support, abuse, and legal compliance. ([enterprise privacy](https://openai.com/enterprise-privacy/)) | Product support and incident-response processing can occur in countries where Anthropic or affiliates operate. The public API pages do not give one universal support-access TTL. ([server locations](https://privacy.claude.com/en/articles/7996890-where-are-your-servers-located-do-you-host-your-models-on-eu-servers)) | Google Cloud personnel are denied access by default, but support roles can access data related to a support ticket under privileged-access controls. ([Google Cloud access](https://docs.cloud.google.com/docs/security/privileged-access-management)) | The public Foundry page details abuse reviewers and controlled access, but not a universal ordinary-support access window. Ask for the support boundary. |
+| Backups | No single backup TTL is stated in the reviewed API data-control page. | No single backup TTL is stated in the reviewed API pages. | The developer policy does not state a universal backup TTL. | The page says stored data can be deleted, but does not state one universal backup deletion period. |
+| Subprocessors | OpenAI uses subprocessors and documents Cloudflare regional services for some regional requests. | Multiple cloud providers process customer data; Anthropic publishes a subprocessor list. | The Google Cloud DPA and subprocessor list are the contract layer for names, locations, and activities. ([DPA](https://cloud.google.com/terms/data-processing-addendum)) | Microsoft hosts the models in Azure and the service is governed by Microsoft data-protection terms. Request the applicable subprocessor and support list. |
+| Geographic processing | Eligible customer content can use selected data-residency regions, but system data can remain outside the selected region. | `inference_geo` defaults to global on supported current models. Data storage is in the US; US-only inference can be configured where supported. ([data residency](https://platform.claude.com/docs/en/manage-claude/data-residency)) | Paid data may be transiently stored or cached in any country where Google or its agents have facilities. | Standard processing uses the customer geography; Global and DataZone deployments expand processing geography, while stored data remains in the designated geography. |
+| Deletion | Files support manual or automatic expiry. Responses and Assistants objects have feature-specific deletion windows and legal or safety exceptions. | API input and output deletion is within 30 days, with files, policy, and legal exceptions. | File and tuned-model content can be deleted or expire. Logs are marked for deletion after a configurable 7, 14, 28, or 55 days; datasets have no set retention period. ([logs](https://ai.google.dev/gemini-api/docs/logs-policy)) | Customer-stored feature data can be deleted at any time. Preview features may not support every condition. |
+| Model improvement | No API training or improvement by default unless opt-in. | Retained data is not used for model training without express permission. | Paid content is excluded from improvement; Unpaid Services can be used to improve and develop products and models. | Customer prompts and completions are not used to train foundation models or improve Microsoft or provider products without explicit permission or instruction. |
+
+The exact wording matters. “Up to 30 days” is different from “within 30 days.” “Limited period” is different from a stated duration. “Until deleted” is different from automatic expiry. Those distinctions are why the worksheet records defaults and exceptions instead of awarding a vague privacy score.
+
+## Which sensitivity rule should decide the purchase?
+
+Use the sensitivity of the actual data, not the reputation of the vendor.
+
+For low-sensitivity work, such as public copy generation with reversible outputs, you can accept a documented residual risk such as a 30-day abuse-monitoring window. Keep the workflow narrow, avoid uploads and stateful features unless needed, and record what the provider did not specify.
+
+For medium-sensitivity work, such as internal plans, employee information, or customer support records, require all 12 rows to have an answer in a policy, configuration, DPA, or contract. Test deletion. Confirm the endpoint and region. Get the current subprocessor list. One unknown backup or abuse-log duration is a pause, not a green light.
+
+For high-sensitivity work, such as credentials, health information, financial records, privileged legal material, or safety-critical decisions, require security and qualified legal review of the actual agreement. Look for ZDR or an equivalent control, exact feature exclusions, regional processing evidence, deletion evidence, and a human stop path. This is a risk rule, not universal legal advice.
+
+![Illustration of a buyer moving a sensitive AI workflow through low, medium, and high approval gates](/blog/how-to-check-an-ai-vendors-data-retention-before-buying-ai-vendor-retention-sensitivity-gates.webp)
+
+## What is a written go/no-go example?
+
+**Conditional go:** A small company wants to send public help-center articles to the OpenAI API to draft internal marketing copy. It sends no files, avoids web search and external tools, sets `store=false`, and accepts the documented up-to-30-day abuse-monitoring path as low sensitivity. The buyer records backup and support access as contract questions and limits the pilot to public material. That is a conditional go, not an approval for customer records.
+
+**No-go:** The same company wants to send payroll files through the Gemini Developer API. Before purchase, it still needs answers for File API deletion, paid abuse-log duration, cache settings, backups, support access, geography, and the exact billing state. The Gemini docs say paid content is not used to improve products, but they also say Files API storage is independent of ZDR and that paid prompt logging lasts a limited period. That unresolved packet is not strong enough for this workflow. ([Gemini terms](https://ai.google.dev/gemini-api/terms), [Gemini ZDR](https://ai.google.dev/gemini-api/docs/zdr))
+
+## Which answers are red flags?
+
+Pause when a vendor:
+
+- answers “we do not train on your data” but says nothing about files, state, caches, logs, or support;
+- says “delete on request” without a time limit, backup treatment, or deletion evidence;
+- uses “enterprise-grade,” “secure,” or “private” without a retention schedule;
+- points to an API policy while the purchased product saves chats, projects, memory, or traces in a separate workspace;
+- offers ZDR only after approval but cannot confirm that your exact model and feature set qualify;
+- describes regional hosting while leaving inference routing, subprocessors, support, or safety review outside the region;
+- gives a sales-email promise that is narrower, newer, or broader than the dated DPA and product terms;
+- treats legal, safety, or abuse exceptions as unlimited without a process or review path.
+
+The most useful response is not always “no.” It may be “use this provider only for low-sensitivity data,” “turn off this feature,” or “add the retention term to the contract.” But if the unresolved row touches a high-sensitivity workflow, stop the purchase until the evidence packet is complete.
+
+The [guide to choosing an AI consultant, agency, or internal team](/blog/choose-between-ai-consultant-agency-internal-team) helps with the earlier resourcing decision. If the purchase is still a bounded pilot, use the [AI agent proof-of-concept scope checklist](/blog/how-to-scope-an-ai-agent-proof-of-concept) to define the data boundary before the vendor sees it. Once a shortlist exists, this worksheet gives the buyer something concrete to request, compare, and retain.
+
+If your team needs help turning a shortlist into a safe operating decision, [learn about Marius Manolachi's AI consulting and tutoring](https://mariusmanolachi.com/learn-ai). The goal is not to memorize four vendor policies. It is to leave the purchase with an owner, a dated evidence packet, and no important retention question hidden behind a slogan.
