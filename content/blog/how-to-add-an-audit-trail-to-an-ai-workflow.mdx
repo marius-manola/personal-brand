@@ -1,0 +1,276 @@
+---
+title: "How to Add an Audit Trail to an AI Workflow"
+date: "2026-08-23"
+updated: "2026-08-23"
+excerpt: "Build a provider-neutral AI workflow audit trail with correlated spans, approval events, version fields, redaction, and a UI-free reconstruction test."
+answer: "Add an audit trail by emitting one correlated record for the workflow, model call, retrieval, tool call, approval, and outcome. Carry a run ID, trace and span IDs, parent links, workflow and prompt versions, tool attempts, and redaction markers into exported JSON. The principal exception is sensitive content: store hashes or references instead of raw prompts, retrieved text, secrets, or chain-of-thought."
+targetQuery: "how to add an audit trail to an AI workflow"
+queryAliases:
+  - "AI workflow audit log"
+  - "AI agent audit trail"
+  - "how to log AI workflow actions"
+intent: "implementation"
+funnel: "consideration"
+cluster: "implementation"
+parent: "/blog/how-to-scope-an-ai-agent-proof-of-concept"
+contentType: "implementation-lab"
+kind: "satellite"
+sourceableAtom: "A provider-neutral Node.js demo reconstructs one AI workflow from four correlated spans and two timestamped events after the UI is removed; tests pass for reconstruction, a missing retrieval span, rejected approval, retry, and redaction."
+evidenceType: "build-measurement"
+evidenceBasis: "A dependency-free Node.js fixture was executed on 2026-08-23 with deterministic IDs and a fixed timestamp. It emitted four spans and two events, then passed five tests covering reconstruction, missing span detection, rejected approval, retry recording, and redaction."
+tags:
+  - "AI implementation"
+  - "AI observability"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/"
+  - "https://opentelemetry.io/docs/specs/semconv/general/events/"
+  - "https://opentelemetry.io/docs/specs/otel/logs/data-model/"
+  - "https://www.w3.org/TR/trace-context/"
+  - "https://opentelemetry.io/docs/collector/"
+  - "https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.600-1.pdf"
+faq:
+  - q: "Does an audit trail replace AI monitoring?"
+    a: "No. Monitoring helps you notice that a workflow may be slow, failing, or drifting. An audit trail preserves the correlated events and versions needed to explain one completed, blocked, or failed run after the fact. Use both when actions matter."
+  - q: "Should an AI audit trail store the full prompt?"
+    a: "Only when a documented policy permits it and access is controlled. The safer default is to store prompt and retrieval identifiers, versions, hashes, and redaction markers, while keeping raw content in a separate governed store or not retaining it."
+  - q: "What if the audit exporter is unavailable?"
+    a: "Decide whether the workflow must fail closed, queue a local append-only record, or continue with an explicit audit gap. A dashboard trace that disappears during an action is not a durable audit trail."
+cover: "/blog/how-to-add-an-audit-trail-to-an-ai-workflow-hero.webp"
+coverAlt: "Illustration of an AI workflow audit trail connecting model, retrieval, tool, approval, and outcome records"
+draft: false
+---
+
+An ordinary application log can tell you that a model answered. It often cannot tell you which retrieved evidence, tool attempt, approval, and version produced the action that followed.
+
+I am building TryUncle, an AI agent that watches the screen and annotates it live. That constraint is enough to make the design problem concrete: when an AI action happens in time-sensitive work, a final answer is not the lineage. You need to know what happened before the action and who allowed it. This article uses that constraint as motivation only. The evidence below is a small synthetic demo, not a deployed TryUncle system.
+
+Here is the result before the walkthrough. I ran a dependency-free Node.js fixture that exports four correlated spans and two timestamped events. After removing the UI, its tests passed for reconstruction, a missing retrieval span, a rejected approval, a retry, and redaction.
+
+```json
+{
+  "tests": {
+    "reconstructable": "pass",
+    "missing_span": "pass",
+    "rejected_approval": "pass",
+    "retry": "pass",
+    "redaction": "pass"
+  },
+  "counts": {
+    "spans": 4,
+    "events": 2,
+    "trace_id": "44444444444444444444444444444444"
+  }
+}
+```
+
+![Illustration of an exported JSON audit record with one trace ID connecting model, retrieval, tool, approval, and outcome events](/blog/how-to-add-an-audit-trail-to-an-ai-workflow-inline-1.webp)
+
+## What should an AI workflow audit trail prove?
+
+An audit trail should let a reviewer reconstruct the path from input decision to outcome, including the actions that did not happen. It should answer five questions: which run was this, which versions participated, what did the workflow call, what did a human approve or reject, and what outcome was recorded?
+
+That is different from a monitoring signal. Monitoring asks whether latency, errors, or volume look unusual. An audit record explains one run. You may use the same OpenTelemetry data for both, but you should not design the record around a dashboard query and assume the dashboard will always exist.
+
+OpenTelemetry's current GenAI registry provides operation names and fields for model, workflow, retrieval, and tool activity, while its event guidance separates timestamped occurrences from operations with duration ([GenAI semantic conventions](https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/), [event conventions](https://opentelemetry.io/docs/specs/semconv/general/events/)). NIST's Generative AI Profile also points teams toward documented knowledge limits, provenance, model versions, human oversight, and incident records ([NIST AI RMF Generative AI Profile](https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.600-1.pdf)).
+
+The smallest useful contract is therefore:
+
+| Record | Capture | Why it matters |
+| --- | --- | --- |
+| Workflow span | `run_id`, `trace_id`, operation, workflow version, actor | Establishes the unit being reviewed |
+| Model span | provider, model, prompt version, usage if available, content policy | Shows which generation produced the next decision |
+| Retrieval span | source-set version, document IDs or hashes, result count | Shows what context was available without copying sensitive text |
+| Tool span | tool name and type, tool version, attempt, idempotency key, result status | Shows the action and whether it was retried |
+| Approval event | approver, decision, timestamp, approval ID, reason | Shows whether a person allowed, rejected, or deferred the action |
+| Outcome event | completed, blocked, failed, or escalated plus reason | Closes the run without inferring success from a final message |
+
+The useful test is not “can the dashboard draw a nice tree?” It is “can a reviewer follow this table from exported JSON alone?”
+
+## How should you correlate the records?
+
+Give every record a stable run ID, a W3C-compatible trace ID, a span ID, and a parent span ID. Repeat the trace ID on exported events so a log consumer can join the audit record even if it does not understand the UI's trace tree.
+
+W3C Trace Context standardizes propagation across service boundaries. Its `traceparent` value carries the trace identity and the caller's position in that trace ([W3C Trace Context](https://www.w3.org/TR/trace-context/)). OpenTelemetry's log data model likewise defines timestamp, trace ID, span ID, severity, and event name as fields that make a log record correlate with a trace ([OpenTelemetry Logs Data Model](https://opentelemetry.io/docs/specs/otel/logs/data-model/)).
+
+Use spans for operations that have a start and an end. In the demo, the root `invoke_workflow` span parents `chat`, `retrieval`, and `execute_tool`. Use events for approval, retry, and outcome because each is a point-in-time occurrence that can happen zero, one, or many times. OpenTelemetry makes the same distinction in its event guidance.
+
+Do not make `event_name` contain a case ID, user ID, or attempt number. Keep the event name low-cardinality, such as `ai.approval.requested` or `ai.tool.retry`, and put the changing values in attributes. That preserves queryability without turning every case into a new event type.
+
+## What fields map to OpenTelemetry GenAI conventions?
+
+Use OpenTelemetry names where they already describe the operation. Use an `ai.audit.*` namespace for the audit contract that OpenTelemetry does not define.
+
+| Demo field | OpenTelemetry mapping | Audit-specific decision |
+| --- | --- | --- |
+| `trace_id`, `span_id`, `parent_span_id` | Trace and span correlation fields | Every span and event repeats `trace_id`; parents preserve the action path |
+| `gen_ai.operation.name` | `invoke_workflow`, `chat`, `retrieval`, `execute_tool` | The demo validates that all four operations are present |
+| `gen_ai.workflow.name` | Workflow identity | The value is `audit-demo`, while `workflow_version` is custom and versioned |
+| `gen_ai.provider.name`, `gen_ai.request.model` | Model provider and requested model | Keep provider and model separate so a model swap is visible |
+| `gen_ai.retrieval.documents` or `gen_ai.data_source.id` | Retrieved documents or source identity | The demo keeps a source-set version, count, and query hash rather than raw passages |
+| `gen_ai.tool.name`, `gen_ai.tool.type` | Tool identity and type | `ai.audit.tool_version` records the executable contract version |
+| `gen_ai.tool.call.arguments` and `gen_ai.tool.call.result` | Tool parameters and result | Capture only fields approved by policy; the demo uses a redacted argument marker |
+| Event `timestamp`, `event_name`, `severity` | OpenTelemetry event and log concepts | Approval, retry, and outcome names are custom domain events |
+| `ai.audit.prompt_version`, `ai.audit.attempts`, `ai.audit.idempotency_key` | No direct GenAI equivalent | Keep them because they explain which executable contract and attempt produced the action |
+
+The GenAI registry explicitly warns that tool arguments and results may contain sensitive information and describes them as structured values. That is a reason to apply a capture policy before export, not a reason to dump them by default. The registry is also evolving, with entries moved to a dedicated repository, so pin the semantic-convention version you adopt and review it on a schedule.
+
+## How do you emit an audit export?
+
+Start with one in-process record builder. It can later feed an OpenTelemetry SDK or Collector, but the contract should be understandable before a backend is introduced. Save the following as `audit-demo.mjs` and run it with Node.js.
+
+```js
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+
+const BASE_TIME = "2026-08-23T12:00:00.000Z";
+const sensitiveKey = /authorization|access_token|secret|raw_prompt|email/i;
+
+function redactString(value) {
+  return value
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[REDACTED_EMAIL]")
+    .replace(/Bearer\s+[A-Za-z0-9._-]+/gi, "Bearer [REDACTED_TOKEN]");
+}
+function redact(value, key = "") {
+  if (sensitiveKey.test(key)) return "[REDACTED]";
+  if (typeof value === "string") return redactString(value);
+  if (Array.isArray(value)) return value.map(item => redact(item));
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, redact(v, k)]));
+  }
+  return value;
+}
+function hash(value) {
+  return createHash("sha256").update(value).digest("hex").slice(0, 16);
+}
+function buildRun({ approval = "approved", toolAttempts = 1, omit = [] } = {}) {
+  const spans = [];
+  const events = [];
+  let sequence = 0;
+  const traceId = "4".repeat(32);
+  const runId = "run-001";
+  const common = { trace_id: traceId, run_id: runId, workflow_version: "workflow@1.2.0" };
+  function addSpan(name, parentSpanId, attributes, status = "OK") {
+    const spanId = (String(spans.length + 1)).padStart(16, "0");
+    const span = { ...common, span_id: spanId, parent_span_id: parentSpanId, name,
+      start_time: BASE_TIME, end_time: BASE_TIME, status: { code: status }, attributes: redact(attributes) };
+    spans.push(span);
+    return span;
+  }
+  function addEvent(eventName, spanId, attributes, severity = "INFO") {
+    events.push({ ...common, event_id: "evt-" + String(++sequence).padStart(3, "0"),
+      timestamp: BASE_TIME, span_id: spanId, event_name: eventName, severity,
+      attributes: redact(attributes) });
+  }
+  const root = addSpan("invoke_workflow audit-demo", null, {
+    "gen_ai.operation.name": "invoke_workflow", "gen_ai.workflow.name": "audit-demo",
+    "ai.audit.prompt_version": "prompt@3.1.0", "ai.audit.actor": "reviewer-01"
+  });
+  addSpan("chat model", root.span_id, {
+    "gen_ai.operation.name": "chat", "gen_ai.provider.name": "demo-provider",
+    "gen_ai.request.model": "demo-model-1", "ai.audit.input_preview": "Review invoice for alice@example.com",
+    "ai.audit.input_hash": hash("Review invoice for alice@example.com"), "ai.audit.capture_policy": "content-redacted",
+    authorization: "Bearer secret"
+  });
+  const retrieval = addSpan("retrieval policy", root.span_id, {
+    "gen_ai.operation.name": "retrieval", "ai.audit.source_set": "policy-v4",
+    "ai.audit.query_hash": hash("invoice policy"), "ai.audit.result_count": 2
+  });
+  if (omit.includes("retrieval")) spans.splice(spans.indexOf(retrieval), 1);
+  addEvent("ai.approval.requested", root.span_id, {
+    "ai.audit.approval_id": "approval-001", "ai.audit.decision": approval,
+    "ai.audit.approver": "reviewer-01", email: "alice@example.com"
+  }, approval === "rejected" ? "WARN" : "INFO");
+  if (approval === "approved") {
+    const tool = addSpan("execute_tool update_case", root.span_id, {
+      "gen_ai.operation.name": "execute_tool", "gen_ai.tool.name": "update_case",
+      "gen_ai.tool.type": "function", "ai.audit.tool_version": "update_case@2.0.0",
+      "gen_ai.tool.call.arguments": { case_id: "case-17", note: "[redacted by policy]" },
+      "ai.audit.attempts": toolAttempts
+    });
+    if (toolAttempts > 1) addEvent("ai.tool.retry", tool.span_id, {
+      "ai.audit.attempt": 2, "ai.audit.reason": "timeout",
+      "ai.audit.idempotency_key": "run-001:update_case:case-17"
+    }, "WARN");
+  }
+  addEvent("ai.workflow.outcome", root.span_id, {
+    "ai.audit.outcome": approval === "approved" ? "completed" : "blocked",
+    "ai.audit.reason": approval === "approved" ? "tool_result_recorded" : "approval_rejected"
+  }, approval === "approved" ? "INFO" : "WARN");
+  return { audit_schema_version: "audit.v1", ...common, spans, events };
+}
+function requiredOps(exported) {
+  return new Set(exported.spans.map(span => span.attributes["gen_ai.operation.name"]));
+}
+function assertReconstructable(exported) {
+  const ops = requiredOps(exported);
+  assert.deepEqual([...ops].sort(), ["chat", "execute_tool", "invoke_workflow", "retrieval"]);
+  assert.ok(exported.events.some(event => event.event_name === "ai.approval.requested"));
+  assert.ok(exported.events.some(event => event.event_name === "ai.workflow.outcome"));
+  assert.ok(exported.spans.every(span => span.trace_id === exported.trace_id));
+}
+const happy = buildRun();
+assertReconstructable(happy);
+assert.equal(happy.spans.length, 4);
+assert.equal(JSON.stringify(happy).includes("alice@example.com"), false);
+assert.equal(JSON.stringify(happy).includes("Bearer secret"), false);
+const missing = buildRun({ omit: ["retrieval"] });
+assert.throws(() => { if (!requiredOps(missing).has("retrieval")) throw new Error("missing span: retrieval"); });
+const rejected = buildRun({ approval: "rejected" });
+assert.equal(rejected.spans.some(span => span.attributes["gen_ai.operation.name"] === "execute_tool"), false);
+const retried = buildRun({ toolAttempts: 2 });
+assert.ok(retried.events.some(event => event.event_name === "ai.tool.retry"));
+console.log(JSON.stringify({ tests: "pass", spans: happy.spans.length, events: happy.events.length }, null, 2));
+```
+
+The important design choice is not the helper functions. It is the boundary between standard operation fields and your application contract. If you later replace the in-process export with an OpenTelemetry SDK, preserve the same IDs, parent relationships, event names, and redaction policy.
+
+![Illustration of a code-first audit exporter with redaction and version fields before telemetry reaches a backend](/blog/how-to-add-an-audit-trail-to-an-ai-workflow-inline-2.webp)
+
+## What should you redact, hash, or leave out?
+
+Redact before the record leaves the process. Do not export a secret and hope the backend's search permissions will save you. OpenTelemetry's own GenAI registry flags system instructions, tool arguments, tool results, and other content fields as potentially sensitive. The Collector can help with processing and filtering, but a policy at the application boundary gives you a safer default ([OpenTelemetry Collector](https://opentelemetry.io/docs/collector/)).
+
+| Data | Default treatment | What remains reviewable |
+| --- | --- | --- |
+| Email, access token, authorization header | Redact | That the field existed and was removed, if needed |
+| Prompt or retrieved passage | Do not export by default | Prompt version, source-set version, hash, count, and policy |
+| Tool arguments | Allowlist fields, then redact | Tool name, version, attempt, idempotency key, and selected identifiers |
+| Tool result | Record status and a hash or reference | Whether the call completed, failed, or was retried |
+| Model output | Store a governed reference or structured result summary | Output type, finish reason, usage, and outcome |
+| Chain-of-thought | Do not capture | The model call, decision boundary, approval, and result |
+
+The goal is not to make the record empty. It is to make the record useful without making raw content the default audit surface. A hash can help compare two values without exposing the value, but it is not proof of tamper resistance. If you need an evidentiary record, add an append-only store, access controls, retention rules, key management, and a signing or immutability strategy.
+
+## How do you test the audit trail without the UI?
+
+Test the exported artifact as a document another person can inspect, not only as telemetry that a collector accepted. I used five checks:
+
+| Test | Mutation or fixture | Passing condition |
+| --- | --- | --- |
+| Reconstruction | Happy-path export | Four required operations share a trace and the approval and outcome events are present |
+| Missing span | Remove the retrieval span | Validation fails with `missing span: retrieval` |
+| Rejected approval | Set approval to `rejected` | The export records `blocked` and has no tool execution span |
+| Retry | Set tool attempts to `2` | A retry event records the attempt, timeout reason, and idempotency key |
+| Redaction | Include a fixture email and bearer token | Neither value appears in serialized JSON |
+
+The observed happy path had four spans and two events. The missing-span test did not silently accept an incomplete trace. The rejected-approval path did not turn a refusal into a successful tool action. The retry test preserved the logical action while exposing the second attempt. Those are small checks, but each catches a failure that a final-answer log hides.
+
+Run the checks with the UI removed. In practice, that means exporting the JSON to a file or memory buffer, discarding the trace viewer, and running a validator against the export. If a reviewer cannot identify the root workflow, its child operations, the approval decision, and the final state from that artifact, the contract is not ready.
+
+## Where is this audit trail not enough?
+
+This demo proves reconstructability for a synthetic path. It does not prove that production instrumentation cannot be bypassed, that clocks are synchronized, that exports survive a backend outage, or that a retention policy satisfies a law or contract.
+
+Add the next controls according to the consequence of the action:
+
+1. Make the export path fail closed when an action cannot safely occur without an audit record.
+2. Use an append-only or tamper-evident store when later alteration would matter.
+3. Record exporter failures and queue state as part of the audit gap, rather than treating missing telemetry as success.
+4. Pin the OpenTelemetry semantic-convention version and review changes because the GenAI registry is still evolving.
+5. Keep approval identity and outcome ownership explicit. A model's final sentence is not a human authorization.
+
+If the workflow is still a proof of concept, start with the smallest contract above and link it to the exit decision in [How Do I Scope an AI Agent Proof of Concept?](/blog/how-to-scope-an-ai-agent-proof-of-concept). When the system moves toward a real operating environment, pair the export with the checks in [How to Monitor an AI Agent in Production](/blog/how-to-monitor-an-ai-agent-in-production). Monitoring tells you where to look. The audit trail tells you what happened when you get there.
+
+The practical next step is simple: remove the UI from your own test, export one run, and ask a colleague to reconstruct it from JSON. Their first unanswered question is the next field your workflow needs.
