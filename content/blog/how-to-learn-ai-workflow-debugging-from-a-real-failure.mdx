@@ -1,0 +1,212 @@
+---
+title: "How to Learn AI Workflow Debugging From a Real Failure"
+date: "2026-08-23"
+updated: "2026-08-23"
+excerpt: "Learn AI workflow debugging by tracing a small failure, finding the first invalid artifact, repairing it, and proving the fix on a new case."
+answer: "Learn AI workflow debugging by practising on a small, deterministic failure: write a hypothesis before reading the diagnosis, inspect the input and each intermediate artifact, identify the first value that breaks the workflow contract, make one repair, rerun the original case, and solve a new transfer case. The exception is a failure with missing or unsafe evidence, which should be escalated rather than guessed."
+targetQuery: "how to learn AI workflow debugging from a real failure"
+queryAliases:
+  - "learn AI workflow debugging"
+  - "practice debugging an AI workflow"
+  - "how to debug an AI workflow"
+  - "learn from an AI workflow failure"
+intent: "informational / capability-building"
+funnel: "awareness / consideration"
+cluster: "capability"
+parent: "/blog/what-to-learn-before-building-ai-agents"
+contentType: "capability-guide"
+kind: "satellite"
+sourceableAtom: "A tested learner packet shows that the first invalid artifact can be a normalized route key before the visible generic reply, then verifies one repair on the original case and an unfamiliar transfer case."
+evidenceType: "learning-exercise"
+evidenceBasis: "Deterministic local fixture run on 2026-08-23 with a broken original case, repaired original case, and repaired transfer case; packet, answer key, rubric, and ambiguity checks are documented in research.md."
+tags:
+  - "AI learning"
+  - "AI workflows"
+  - "Debugging"
+  - "AI agents"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents"
+  - "https://opentelemetry.io/blog/2026/genai-observability/"
+  - "https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/"
+  - "https://openai.github.io/openai-agents-python/tracing/"
+  - "https://openai.github.io/openai-agents-python/ref/tracing/create/"
+  - "https://www.microsoft.com/en-us/research/wp-content/uploads/2024/07/VLHCC__Robin__AI_assisted_Code_Debugging-14.pdf"
+  - "https://developers.openai.com/api/docs/guides/evals"
+faq:
+  - q: "Should I practise on a real production failure?"
+    a: "Use a redacted, low-risk failure only when you can preserve the relevant trace and verify the outcome. Start with a deterministic fixture if the production trace contains private data, missing fields, or an irreversible side effect."
+  - q: "What if two steps are invalid at the same time?"
+    a: "Record both defects, but state which one you can prove first from the trace. If the order is not identifiable, mark the diagnosis unresolved and collect the smallest missing artifact instead of forcing a single root cause."
+  - q: "Can an AI assistant help me debug the exercise?"
+    a: "Yes, after you write your own hypothesis. Give it the same packet, ask it to challenge your claim, and require it to point to an observed artifact. Do not let it reveal the answer before your first attempt."
+cover: "/blog/how-to-learn-ai-workflow-debugging-from-a-real-failure-ai-workflow-debugging-hero.webp"
+coverAlt: "Illustration of a learner tracing a broken AI workflow from a misleading symptom to its first invalid artifact"
+draft: false
+---
+
+The fastest way to learn workflow debugging is to practise on a failure small enough to inspect completely. You need the input, the expected behavior, the trace, and the intermediate values. You also need to delay the answer long enough to make your own causal claim.
+
+I built the exercise below as a deterministic test double. It has an AI-style classification step, but the classifier output stays fixed. That keeps the lesson about debugging the workflow, not about guessing what a model might do next.
+
+It sits after the broader foundations in [What Should I Learn Before Building AI Agents?](/blog/what-to-learn-before-building-ai-agents) and before a full release gate such as [How to Evaluate an AI Agent](/blog/how-to-evaluate-an-ai-agent).
+
+![Illustration of a learner packet with an input, trace, intermediate artifacts, and answer key kept apart](/blog/how-to-learn-ai-workflow-debugging-from-a-real-failure-ai-workflow-debugging-packet.webp)
+
+## What does the tested failure teach you?
+
+The failure teaches one precise lesson: the visible symptom can appear after the real cause. In this packet, the classifier produces the correct label. A later normalizer changes a valid route key into an invalid one. The router falls back to a general queue, and the response composer asks for more detail. If you start by rewriting the prompt, you are repairing the wrong artifact.
+
+| Stage | Observed value in the broken run | Contract | Status |
+| --- | --- | --- | --- |
+| Input | `Customer was charged twice. Please reverse one charge.` | A duplicate charge should enter billing review | valid |
+| Classifier | `billing_refund` | A supported route label | valid |
+| Normalizer | `billing-refund` | Preserve the route-table key | **first invalid artifact** |
+| Router | `general_queue` | Route `billing_refund` to `billing_queue` | downstream symptom |
+| Response | `Could you provide more detail about your issue?` | Tell the user the request reached billing review | misleading symptom |
+
+This packet follows a useful distinction in Anthropic's evaluation guidance: a task has inputs and success criteria, a trace records what happened during a trial, and the outcome is the state reached in the environment, not merely the agent's final sentence ([Anthropic's evaluation definitions](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)). Here, the outcome is the queue selected by the router. The reply is evidence about the failure, but it is not the first cause.
+
+The same distinction appears in trace tooling. OpenTelemetry's example shows an agent span with child model and tool-execution spans, while the OpenAI Agents SDK describes a trace as an end-to-end workflow made of related spans ([OpenTelemetry's GenAI trace example](https://opentelemetry.io/blog/2026/genai-observability/), [OpenAI Agents SDK tracing](https://openai.github.io/openai-agents-python/tracing/)). The point is not to adopt either tool for this exercise. The point is to preserve the chain between an input, an intermediate decision, and the final outcome.
+
+## What should the learner see before opening the answer key?
+
+Give the learner a packet that is complete enough to support a diagnosis, but do not give the diagnosis. The packet below is the version I tested.
+
+### Learner packet: original case
+
+**Input:** `Customer was charged twice. Please reverse one charge.`
+
+**Expected behavior:** classify the request as `billing_refund`, route it to `billing_queue`, and return a response that says it was routed to billing review.
+
+**Misleading symptom:** the user receives `Could you provide more detail about your issue?` The wording makes an unclear prompt or a weak classifier look like the likely cause.
+
+**Trace:**
+
+```text
+T0 input.received
+  text = "Customer was charged twice. Please reverse one charge."
+
+T1 classifier.completed
+  label = "billing_refund"
+  confidence = 0.98   # fixture metadata, not a calibrated probability
+
+T2 normalizer.completed
+  route_key = "billing-refund"
+
+T3 router.completed
+  lookup = route_table["billing-refund"]
+  result = missing
+  fallback_queue = "general_queue"
+
+T4 composer.completed
+  response = "Could you provide more detail about your issue?"
+```
+
+The route table is part of the learner's context:
+
+```js
+{
+  billing_refund: "billing_queue",
+  account_access: "account_queue",
+  general: "general_queue"
+}
+```
+
+Do not add a hidden model explanation to this packet. A learner should reason from the observed values. If you record real traces, preserve the fields that expose the value flow and redact private inputs. OpenTelemetry warns that message attributes can contain sensitive information, and OpenAI's tracing documentation provides a switch for excluding sensitive payloads while keeping spans ([OpenTelemetry semantic conventions](https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/), [OpenAI tracing reference](https://openai.github.io/openai-agents-python/ref/tracing/create/)).
+
+### Learner instructions
+
+Stop here if you are doing the exercise. Write your answers before reading the next section.
+
+1. **State a hypothesis.** Write one sentence that names a possible cause and the evidence you expect to find. For example, “The classifier mislabels duplicate charges, so the label should be something other than `billing_refund`.” Do not write “the AI is confused.”
+2. **Locate the first invalid artifact.** Compare each value with the contract and mark the earliest value that cannot legally feed the next stage.
+3. **Propose one repair.** Change one workflow rule or one transformation. Do not rewrite the whole prompt and do not change the route table and normalizer in the same attempt.
+4. **Rerun the original case.** Record the label, route key, queue, and response after your repair.
+5. **Solve the transfer case.** Use the repaired workflow on this unfamiliar input: `I cannot log in because my sign-in code never arrived.` Predict the label, route key, queue, and response before checking the answer key.
+
+Your answer sheet should contain five lines: hypothesis, first invalid artifact, repair, original rerun, and transfer prediction. That small structure forces a causal claim before a patch.
+
+## How do you distinguish a symptom from a cause?
+
+Use the first observable divergence that violates a contract. A symptom describes what a user or operator saw. A causal localization identifies the earliest artifact that made the later behavior possible. A good diagnosis predicts what one repair should change and what it should leave alone.
+
+### Answer key
+
+The classifier is not the first problem. `billing_refund` is a valid label and appears in the route table. The first invalid artifact is T2, where the normalizer returns `billing-refund`. That key is not present in the table. T3 then falls back to `general_queue`, and T4 truthfully reflects the fallback path from the workflow's point of view.
+
+One valid repair is to preserve underscores:
+
+```js
+const normalize = key => key.trim().toLowerCase();
+```
+
+Another valid repair is to change the route-table contract and every caller together, but that is a broader change. For this exercise, the smaller repair is preferable because it changes one transformation and keeps the established route contract stable.
+
+The Microsoft Research design for an AI-assisted debugging system describes balancing a fast resolution with avoiding an incorrect or premature cause, and it measures localization separately from fixing ([Microsoft Research debugging study](https://www.microsoft.com/en-us/research/wp-content/uploads/2024/07/VLHCC__Robin__AI_assisted_Code_Debugging-14.pdf)). That is why the rubric below does not award full credit for “the reply is vague.” The reply is a symptom description. The score rises when the learner connects the symptom to the first invalid value.
+
+### Scoring rubric
+
+| Score | Learner response | What it proves |
+| ---: | --- | --- |
+| 0 | No hypothesis or unrelated patch | No usable evidence of debugging reasoning |
+| 1 | Names the vague reply or says “the AI misunderstood” | Symptom description only |
+| 2 | Points to the classifier, router, or prompt but cites no trace value | Stage guess without causal localization |
+| 3 | Names T2 and the `billing_refund` to `billing-refund` mismatch | First invalid artifact identified |
+| 4 | Gives a bounded repair and predicts that the original case reaches `billing_queue` | Causal claim tested on the original case |
+| 5 | Also solves the `account_access` transfer case and names evidence that would falsify the hypothesis | Transferable debugging capability |
+
+The rubric deliberately separates recognition from performance. A learner can recognize that the final response is wrong without knowing where to look. The transfer point matters because copying the answer key is not the same as carrying the method to a new label.
+
+![Illustration of a trace being inspected from the final symptom backward to the first invalid intermediate value](/blog/how-to-learn-ai-workflow-debugging-from-a-real-failure-ai-workflow-debugging-first-invalid-artifact.webp)
+
+## What do the two verification runs show?
+
+Run the original case before and after the one-line repair. The first run establishes the failure. The second checks that the repair changes the intended path without changing the classifier's output.
+
+| Verification run | Label | Route key | Queue | Response | Verdict |
+| --- | --- | --- | --- | --- | --- |
+| 1. Broken original | `billing_refund` | `billing-refund` | `general_queue` | “Could you provide more detail about your issue?” | Fails contract at normalization |
+| 2. Repaired original | `billing_refund` | `billing_refund` | `billing_queue` | “I routed your duplicate-charge request to billing.” | Passes the stated behavior |
+
+The repair does not make the classifier “more intelligent.” It makes the boundary contract executable. That is a useful pattern for AI workflows: first verify that the output of one stage is legal input to the next stage, then decide whether the model needs changing.
+
+## How does the transfer case prove learning?
+
+The transfer case changes the user problem and the expected route while keeping the same workflow structure. The input is `I cannot log in because my sign-in code never arrived.` The expected label is `account_access`, the normalized key remains `account_access`, and the route is `account_queue`.
+
+The observed repaired transfer run was:
+
+```text
+label=account_access
+routeKey=account_access
+queue=account_queue
+response="I routed your sign-in-code request to account access."
+```
+
+This is not a second benchmark result. It is a check that the learner can apply the repair to a new supported label instead of memorizing “billing.” If the transfer fails, inspect whether the learner changed the route table, introduced a new normalization rule, or patched only the original string. The fix should be general enough to preserve every supported underscore key.
+
+For a real workflow, keep the same sequence but replace the toy values with safe, verified artifacts: the rendered model output, parsed structure, tool arguments, tool result, state transition, and final outcome. OpenAI's tracing reference documents generation inputs, outputs, model configuration, and usage as span data, while Anthropic recommends evaluating the harness and model together because the agent's behavior depends on the full environment ([OpenAI generation spans](https://openai.github.io/openai-agents-python/ref/tracing/create/), [Anthropic's evaluation harness](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)).
+
+## How should a facilitator run the clinic?
+
+Give the learner five minutes with only the packet, five minutes to propose one repair, and five minutes for the transfer case. Reveal the answer key only after the first hypothesis is written. Ask one question when the learner jumps to the prompt: “Which observed value first violates a contract?”
+
+Test the packet's ambiguity before using it with a team:
+
+- Keep the route table visible. Otherwise a learner cannot prove that the route key is invalid.
+- Keep the classifier deterministic. If the label can vary, the exercise becomes a model-behavior guessing game.
+- Define “duplicate charge” as a billing-review case in expected behavior. Do not ask the learner to infer the business policy.
+- Label `confidence` as fixture metadata. Do not imply that `0.98` is a calibrated model probability.
+- Accept identity normalization as the narrow repair. Do not require one exact line of code.
+- Score a learner who names T2 before naming the final response higher than one who only says “the answer is vague.”
+- If a trace is incomplete, score an explicit “unresolved, need the normalized key” as better than a confident guess.
+
+When I taught product managers to move from writing specifications to building and shipping products, the recurring failure was often an undefined “done,” not the model. This exercise makes “done” concrete: the learner has a causal hypothesis, a located artifact, a bounded repair, a passing rerun, and a transfer result. That is a teaching observation, not a measured success rate.
+
+I have taught 109,753 students across four Udemy courses, with 23,929 reviews. I use that fact to explain why I care about a repeatable learning packet, not to claim that a certain percentage of learners can debug workflows. Exposure to explanations is not the same as being able to locate a failure. The transfer case is the small piece of evidence that makes the distinction visible.
+
+If you want to apply this to your own work, start with a low-risk failed run and redact private data. Keep the original trace. Write the expected behavior before you edit the prompt. Then ask whether the next artifact in the chain is valid. If you need help turning a real trace into a practice packet, [Marius Manolachi's AI tutoring work](/learn-ai) is the next step. Bring the failure record, not only the final answer.
+
+![Illustration of a learner rerunning a repaired workflow and checking a new transfer case](/blog/how-to-learn-ai-workflow-debugging-from-a-real-failure-ai-workflow-debugging-transfer-check.webp)
