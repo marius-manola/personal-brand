@@ -11,7 +11,6 @@ import MobileReadingProgress from '@/app/components/MobileReadingProgress';
 import { getAllBlogPosts, getBlogPost, prepareBlogMdx } from '@/lib/server/blog.server';
 import { isLocalBlogImage, localBlogImageSize } from '@/lib/server/blog-image';
 import { sameAs } from '@/app/data/about';
-import { calendarUrl } from '@/app/data/learn-ai';
 
 const SITE_URL = 'https://mariusmanolachi.com';
 
@@ -273,10 +272,10 @@ export default async function BlogPostPage({ params }: PageProps) {
         </article>
 
         <aside className="m-blog-call mobile-experience" aria-label="Work with Marius">
-          <p className="m-blog-call-label">Turn the article into capability</p>
-          <h2>Bring the real work. Leave able to do it yourself.</h2>
-          <p>One-to-one AI consulting on the product, workflow, or decision in front of you.</p>
-          <Link href="/learn-ai">See if it fits <span aria-hidden="true">→</span></Link>
+          <p className="m-blog-call-label">AI Workflow Sprint</p>
+          <h2>Turn one repeated task into a working AI system.</h2>
+          <p>One week of mapping, implementation, team training, and documentation.</p>
+          <Link href="/learn-ai">See how it works <span aria-hidden="true">→</span></Link>
         </aside>
 
         {(newerPost || olderPost) && (
@@ -309,7 +308,7 @@ export default async function BlogPostPage({ params }: PageProps) {
         </footer>
       </main>
       </div>
-      <MobileConsultingPopup calendarUrl={calendarUrl} />
+      <MobileConsultingPopup />
     </div>
   );
 }
