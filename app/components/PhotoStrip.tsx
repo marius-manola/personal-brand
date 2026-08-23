@@ -15,7 +15,12 @@ import {
   useReducedMotion,
   useTransform,
 } from 'motion/react';
-import type { ProofPhoto } from '@/app/data/learn-ai';
+
+export interface ProofPhoto {
+  src: string;
+  alt: string;
+  rotate: number;
+}
 
 // An endless band of tilted proof shots under the hero: drifting, draggable, and
 // each one expandable to full size.

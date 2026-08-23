@@ -1,327 +1,211 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
+import Image from 'next/image';
 import Link from 'next/link';
 import Copyright from '@/app/components/Copyright';
-import ShimmerLink from '@/app/components/ShimmerLink';
-import { BlurFade } from '@/components/ui/blur-fade';
-import { NumberTicker } from '@/components/ui/number-ticker';
-import { AnimatedShinyText } from '@/components/ui/animated-shiny-text';
-import LinkedInQuote from '@/app/components/LinkedInQuote';
-import PhotoStrip from '@/app/components/PhotoStrip';
 import QualifyForm from '@/app/components/QualifyForm';
-import MobileLearnAI from '@/app/components/MobileLearnAI';
 import {
-  fit,
-  guarantee,
-  hero,
-  offer,
-  includesNote,
-  pricing,
   contactEmail,
-  prep,
-  profileLink,
+  orangeCase,
   projectChoices,
-  ledger,
-  proofPhotos,
   qualifier,
   quietLinks,
-  spotsOpen,
   spotsNote,
-  teamsNote,
-  usageChoices,
-  testimonial,
+  sprint,
+  sprintProcess,
+  studentProof,
+  teamSizeChoices,
   timelineChoices,
-  youGet,
+  usageChoices,
 } from '@/app/data/learn-ai';
+import styles from './learn-ai.module.css';
 
-// This is the one page on the site that gets shared as a link, so it carries its
-// own title/description/OG rather than inheriting the root layout's.
 export const metadata: Metadata = {
-  title: 'AI consulting - Marius Manolachi',
+  title: 'AI Implementation for Teams — Marius Manolachi',
   description:
-    'One to one consulting on using AI at a serious level. Claude Code, Codex, and the rest. I build with these tools daily and I’ve taught about 110,000 people to use them.',
+    'A hands-on seven-day AI workflow sprint for teams. Choose a high-value process, implement it in your current stack, and train the team to keep improving it.',
   alternates: { canonical: 'https://mariusmanolachi.com/learn-ai' },
   openGraph: {
-    title: 'AI consulting - Marius Manolachi',
-    description:
-      'One-to-one AI coaching for people who already use ChatGPT but not nearly enough.',
+    title: 'Make AI Useful at Work',
+    description: 'One week. One working AI workflow. A team that knows how to run it.',
     url: 'https://mariusmanolachi.com/learn-ai',
     siteName: 'Marius Manolachi',
     locale: 'en_US',
     type: 'website',
+    images: [
+      {
+        url: '/og-learn-ai.png',
+        width: 1200,
+        height: 631,
+        alt: 'Make AI useful at work — 7 days, 1 working workflow',
+      },
+    ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'AI consulting - Marius Manolachi',
-    description:
-      'One-to-one AI coaching for people who already use ChatGPT but not nearly enough.',
+    title: 'Make AI Useful at Work',
+    description: 'One week. One working AI workflow. A team that knows how to run it.',
     creator: '@mariusmanolachi',
+    images: ['/og-learn-ai.png'],
   },
 };
 
-// Reveal timing — hero only.
-//
-// Sections below the hero used to fade in one by one with an identical entrance,
-// which reads as an effect applied to a page rather than a designed moment. The
-// cascade now belongs to the hero and the photo strip; everything else is simply
-// there when you arrive.
-//
-// Every reveal is mount-triggered rather than scroll-triggered (no `inView` on
-// BlurFade). motion writes the hidden variant — opacity:0, blur(6px) — straight
-// into the server-rendered HTML, so gating the visible state on an
-// IntersectionObserver callback means this page's copy is invisible until that
-// callback lands. On a sales page that risk isn't worth the scroll-reveal: a
-// missed observer, an aggressive scroll restore, or a crawler snapshot all leave
-// a blank page. Mount + stagger gives the same cascade and can't strand content.
-const STEP = 0.07;
+export const viewport: Viewport = {
+  themeColor: '#f4f0e8',
+};
 
-// Without JS, motion's hidden inline styles are never animated away and
-// NumberTicker never counts up from 0 — so force the resting state and swap each
-// ticker for its static twin. The proof numbers are the credibility on this page;
-// they must never render as "0 students taught".
-const NO_JS_REVEAL = [
-  '.reveal{opacity:1!important;filter:none!important;transform:none!important}',
-  '.ticker-live{display:none}',
-  '.ticker-fallback{display:inline}',
-].join('');
+const studentCount = new Intl.NumberFormat('en-US').format(studentProof.students);
+const reviewCount = new Intl.NumberFormat('en-US').format(studentProof.reviews);
 
-const numberFormat = new Intl.NumberFormat('en-US');
-
-// Standalone landing page: no MobileNavigation / DesktopNavigation. It's reached
-// by direct link (Facebook community, X, bio) and its only job is the booking
-// call, so the site nav would just be an exit. `home` sits quietly in the footer
-// so the page isn't a dead end.
 export default function LearnAI() {
   return (
-    <>
-      <noscript>
-        <style>{NO_JS_REVEAL}</style>
-      </noscript>
+    <div className={styles.page}>
+      <a className={styles.skipLink} href="#main">Skip to content</a>
 
-      <MobileLearnAI />
+      <nav className={styles.nav} aria-label="Page navigation">
+        <Link href="/" className={styles.wordmark} aria-label="Marius Manolachi home">
+          MM
+        </Link>
+        <span className={styles.navLabel}>Learn AI</span>
+        <a href="#apply" className={styles.navCta}>Check Your Workflow</a>
+      </nav>
 
-      <div className="desktop-experience">
-      <div className="page-shell" style={{ scrollbarGutter: 'stable' }}>
-        {/* strip-guard: clips the photo strip where it escapes the frame, so
-            the overflow never turns into a horizontal scrollbar. */}
-        <div className="strip-guard flex justify-center">
-          <main className="page-main learn-page">
-            <div className="page-stack">
-              {/* 1 · hero — what I'm doing, and the one action */}
-              <header className="page-header">
-                <BlurFade delay={STEP} className="reveal hero-meta">
-                  {spotsOpen > 0 && (
-                    <span className="spots-badge">
-                      <span className="spots-dot" aria-hidden="true" />
-                      <AnimatedShinyText className="mx-0 max-w-none text-[hsl(var(--muted-foreground))]">
-                        {spotsNote}
-                      </AnimatedShinyText>
-                    </span>
-                  )}
-                  <a
-                    className="hero-link"
-                    href={profileLink.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {profileLink.label} &rarr;
-                  </a>
-                </BlurFade>
-
-                <BlurFade delay={STEP * 2} className="reveal">
-                  <h1 className="hero-title">{hero.title}</h1>
-                </BlurFade>
-
-                <BlurFade delay={STEP * 3} className="reveal">
-                  <p className="hero-lead">{hero.lead}</p>
-                </BlurFade>
-
-                <BlurFade delay={STEP * 4} className="reveal">
-                  <div className="mt-7 flex flex-wrap items-center gap-x-4 gap-y-3">
-                    <ShimmerLink href="#apply" newTab={false}>
-                      {hero.ctaLabel}
-                    </ShimmerLink>
-                    <span className="cta-note">{hero.ctaNote}</span>
-                  </div>
-                </BlurFade>
-              </header>
-
-              {/* 2 · photo strip — a band of tilted proof shots under the hero */}
-              <BlurFade delay={STEP * 5} className="reveal">
-                <PhotoStrip photos={proofPhotos} />
-              </BlurFade>
-
-              {/* 2 · the ledger — numbers and credentials in one ruled table, each
-                   checkable. Replaced a metrics band plus a separate list of links
-                   that repeated the same figures back at the reader. */}
-              <section className="lp-section">
-                <h2 className="section-label lp-rail">{ledger.label}</h2>
-                <div className="lp-content">
-                  <p className="page-body">{ledger.intro}</p>
-                  <dl className="ledger">
-                    {ledger.rows.map((row) => {
-                      const body = (
-                        <>
-                          {row.value !== undefined && (
-                            <dt className="ledger-value">
-                              <span className="ticker-live">
-                                <NumberTicker
-                                  value={row.value}
-                                  className="text-[hsl(var(--foreground))] tracking-normal dark:text-[hsl(var(--foreground))]"
-                                />
-                              </span>
-                              <span className="ticker-fallback">
-                                {numberFormat.format(row.value)}
-                              </span>
-                              {row.suffix}
-                            </dt>
-                          )}
-                          {/* Credential rows carry no figure, so the text takes the
-                              number column too rather than leaving a gap. */}
-                          <dd
-                            className={`ledger-text${row.value === undefined ? ' ledger-text-wide' : ''}`}
-                          >
-                            {row.text}
-                          </dd>
-                          {row.linkLabel && <dd className="ledger-link">{row.linkLabel} →</dd>}
-                        </>
-                      );
-                      return row.href ? (
-                        <a
-                          key={row.text}
-                          className="ledger-row"
-                          href={row.href}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          {body}
-                        </a>
-                      ) : (
-                        <div key={row.text} className="ledger-row">
-                          {body}
-                        </div>
-                      );
-                    })}
-                  </dl>
-                </div>
-              </section>
-
-              {/* 4 · the offer + what you get, as one block */}
-              {/* 3 · what people say, ahead of the pitch so the claim that follows
-                   arrives already vouched for */}
-              <section className="lp-section">
-                <h2 className="section-label lp-rail">what people say</h2>
-                <div className="lp-content">
-                  <LinkedInQuote item={testimonial} />
-                </div>
-              </section>
-
-              {/* 4 · who this is for */}
-              <section className="lp-section">
-                <h2 className="section-label lp-rail">{offer.label}</h2>
-                <div className="lp-content">
-                  <p className="page-body page-body-lead">{offer.intro}</p>
-                  <ul className="short-list mt-6">
-                    {youGet.map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
-                  <p className="page-body mt-6">{offer.framework}</p>
-                  <p className="page-body mt-5">{offer.after}</p>
-                </div>
-              </section>
-
-              {/* 4 · how it's priced — no public rate card */}
-              <section className="lp-section">
-                <div className="lp-rail">
-                  <h2 className="section-label">{pricing.label}</h2>
-                  <p className="lp-rail-note">{pricing.railNote}</p>
-                </div>
-                <div className="lp-content">
-                  <p className="page-body">{pricing.intro}</p>
-                  <p className="mt-4 text-[0.95rem] leading-relaxed text-[hsl(var(--muted-foreground))]">
-                    {includesNote}
-                  </p>
-                  <p className="mt-3 text-[0.95rem] leading-relaxed text-[hsl(var(--muted-foreground))]">
-                    {guarantee} {teamsNote}
-                  </p>
-                </div>
-              </section>
-
-              {/* 5 · probably not a fit */}
-              <section className="lp-section">
-                <h2 className="section-label lp-rail">{fit.label}</h2>
-                <div className="lp-content">
-                  <ul className="short-list">
-                    {fit.notFor.map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
-                </div>
-              </section>
-
-              {/* 7 · prep — doubles as the last qualifier */}
-              <section className="lp-section">
-                <h2 className="section-label lp-rail">{prep.label}</h2>
-                <ul className="lp-content prep-list">
-                  {prep.items.map((item) => (
-                    <li key={item}>
-                      <span className="text-[1rem] leading-relaxed">{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-
-              {/* 8 · the screener — the only route to the calendar.
-                   This replaced a closing CTA panel: with the form as the last
-                   section, a button pointing down at it was pointing at itself. */}
-              <section>
-                <section id="apply" className="apply-panel">
-                  <QualifyForm
-                    heading={qualifier.heading}
-                    intro={qualifier.intro}
-                    spotsNote={spotsNote || undefined}
-                    fields={qualifier.fields}
-                    projectChoices={projectChoices}
-                    usageChoices={usageChoices}
-                    timelineChoices={timelineChoices}
-                    submitLabel={qualifier.submitLabel}
-                    submitting={qualifier.submitting}
-                    booked={qualifier.booked}
-                    error={qualifier.error}
-                    contactEmail={contactEmail}
-                  />
-                </section>
-              </section>
-
-              {/* 8 · footer */}
-              <footer className="page-footer flex flex-wrap items-center justify-between gap-3">
-                <p>
-                  © <Copyright /> Marius Manolachi
-                </p>
-                <div className="footer-links">
-                  {quietLinks.map((link) =>
-                    link.external ? (
-                      <a
-                        key={link.label}
-                        href={link.href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        {link.label}
-                      </a>
-                    ) : (
-                      <Link key={link.label} href={link.href}>
-                        {link.label}
-                      </Link>
-                    ),
-                  )}
-                </div>
-              </footer>
+      <main id="main">
+        <header className={styles.hero}>
+          <div className={styles.heroCopy}>
+            <div className={styles.person}>
+              <Image src="/marius.jpg" alt="Marius Manolachi" width={56} height={56} priority />
+              <p>
+                <strong>Marius Manolachi</strong>
+                <span>AI builder, consultant & teacher</span>
+              </p>
             </div>
-          </main>
+
+            <p className={styles.eyebrow}>{sprint.eyebrow}</p>
+            <h1 className={styles.desktopHeroTitle}>
+              <span>Make AI useful</span>
+              <span>at work.</span>
+            </h1>
+            <h1 className={styles.mobileHeroTitle}>
+              <span>One AI workflow.</span>
+              <span>Working.</span>
+            </h1>
+            <p className={`${styles.lead} ${styles.desktopLead}`}>{sprint.lead}</p>
+            <p className={`${styles.lead} ${styles.mobileLead}`}>
+              In 7 days, turn one repeated task into a workflow your team can run.
+            </p>
+
+            <div className={styles.heroActions}>
+              <a href="#apply" className={styles.primaryCta}>
+                {sprint.ctaLabel} <span aria-hidden="true">↘</span>
+              </a>
+              <span className={styles.availability}>{spotsNote || 'Now booking'}</span>
+            </div>
+
+            <dl className={styles.facts} aria-label="AI workflow sprint summary">
+              <div><dt>Time</dt><dd>{sprint.duration}</dd></div>
+              <div><dt>Result</dt><dd>{sprint.scope}</dd></div>
+              <div><dt>Investment</dt><dd>{sprint.price}</dd></div>
+            </dl>
+          </div>
+
+          <aside className={styles.heroEvidence} aria-label="Udemy teaching profile">
+            <a href={studentProof.href} target="_blank" rel="noopener noreferrer" className={styles.heroPhoto}>
+              <Image
+                src={studentProof.src}
+                alt={studentProof.alt}
+                width={studentProof.width}
+                height={studentProof.height}
+                priority
+                sizes="(max-width: 760px) calc(100vw - 2rem), 42vw"
+              />
+            </a>
+            <div className={styles.heroEvidenceCaption}>
+              <span>Teaching at scale</span>
+              <a href={studentProof.href} target="_blank" rel="noopener noreferrer">
+                Udemy profile <span aria-hidden="true">↗</span>
+              </a>
+            </div>
+          </aside>
+        </header>
+
+        <section className={styles.trustBar} aria-label="Teaching track record">
+          <p>Trusted to make technical ideas clear</p>
+          <a href={studentProof.href} target="_blank" rel="noopener noreferrer">
+            <strong>{studentCount}</strong>
+            <span>students taught on Udemy</span>
+            <small>{reviewCount} verified reviews · View profile ↗</small>
+          </a>
+        </section>
+
+        <section className={styles.orangeCase} aria-labelledby="orange-heading">
+          <div className={styles.orangeIntro}>
+            <p className={styles.caseLabel}>{orangeCase.badge}</p>
+            <h2 id="orange-heading">{orangeCase.title}</h2>
+            <p>{orangeCase.body}</p>
+            <a href={orangeCase.href} target="_blank" rel="noopener noreferrer">
+              Read the public testimonial <span aria-hidden="true">↗</span>
+            </a>
+          </div>
+
+          <div className={styles.workshopGallery} aria-label="Photos from the Orange AI workshop">
+            <figure className={styles.workshopPhoto}>
+              <Image src={orangeCase.src} alt="Marius teaching AI concepts to Orange employees" width={1328} height={1640} />
+              <figcaption>Live instruction</figcaption>
+            </figure>
+            <figure className={`${styles.workshopPhoto} ${styles.workshopPhotoRight}`}>
+              <Image src={orangeCase.src} alt="Orange employees taking part in Marius’s practical AI workshop" width={1328} height={1640} />
+              <figcaption>Real examples, with the team</figcaption>
+            </figure>
+          </div>
+        </section>
+
+        <section className={styles.process} aria-labelledby="process-heading">
+          <div className={styles.sectionHeadingDark}>
+            <p>What changes in 7 days</p>
+            <h2 id="process-heading">One repeated task becomes a working AI workflow.</h2>
+          </div>
+          <ol>
+            {sprintProcess.map((step) => (
+              <li key={step.number}>
+                <span>{step.number}</span>
+                <h3>{step.title}</h3>
+                <p>{step.text}</p>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <section id="apply" className={styles.apply} aria-label="Workflow sprint intake">
+          <QualifyForm
+            heading={qualifier.heading}
+            intro={qualifier.intro}
+            spotsNote={spotsNote || undefined}
+            fields={qualifier.fields}
+            projectChoices={projectChoices}
+            teamSizeChoices={teamSizeChoices}
+            usageChoices={usageChoices}
+            timelineChoices={timelineChoices}
+            nextLabel={qualifier.nextLabel}
+            backLabel={qualifier.backLabel}
+            submitLabel={qualifier.submitLabel}
+            submitting={qualifier.submitting}
+            booked={qualifier.booked}
+            error={qualifier.error}
+            contactEmail={contactEmail}
+          />
+        </section>
+      </main>
+
+      <footer className={styles.footer}>
+        <span>© <Copyright /> Marius Manolachi</span>
+        <div>
+          {quietLinks.map((link) => link.external ? (
+            <a key={link.label} href={link.href} target="_blank" rel="noopener noreferrer">{link.label}</a>
+          ) : (
+            <Link key={link.label} href={link.href}>{link.label}</Link>
+          ))}
         </div>
-      </div>
-      </div>
-    </>
+      </footer>
+    </div>
   );
 }

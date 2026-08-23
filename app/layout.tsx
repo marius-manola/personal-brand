@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { Providers } from "./providers";
 import { Analytics } from "@vercel/analytics/next"
 import SiteAnalytics from '@/app/components/SiteAnalytics';
 import localFont from 'next/font/local';
@@ -96,18 +95,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className="light" style={{ colorScheme: 'light' }}>
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="color-scheme" content="light" />
         <link rel="icon" href="/favicon.ico" />
-        {/* Open Graph and Twitter image meta tags for link previews */}
-        <meta property="og:image" content="https://mariusmanolachi.com/og-image.png" />
-        <meta property="og:image:width" content="1200" />
-        <meta property="og:image:height" content="630" />
-        <meta name="twitter:image" content="https://mariusmanolachi.com/og-image.png" />
       </head>
       <body className={`${onest.variable} font-sans`}>
-        <Providers>{children}</Providers>
+        {children}
         <SiteAnalytics />
         <Analytics/>
       </body>

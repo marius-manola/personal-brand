@@ -7,12 +7,6 @@ const config: Config = {
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   darkMode: 'class',
-  // next-themes adds `dark` to <html> at runtime, so it never appears in a file
-  // Tailwind scans. Without this, Tailwind tree-shakes the whole `.dark { --… }`
-  // token block out of @layer base and dark mode silently dies site-wide. It only
-  // worked before by accident: a since-deleted component happened to contain the
-  // literal string 'dark', which kept the class in the content scan.
-  safelist: ['dark'],
   theme: {
     extend: {
       fontFamily: {

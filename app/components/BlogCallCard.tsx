@@ -1,9 +1,10 @@
 import Image from 'next/image';
-import { calendarUrl, spotsNote } from '@/app/data/learn-ai';
+import Link from 'next/link';
+import { spotsNote } from '@/app/data/learn-ai';
 
 export default function BlogCallCard() {
   return (
-    <aside className="blog-call-rail" aria-label="Schedule a call">
+    <aside className="blog-call-rail" aria-label="AI Workflow Sprint">
       <Image
         src="/marius.jpg"
         alt="Marius Manolachi"
@@ -12,22 +13,13 @@ export default function BlogCallCard() {
         className="blog-call-photo"
       />
       <p className="blog-call-name">Marius Manolachi</p>
-      <h2>The first call is free</h2>
+      <h2>AI Workflow Sprint</h2>
       <p>
-        Most people use AI at a fraction of what it can do. I take you the rest
-        of the way, on the work in front of you, the same way I do with Fortune
-        500 companies. About 110,000 students taught. OECD. I build with these
-        tools every day.
+        In seven days, we find your highest-leverage AI opportunity, build one
+        working workflow, and train your team to run it without me.
       </p>
       {spotsNote ? <p className="blog-call-spots">{spotsNote}.</p> : null}
-      <a
-        href={calendarUrl}
-        className="blog-call-cta"
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        Book the first call
-      </a>
+      <Link href="/learn-ai" className="blog-call-cta">See the $1,000 sprint</Link>
     </aside>
   );
 }

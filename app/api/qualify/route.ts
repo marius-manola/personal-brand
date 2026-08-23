@@ -3,6 +3,7 @@ import {
   calendarUrl,
   projectChoices,
   signals,
+  teamSizeChoices,
   usageChoices,
   timelineChoices,
   type Choice,
@@ -27,6 +28,7 @@ interface Lead {
   name: string;
   email: string;
   project: string;
+  teamSize: string;
   usage: string;
   timeline: string;
   detail: string;
@@ -40,6 +42,9 @@ const TELEGRAM_MAX_MESSAGE = 4096;
 
 const labelFor = (choices: Choice[], value: string) =>
   choices.find((c) => c.value === value)?.label ?? value;
+
+const isChoice = (choices: Choice[], value: string) =>
+  choices.some((choice) => choice.value === value);
 
 function readField(body: Record<string, unknown>, key: string, max: number): string {
   const raw = body[key];
@@ -66,8 +71,9 @@ function composeMessage(lead: Lead, strong: boolean): string {
   const rows: Array<[string, string]> = [
     ['Name', lead.name],
     ['Email', lead.email],
-    ['Working on', labelFor(projectChoices, lead.project)],
-    ['Uses AI to', labelFor(usageChoices, lead.usage)],
+    ['Workflow', labelFor(projectChoices, lead.project)],
+    ['Team size', labelFor(teamSizeChoices, lead.teamSize)],
+    ['Current AI use', labelFor(usageChoices, lead.usage)],
     ['Timeline', labelFor(timelineChoices, lead.timeline)],
   ];
 
@@ -133,14 +139,23 @@ export async function POST(request: Request) {
     name: readField(body, 'name', MAX.name),
     email: readField(body, 'email', MAX.email),
     project: readField(body, 'project', 40),
+    teamSize: readField(body, 'teamSize', 40),
     usage: readField(body, 'usage', 40),
     timeline: readField(body, 'timeline', 40),
     detail: readField(body, 'detail', MAX.detail),
   };
 
-  if (!lead.name || !looksLikeEmail(lead.email) || !lead.detail) {
+  if (
+    !lead.name
+    || !looksLikeEmail(lead.email)
+    || lead.detail.length < 20
+    || !isChoice(projectChoices, lead.project)
+    || !isChoice(teamSizeChoices, lead.teamSize)
+    || !isChoice(usageChoices, lead.usage)
+    || !isChoice(timelineChoices, lead.timeline)
+  ) {
     return NextResponse.json(
-      { error: 'Please fill in your name, a valid email, and what you’re stuck on.' },
+      { error: 'Please complete each question before opening the calendar.' },
       { status: 400 },
     );
   }
