@@ -1,0 +1,200 @@
+---
+title: 'Why Do AI Evals Pass While Users Still Fail?'
+date: '2026-08-23'
+updated: '2026-08-23'
+excerpt: 'A reproducible fixture shows how a polished handoff can pass deterministic and LLM grading while a user still has to correct the work.'
+answer: 'AI evals pass while users fail when the rubric checks the answer surface instead of the task outcome. A polished output can satisfy labels and an LLM judge while choosing an unsafe date, hiding an unresolved conflict, or forcing edits. Add acceptance checks for state, session context, user correction, and abandonment. The exception is a purely informational task with no downstream action.'
+targetQuery: 'why do AI evals pass while users still fail'
+queryAliases:
+  - 'why do AI evaluations pass but users fail'
+  - 'AI evals pass but users still fail'
+  - 'why do LLM evals miss user experience'
+intent: 'informational'
+funnel: 'consideration'
+cluster: 'evaluation'
+parent: '/blog/how-to-evaluate-an-ai-agent'
+contentType: 'failure-clinic'
+kind: 'satellite'
+sourceableAtom: 'In the billing-v2 handoff fixture, an answer-shape rubric labeled both variants as pass, while task review separated them by one re-ask, three edits, and completion; a repaired session-level rubric matched the human decision for this fixture.'
+evidenceType: 'failure-reproduction'
+evidenceBasis: 'A reproducible two-output workflow fixture with deterministic checks, a pinned LLM judge prompt, human review instructions, behavioral proxies, and a repaired rerun documented in research.md.'
+tags:
+  - 'AI evaluation'
+  - 'AI reliability'
+  - 'AI agents'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-21'
+sources:
+  - 'https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents'
+  - 'https://airc.nist.gov/airmf-resources/airmf/5-sec-core/'
+  - 'https://learn.microsoft.com/en-us/azure/foundry/concepts/evaluation-evaluators/agent-evaluators?preserve-view=true&view=foundry'
+  - 'https://developers.openai.com/api/docs/guides/latest-model'
+  - 'https://openai.com/index/trustworthy-third-party-evaluations-foundations/'
+  - 'https://mariusmanolachi.com/learn-ai'
+faq:
+  - q: 'What should I measure besides an AI eval score?'
+    a: 'Measure the verified task outcome, required approvals, user re-asks, edits, time or effort to finish, and abandonment where the workflow supports those signals. Keep automated grading for repeatable checks, then sample sessions for failures the rubric cannot see.'
+  - q: 'Should every AI workflow use a human reviewer?'
+    a: 'No. Use deterministic checks for objective conditions, an LLM judge for bounded language quality, and human review for ambiguous or high-impact decisions and for calibrating the other graders. The right combination depends on the task and its consequences.'
+  - q: 'How do I repair an evaluation that users do not trust?'
+    a: 'Replay a real or carefully bounded failure, write the task-level acceptance condition, add the missing session or behavior check, and rerun the old and repaired suite. Keep the failing case so a later prompt or model change cannot hide it again.'
+cover: '/blog/why-do-ai-evals-pass-while-users-still-fail-hero.webp'
+coverAlt: 'Illustration of an AI evaluation score passing while a user corrects a failed workflow'
+draft: false
+---
+
+I built a small handoff fixture because “the eval passed” is often the end of the conversation. The fixture produced a less comforting answer. Two outputs both passed the initial automated gate and the initial LLM judge. One still made the user repair the work before it could be used.
+
+Here is the observed result:
+
+| Output | Initial automated score | Initial LLM judge | Re-asks | Edits | Task accepted |
+| --- | ---: | --- | ---: | ---: | --- |
+| A, polished but decisive | 6/6, pass | 4/5, pass | 1 | 3 | No |
+| B, less rigidly labeled | 5/6, pass | 4/5, pass | 0 | 0 | Yes |
+
+The difference was a conflict in the session. One source said the rollout was on August 25. Another said August 26. Output A picked August 25 and called the rollout ready. Output B kept the conflict visible and asked which date was authoritative.
+
+That is why AI evals pass while users still fail: the evaluation often scores the response as an object, while the user experiences a task as a sequence with constraints, decisions, corrections, and a final state.
+
+![Illustration of an AI evaluation score passing while a user corrects a failed workflow](/blog/why-do-ai-evals-pass-while-users-still-fail-inline-1.webp)
+
+## What did the failure reproduction show?
+
+The first rubric rewarded the shape of a handoff. The task required a safe decision boundary. Those are different things.
+
+The fixture asked an AI system to prepare a handoff record for a `billing-v2` rollout. The source facts included a green staging check, a pending approval for the rollback message, two conflicting rollout dates, Elena as the owner, and a requirement to ask which date was authoritative.
+
+Variant A looked like the kind of output that makes a dashboard happy:
+
+```text
+Status: Ready for rollout on Tuesday, August 25.
+Blocker: The rollback message approval is pending.
+Acceptance criteria: Elena approves the rollback message; staging check is green.
+Owner: Elena.
+Next action: Roll out billing-v2 on 2026-08-25 after approval.
+Question: None.
+```
+
+It had every expected label. It was concise. It had a clear next action. It was also wrong for the task. The output turned an unresolved conflict into a decision and turned a blocked status into “ready.” A user would have to ask for a correction, then edit at least the status, date, and question before sending it.
+
+Variant B was less obedient to the literal label rubric:
+
+```text
+Status: Staging check is green; rollout date unresolved.
+Blocker: Release cannot proceed until Elena approves the rollback message.
+Acceptance: Do not roll out until Elena approves the rollback message and the date conflict is resolved.
+Owner: Elena.
+Next action: Elena confirms whether 2026-08-25 or 2026-08-26 is authoritative.
+Question: Which rollout date is authoritative?
+```
+
+It used `Acceptance` rather than `Acceptance criteria`, so the original checker deducted one point. But it preserved the uncertainty, blocked the unsafe action, and asked the question the workflow needed. The user could use it without another turn.
+
+This is a two-case observation, not a population statistic. The useful artifact is the exact pair and the disagreement between the graders. The result is small enough to inspect line by line, which is exactly why it is useful when debugging an evaluation.
+
+## Why did the initial rubric miss the user failure?
+
+It measured visible fields, not the condition that made the work acceptable.
+
+The deterministic checker looked for six literal labels: `Status:`, `Blocker:`, `Acceptance criteria:`, `Owner:`, `Next action:`, and `Question:`. A score of at least 5/6 passed. Variant A scored 6/6. Variant B scored 5/6 and also passed.
+
+That checker did one job well. It caught a missing output section. It did not know that the input contained a date conflict, that choosing a date was prohibited, or that a question was required when the conflict remained. It had no session-level assertion to connect the output to the source facts.
+
+The initial LLM judge had the same blind spot. Its pinned prompt asked it to judge section presence, internal consistency, clarity of the next action, and concision. It accepted label synonyms and explicitly told the judge not to infer a separate session-level acceptance test. Both outputs received 4/5 and passed.
+
+That prompt was not “bad” because it was vague. It was bad for this task because it defined success too narrowly. A judge cannot recover a product requirement that the rubric never states.
+
+Anthropic makes the relevant distinction between a trace and an outcome. A trace records the interaction. The outcome is the final state in the environment. Its guidance also separates code-based, model-based, and human graders because each sees different evidence ([Anthropic's agent evaluation guidance](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)). The handoff fixture is a small version of the same problem. The answer text was visible. The user-safe decision was not encoded.
+
+When I taught product managers to move from writing specs to building and shipping, the recurring failure was usually an undefined “done,” not the model. That observation is part of Marius Manolachi's locked teaching record, not a measured failure rate ([Marius Manolachi's AI teaching work](https://mariusmanolachi.com/learn-ai)). Evaluation has the same dependency. If “done” means “all fields are present,” the score will defend the fields.
+
+## Which evaluation layer sees which failure?
+
+Treat each grader as a sensor with a field of view. Do not ask one score to stand in for the whole workflow.
+
+| Layer | What it can see in this fixture | What it missed or caught |
+| --- | --- | --- |
+| Literal deterministic check | Required labels and a threshold | Missed A's date choice and premature readiness; treated B's valid synonym as a defect until repaired |
+| Initial LLM judge | Concision, visible completeness, clear next action | Passed A because the session conflict was outside its prompt |
+| Human task review | Conflict, prohibited choice, required clarification, sendable result | Caught A and accepted B, but was slower and only covered this reviewed case |
+| Behavioral proxy | Re-ask, edits, task completion | Exposed the user burden, but was a scripted proxy, not live usage |
+| Repaired gate | Labels plus session-level assertions | Matched the human decision for A and B in this fixture |
+
+This layered view is consistent with NIST's measurement guidance, which allows quantitative, qualitative, and mixed methods and calls for end-user feedback and appeals to be integrated into evaluation metrics ([NIST AI RMF Measure](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/)). The point is not to make every eval human. The point is to give every important acceptance condition a sensor.
+
+For an objective field, code is usually the cheapest sensor. For an open-ended explanation, an LLM judge can be useful. For a disputed or high-impact decision, a human review sample may be the only practical calibration source. The workflow determines the combination.
+
+## What changed when the evaluation was repaired?
+
+The repair added the missing condition instead of changing the score threshold.
+
+First, the deterministic checker accepted both `Acceptance criteria:` and `Acceptance:`. That removed a formatting false negative. Second, it added three assertions:
+
+1. The output must not select an unapproved date.
+2. The conflict must remain visible.
+3. The output must ask which date is authoritative when the conflict exists.
+
+The repaired LLM prompt added the same critical rule and made it a veto. A polished answer could still score well on clarity, but choosing one of the conflicting dates forced a fail.
+
+| Output | Repaired automated score | Repaired LLM judge | Human review | Task accepted |
+| --- | ---: | --- | --- | --- |
+| A | 6/9, fail | 1/5, fail | fail | No |
+| B | 9/9, pass | 5/5, pass | pass | Yes |
+
+The repair improved the measurement, not the output. That is the correct interpretation. A new assertion cannot make a bad handoff safe. It can stop the release gate from calling it safe.
+
+Microsoft's task-completion evaluator describes the relevant target as end-to-end success with a usable deliverable that meets the user's requirements, expressed as pass or fail ([Microsoft task completion evaluator](https://learn.microsoft.com/en-us/azure/foundry/concepts/evaluation-evaluators/agent-evaluators?preserve-view=true&view=foundry)). That binary condition should sit beside, not underneath, the softer score. A 4.6 out of 5 cannot compensate for a prohibited action in a workflow where the action matters.
+
+OpenAI's current model guidance makes a related implementation point: test the program output and the final assistant message separately, because a system can return the right records while the message omits a required field or caveat ([OpenAI model guidance](https://developers.openai.com/api/docs/guides/latest-model)). In this fixture, the equivalent split is between a polished handoff surface and the task contract that governs its use.
+
+![Illustration of deterministic, LLM, human, and task-completion checks converging on one release decision](/blog/why-do-ai-evals-pass-while-users-still-fail-inline-2.webp)
+
+## Which user signals should enter an AI release gate?
+
+Start with correction signals that are close to the task, then add broader product signals when the workflow supports them.
+
+| Signal | Definition | What it tells you | What it cannot prove |
+| --- | --- | --- | --- |
+| Re-ask | A second user turn needed to repair or clarify the output | The first response did not finish the user's job | Whether the re-ask was caused by the AI or by a changed user intention |
+| Edit count | Atomic changes made before the output can be used | How much correction work the system shifted to the user | Whether every edit was necessary or stylistic |
+| Task completion | The output or state satisfies the written acceptance condition | Whether the workflow reached “done” | Whether the user found the experience pleasant |
+| Override or escalation | The user rejects, replaces, or routes around the result | Where trust or authority breaks | The user's exact reason without review context |
+| Abandonment | The user stops before the task is accepted | A possible product failure at session level | Causality, unless paired with better instrumentation and research |
+
+Do not silently turn these into universal product metrics. A re-ask can be healthy when the user changes the request. An edit can be harmless in a drafting tool and unacceptable in an approval workflow. Define each proxy against the task and record the exception cases.
+
+The first practical step is to write an acceptance condition that describes the user's usable result. “Contains six sections” is a format condition. “Can be sent without choosing between unresolved dates” is a task condition. Both may be useful, but only the second explains why Variant A failed.
+
+The second step is to log the user action that proves the gap. If the product does not expose edit history or re-asks, start with a small reviewed sample. The sample is not a benchmark. It is a calibration instrument for the release gate.
+
+The third step is to promote confirmed failures into the evaluation set. The site's [guide to building an evaluation dataset from production traces](/blog/how-to-build-an-evaluation-dataset-from-production-traces) makes the same boundary explicit: a trace needs a verified outcome and a failure hypothesis before it becomes a regression case.
+
+## How should you repair an eval that users do not trust?
+
+Use the smallest failing session you can replay, then change one criterion at a time.
+
+1. Freeze the input, output, runtime, and current rubric. Keep the original score.
+2. Write the task-level acceptance condition in observable terms. Name the state, approval, constraint, or question that proves completion.
+3. Add a case that contains the missing context, such as a conflict across turns or a user correction after the first answer.
+4. Assign each condition to the cheapest valid grader. Use code for exact state, a judge for bounded language quality, and human review for ambiguity or calibration.
+5. Record re-asks, edits, completion, escalation, and abandonment as behavior signals with definitions, not as vague satisfaction labels.
+6. Rerun both the old and repaired suite. A repair that only raises the score without changing the decision is probably measuring the wrong thing.
+7. Keep the failing case in a versioned regression set and schedule a review when the workflow, model, prompt, or user interface changes.
+
+OpenAI's evaluation playbook warns that harness choices, tools, budgets, environments, scoring rules, and review procedures can change what a result means ([OpenAI's playbook for trustworthy evaluations](https://openai.com/index/trustworthy-third-party-evaluations-foundations/)). That is why the fixture records prompts and review instructions, not just the final numbers. The score is only interpretable alongside the measurement setup.
+
+For the broader release decision, use [the AI agent evaluation release gate](/blog/how-to-evaluate-an-ai-agent). For deployed behavior, connect the gate to [the production monitoring contract](/blog/how-to-monitor-an-ai-agent-in-production). The pages solve different jobs. Evaluation asks whether a known case passes. Monitoring asks what real users and environments are doing now.
+
+![Illustration of a repaired evaluation adding a session-level acceptance check before release](/blog/why-do-ai-evals-pass-while-users-still-fail-inline-3.webp)
+
+## When is a passing eval still enough?
+
+A response-level eval can be sufficient when the task is genuinely informational, has no downstream action, and has no hidden session state that changes the answer. A spelling correction, a schema validator, or an exact arithmetic check may not need a behavioral proxy for every run.
+
+The exception is narrower than many teams assume. If a “purely informational” answer drives a purchase, approval, diagnosis, policy decision, or irreversible action, the downstream task still matters. The product may not change a database, but the user can change the world based on the answer.
+
+This fixture also has limits. It contains two authored outputs, one task, one scripted correction path, and one model-judge pass before and after the prompt repair. It does not estimate failure rates, judge accuracy across models, user satisfaction, time-on-task, retention, or abandonment in production. It does not test a real tool call or external state change.
+
+It can overstate the value of a conflict check if your workflow never contains conflicting inputs. It can miss a correct but painfully slow answer, a tool that edits the wrong record, or a user who accepts a wrong answer without noticing. Those gaps are reasons to add cases, not reasons to collapse everything into one score.
+
+The result to keep is simple: an automated pass is evidence that a defined check passed. It is not evidence that the user's job is complete. If your team cannot point from the score to a verified outcome and a realistic correction path, the eval is still a prototype.
