@@ -1,0 +1,192 @@
+---
+title: 'How to Buy an AI Pilot Without Platform Lock-In'
+date: '2026-08-23'
+updated: '2026-08-23'
+excerpt: 'Score an AI pilot by what you can export, price the exit before signing, and protect the handoff when a vendor owns the fast path.'
+answer: 'Buy an AI pilot only when the buyer owns the data, prompts, schemas, evaluation set, traces, and workflow state, or has a tested export for each one. Put a replacement path and migration budget in the contract. The exception is a platform-native capability that materially reduces risk or time, but its exit cost must be priced as part of the purchase.'
+targetQuery: 'how to buy an AI pilot without getting locked into a platform'
+queryAliases:
+  - 'how to avoid platform lock-in when buying an AI pilot'
+  - 'AI pilot vendor lock-in checklist'
+  - 'how to negotiate an AI pilot exit plan'
+intent: 'commercial investigation'
+funnel: 'consideration'
+cluster: 'commercial'
+parent: '/blog/choose-between-ai-consultant-agency-internal-team'
+contentType: 'commercial-decision'
+kind: 'satellite'
+sourceableAtom: 'A ten-row buyer-side exit-cost worksheet turns AI pilot lock-in into a score, a funded migration budget, and two worked public-term scenarios: €24,840 modeled exit cost with provider-hosted state versus €10,488 with buyer-owned workflow state under the same €4,090 start assumption.'
+evidenceType: 'commercial-model'
+evidenceBasis: 'Original ten-row scorecard, stated labor assumptions, reproducible exit-cost arithmetic, current OpenAI and Anthropic public terms and documentation, UK AI procurement guidance, and NIST AI RMF third-party contingency guidance.'
+tags:
+  - 'AI strategy'
+  - 'Buying AI services'
+  - 'AI architecture'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-15'
+sources:
+  - 'https://openai.com/en-GB/policies/services-agreement/'
+  - 'https://developers.openai.com/api/docs/guides/tools-file-search'
+  - 'https://developers.openai.com/api/docs/guides/your-data'
+  - 'https://www.anthropic.com/legal/commercial-terms'
+  - 'https://platform.claude.com/docs/en/agents-and-tools/tool-use/overview'
+  - 'https://www.gov.uk/government/publications/guidelines-for-ai-procurement/guidelines-for-ai-procurement'
+  - 'https://airc.nist.gov/airmf-resources/airmf/5-sec-core/'
+faq:
+  - q: 'Is a provider-neutral API wrapper enough to prevent AI lock-in?'
+    a: 'No. A wrapper can reduce model-call rewrites, but it does not make hosted prompts, retrieval indexes, traces, workflow state, support knowledge, or evaluation data portable. Test the assets you would need to recreate, not only the API interface.'
+  - q: 'Should every AI pilot avoid platform-native tools?'
+    a: 'No. A hosted tool can be the right purchase when it materially reduces time or operational risk. Treat the hosted capability as a priced dependency and require an export, a replacement design, or a deliberate decision to accept its exit cost.'
+  - q: 'What should an AI vendor hand over at the end of a pilot?'
+    a: 'At minimum, hand over source data, prompts and schemas, the evaluation set and results, traces, workflow state, integration contracts, deployment instructions, access and deletion records, a runbook, and a live transfer session with your owner.'
+cover: '/blog/how-to-buy-an-ai-pilot-without-platform-lock-in-hero.webp'
+coverAlt: 'Illustration of a buyer scoring an AI pilot for portability and exit cost'
+draft: false
+---
+
+The first invoice hides the most important price. A pilot can cost little to start because the platform supplies storage, retrieval, traces, orchestration, and support. Those conveniences become migration work when the buyer needs to leave.
+
+When I taught product managers who went from writing specs to building and shipping the product, the useful shift was capability transfer. The team could keep moving because it understood what to change and how to judge the result. An AI pilot should create the same condition. A consultant can accelerate that transfer. The pilot should not leave the vendor as the only person who can operate it.
+
+![Illustration of a buyer separating portable AI workflow assets from platform-held assets](/blog/how-to-buy-an-ai-pilot-without-platform-lock-in-portable-assets.webp)
+
+## The buyer-side exit test
+
+Buy the pilot when every critical asset is buyer-owned or has a tested export, and when the modeled exit cost is affordable relative to the value you expect from the pilot. If a supplier cannot show where an asset lives, how it leaves, and who can restore it elsewhere, score that row as zero.
+
+The table is the sourceable artifact in this post. Score each row as follows:
+
+- `2`: the buyer owns the asset or has exported and restored it in a second environment.
+- `1`: an export is promised or technically possible, but the buyer has not tested it or it omits useful metadata.
+- `0`: the platform holds it, the contract is silent, or the buyer cannot use it without the supplier.
+
+| Exit surface | 2 means | 1 means | 0 means |
+| --- | --- | --- | --- |
+| Source data export | Original files and metadata are in the buyer's storage | Files can be downloaded but metadata or versions are incomplete | The platform is the only usable copy |
+| Prompt portability | Versioned prompts and variables are in the buyer's repository | Prompts can be copied but dependencies are hidden | Prompt logic lives only in a visual builder or vendor account |
+| Schema portability | Tool and output schemas are documented and tested elsewhere | Schemas exist but need manual translation | The workflow depends on private types or undocumented fields |
+| Evaluation-set ownership | Cases, labels, graders, and results are exportable | Cases export but labels or grader configuration does not | Evaluation evidence exists only in the vendor dashboard |
+| Trace access | Raw inputs, outputs, tool calls, errors, and timestamps are retained by the buyer | A summary or limited export exists | The buyer sees only a final answer |
+| Workflow-state export | In-progress and completed state can be replayed elsewhere | State can be reconstructed with manual work | State is trapped in hosted conversations, threads, or runs |
+| Integration replacement | External systems use buyer-controlled interfaces | One vendor connector must be replaced | The platform is the system of record for the workflow |
+| Support handoff | Runbook, incident path, and live transfer are included | Documentation exists but no rehearsal occurs | Only the vendor knows how to diagnose failures |
+| Contract termination | Notice, deletion, return, and access windows are explicit | The terms are clear but return timing is not | Termination ends access with no usable return plan |
+| Migration labor | A named owner and budget cover a second implementation | Someone might do it later | No owner, hours, or budget exists |
+
+My provisional buying rule is simple: 17 to 20 means proceed; 12 to 16 means proceed only with an exit package and a funded migration rehearsal; 0 to 11 means reject or narrow the pilot. A zero for source data, evaluation ownership, or termination is a stop condition. These thresholds are a decision aid, not a market standard.
+
+OpenAI's public agreement illustrates why ownership needs a second question. It says the customer retains rights in input and owns output, but it also says extraction from the services is restricted to what the services permit. Ownership of content is not a promise that every operational asset is exportable in a form another platform can use. [OpenAI Services Agreement](https://openai.com/en-GB/policies/services-agreement/)
+
+## How to calculate the pilot's exercise price
+
+Treat the exit as an option with an exercise price. The exercise price is the labor and coordination required to recreate the workflow somewhere else while preserving its business behavior.
+
+Use this calculation:
+
+```text
+exit cost = sum of migration hours × loaded hourly rate
+            + contingency for unknown dependencies
+```
+
+For the worked examples below, I use the same assumptions in both scenarios:
+
+- 32 hours to start the pilot.
+- €120 loaded engineering cost per hour.
+- €250 for setup and model usage during the pilot.
+- Start cost: `32 × €120 + €250 = €4,090`.
+- Exit contingency: 15% of migration labor.
+
+These are worksheet assumptions, not vendor prices or a claim about a typical project. Replace them with your own loaded cost. If a migration would interrupt a revenue-producing workflow, add lost throughput, parallel-run time, legal review, and retraining as separate rows.
+
+The exit calculation should include the work a demo rarely shows: reconciling source data, reconstructing prompt dependencies, translating schemas, replaying evaluations, normalizing traces, rebuilding in-progress state, replacing integrations, transferring support knowledge, terminating access safely, and testing the new release.
+
+![Illustration of an AI pilot cost worksheet comparing start cost with exit cost](/blog/how-to-buy-an-ai-pilot-without-platform-lock-in-exit-cost.webp)
+
+## Scenario A: OpenAI-hosted retrieval and workflow state
+
+This public-term scenario uses OpenAI's Responses API with hosted File Search, uploaded files, vector stores, and provider-managed conversation or run state. It is a plausible fast-start architecture because OpenAI documents File Search as a hosted tool managed by OpenAI. The scenario is not an invented OpenAI proposal, and it does not claim that every current account uses every object.
+
+The convenience is real. The buyer writes less retrieval and state-management code at the beginning. The exit surface is also real. OpenAI's data-controls documentation lists conversations, vector stores, files, evals, threads, runs, and run steps as separate endpoint categories with different retention and deletion behavior. It also distinguishes customer content from system data such as metadata, usage data, billing information, support requests, and structured output schema. [OpenAI File Search documentation](https://developers.openai.com/api/docs/guides/tools-file-search), [OpenAI data controls](https://developers.openai.com/api/docs/guides/your-data)
+
+The public documentation shows that these objects can be managed through APIs. It does not give the buyer a universal, provider-neutral export package that recreates retrieval indexes, traces, prompts, and workflow state in another system. That is the buyer's contract question, not a criticism of the hosted feature.
+
+| Exit work | Hours | Cost at €120/hour |
+| --- | ---: | ---: |
+| Export and reconcile source data | 24 | €2,880 |
+| Extract and rewrite prompts | 12 | €1,440 |
+| Translate tool and output schemas | 12 | €1,440 |
+| Rebuild evaluation set and graders | 16 | €1,920 |
+| Export and normalize traces | 20 | €2,400 |
+| Reconstruct workflow state and replay rules | 24 | €2,880 |
+| Replace provider-specific integration paths | 32 | €3,840 |
+| Transfer support and incident knowledge | 12 | €1,440 |
+| Terminate access and verify deletion | 4 | €480 |
+| Run migration tests and release | 24 | €2,880 |
+| **Labor subtotal** | **180** | **€21,600** |
+| 15% contingency |  | €3,240 |
+| **Modeled exit cost** |  | **€24,840** |
+
+The same pilot that cost €4,090 to start therefore carries a modeled exit cost 6.07 times larger. The result does not mean hosted state is wrong. It means the fast path has an exercise price. If the pilot creates enough value, or if its operational risk is lower than the buyer's own implementation, paying that price can be rational. The price must still be visible before the buyer expands the dependency.
+
+## Scenario B: Anthropic API with buyer-owned state
+
+This scenario uses Anthropic's API for model calls, while the buyer keeps source data, prompts, schemas, evaluation cases, traces, and workflow state in systems it controls. Again, this is an architecture scenario built from public terms, not an Anthropic sales package.
+
+Anthropic's Commercial Terms say the customer retains rights to inputs and owns outputs. They also state that API access is governed by the commercial terms, that rates may change with notice, and that termination ends access to the services. Those terms clarify important rights, but they do not remove the need for a buyer-owned handoff. The lower exit estimate below comes from where the buyer chose to keep the operating assets, not from a promise that the provider will export an entire application. [Anthropic Commercial Terms](https://www.anthropic.com/legal/commercial-terms)
+
+| Exit work | Hours | Cost at €120/hour |
+| --- | ---: | ---: |
+| Export and reconcile source data | 8 | €960 |
+| Extract and rewrite prompts | 4 | €480 |
+| Translate tool and output schemas | 4 | €480 |
+| Rebuild evaluation set and graders | 4 | €480 |
+| Export and normalize traces | 8 | €960 |
+| Reconstruct workflow state and replay rules | 8 | €960 |
+| Replace the model adapter and integration paths | 16 | €1,920 |
+| Transfer support and incident knowledge | 8 | €960 |
+| Terminate access and verify deletion | 4 | €480 |
+| Run migration tests and release | 12 | €1,440 |
+| **Labor subtotal** | **76** | **€9,120** |
+| 15% contingency |  | €1,368 |
+| **Modeled exit cost** |  | **€10,488** |
+
+Under the same €4,090 start assumption, this exit is 2.56 times the start cost. The modeled difference between the scenarios is €14,352. The point is not that Anthropic is automatically less binding. A buyer can create severe lock-in on top of any API by storing the important assets in a vendor dashboard or by accepting private tool types. The point is that keeping the workflow state and evidence in the buyer's repository reduces what must be recreated.
+
+## Contract questions that expose hidden lock-in
+
+Ask these questions before the pilot starts, and write the answers into the order form or statement of work. Public terms are a baseline. Your signed contract and data-processing terms may add different obligations.
+
+1. **Data export:** Can we retrieve original inputs, versions, metadata, embeddings or retrieval source records, and deletion confirmations in a documented format?
+2. **Prompt and schema portability:** Do we receive every system prompt, variable, tool definition, output schema, model setting, and dependency needed to run the workflow without your console?
+3. **Evaluation ownership:** Who owns the cases, labels, graders, and results we create? Can we export them and run them in our own CI?
+4. **Trace access:** Can we export raw inputs, outputs, tool calls, tool results, errors, timestamps, model identifiers, and policy decisions? How long is each retained?
+5. **Workflow state:** Can we export in-progress and completed state, including external side effects and replay instructions, before termination?
+6. **Integration replacement:** Which connectors, SDKs, private schemas, and hosted callbacks must be replaced? Will you document the network and authentication boundaries?
+7. **Support handoff:** Is a runbook, incident history, architecture record, and live transfer session included? Who answers questions during the handoff window?
+8. **Termination:** What notice applies? How long do we retain read access? When are data, backups, logs, and credentials deleted? What evidence do we receive?
+9. **Migration labor:** What exit work is included in the fee, what is billable, and what rate applies if we ask you to help a successor supplier?
+
+The UK government's AI procurement guidance recommends documenting requirements in contracts and considering open standards and licensing to reduce vendor lock-in. NIST likewise calls for third-party risk controls, contingency processes, monitoring, recovery, and decommissioning. These are public procurement and risk-management sources, not private legal advice, but they give a buyer a defensible reason to ask for the answers. [UK AI procurement guidance](https://www.gov.uk/government/publications/guidelines-for-ai-procurement/guidelines-for-ai-procurement), [NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/)
+
+## The minimum pilot handoff package
+
+Do not wait for the last week. Put this package in the first milestone and update it as the pilot changes:
+
+1. A data manifest with source locations, versions, retention rules, transformations, and deletion status.
+2. Versioned prompts, variables, model settings, tool schemas, output schemas, and routing rules in a buyer-controlled repository.
+3. The evaluation set, labels, graders, pass thresholds, critical failures, and latest results.
+4. A trace sample that includes successful, failed, escalated, and interrupted runs.
+5. A workflow-state schema with replay and recovery instructions, including what side effects already happened.
+6. An integration map covering credentials, permissions, rate limits, webhooks, retries, and system-of-record boundaries.
+7. A runbook for incidents, support, cost controls, provider changes, and shutdown.
+8. A recorded transfer session in which the buyer changes a prompt, runs the evaluations, diagnoses one failed trace, and performs one safe rollback.
+
+That last item is the capability-transfer boundary. Marius Manolachi works as an AI consultant and AI tutor to make existing people capable of building AI products on their own work. The buyer should be able to make a small change and judge its result before deciding whether to renew. If the supplier delivers files but the team still cannot run the workflow, the handoff is incomplete.
+
+## When platform lock-in is the right decision
+
+Do not turn portability into a purity test. A managed platform can be the right choice when it removes operational risk, meets a hard security or regional requirement, or delivers a capability the buyer cannot responsibly operate alone. The exception is rational when the buyer names the dependency, estimates its exercise price, and keeps enough evidence to decide whether the dependency remains worth paying for.
+
+The bad purchase is not “we used a platform.” It is “we expanded a pilot without knowing what the platform owns, what we can export, or what leaving would cost.” Read the [guide to choosing an AI consultant, agency, or internal team](/blog/choose-between-ai-consultant-agency-internal-team) alongside this worksheet. If the pilot is still only a proof of concept, use the [AI agent proof-of-concept scope checklist](/blog/how-to-scope-an-ai-agent-proof-of-concept) and make the handoff a deliverable, not a promise.
+
+If you want help teaching an existing team to run this decision and its evaluation work, [learn about Marius Manolachi's AI consulting and tutoring](https://mariusmanolachi.com/learn-ai). The next step is not a larger platform. It is a buyer who can name the exit artifact they would need next month.
