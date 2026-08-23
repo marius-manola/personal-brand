@@ -1,7 +1,14 @@
+import type { Metadata } from 'next';
 import MobileNavigation, { DesktopNavigation } from '@/components/Navigation';
 import Link from 'next/link';
 import { getAllEssays } from '@/lib/server/essays.server';
 import Copyright from '../components/Copyright';
+
+export const metadata: Metadata = {
+  title: 'Essays — Marius Manolachi',
+  description: 'Essays, notes, and ideas by Marius Manolachi.',
+  alternates: { canonical: '/essays' },
+};
 
 export default async function EssaysPage() {
   const essays = await getAllEssays();

@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { MDXRemote } from 'next-mdx-remote/rsc';
 import MobileNavigation, { DesktopNavigation } from '@/components/Navigation';
@@ -16,6 +17,16 @@ export async function generateStaticParams() {
   return essays.map((essay) => ({
     id: essay.id,
   }));
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { id } = await params;
+  const essay = await getEssayById(id);
+  if (!essay) return {};
+  return {
+    title: essay.metadata.title,
+    alternates: { canonical: `/essays/${essay.id}` },
+  };
 }
 
 export default async function EssayPage({ params }: PageProps) {

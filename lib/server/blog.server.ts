@@ -5,6 +5,28 @@ import matter from 'gray-matter';
 const BLOG_DIRECTORY = join(process.cwd(), 'content/blog');
 const SAFE_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
+export const BLOG_CLUSTERS = [
+  { id: 'opportunity', label: 'AI opportunities', description: 'Find workflows and product opportunities where AI can create measurable value.' },
+  { id: 'architecture', label: 'AI architecture', description: 'Choose between workflows, retrieval, models, tools, memory, and agents.' },
+  { id: 'implementation', label: 'AI implementation', description: 'Build, integrate, deploy, and operate useful AI systems.' },
+  { id: 'evaluation', label: 'AI evaluation', description: 'Test quality, reliability, safety, observability, and production outcomes.' },
+  { id: 'capability', label: 'AI capability', description: 'Learn the skills and exercises required to build with AI independently.' },
+  { id: 'commercial', label: 'AI buying decisions', description: 'Scope pilots and choose between consultants, agencies, platforms, and internal teams.' },
+] as const;
+
+export type BlogClusterId = typeof BLOG_CLUSTERS[number]['id'];
+
+export function canonicalBlogCluster(value: unknown): BlogClusterId {
+  const raw = String(value || '').toLowerCase();
+  if (BLOG_CLUSTERS.some((item) => item.id === raw)) return raw as BlogClusterId;
+  if (/architect|rag|model|system.design|memory|agent.design/.test(raw)) return 'architecture';
+  if (/implement|build|deploy|integrat|migrat|tool/.test(raw)) return 'implementation';
+  if (/evaluat|reliab|quality|observ|test|monitor|failure|debug|security|safe/.test(raw)) return 'evaluation';
+  if (/capab|learn|team|skill|tutor|training/.test(raw)) return 'capability';
+  if (/commercial|consult|agency|hire|buy|cost|roi|budget|vendor/.test(raw)) return 'commercial';
+  return 'opportunity';
+}
+
 export interface BlogPostMetadata {
   title: string;
   date: string;
@@ -74,7 +96,7 @@ function parsePost(fileName: string): BlogPost {
       author: String(data.author ?? 'Marius Manolachi'),
       updated: data.updated ? String(data.updated) : undefined,
       targetQuery: data.targetQuery ? String(data.targetQuery) : undefined,
-      cluster: data.cluster ? String(data.cluster) : undefined,
+      cluster: canonicalBlogCluster(data.cluster || `${data.targetQuery || ''} ${data.title || ''}`),
       parent: data.parent ? String(data.parent) : undefined,
       contentType: data.contentType ? String(data.contentType) : undefined,
       kind: data.kind ? String(data.kind) : undefined,
@@ -113,4 +135,9 @@ export async function getBlogPost(slug: string): Promise<BlogPost | undefined> {
   } catch {
     return undefined;
   }
+}
+
+export async function getPostsByCluster(cluster: string): Promise<BlogPost[]> {
+  if (!BLOG_CLUSTERS.some((item) => item.id === cluster)) return [];
+  return (await getAllBlogPosts()).filter((post) => post.metadata.cluster === cluster);
 }

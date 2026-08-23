@@ -25,7 +25,7 @@
           <h1>Sitemap</h1>
           <p>
             <xsl:value-of select="count(sm:urlset/sm:url)"/> pages for
-            <a href="https://mariusmanolachi.com">mariusmanolachi.com</a>.
+            <a href="https://www.mariusmanolachi.com">mariusmanolachi.com</a>.
             Search engines read the raw XML. This page is only a human view.
           </p>
           <table>

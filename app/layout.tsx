@@ -3,6 +3,7 @@ import "./globals.css";
 import { Analytics } from "@vercel/analytics/next"
 import SiteAnalytics from '@/app/components/SiteAnalytics';
 import localFont from 'next/font/local';
+import { SITE_URL } from '@/lib/site';
 
 const onest = localFont({
   src: [
@@ -57,19 +58,20 @@ const onest = localFont({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://mariusmanolachi.com"),
+  metadataBase: new URL(SITE_URL),
   title: "Marius Manolachi",
   description: "perpetual learner",
+  alternates: { canonical: '/' },
   openGraph: {
     title: "Marius Manolachi",
     description: "perpetual learner",
-    url: "https://mariusmanolachi.com",
+    url: SITE_URL,
     siteName: "Marius Manolachi",
     locale: "en_US",
     type: "website",
     images: [
       {
-        url: "https://mariusmanolachi.com/og-image.png",
+        url: `${SITE_URL}/og-image.png`,
         width: 1200,
         height: 630,
         alt: "Marius Manolachi",
@@ -81,7 +83,7 @@ export const metadata: Metadata = {
     title: "Marius Manolachi",
     description: "perpetual learner",
     creator: "@mariusmanolachi",
-    images: ["https://mariusmanolachi.com/og-image.png"],
+    images: [`${SITE_URL}/og-image.png`],
   },
   robots: {
     index: true,

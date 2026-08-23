@@ -68,6 +68,15 @@ function send(payload: Record<string, unknown>) {
   });
 }
 
+function rememberLanding(pathname: string, src: string) {
+  try {
+    if (!window.sessionStorage.getItem('mm_landing_slug')) {
+      window.sessionStorage.setItem('mm_landing_slug', pageSlug(pathname));
+      window.sessionStorage.setItem('mm_landing_src', src);
+    }
+  } catch { /* storage is optional */ }
+}
+
 export default function SiteAnalytics() {
   const pathname = usePathname() || '/';
 
@@ -79,6 +88,9 @@ export default function SiteAnalytics() {
     const path = pathname;
     const ref = document.referrer || '';
     const src = landingSource();
+    rememberLanding(pathname, src);
+    let landingSlug = slug;
+    try { landingSlug = window.sessionStorage.getItem('mm_landing_slug') || slug; } catch { /* keep current */ }
     let last = Date.now();
     let visible = document.visibilityState === 'visible';
     let left = false;
@@ -86,6 +98,24 @@ export default function SiteAnalytics() {
 
     send({ type: 'view', slug, path, ms: 0, ref, src, sid, vid, scroll: maxScroll });
     track('page_view', { slug });
+
+    const offerLinks = [...document.querySelectorAll<HTMLAnchorElement>('a[href="/learn-ai"], a[href^="/learn-ai?"]')];
+    const impressed = new Set<Element>();
+    const observer = typeof IntersectionObserver !== 'undefined' ? new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting || impressed.has(entry.target)) continue;
+        impressed.add(entry.target);
+        send({ type: 'cta_impression', slug, path, ms: 0, ref, src, sid, vid, landingSlug, name: 'learn-ai' });
+      }
+    }, { threshold: 0.4 }) : null;
+    offerLinks.forEach((link) => observer?.observe(link));
+    const onClick = (event: MouseEvent) => {
+      const link = (event.target as HTMLElement | null)?.closest<HTMLAnchorElement>('a[href="/learn-ai"], a[href^="/learn-ai?"]');
+      if (!link) return;
+      send({ type: 'cta_click', slug, path, ms: 0, ref, src, sid, vid, landingSlug, name: link.textContent?.trim().slice(0, 100) || 'learn-ai' });
+      track('cta_click', { slug, landingSlug });
+    };
+    document.addEventListener('click', onClick);
 
     const onScroll = () => {
       maxScroll = Math.max(maxScroll, scrollDepth());
@@ -122,6 +152,8 @@ export default function SiteAnalytics() {
       window.clearInterval(timer);
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('scroll', onScroll);
+      document.removeEventListener('click', onClick);
+      observer?.disconnect();
       flush('leave');
     };
   }, [pathname]);

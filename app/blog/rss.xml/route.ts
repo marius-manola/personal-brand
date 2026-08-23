@@ -1,6 +1,5 @@
 import { getAllBlogPosts } from '@/lib/server/blog.server';
-
-const SITE_URL = 'https://mariusmanolachi.com';
+import { SITE_URL } from '@/lib/site';
 
 function escapeXml(value: string): string {
   return value

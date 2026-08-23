@@ -18,16 +18,17 @@ import {
   usageChoices,
 } from '@/app/data/learn-ai';
 import styles from './learn-ai.module.css';
+import { SITE_URL } from '@/lib/site';
 
 export const metadata: Metadata = {
   title: 'AI Implementation for Teams — Marius Manolachi',
   description:
     'A hands-on seven-day AI workflow sprint for teams. Choose a high-value process, implement it in your current stack, and train the team to keep improving it.',
-  alternates: { canonical: 'https://mariusmanolachi.com/learn-ai' },
+  alternates: { canonical: '/learn-ai' },
   openGraph: {
     title: 'Make AI Useful at Work',
     description: 'One week. One working AI workflow. A team that knows how to run it.',
-    url: 'https://mariusmanolachi.com/learn-ai',
+    url: `${SITE_URL}/learn-ai`,
     siteName: 'Marius Manolachi',
     locale: 'en_US',
     type: 'website',

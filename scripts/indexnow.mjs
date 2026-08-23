@@ -2,7 +2,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const HOST = 'mariusmanolachi.com';
+const HOST = 'www.mariusmanolachi.com';
 const SITE_URL = `https://${HOST}`;
 const ROOT = join(import.meta.dirname, '..');
 

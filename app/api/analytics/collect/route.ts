@@ -6,7 +6,10 @@ import type { AnalyticsEventType } from '@/lib/analytics/types';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const TYPES = new Set<AnalyticsEventType>(['view', 'tick', 'leave']);
+const TYPES = new Set<AnalyticsEventType>([
+  'view', 'tick', 'leave', 'cta_impression', 'cta_click', 'intake_start',
+  'intake_submit', 'calendar_open', 'booked', 'paid',
+]);
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+){0,12}$/;
 
 function allowedOrigin(request: Request) {
@@ -40,6 +43,8 @@ export async function POST(request: Request) {
     sid?: string;
     vid?: string;
     scroll?: number;
+    name?: string;
+    landingSlug?: string;
   };
   try {
     body = await request.json();
@@ -71,6 +76,8 @@ export async function POST(request: Request) {
     os,
     bot: isBotUa(ua),
     scroll: Math.max(0, Math.min(Number(body.scroll) || 0, 100)),
+    name: String(body.name || '').slice(0, 100),
+    landingSlug: String(body.landingSlug || '').slice(0, 80),
   });
 
   return new NextResponse(null, { status: 204 });

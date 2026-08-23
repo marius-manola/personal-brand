@@ -51,6 +51,17 @@ const EMPTY_ANSWERS: Answers = {
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+function conversion(type: 'intake_start' | 'intake_submit' | 'calendar_open', name = '') {
+  try {
+    const landingSlug = window.sessionStorage.getItem('mm_landing_slug') || 'learn-ai';
+    const src = window.sessionStorage.getItem('mm_landing_src') || '';
+    const sid = window.sessionStorage.getItem('mm_sid') || '';
+    const vid = window.localStorage.getItem('mm_vid') || '';
+    const payload = JSON.stringify({ type, slug: 'learn-ai', path: '/learn-ai', ms: 0, ref: document.referrer, src, sid, vid, landingSlug, name });
+    navigator.sendBeacon('/api/analytics/collect', new Blob([payload], { type: 'application/json' }));
+  } catch { /* analytics must never block intake */ }
+}
+
 export default function QualifyForm({
   heading,
   intro,
@@ -74,6 +85,7 @@ export default function QualifyForm({
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
   const stepHeadingRef = useRef<HTMLHeadingElement>(null);
   const detailHintId = useId();
+  const started = useRef(false);
 
   const steps: Array<{
     id: AnswerKey;
@@ -105,6 +117,10 @@ export default function QualifyForm({
   }, [stepIndex]);
 
   const setAnswer = (key: AnswerKey, nextValue: string) => {
+    if (!started.current) {
+      started.current = true;
+      conversion('intake_start', key);
+    }
     setAnswers((current) => ({ ...current, [key]: nextValue }));
     if (status.kind === 'error') setStatus({ kind: 'idle' });
   };
@@ -137,6 +153,7 @@ export default function QualifyForm({
         calendarUrl: payload.calendarUrl,
         delivered: payload.delivered !== false,
       });
+      conversion('intake_submit', 'qualified-intake');
     } catch {
       setStatus({ kind: 'error' });
     }
@@ -154,6 +171,7 @@ export default function QualifyForm({
           target="_blank"
           rel="noopener noreferrer"
           className="intake-primary"
+          onClick={() => conversion('calendar_open', 'booking-calendar')}
         >
           {booked.ctaLabel} <span aria-hidden="true">↗</span>
         </a>

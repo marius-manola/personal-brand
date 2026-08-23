@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "Local Content Studio — ChatGPT Companion",
+  "version": "1.4.0",
+  "description": "Connects a logged-in ChatGPT tab to Marius's localhost content studio for writing.",
+  "permissions": ["storage", "clipboardRead"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "https://chat.openai.com/*",
+    "http://127.0.0.1:3002/*",
+    "http://localhost:3002/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://chatgpt.com/*", "https://chat.openai.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

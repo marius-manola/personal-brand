@@ -11,8 +11,7 @@ import MobileReadingProgress from '@/app/components/MobileReadingProgress';
 import { getAllBlogPosts, getBlogPost, prepareBlogMdx } from '@/lib/server/blog.server';
 import { isLocalBlogImage, localBlogImageSize } from '@/lib/server/blog-image';
 import { sameAs } from '@/app/data/about';
-
-const SITE_URL = 'https://mariusmanolachi.com';
+import { SITE_URL } from '@/lib/site';
 
 type PageProps = {
   params: Promise<{ slug: string }>;
@@ -137,6 +136,14 @@ export default async function BlogPostPage({ params }: PageProps) {
   const currentIndex = posts.findIndex((item) => item.slug === post.slug);
   const newerPost = currentIndex > 0 ? posts[currentIndex - 1] : undefined;
   const olderPost = currentIndex >= 0 ? posts[currentIndex + 1] : undefined;
+  const relatedPosts = posts
+    .filter((item) => item.slug !== post.slug && item.metadata.cluster === post.metadata.cluster)
+    .sort((left, right) => {
+      const leftParent = post.metadata.parent?.endsWith(left.slug) ? 1 : 0;
+      const rightParent = post.metadata.parent?.endsWith(right.slug) ? 1 : 0;
+      return rightParent - leftParent || right.metadata.date.localeCompare(left.metadata.date);
+    })
+    .slice(0, 3);
   const postUrl = `${SITE_URL}/blog/${post.slug}`;
   const structuredData = {
     '@context': 'https://schema.org',
@@ -161,14 +168,6 @@ export default async function BlogPostPage({ params }: PageProps) {
         url: postUrl,
         speakable: { '@type': 'SpeakableSpecification', cssSelector: ['.blog-answer'] },
       },
-      ...(post.metadata.faq?.length ? [{
-        '@type': 'FAQPage',
-        mainEntity: post.metadata.faq.map((item) => ({
-          '@type': 'Question',
-          name: item.q,
-          acceptedAnswer: { '@type': 'Answer', text: item.a },
-        })),
-      }] : []),
       {
         '@type': 'BreadcrumbList',
         itemListElement: [
@@ -268,6 +267,16 @@ export default async function BlogPostPage({ params }: PageProps) {
                 </details>
               ))}
             </section>
+          )}
+
+          {relatedPosts.length > 0 && (
+            <aside className="blog-related" aria-labelledby="related-heading">
+              <h2 id="related-heading">Continue through {post.metadata.cluster}</h2>
+              <ul>{relatedPosts.map((related) => (
+                <li key={related.slug}><Link href={`/blog/${related.slug}`}>{related.metadata.title}</Link></li>
+              ))}</ul>
+              <Link href={`/blog/topic/${post.metadata.cluster}`}>Open the complete topic collection →</Link>
+            </aside>
           )}
         </article>
 

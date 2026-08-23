@@ -59,16 +59,18 @@ launchd KeepAlive (login session)
 
 Two launchd agents start at login. The scheduler is the factory: it counts today's live posts, writes, images, publishes, pushes `main`, and Vercel deploys. The Next.js app (`http://127.0.0.1:3002/content-studio`) is the **control surface**. Autopilot does **not** need the dashboard open to ship posts, but the desk must come back after a reboot so you can sign in Codex/Gemini and see the lamps. `keep-desk-up.mjs` heals both sides.
 
-### Isolated Codex
+### Isolated Codex accounts
 
 ```
-CODEX_HOME=.content-studio/codex-home
+primary CODEX_HOME=.content-studio/codex-home
+additional homes=.content-studio/codex-accounts/<account-id>
+active account=.content-studio/codex-accounts.json
 CODEX_BIN=/Applications/ChatGPT.app/Contents/Resources/codex
 model = gpt-5.6-luna
 model_reasoning_effort = high
 ```
 
-Auth lives in `.content-studio/codex-home/auth.json`. Coding stays in `~/.codex`. If you mix them, the blog factory will steal the coding session or the reverse.
+Each saved account has its own `auth.json`, sessions, and usage cache. The dashboard selector changes which home new topic and post workers inherit; it does not log the other accounts out. The usage lamp always reads the active account. Coding stays in `~/.codex`.
 
 Images default to Gemini via a signed-in Brave profile (`imageProvider: "gemini"`). Same chat for up to 10 images, then a fresh one. Codex `imagegen` is the fallback if Gemini is unsigned or hits a quota.
 
@@ -344,7 +346,7 @@ The desk is an operations console, not a settings dump. First viewport should an
 
 - How many live today vs target?
 - Codex signed in? Images ready? Telegram ready? Scheduler alive?
-- How much Plus usage is left? (ChatGPT `wham/usage` with the isolated access token, fallback to latest session `rate_limits`)
+- Which Codex account is active, and how much usage does that account have left? (ChatGPT `wham/usage` with its isolated access token, fallback to that account's latest session `rate_limits`)
 - Which jobs are writing / imaging / publishing?
 - What is owned vs ready vs blocked overlap?
 
@@ -403,7 +405,7 @@ Vercel installs with **pnpm frozen lockfile**. If you add a dependency (`playwri
 
 The writer already works. Do this in order.
 
-1. **Isolate a second Codex login.** New `CODEX_HOME`. Confirm `codex login status` against that home, not stdout-only.
+1. **Isolate Codex logins.** Give every account its own `CODEX_HOME`. Confirm `codex login status` against that home, not stdout-only.
 2. **Copy the job contract.** One directory per post. Five artifacts. One validator. One repair loop.
 3. **Add a queue file** and the status machine above. Split writer vs imager counts.
 4. **Add topic research + claim.** Do not let five writers pick a query.
@@ -441,7 +443,7 @@ These are not style notes. They are the reasons the first versions did not run u
 
 **Writers clobber global state.** If every job writes `.content-studio/state.json` as “the current run”, job B replaces job A and A dies with “this job was replaced.” Keep per-job `jobs/<id>/state.json`. The global file is only for the dashboard’s “one current publish.”
 
-**`codex login status` can lie.** Read `auth.json` email as well as stdout. Isolated home is the source of truth.
+**`codex login status` can lie.** Read the selected home's `auth.json` email as well as stdout. Each isolated home is the source of truth; never log one account out to select another.
 
 **Launchd exiting 0 is a silent death.** If the new process finds an old pid and exits successfully, KeepAlive will not restart it. Kill the old pid and stay alive.
 
@@ -463,7 +465,7 @@ These are not style notes. They are the reasons the first versions did not run u
 
 **Do not commit `.env`, tokens, or the studio.** Commit posts, images, sitemap, robots, llms.txt, IndexNow key file.
 
-**Plus usage is shared on that second account.** Six evidence-led posts plus 3-6 images each can still consume the weekly window. Read `https://chatgpt.com/backend-api/wham/usage` with the isolated access token. If remaining < 20%, stop starting new writers and Telegram.
+**Usage belongs to one account.** Read `https://chatgpt.com/backend-api/wham/usage` with the active home's access token and cache it by home. If remaining < 20%, stop starting new writers and Telegram. Switching accounts must switch the displayed usage too.
 
 ---
 
@@ -487,7 +489,7 @@ A human should only open the desk to sign Codex in, restock env, or inspect quar
 ## 15. Commands another agent will actually need
 
 ```bash
-# Isolated login (Terminal window, blog account only)
+# Primary isolated login (additional accounts are added from the dashboard)
 CODEX_HOME="$PWD/.content-studio/codex-home" \
   /Applications/ChatGPT.app/Contents/Resources/codex login
 
@@ -502,7 +504,7 @@ node .content-studio/worker.mjs <id> "the exact query" --queue
 node .content-studio/worker.mjs <id> --publish-queued
 
 # After Vercel is live
-node scripts/indexnow.mjs --url https://mariusmanolachi.com/blog/<slug>
+node scripts/indexnow.mjs --url https://www.mariusmanolachi.com/blog/<slug>
 ```
 
 Dashboard: `http://127.0.0.1:3002/content-studio` (local only).
@@ -512,7 +514,7 @@ Settings file: `.content-studio/settings.json`
 ```json
 {
   "enabled": true,
-  "postsPerDay": 6,
+  "postsPerDay": 8,
   "scheduleMode": "autopilot",
   "imageProvider": "codex"
 }

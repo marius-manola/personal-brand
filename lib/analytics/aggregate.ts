@@ -177,6 +177,11 @@ export async function buildSnapshot(
   let blogPageviews = 0;
   const homeVisitors = new Set<string>();
   const blogVisitors = new Set<string>();
+  const conversionCounts = {
+    ctaImpressions: 0, ctaClicks: 0, intakeStarts: 0, intakeSubmits: 0,
+    calendarOpens: 0, booked: 0, paid: 0,
+  };
+  const conversionByLanding = new Map<string, typeof conversionCounts>();
 
   const bumpCountry = (map: Map<string, Set<string>>, code: string, vid: string) => {
     if (!code) return;
@@ -186,6 +191,7 @@ export async function buildSnapshot(
   };
 
   for (const event of humans) {
+    if (event.type !== 'view') continue;
     const vid = visitorOf(event);
     if (!vid) continue;
     bumpCountry(countryVisitorsAll, event.country, vid);
@@ -197,6 +203,21 @@ export async function buildSnapshot(
     const day = berlinDay(event.t);
     const point = seriesMap.get(day);
     if (!point) continue;
+    const conversionKey = ({
+      cta_impression: 'ctaImpressions', cta_click: 'ctaClicks', intake_start: 'intakeStarts',
+      intake_submit: 'intakeSubmits', calendar_open: 'calendarOpens', booked: 'booked', paid: 'paid',
+    } as Partial<Record<AnalyticsEvent['type'], keyof typeof conversionCounts>>)[event.type];
+    if (conversionKey) {
+      conversionCounts[conversionKey] += 1;
+      const landing = event.landingSlug || event.slug || 'unknown';
+      const row = conversionByLanding.get(landing) || {
+        ctaImpressions: 0, ctaClicks: 0, intakeStarts: 0, intakeSubmits: 0,
+        calendarOpens: 0, booked: 0, paid: 0,
+      };
+      row[conversionKey] += 1;
+      conversionByLanding.set(landing, row);
+      continue;
+    }
     const plat = platformOf(event);
     const cls = plat === 'phone' ? mob : desk;
     if (event.sid) sessions.add(event.sid);
@@ -350,6 +371,11 @@ export async function buildSnapshot(
     journeys,
     eventLogCount: counted.length,
     citations,
+    conversions: {
+      ...conversionCounts,
+      byLandingPage: [...conversionByLanding.entries()].map(([slug, row]) => ({ slug, ...row }))
+        .sort((a, b) => b.intakeSubmits - a.intakeSubmits || b.ctaClicks - a.ctaClicks),
+    },
   };
   cache.set(cacheKey, { at: Date.now(), data });
   return data;

@@ -4,8 +4,7 @@ import MobileNavigation, { DesktopNavigation } from '@/components/Navigation';
 import { about, facts, personJsonLd, description } from '@/app/data/about';
 import Age from '@/app/components/Age';
 import Copyright from '@/app/components/Copyright';
-
-const SITE_URL = 'https://mariusmanolachi.com';
+import { SITE_URL } from '@/lib/site';
 
 export const metadata: Metadata = {
   title: 'About Marius Manolachi',

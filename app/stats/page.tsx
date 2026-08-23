@@ -1,6 +1,13 @@
+import type { Metadata } from 'next';
 import MobileNavigation, { DesktopNavigation } from '@/components/Navigation';
 import Copyright from '@/app/components/Copyright';
 import { getAllEssays } from '@/lib/server/essays.server';
+
+export const metadata: Metadata = {
+  title: 'Profile — Marius Manolachi',
+  description: 'A profile derived from Marius Manolachi’s published essays.',
+  alternates: { canonical: '/stats' },
+};
 
 type Axis = {
   name: string;

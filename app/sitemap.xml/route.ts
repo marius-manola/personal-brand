@@ -1,9 +1,8 @@
-import { getAllBlogPosts } from '@/lib/server/blog.server';
+import { BLOG_CLUSTERS, getAllBlogPosts } from '@/lib/server/blog.server';
 import { getAllEssays } from '@/lib/server/essays.server';
+import { SITE_URL } from '@/lib/site';
 
 export const dynamic = 'force-dynamic';
-
-const SITE_URL = 'https://mariusmanolachi.com';
 
 function escapeXml(value: string) {
   return value
@@ -63,6 +62,12 @@ export async function GET() {
       lastmod: lastmod(post.metadata.updated || post.metadata.date),
       changefreq: 'weekly',
       images: postImages(post),
+    })),
+    ...BLOG_CLUSTERS.map((cluster) => ({
+      loc: `${SITE_URL}/blog/topic/${cluster.id}`,
+      lastmod: newest,
+      changefreq: 'daily',
+      images: [] as Array<[string, string]>,
     })),
     ...essays.map((essay) => ({
       loc: `${SITE_URL}/essays/${essay.id}`,

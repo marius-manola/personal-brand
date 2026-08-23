@@ -1,4 +1,14 @@
-export type AnalyticsEventType = 'view' | 'tick' | 'leave';
+export type AnalyticsEventType =
+  | 'view'
+  | 'tick'
+  | 'leave'
+  | 'cta_impression'
+  | 'cta_click'
+  | 'intake_start'
+  | 'intake_submit'
+  | 'calendar_open'
+  | 'booked'
+  | 'paid';
 export type Platform = 'mac' | 'windows' | 'phone' | 'other';
 
 export type AnalyticsEvent = {
@@ -16,6 +26,27 @@ export type AnalyticsEvent = {
   os: string;
   bot?: boolean;
   scroll?: number;
+  name?: string;
+  landingSlug?: string;
+};
+
+export type ConversionSummary = {
+  ctaImpressions: number;
+  ctaClicks: number;
+  intakeStarts: number;
+  intakeSubmits: number;
+  calendarOpens: number;
+  booked: number;
+  paid: number;
+  byLandingPage: Array<{
+    slug: string;
+    ctaClicks: number;
+    intakeStarts: number;
+    intakeSubmits: number;
+    calendarOpens: number;
+    booked: number;
+    paid: number;
+  }>;
 };
 
 export type CitationRecord = {
@@ -135,4 +166,5 @@ export type AnalyticsSnapshot = {
   journeys: Journey[];
   eventLogCount: number;
   citations: CitationRecord[];
+  conversions: ConversionSummary;
 };

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import Copyright from '@/app/components/Copyright';
-import { getAllBlogPosts } from '@/lib/server/blog.server';
+import { BLOG_CLUSTERS, getAllBlogPosts } from '@/lib/server/blog.server';
 
 const dateFormatter = new Intl.DateTimeFormat('en-US', {
   month: 'short',
@@ -72,6 +72,12 @@ export default async function BlogPage() {
           <h1 className="blog-title">Blog</h1>
           <p className="blog-intro">Notes on building, learning, and technology.</p>
         </header>
+
+        <nav className="blog-cluster-nav" aria-label="Browse by topic">
+          {BLOG_CLUSTERS.map((cluster) => (
+            <Link key={cluster.id} href={`/blog/topic/${cluster.id}`}>{cluster.label}</Link>
+          ))}
+        </nav>
 
         {posts.length > 0 ? (
           <section className="blog-index" aria-label="Blog posts">
