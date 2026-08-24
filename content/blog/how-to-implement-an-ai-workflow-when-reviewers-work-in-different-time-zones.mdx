@@ -1,0 +1,173 @@
+---
+title: 'How to Implement an AI Workflow Across Time Zones'
+date: '2026-08-24'
+updated: '2026-08-24'
+excerpt: 'A reproducible benchmark compares blocking review with durable pause/resume routing across same-zone, overlapping, and non-overlapping reviewer schedules.'
+answer: 'Use a durable review state when a reviewer may be offline before the task finishes. Persist the exact proposal, required role, context version, deadline, and outcome, then route to the next qualified reviewer before the SLA. Keep a blocking worker for short, low-risk reviews that fit one active shift. If no qualified reviewer can finish before the deadline, escalate and leave the task unresolved rather than auto-approving it.'
+targetQuery: 'how to implement an AI workflow when reviewers work in different time zones'
+queryAliases:
+  - 'AI workflow across time zones'
+  - 'distributed reviewer AI workflow'
+  - 'asynchronous AI review workflow'
+intent: 'implementation'
+funnel: 'consideration'
+cluster: 'implementation'
+parent: '/blog/ai-workflow-delivery'
+contentType: 'original-research'
+kind: 'flagship'
+sourceableAtom: 'In a fixed six-fixture run, blocking review completed 6/6 tasks in the same-zone schedule, 5/6 with partial overlap, and 1/6 with non-overlapping shifts; durable pause/resume routing completed 6/6 in all three schedules, with one handoff in each cross-zone run and zero stale-context failures.'
+evidenceType: 'reproducible workflow simulation plus worked implementation artifact'
+evidenceBasis: >
+  A provider-free Python standard-library harness ran the same six task fixtures
+  across three UTC reviewer schedules and two review architectures on 2026-08-23.
+  It emitted 196 raw event rows, 36 task-level result rows, and six aggregate
+  result rows, then reproduced those artifacts byte-for-byte from a fresh in-job
+  copy.
+tags:
+  - 'AI workflows'
+  - 'AI implementation'
+  - 'Human review'
+  - 'Distributed teams'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-21'
+sources:
+  - 'https://openai.github.io/openai-agents-python/human_in_the_loop/'
+  - 'https://airflow.apache.org/docs/apache-airflow-providers-common-ai/stable/hitl_review.html'
+  - 'https://modelcontextprotocol.io/specification/draft/server/tools'
+  - 'https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence'
+  - 'https://arxiv.org/abs/2605.03743'
+  - 'https://mariusmanolachi.com/learn-ai'
+cover: '/blog/how-to-implement-an-ai-workflow-when-reviewers-work-in-different-time-zones-timezone-review-hero.webp'
+coverAlt: 'Illustration of an AI workflow pausing for review and routing work across time zones'
+draft: false
+---
+
+Review latency is an operating constraint, not a model setting.
+
+When I taught product managers to move from writing specifications to building and shipping products, the failure was usually not the model. Nobody could say what done meant. ([Marius Manolachi's AI teaching work](https://mariusmanolachi.com/learn-ai))
+
+That problem gets sharper when the reviewer signs off in another time zone. “Waiting for approval” is not an operating model. It is a state your system must own.
+
+![Illustration of a workflow review envelope moving from an AI task to a durable queue and a time-zone-aware reviewer](/blog/how-to-implement-an-ai-workflow-when-reviewers-work-in-different-time-zones-timezone-review-envelope.webp)
+
+## The benchmark result: durable routing kept the work moving across shifts
+
+In this fixed six-fixture simulation, blocking review completed 6/6 tasks in the same-zone schedule, 5/6 with partial overlap, and 1/6 with non-overlapping shifts. The durable queue completed 6/6 in all three schedules. The queue did not make reviews disappear. It changed what happened when the first reviewer went offline: the state persisted, the role was re-routed, and the context snapshot was refreshed.
+
+The table reports means across six task fixtures. For an unresolved task, wall-clock time ends at the terminal timeout, not at an imaginary completion. Every number comes from `results.csv`; every task row maps to event rows in `raw_event_logs.jsonl`.
+
+| Reviewer schedule | Blocking worker | Durable pause/resume queue |
+| --- | --- | --- |
+| Same zone, 09:00-17:00 UTC | 6/6 complete; 66.667 min mean wall clock; 0 wait; 0 timeouts; 0 stale failures | 6/6 complete; 66.667 min mean wall clock; 0 wait; 0 handoffs |
+| Partial overlap, Europe 08:00-16:00 and Americas 14:00-22:00 | 5/6 complete; 86.667 min mean wall clock; 30 min mean wait; 1 timeout; 1 stale failure; 1 unresolved | 6/6 complete; 66.667 min mean wall clock; 1 handoff; 0 stale failures |
+| Non-overlapping, APAC 00:00-08:00, Europe 08:00-16:00, Americas 16:00-24:00 | 1/6 complete; 160 min mean wall clock to terminal state; 150 min mean wait; 5 timeouts; 4 stale failures; 5 unresolved | 6/6 complete; 68.333 min mean wall clock; 1.667 min mean wait; 1 handoff; 0 stale failures |
+
+This is the sourceable atom: a small, reproducible result another implementation guide could cite instead of repeating that asynchronous work is “better.” The result does not say a queue always wins. It says a single reviewer assignment becomes a failure mode when review can cross the assignment's shift boundary.
+
+## When should an AI workflow block, pause, or continue?
+
+Use a blocking worker only when the review can finish inside the active reviewer's shift and the request can tolerate holding execution for the full review SLA. Use a durable pause/resume state when the review may cross a shift boundary, needs a different qualified role, or must survive a process restart. Continue automatically only when no human approval is required by the action's risk policy.
+
+This split matches the control primitives in the primary sources. The [OpenAI Agents SDK human-in-the-loop model](https://openai.github.io/openai-agents-python/human_in_the_loop/) pauses a run at a sensitive tool call, serializes `RunState`, and resumes it after approval or rejection. The current [Apache Airflow HITL review documentation](https://airflow.apache.org/docs/apache-airflow-providers-common-ai/stable/hitl_review.html) describes a loop that blocks until a terminal action, timeout, or maximum iteration count, and notes that its polling implementation holds a worker slot for the review duration.
+
+The architecture choice is therefore about ownership of waiting:
+
+- A blocking worker owns the process and the reviewer assignment. A shift ending can strand both.
+- A durable queue owns a review record, not a live thread. The worker can stop while the review remains claimable.
+- Automatic continuation owns only the low-risk path. It should not be a hidden fallback for missing human coverage.
+
+![Illustration of a same-zone, partially overlapping, and non-overlapping reviewer schedule with review windows crossing shift boundaries](/blog/how-to-implement-an-ai-workflow-when-reviewers-work-in-different-time-zones-timezone-review-schedules.webp)
+
+## Method, sample, and observed results
+
+The observed results come from a provider-free simulation, not a production benchmark. The artifact is intentionally small enough to inspect: it uses six fixed fixtures with the same review outcomes in every run:
+
+| Fixture | Required role | Risk | Review outcome |
+| --- | --- | --- | --- |
+| Order summary draft | ops | low | approve |
+| Vendor access change proposal | security | high | request changes, approve |
+| Customer refund exception | finance | medium | approve |
+| Policy announcement draft | legal | high | request changes, approve |
+| Sensitive data export request | privacy | high | approve |
+| Vendor onboarding note | ops | low | request changes, approve |
+
+The clock starts at 14:30 UTC. A round must fit inside one reviewer's shift. The blocking architecture keeps the first qualified reviewer. The durable architecture selects the earliest role-qualified reviewer that can finish before the 180-minute review SLA. When a review crosses to another reviewer, the queue emits a handoff and refreshes the context snapshot.
+
+The stale-context test is explicit rather than implied. If a blocking assignment waits more than 90 minutes without a new snapshot, the harness emits `stale_context_failure`. That threshold is a test parameter, not a claim that production context becomes stale at exactly 90 minutes.
+
+The complete runnable artifact includes `workflow_harness.py`, `tasks.json`, `config.json`, `raw_event_logs.jsonl`, `results.csv`, and `aggregate_results.json`. Run it from the harness directory with:
+
+```bash
+python3 workflow_harness.py
+```
+
+The fresh in-job copy reproduced the raw logs, task-level results, and aggregate table byte-for-byte. That check matters because a result table without a rerunnable generator is only a claim about a table.
+
+## What do the timeout and handoff rows tell you?
+
+The partial-overlap failure is narrow. The blocking worker handled the first security review in Europe, received a requested change, then kept the same reviewer assignment. The corrected output became ready after Europe's 16:00 close. The worker reached its 180-minute SLA without a qualified slot, emitted one timeout and one escalation, and left `access_change` unresolved. The durable queue handed the second round to the Americas reviewer at 15:50 UTC and completed it at 16:50 UTC.
+
+The non-overlap run makes the distinction larger. The blocking worker completed only the privacy task, whose role was available in Europe during the initial window. Five other tasks reached terminal timeout. The durable queue used one cross-zone handoff for the security task and completed all six. The result is not that non-overlapping teams have no latency. The durable queue still waited 1.667 minutes on average because one round crossed the 16:00 boundary. The difference is that it waited in a durable state with an owner and a next reviewer.
+
+The [MCP server tools specification](https://modelcontextprotocol.io/specification/draft/server/tools) makes the same boundary explicit from a tool-safety angle: implementations should give a human the ability to deny tool invocations, show what the tool is doing, and prompt for confirmation. It also calls for input validation, timeouts, and audit logging. A reviewer queue that loses the proposal or silently auto-approves after timeout breaks that boundary.
+
+## How should you implement the durable review boundary?
+
+Build the review state around the exact action that needs approval, not around a worker's memory or a growing chat transcript.
+
+1. **Classify the action before the model runs.** Store the effect, target, required reviewer role, risk class, maximum scope, reversal path, and policy version. The model can propose an action. Deterministic policy decides whether review is required.
+2. **Write a review envelope before pausing.** Persist the task ID, workflow version, proposal, evidence references, normalized tool arguments, context snapshot ID, required role, created time, deadline, and current state.
+3. **Pause at the side-effect boundary.** If the action needs approval, stop before the tool call. The OpenAI Agents SDK shows this as an interruption that can be serialized and resumed with `RunState`. Use the same separation even if your orchestration layer is not the SDK.
+4. **Claim by role, not by person.** Find a reviewer with the required role who can finish the round before the deadline. Lease the claim so two reviewers cannot act on the same proposal.
+5. **Refresh context at every handoff.** Revalidate the workflow version, source evidence, target state, policy version, and proposal hash. An approval for an old proposal must not authorize a changed one.
+6. **Treat timeout as a state transition.** Emit `timeout`, `escalation`, and `unresolved_review` events. Do not turn an unavailable reviewer into an implicit approval. Airflow's documented HITL loop exposes timeout and maximum-iteration outcomes for exactly this reason.
+7. **Make the executor verify approval again.** Check the reviewer role, proposal hash, expiry, policy version, and target state immediately before the side effect. Approval is not a substitute for authorization.
+
+A minimal review envelope can look like this:
+
+```json
+{
+  "review_id": "access_change-round-2",
+  "workflow_version": "vendor-access-v3",
+  "proposal_hash": "sha256:...",
+  "required_role": "security",
+  "context_snapshot_id": "snapshot-2026-08-17-1550Z",
+  "deadline": "2026-08-17T17:30:00Z",
+  "state": "queued",
+  "approved_by": null
+}
+```
+
+The version and proposal hash are not decoration. The OpenAI documentation specifically warns that long-running approvals need a version marker so pending state can be deserialized against compatible agent definitions. The executor should apply the same principle to your workflow version and action arguments.
+
+![Illustration of a durable review envelope being claimed, handed off, revalidated, approved, or escalated](/blog/how-to-implement-an-ai-workflow-when-reviewers-work-in-different-time-zones-timezone-review-routing.webp)
+
+## What decision matrix should an operations team use?
+
+Use the following matrix as a first release rule. The thresholds are the harness parameters where stated. The vetoes are safety conditions, not benchmark measurements.
+
+| Route | Choose it when | Threshold or test | Veto |
+| --- | --- | --- | --- |
+| Continue automatically | The action is low consequence, narrow, reversible, and machine-checkable | No human approval required by policy; input and output validation pass | Any external side effect, privileged write, sensitive data exposure, or unresolved policy question |
+| Block synchronously | A short review can finish in the current shift | `review_minutes + correction_minutes × expected_change_rounds <= remaining_shift_minutes`; reviewer wait is within the 180-minute SLA | A likely shift boundary, high-consequence action without a durable record, or a review that needs a different role |
+| Pause durably | The task can outlive the worker or reviewer | Persist the envelope, workflow version, evidence, role, and deadline before pausing | No durable state, no proposal identity, or no way to revalidate the resumed action |
+| Reroute follow-the-sun | Another qualified reviewer can finish the current round before the deadline | Next role-qualified slot starts before the SLA and the context snapshot is refreshed | Role mismatch, expired evidence, changed proposal hash, or no qualified slot |
+| Escalate and leave unresolved | The workflow cannot get qualified human coverage in time | Emit timeout at the SLA, then escalation and unresolved state | Never auto-approve just because the reviewer is unavailable |
+
+Applied to this run, the same-zone schedule passed the blocking test for all six fixtures. The partial-overlap schedule exposed one blocking failure because the second security round crossed Europe's shift boundary. The non-overlap schedule exposed five blocking failures and one durable handoff. The matrix turns those observations into an operating choice without pretending that six fixtures establish a universal SLA.
+
+NIST's [Generative AI Profile](https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence) is useful here as governance context. It is a cross-sector profile for incorporating trustworthiness considerations into design, development, use, and evaluation. It does not choose your queue policy. Your team still has to name the risk owner, reviewer role, evidence, deadline, and veto.
+
+## Limitations and what we still do not know
+
+The benchmark's limitations are its synthetic six-fixture sample, fixed review outcomes, and single-task reviewer capacity. What we still do not know is how the routing behaves with real model revisions, reviewer contention, changing evidence, cost, fatigue, or legal review. The 90-minute stale threshold and 180-minute SLA are there to make the state transitions reproducible.
+
+It also does not prove that a follow-the-sun team is always better than a local team. The same-zone control had no scheduling penalty. A local reviewer wins when the task is short, the risk is bounded, and the review fits the shift. Durable routing earns its complexity when the workflow must survive absence, shift boundaries, restarts, or multiple reviewer roles.
+
+That conclusion is consistent with the narrower finding in a [workflow-oriented asynchronous human-AI collaboration paper](https://arxiv.org/abs/2605.03743), which describes pausing at human checkpoints without halting underlying compute in an HPC setting. The paper is not evidence for this benchmark's numbers. It is a reminder that pausing the workflow does not have to mean keeping the worker alive.
+
+## The implementation decision
+
+Start with your own six representative fixtures and record the same fields this harness records: wall-clock completion, reviewer wait, handoffs, timeout and escalation events, stale-context failures, and unresolved states. If every fixture fits one shift, a blocking worker may be the smaller design. If even one important fixture crosses a boundary, add durable review state before adding more model capability.
+
+If you need help turning a real operating process into a bounded AI pilot that your team can run and improve, [Marius Manolachi's AI consulting and tutoring work](https://mariusmanolachi.com/learn-ai) is the next step. This article belongs in the [AI workflow delivery cluster](/blog/ai-workflow-delivery), alongside the guide to a [queue-backed AI workflow](/blog/how-to-build-a-queue-backed-ai-workflow) and the guide to [human-in-the-loop AI agents](/blog/human-in-the-loop-ai-agents).
