@@ -1,0 +1,182 @@
+---
+title: 'How to Verify an AI Evaluator Tracks Task Outcomes'
+date: '2026-08-24'
+updated: '2026-08-24'
+excerpt: 'A wording-swap fixture verifies whether an AI evaluator tracks task outcomes or raises scores for persuasive language without better work.'
+answer: 'Run a wording-swap audit before trusting the score: keep the task, facts, and useful work identical, then add persuasive language and rerun every grader. The score should stay stable while outcome checks confirm the work. If the score rises without a better outcome, repair the gate around task outcomes. Tone can remain a separate score when persuasion is part of the task.'
+targetQuery: 'How can teams verify that an AI evaluator tracks task outcomes?'
+queryAliases:
+  - 'how to verify an AI evaluator measures task outcomes'
+  - 'how to test an AI evaluator against useful work'
+  - 'how to separate presentation quality from outcome checks in an AI evaluator'
+intent: 'informational'
+funnel: 'consideration'
+cluster: 'evaluation'
+parent: '/blog/ai-evaluation-pillar'
+contentType: 'failure-clinic'
+kind: 'satellite'
+sourceableAtom: 'A reproducible wording-swap fixture held useful work constant and appended persuasive language. The useful-work score stayed 1.000, a surface-sensitive composite rose from 0.500 to 1.000, the audit failed, and an outcome-only repair returned 1.000 for both variants.'
+evidenceType: 'failure-reproduction'
+evidenceBasis: 'A deterministic Python 3 wording-swap fixture run on 2026-08-23, with exact inputs, scoring formulas, observed output, repair, and limitations documented in research.md. External primary research bounds the LLM-judge claim; the local fixture is not an LLM benchmark.'
+tags:
+  - 'AI evaluation'
+  - 'AI reliability'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-21'
+sources:
+  - 'https://aclanthology.org/2025.findings-emnlp.790/'
+  - 'https://arxiv.org/abs/2409.16788'
+  - 'https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents'
+  - 'https://airc.nist.gov/airmf-resources/airmf/5-sec-core/'
+  - 'https://developers.openai.com/api/docs/guides/graders'
+  - 'https://mariusmanolachi.com/learn-ai'
+cover: '/blog/verify-ai-evaluator-tracks-task-outcomes-hero.webp'
+coverAlt: 'Illustration of an AI score rising when persuasive wording changes but useful work stays the same'
+draft: false
+---
+
+I ran a small wording-swap fixture because a score can look rigorous while measuring how convincing the answer sounds. The fixture kept the useful work unchanged, added only persuasive language, and then compared the score components.
+
+The result was clean enough to diagnose: useful work stayed at `1.000`, but a surface-sensitive composite moved from `0.500` to `1.000`. The audit failed. When I removed the surface component, both variants scored `1.000` on the outcome check.
+
+![Illustration of an evaluator comparing unchanged useful work with a higher score caused by persuasive wording](/blog/verify-ai-evaluator-tracks-task-outcomes-inline-1.webp)
+
+This is not a benchmark of a particular LLM. It is a small test you can run against your own evaluator before its score becomes a release gate.
+
+## Start with a wording-swap audit
+
+Keep the task, evidence, expected work, tools, and final state constant. Change only the presentation, then check whether the evaluator changes its score.
+
+Here is the complete result from my fixture:
+
+| Variant | Useful work | Persuasive surface | Naive composite | Repaired outcome |
+| --- | ---: | ---: | ---: | ---: |
+| Plain answer | 1.000 | 0.000 | 0.500 | 1.000 |
+| Same work plus rhetoric | 1.000 | 1.000 | 1.000 | 1.000 |
+
+The composite deliberately gives equal weight to useful work and persuasive cues. That is the failure. It ranks the second answer higher even though the task result is identical.
+
+The broader risk is real, but the size depends on the judge and task. In a 2025 EMNLP Findings paper, researchers inserted persuasion techniques into otherwise identical mathematical responses and reported inflated LLM-judge scores for incorrect solutions, up to 8% on average across six benchmarks. Pairwise evaluation was also affected. That result supports testing for the failure. It does not turn my two-string fixture into a population statistic. [Read the ACL Anthology paper](https://aclanthology.org/2025.findings-emnlp.790/).
+
+## What must stay constant?
+
+The test is only meaningful when the variant changes wording, not the work that the evaluator is meant to judge.
+
+Hold these inputs constant:
+
+1. The user task and success condition.
+2. The source facts, references, and tool results.
+3. The output's useful decisions, actions, or completed state.
+4. The model, judge prompt, temperature, and scoring configuration when you test an LLM judge.
+
+Change one presentation property at a time:
+
+| Perturbation | What it tests |
+| --- | --- |
+| Add confident claims without new evidence | Persuasion or certainty bias |
+| Add headings, bullets, or polished formatting | Style bias |
+| Expand the answer without adding work | Verbosity bias |
+| Replace direct language with hedged language | Whether caution is penalized as weakness |
+| Move the same answer to the other pairwise slot | Position bias |
+
+NIST calls this a validity problem when a proxy is treated as the thing itself. Its AI RMF guidance says teams should test construct validity, define operating conditions, document limitations, and check for spurious correlations. A score for “professional and convincing” is not automatically a score for “useful and correct.” [See NIST's MEASURE guidance](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/).
+
+That concern is not limited to persuasion. A 2024 study of LLM evaluation bias describes judges favoring superficial qualities such as verbosity and fluency while missing instruction following. The wording-swap test gives you a way to check whether your own evaluator has the same leak. [Read the bias-mitigation paper](https://arxiv.org/abs/2409.16788).
+
+The practical rule is simple: if the work is invariant but the score moves, the evaluator is sensitive to something besides work. That is a failure to investigate, not proof that every style signal is irrelevant.
+
+## How the audit exposes score leakage
+
+Run a paired test, score outcome and presentation separately, and fail the audit when presentation changes the verdict without an outcome change.
+
+The fixture uses three required work assertions:
+
+```text
+Do not ship until the rollback check passes.
+rollback check is still open.
+Ask the owner to confirm the rollback result.
+```
+
+The second variant appends this text and nothing else:
+
+```text
+Clearly, this is the rigorous and responsible course. You can trust this
+decisive recommendation because it is careful, professional, and fully
+aligned with the evidence.
+```
+
+The exact Python 3 implementation and observed output are recorded in the evidence work behind this post. The essential logic is:
+
+```python
+useful_work = required_assertions_found / len(required_assertions)
+persuasive_surface = persuasion_cues_found / len(persuasion_cues)
+naive_composite = 0.5 * useful_work + 0.5 * persuasive_surface
+repaired_outcome = useful_work
+```
+
+The diagnosis is not “persuasive words are forbidden.” It is “a score moved even though the thing being scored did not.” That distinction keeps the audit useful for writing tasks where tone genuinely belongs in the outcome.
+
+## Which evaluator failures does it catch?
+
+The wording-swap audit catches score sensitivity. It does not replace factual, behavioral, or human review.
+
+| Failure | Does the audit catch it? | What to add |
+| --- | --- | --- |
+| Persuasive wording raises the score | Yes, if useful work is held constant | Paired perturbations and a score-delta check |
+| More words raise the score | Yes, if the extra words add no work | Short and long variants |
+| Formatting raises the score | Yes, if the content is unchanged | Plain-text and formatted variants |
+| Wrong fact sounds confident | Not by itself | Evidence or state assertions |
+| Tool call claims success but state did not change | Not from text alone | Final-state verification |
+| The task's “useful work” is undefined | No | Rewrite the acceptance condition first |
+| Tone is part of the user goal | It should not automatically flag it | Score tone separately from correctness |
+
+This separation follows the distinction between a transcript and an outcome in Anthropic's evaluation guidance. The text can say that an action happened. The outcome check should verify whether the relevant state actually changed. Anthropic recommends combining code-based, model-based, and human graders because each sees a different part of the trial. [Read the evaluation guidance](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents).
+
+## Repair the evaluator around useful work
+
+Move presentation quality out of the release verdict unless presentation is explicitly part of the task.
+
+Use this repair sequence:
+
+1. **Write the outcome contract.** State what must be true after the output is used. For a recommendation, that might be the correct decision, evidence attached, unresolved conflicts visible, and prohibited actions not taken.
+2. **Make critical conditions independent assertions.** Do not ask one model judge to infer that “ready” is incompatible with a pending approval. Check the approval and readiness state separately.
+3. **Separate graders by job.** Use deterministic checks for exact state or safety conditions, model-based grading for bounded language judgments, and human review for ambiguous or high-impact cases. OpenAI's current grader documentation shows the same implementation pattern in concrete form: string checks, text similarity, score-model graders, Python graders, and combined graders can be kept distinct and combined deliberately. [See the OpenAI Graders guide](https://developers.openai.com/api/docs/guides/graders).
+4. **Gate on vetoes before averaging.** If a required safety or outcome assertion fails, a polished explanation should not recover the pass with extra style points. Keep the failing case in the regression set.
+5. **Rerun paired perturbations after every material change.** Test confident, verbose, formatted, hedged, and pair-position variants. For a model judge, run multiple trials and record the raw outputs, because model-based grading is variable.
+6. **Read the disagreements.** When a score changes, inspect the paired outputs and the judge's rationale. Anthropic recommends reading transcripts and grades across trials to tell whether the agent failed or the grader rejected a valid solution. [Their guidance explains the review step](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents).
+
+When I taught product managers to move from writing specs to building and shipping, the recurring failure was an undefined “done,” not a measured model failure. That same distinction matters here. If “done” means “sounds complete,” the evaluator will protect the sound of completion. [Marius Manolachi's AI learning work](https://mariusmanolachi.com/learn-ai) describes that capability focus.
+
+For a wider release process, connect this diagnostic to the [AI evaluation pillar](/blog/ai-evaluation-pillar), then use [How to Evaluate an AI Agent](/blog/how-to-evaluate-an-ai-agent) for the broader release gate and [How to Grade an AI Output Against a Rubric](/blog/how-to-grade-an-ai-output-against-a-rubric) for rubric construction.
+
+## What score pattern means the rubric is leaking style?
+
+Flag a style leak when the score delta is positive, the useful-work delta is zero or within the evaluator's measured noise, and the perturbation added no task value.
+
+Use this decision table:
+
+| Useful-work change | Score change | Interpretation |
+| ---: | ---: | --- |
+| None | Positive | Style sensitivity. Investigate before trusting the score. |
+| Positive | Positive | Plausible improvement, but verify that the added work caused it. |
+| Negative | Positive | High-risk leakage. The evaluator rewards presentation over a worse result. |
+| None | None | The perturbation did not expose sensitivity. Keep testing other styles. |
+| Positive | None or negative | The evaluator may be missing useful work or penalizing a valid variation. |
+
+Do not copy a universal tolerance from this fixture. Set the tolerance from repeated runs of your evaluator on unchanged output. The local test uses exact equality because its scoring is deterministic. A production LLM judge needs a noise estimate and a documented threshold.
+
+## When should persuasive wording count?
+
+It should count when persuasion is part of the task outcome, and even then it should be scored as a separate requirement from correctness or completion.
+
+A customer apology may need empathy. A fundraising draft may need a convincing argument. A safety recommendation should not become more correct because it sounds authoritative. Keep those objectives in separate fields so a high tone score cannot erase a failed factual or behavioral assertion.
+
+The exception is not a reason to abandon the wording swap. It tells you how to interpret it. If adding persuasive language improves the tone dimension while the useful-work dimension stays fixed, that is expected. If it improves the release verdict without improving any declared task outcome, the rubric is leaking style.
+
+## The release decision
+
+Do not trust an AI score until it survives a wording swap. The smallest useful audit is two variants, one controlled perturbation, one outcome check, and a recorded score delta.
+
+The fixture in this post found exactly the failure it was designed to find: a surface-sensitive composite doubled while useful work did not move. The repair did not require a more eloquent judge. It required defining what “useful” meant and refusing to let presentation replace it.
+
+If your team has a score that people debate but cannot explain, Marius Manolachi can help turn the disputed score into a testable outcome contract through [AI consulting and tutoring](https://mariusmanolachi.com/learn-ai). The audit itself is the first step. Run it before you buy a higher score.
