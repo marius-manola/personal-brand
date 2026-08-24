@@ -31,6 +31,7 @@ function PostCover({ post, className, priority = false }: { post: BlogPost; clas
 
 export default async function BlogPage() {
   const posts = await getAllBlogPosts();
+  const postCountLabel = `${posts.length} published ${posts.length === 1 ? 'post' : 'posts'}`;
 
   return (
     <div className="blog-shell">
@@ -43,6 +44,7 @@ export default async function BlogPage() {
           <p>Field notes for people shipping AI</p>
           <h1>Useful before<br />it is impressive.</h1>
           <span>Evidence, decisions, failures, and build notes for small teams.</span>
+          <strong className="blog-post-count">{postCountLabel}</strong>
         </section>
 
         {posts[0] && (
@@ -95,6 +97,7 @@ export default async function BlogPage() {
           <Link href="/" className="blog-kicker">Marius Manolachi</Link>
           <h1 className="blog-title">Blog</h1>
           <p className="blog-intro">Notes on building, learning, and technology.</p>
+          <strong className="blog-post-count">{postCountLabel}</strong>
         </header>
 
         <nav className="blog-cluster-nav" aria-label="Browse by topic">
