@@ -1,0 +1,233 @@
+---
+title: "How to Test a Versioned Policy Update in an AI Workflow"
+date: "2026-08-24"
+updated: "2026-08-24"
+excerpt: "A 20-case harness compares embedded policy logic with a versioned policy layer across thresholds, exceptions, permissions, and approvals."
+answer: "Test a versioned policy update against an unchanged workflow baseline using the same inputs, model proposal, evaluator, and expected outcomes. Include threshold, exception, permission, approval, boundary, negative, and unchanged cases, then compare action, regression, trace completeness, and changed components. Keep the update in the policy artifact only when all cases pass. If inputs, state transitions, or the decision schema change, rebuild the affected workflow mechanism."
+targetQuery: "how to test a versioned policy update in an AI workflow"
+queryAliases:
+  - "policy version regression case set"
+  - "policy update approval trace test"
+  - "test policy version rollback compatibility"
+intent: "informational"
+funnel: "consideration"
+cluster: "architecture"
+parent: "/blog/ai-architecture-tradeoffs"
+contentType: "original-research"
+kind: "flagship"
+sourceableAtom: "In a pinned 20-case harness, a separate versioned policy layer passed 20/20 compliance, workflow-regression, and approval-trace checks with 1.0 changed components per non-baseline policy version, while the embedded control passed 18/20, 15/20, and 17/20 with 1.75 changed components."
+evidenceType: "measured experiment plus reusable decision artifact"
+evidenceBasis: "Dependency-free Python 3.9.6 harness with 20 versioned refund-policy cases, identical deterministic model outputs, shared evaluator, raw JSONL logs, result summaries, and a rerun that reproduced the headline fields."
+tags:
+  - "AI architecture"
+  - "policy as code"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://www.openpolicyagent.org/docs"
+  - "https://airc.nist.gov/airmf-resources/airmf/5-sec-core/"
+  - "https://docs.prefect.io/v3/concepts/blocks"
+  - "https://docs.prefect.io/v3/how-to-guides/deployments/versioning"
+  - "https://arxiv.org/abs/2608.19861"
+  - "https://arxiv.org/abs/2602.16708"
+faq:
+  - q: "Do I need OPA to separate policy from workflow enforcement?"
+    a: "No. OPA is a useful baseline for the interface: structured input, a policy decision, and enforcement in the workflow. You can implement that boundary locally first, then adopt a policy engine when shared governance, language tooling, or cross-service enforcement justifies it."
+  - q: "Which policy changes still require a workflow rebuild?"
+    a: "Changes to the workflow sequence, tool contract, state machine, data shape, or side-effect semantics still require workflow work. A separate policy layer helps when the mechanism stays the same and only decision inputs or approval conditions change."
+  - q: "How many policy-change cases should I test first?"
+    a: "Start with one case for each change family your workflow expects: threshold, exception, permission, approval, and an unchanged baseline. Add boundary and negative cases before treating the result as a release gate."
+cover: "/blog/test-versioned-policy-update-ai-workflow-policy-layer-hero.webp"
+coverAlt: "Illustration of a versioned policy layer directing an AI workflow through a decision boundary"
+draft: false
+---
+
+![Illustration of a versioned policy layer between an AI workflow and its enforcement tools](/blog/test-versioned-policy-update-ai-workflow-policy-case-matrix.webp)
+
+Most workflow rewrites start with a small sentence from legal, operations, or a product owner: “The rule changed.” The threshold is lower. One customer type is different. A role is no longer allowed. Every approval now needs a reason.
+
+If that sentence changes the workflow's mechanism, you need a rebuild. If it changes the decision the mechanism must make, keep the mechanism stable and change a versioned policy layer instead.
+
+I tested that distinction with a small refund-request workflow. The result is bounded, but useful: the separate policy design passed every case and touched one component per non-baseline policy version. The embedded control passed fewer cases and touched more components.
+
+## The measured result: separate the decision when the mechanism stays stable
+
+In the 20-case harness, the separate policy layer passed 20/20 policy-compliance checks, 20/20 workflow-regression checks, and 20/20 approval-trace checks. The embedded control passed 18/20, 15/20, and 17/20. The average non-baseline change surface was 1.00 component for the separate design and 1.75 for the embedded design.
+
+| Design | Policy compliance | Workflow regression | Approval trace | Changed components per non-baseline version | Mean local latency | External model cost |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Separate, versioned policy layer | 20/20, 100% | 20/20, 100% | 20/20, 100% | 1.00 | 0.004446 ms | $0.0000 |
+| Embedded policy control | 18/20, 90% | 15/20, 75% | 17/20, 85% | 1.75 | 0.002896 ms | $0.0000 |
+
+This is the page's sourceable result. It comes from the job's pinned harness, not from a client system or a vendor benchmark. The local latency numbers are included for completeness, not as a meaningful speed claim. The fixture model ran locally, so external model cost was zero and both designs used the same 743 input tokens and 334 output tokens across the case set.
+
+The rerun reproduced the headline fields: case count, pass counts, rates, changed-component averages, token totals, and external cost. Wall-clock latency moved between runs, which is normal for a local process.
+
+## What counts as a policy change?
+
+A policy change alters what the workflow may do, when it must ask for approval, or which facts make an action acceptable. It does not necessarily alter the workflow's sequence or tool contract.
+
+The first useful design move is to classify the change before opening the workflow code.
+
+| Change family | Example | Policy-layer candidate? | What must stay true |
+| --- | --- | --- | --- |
+| Threshold | Auto-refund limit moves from 100 to 50 | Yes | The workflow already knows how to issue or escalate a refund |
+| New exception | Enterprise accounts can use a higher limit | Yes | Account tier is already present in the decision input |
+| Revoked permission | Support may no longer issue refunds | Usually | Enforcement checks the policy result before the side effect |
+| Approval requirement | Amounts above 25 need a finance-manager approval and reason | Usually | The workflow already supports pause, approval, resume, and trace output |
+| Mechanism change | A new tool, state, or data contract is required | No | The workflow itself must change and receive a new regression suite |
+
+The last row is the veto. A policy layer cannot conjure a missing state transition or a missing field. It can decide that an action is not allowed, but it cannot safely implement a new multi-step process that the workflow does not understand.
+
+## Why separate policy decisions from enforcement?
+
+The boundary is simple: the policy component answers “what is allowed here?” The workflow answers “what do I do with that decision?”
+
+[Open Policy Agent's documentation](https://www.openpolicyagent.org/docs) makes this split explicit. OPA accepts structured input, evaluates policy and data, and returns a policy decision that software can enforce. Its decisions can be structured outputs rather than only allow or deny. That is the useful baseline for an AI workflow: keep the rule evaluation independent from the code that calls a model, reads a tool result, waits for approval, or performs a side effect.
+
+The separation is not only a code-organization preference. It gives the policy a version, an input contract, a test surface, and an audit point. [NIST's AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/) treats governance as cross-cutting and says documentation can support transparency, human review, and accountability. Those concerns become easier to inspect when the policy decision and enforcement trace are visible as separate records.
+
+I keep that distinction close to the product when I build TryUncle, an AI agent that watches the screen and annotates it live. Latency and human approval are product constraints, not notes to add after the agent works. The same applies here: a policy decision is only useful if the workflow can enforce it and leave a complete trace.
+
+## Method and sample: how the harness compared the two designs
+
+The sample was n = 20 versioned cases across one refund-request workflow. The test compares two designs with the same inputs, deterministic model proposal, evaluator, and expected outcomes.
+
+The test uses one small representative workflow: a refund request that may be issued, denied, or held for approval.
+
+The fixture model is deliberately deterministic. It proposes `issue_refund` for a verified request and `deny` for an unverified request. It does not read policy. That makes the test about policy adaptation and enforcement, not about whether a language model happened to reason correctly on a prompt.
+
+Both designs receive the same:
+
+- request input, including amount, account tier, requester role, verification state, and optional approval;
+- fixture-model proposal;
+- policy version;
+- evaluator and expected outcome;
+- local Python runtime.
+
+The separate implementation has a fixed workflow mechanism. It loads one of five versioned JSON policies and calls a decision function before the refund side effect. The embedded implementation carries policy branches in workflow behavior and records the components changed for each version.
+
+The policy versions are intentionally small:
+
+1. `v1` establishes a 100-unit threshold, verified requests, support and finance roles, and manager approval.
+2. `v2` lowers the threshold to 50.
+3. `v3` adds an enterprise exception up to 250.
+4. `v4` revokes the support role.
+5. `v5` requires finance-manager approval above 25 and adds an approval-reason field to the trace.
+
+Each version has four cases. The set includes boundaries, negative inputs, approved paths, and unchanged behavior around the new rule. The raw cases, policies, workflow definitions, evaluator, and logs are part of the evidence package in the job harness.
+
+## What the failure traces show
+
+The embedded control did not fail because embedded rules are always wrong. It failed because each change had to be carried into the places where the workflow had copied the rule.
+
+| Case | Change | Embedded output | Expected output | Failure type |
+| --- | --- | --- | --- | --- |
+| `v3-01` | Enterprise exception | Request approval | Issue refund | New exception missed in the decision branch |
+| `v3-04` | Enterprise exception at the boundary | Request approval | Issue refund | Same copied branch misses the exception limit |
+| `v5-01` | New approval requirement | Request approval, trace lacks new field | Request approval with complete trace | Approval trace contract incomplete |
+| `v5-02` | New approval requirement | Issue refund, trace lacks reason | Issue refund with reason | Completed approval is not fully auditable |
+| `v5-03` | New approval requirement | Request approval, trace lacks new field | Request approval with complete trace | Pending approval trace contract incomplete |
+
+The revoked-permission cases happened to pass in this fixture because the embedded control's direct denial branch covered the no-approval path. That is a useful warning about small test sets: a change can look safe because the obvious case passes while a neighboring branch is still unexamined. The case set needs both direct and post-approval permission cases.
+
+The separate design kept one decision boundary. The policy version changed, but the mechanism that turned `deny`, `request_approval`, or `issue_refund` into workflow behavior did not. That is the measured reason its change surface stayed at one policy component per non-baseline version.
+
+## When should you separate the policy layer?
+
+Separate policy decisions from workflow enforcement when the rule changes more often than the workflow mechanism and the required facts already exist at the decision boundary.
+
+Use this decision matrix before adding a policy service or policy package:
+
+| Question | If yes | If no |
+| --- | --- | --- |
+| Does the change alter a threshold, exception, permission, or approval condition? | Continue evaluating separation | Treat it as a workflow change |
+| Can the workflow provide every fact the rule needs? | Continue evaluating separation | Extend the input contract or rebuild the workflow |
+| Can enforcement apply allow, deny, or approval without changing state transitions? | Continue evaluating separation | Change the mechanism first |
+| Do multiple workflows or teams need the same rule? | A shared policy layer becomes more justified | A local policy module may be enough |
+| Can you version, test, roll back, and trace the policy decision? | Separate the decision from enforcement | Add those controls before separating |
+
+My practical rule is: parameterize first, separate second, rebuild when the mechanism changes.
+
+Parameterization is enough when one workflow owns a small set of stable rules and the change is a value update. A separate layer earns its complexity when policy updates cross workflow boundaries, require independent review, or repeatedly cause edits in multiple enforcement steps. This is an inference from the harness and the cited design patterns, not a universal threshold.
+
+## How to implement the boundary without making the system harder to operate
+
+Start with a narrow interface. The policy decision should receive a typed, versioned input and return a structured decision that the workflow can enforce.
+
+```text
+decision = policy.evaluate({
+  request_id,
+  account_tier,
+  amount,
+  requester_role,
+  verified,
+  approval
+}, policy_version)
+
+workflow.enforce(decision)
+```
+
+The enforcement step should own side effects. The policy should not send the refund, call the customer, or mutate workflow state. It should say what is allowed and what approval is required. The workflow should record the policy version, input identity, decision, required approver, approval identity, and any new trace fields.
+
+Typed configuration systems illustrate the same operational idea. [Prefect's Blocks documentation](https://docs.prefect.io/v3/concepts/blocks) describes typed configuration that can be shared across workflows and changed without redeploying every workflow that relies on it. [Prefect's deployment versioning documentation](https://docs.prefect.io/v3/how-to-guides/deployments/versioning) describes version history and rollback for deployment configuration. Those features do not prove that your policy layer will work, but they show the operational controls the boundary needs: explicit versions, controlled change, and rollback.
+
+Use this implementation sequence:
+
+1. Extract the rule from the workflow step without changing the decision semantics.
+2. Define the policy input contract from facts already available at enforcement time.
+3. Return a structured decision with an explicit policy version.
+4. Keep the side effect in the workflow and make the enforcement branch testable.
+5. Add one unchanged baseline case before adding a policy-change case.
+6. Add threshold, exception, permission, approval, boundary, and negative cases.
+7. Compare the new policy version against the old version and inspect both action and trace changes.
+8. Roll back the policy artifact independently only if the workflow can safely consume both versions.
+
+That last step matters. A rollback is not safe if the new policy returns fields the old workflow cannot parse. Version the policy and the decision schema together when the output contract changes.
+
+## Limitations: what this test does not prove
+
+The experiment is intentionally small. It does not prove that a separate policy service is faster, cheaper, or safer in every production system.
+
+It does not measure:
+
+- language-model output quality or prompt-injection resistance;
+- policy authoring time or review effort;
+- network, service, or deployment latency;
+- provider billing, because the fixture model is local;
+- concurrency, retries, partial failure, or human queue time;
+- how a real policy engine handles contradictory or ambiguous rules;
+- whether the embedded control would fail at the same points in another codebase.
+
+The two recent agent-policy papers in the research package make a related but different contribution. [PolicyGuide](https://arxiv.org/abs/2608.19861) reports a workflow-level verifier and a benchmark result from its own evaluation. [FORGE](https://arxiv.org/abs/2602.16708) frames policy enforcement as independent of agent reasoning and evaluates approval workflows among its case studies. They support the relevance of a separate policy and enforcement concern. They do not answer this article's narrower question about rebuild scope and regression across policy changes.
+
+The safe conclusion is bounded: in this harness, the separate policy boundary localized the tested policy edits and avoided the embedded control's observed branch and trace failures. Applying that conclusion to your workflow is an inference. Run the same change taxonomy against your own inputs, tools, approval paths, and rollback constraints.
+
+## A reusable release gate for policy changes
+
+Before shipping a rule update, require four artifacts:
+
+1. The old and new policy versions.
+2. A case set with expected decisions, including unchanged and boundary behavior.
+3. A diff of the decision and enforcement components.
+4. A trace review showing policy version, decision, approval state, and side-effect outcome.
+
+Then make the architecture decision from the result:
+
+| Test outcome | Decision |
+| --- | --- |
+| Only policy artifact changes, all cases pass, trace contract is stable | Keep the separate policy layer |
+| Policy artifact changes but the workflow input is missing a fact | Extend the input contract before separating further |
+| Policy update changes the state machine or tool contract | Rebuild the affected workflow mechanism |
+| Multiple copied branches change together or one branch fails | Separate the policy decision and add a regression case for the missed branch |
+| Policy output shape changes | Version the decision schema with the policy and test rollback |
+
+This is the practical artifact to carry into an architecture review. It prevents “put it in policy” from becoming a reflex. The layer is justified when it keeps a changing decision independent from a stable mechanism, and the test proves that the boundary is real.
+
+If your team is deciding between a workflow, an agent, or a shared policy service, start with the broader [AI architecture tradeoffs](/blog/ai-architecture-tradeoffs), then use the [change-scenario comparison](/blog/compare-ai-architectures-change-scenario-test) to choose cases. The [two-sources-of-truth architecture guide](/blog/ai-architecture-two-sources-of-truth) is the useful follow-up when the policy and workflow begin to disagree.
+
+Marius Manolachi helps teams become capable of building AI products on their own work. If this test exposes a design decision your team cannot yet own, the next useful step is a small, runnable change-case suite, not a larger diagram. You can learn more about that capability-building approach on [/learn-ai](/learn-ai).
+
+![Illustration of four policy-change cases flowing through a shared evaluator](/blog/test-versioned-policy-update-ai-workflow-approval-trace.webp)
+
+![Illustration of an approval trace showing policy version, decision, and human approval fields](/blog/test-versioned-policy-update-ai-workflow-decision-enforcement-boundary.webp)
