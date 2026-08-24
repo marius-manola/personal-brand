@@ -1,0 +1,207 @@
+---
+title: 'Should an Internal AI Assistant Use Retrieval, Tools, or Both?'
+date: '2026-08-24'
+updated: '2026-08-24'
+excerpt: 'Use retrieval for approved knowledge, tools for live state, and both when one answer must join policy evidence to a current system result.'
+answer: 'Use retrieval for approved, mostly static knowledge and tools for live structured data or controlled actions. Use both when the assistant must apply policy or documents to current system state, compare sources, or prepare an action. The principal exception is an unclear permission or conflict rule: keep the assistant read-only and abstain until the boundary is defined.'
+targetQuery: 'should an internal ai assistant use retrieval tools or both'
+queryAliases:
+  - 'internal AI assistant retrieval versus tools'
+  - 'should an internal AI assistant use RAG and tools'
+  - 'retrieval and tools for internal AI assistant'
+intent: 'architecture decision'
+funnel: 'consideration'
+cluster: 'architecture'
+parent: '/blog/ai-architecture-pillar'
+contentType: 'failure-clinic'
+kind: 'satellite'
+sourceableAtom: 'In a six-case deterministic fixture, retrieval-only and tool-only assistants each passed 1/6 cases, while a combined retrieval-plus-tool assistant passed all 6 by handling policy-only, live-state, cross-source, conflict, and draft-action cases.'
+evidenceType: 'reproduction-trace'
+evidenceBasis: 'A Node.js v20.11.0 deterministic six-case fixture was run on 2026-08-23. It compared retrieval-only, tool-only, and combined capability configurations against fixed safe outcomes. The observed 1/6, 1/6, and 6/6 results are a bounded test-double reproduction, not an LLM benchmark.'
+tags:
+  - 'AI architecture'
+  - 'RAG'
+  - 'AI agents'
+  - 'Internal AI'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-21'
+sources:
+  - 'https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/rag/rag-agentic'
+  - 'https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/rag/rag-solution-design-and-evaluation-guide'
+  - 'https://platform.claude.com/docs/en/agents-and-tools/tool-use/overview'
+  - 'https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/'
+  - 'https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/secure-multitenant-rag'
+  - 'https://www.mariusmanolachi.com/blog/should-i-use-rag-or-an-ai-agent-for-internal-knowledge'
+faq:
+  - q: 'Can tools replace retrieval for an internal assistant?'
+    a: 'Only when the answer lives in a current structured system or the tool performs a deterministic operation. A tool cannot supply approved policy text unless that policy is exposed through a governed retrieval or data interface.'
+  - q: 'Should the first internal assistant have write tools?'
+    a: 'Usually no. Start read-only or draft-only, show the evidence and exact proposed change, and require approval for consequential actions. Add a write tool only after the read path and stop conditions pass evaluation.'
+  - q: 'Is using both retrieval and tools always better?'
+    a: 'No. Both is justified only when the request needs both kinds of evidence or a bounded action. Extra interfaces add permission, evaluation, and failure surfaces when a single approved retrieval or data query already answers the question.'
+cover: '/blog/should-an-internal-ai-assistant-use-retrieval-tools-or-both-hero.webp'
+coverAlt: 'Illustration of an internal AI assistant choosing between approved retrieval, live tools, or a combined evidence path'
+draft: false
+---
+
+When I taught product managers who moved from writing specs to building and shipping, I saw the same failure that appears in internal assistants: the team picked a component before defining what the system had to know and what it had to check.
+
+That mistake is easy to spot when a policy answer is stale or a live record is missing. It is harder when the assistant sounds confident.
+
+**Observed result:** in a six-case deterministic fixture, retrieval-only and tool-only assistants each passed 1/6 cases. A combined retrieval-plus-tool assistant passed all 6, including a source conflict and a draft action that had to stop for approval. This is a test-double reproduction, not an LLM benchmark.
+
+![Illustration of an internal assistant routing a request to approved retrieval, a live data tool, or both with a conflict and approval stop path](/blog/should-an-internal-ai-assistant-use-retrieval-tools-or-both-inline-1.webp)
+
+## What failed in the single-interface design?
+
+Retrieval and tools expose different kinds of evidence. Retrieval is a way to bring approved documents or indexed knowledge into context. A tool is an executable interface to a current data source, calculation, or external action. If one request needs both, either single-interface design must guess, omit evidence, or quietly use stale information. [Microsoft describes standard RAG as a fixed single-search path and agentic RAG as retrieval exposed to a reasoning loop that can select and evaluate tools.](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/rag/rag-agentic)
+
+The failure usually looks like this:
+
+```text
+employee question
+  -> policy retrieval only
+  -> no current record
+  -> confident answer from incomplete evidence
+```
+
+Or this:
+
+```text
+employee question
+  -> live record tool only
+  -> no approved policy rule
+  -> current number without the rule that gives it meaning
+```
+
+The repair is not “give the model more context.” First identify the evidence types the request needs. Then expose only the interfaces that satisfy those needs, with a stop rule when the sources disagree.
+
+The broader [AI architecture pillar](/blog/ai-architecture-pillar) is the right place for the cluster-level map. The existing [RAG versus AI agent guide](/blog/should-i-use-rag-or-an-ai-agent-for-internal-knowledge) covers the broader choice among standard RAG, fixed workflows, and agents. This page focuses on the failure trace you can run before committing to one path.
+
+## When is retrieval enough?
+
+Use retrieval alone when the answer should come from an approved corpus, the question normally resolves in one search, and the assistant has no need to inspect live structured state or change an external system. A current travel policy, an incident runbook, or a product handbook can fit this shape.
+
+| Retrieval-only signal | What to require |
+| --- | --- |
+| One source boundary | Name the repository or index and its owner |
+| Read-only answer | Return citations and source metadata |
+| Stable search path | Retrieve, assemble context, answer or abstain |
+| No live fact required | Do not infer current state from a document |
+| No side effect | Keep action tools out of the first release |
+
+Microsoft's RAG design guidance says standard RAG works well when a query maps to a single search against a single index, and recommends evaluating retrieval separately from end-to-end language-model quality. That gives you a small release boundary: test whether the answer-bearing passage arrived, then test whether the answer stayed grounded in it. ([Microsoft RAG design and evaluation guide](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/rag/rag-solution-design-and-evaluation-guide))
+
+The failure condition is not a large document collection. It is missing evidence. If the user asks, “What does the policy require?” and the indexed source is authoritative, retrieval may be all you need. If the user asks, “Am I eligible today under that policy?” the policy alone may not contain the live fact that decides the answer.
+
+Keep the assistant read-only when the corpus is unclear, stale, or permission filtering is not proven. Microsoft's secure multitenant RAG guidance says authorization context and filters must be applied to each retrieval request before grounding data reaches the model, including when an agent retrieves data during its execution loop. ([Microsoft secure multitenant RAG guidance](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/secure-multitenant-rag))
+
+## When are tools enough?
+
+Use tools alone when the answer lives in current structured state or a deterministic operation. “What is the balance in cost center 14?” may need a data query. “Convert this amount using the approved exchange-rate service” may need a calculation or API tool. Neither job needs a policy corpus if the tool contract already contains the complete business rule.
+
+Tools are not a synonym for agents. A tool can be called from a fixed workflow, a normal application, or an agent. Anthropic's tool-use documentation describes a structured call that the application executes for client tools and then returns as a tool result. The application still owns the execution boundary. ([Claude tool-use overview](https://platform.claude.com/docs/en/agents-and-tools/tool-use/overview))
+
+Before choosing tools alone, check four things:
+
+1. The tool response contains all facts required for the answer.
+2. The tool's schema exposes the identity and scope needed for authorization.
+3. The operation is read-only or has an explicit approval boundary.
+4. The result can be validated outside the model.
+
+The common failure is a tool that returns a current number without the rule, label, or effective date that explains it. A payroll tool can return a balance. It cannot decide whether a policy exception applies unless that rule is part of its governed contract or another evidence source is available.
+
+## When does the assistant need both?
+
+Use both when the request joins approved knowledge to current state, when one result determines the next lookup, or when evidence must be gathered before preparing a controlled action. Microsoft lists multistep reasoning, dynamic source selection, query decomposition, iterative refinement, and action plus retrieval as cases where agentic RAG can add value beyond a fixed pipeline. ([Microsoft agentic RAG guidance](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/rag/rag-agentic))
+
+The smallest combined path is often a fixed workflow, not a fully autonomous agent:
+
+```text
+question
+  -> authorize user and source scope
+  -> retrieve the governing policy
+  -> query the live record if the policy requires it
+  -> compare evidence and effective dates
+  -> answer, abstain, or prepare a draft
+```
+
+Let the model choose the next tool only when the next lookup genuinely depends on the previous result. If the sequence is always the same, write the sequence in code and use the model for classification, extraction, or drafting. If the source choice changes with the evidence, a bounded agent can earn its place.
+
+The combined path needs explicit source precedence. If the policy says a reimbursement must be filed within 30 days and the live record says the request is 45 days old, the assistant should not hide the conflict behind a yes or no. It should return the supporting source metadata, state the conflict, and route the decision to the owner.
+
+Data and action tools also need separate boundaries. OpenAI's agent guide distinguishes data tools that gather context from action tools that change external systems, and recommends guardrails that account for access, reversibility, and impact. ([OpenAI practical guide to building agents](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/))
+
+## How can you reproduce the architecture failure?
+
+Run the same six cases against three capability configurations. The point is not to prove that one model is better. The point is to make an architectural omission visible before a vendor demo hides it.
+
+| Case | What the request needs | Correct safe disposition |
+| --- | --- | --- |
+| Policy answer | Approved policy retrieval | Answer with evidence |
+| Live lookup | Current structured tool result | Answer from the tool result |
+| Policy plus live | Policy and current record | Join both before answering |
+| Conditional follow-up | First result selects the next lookup | Use both in a bounded sequence |
+| Source conflict | Policy and live state disagree | Abstain and surface the conflict |
+| Draft action | Evidence plus a proposed side effect | Draft and wait for approval |
+
+The deterministic fixture in [the research artifact](#how-does-the-reproduction-result-support-the-decision) treats a case as passed only when the configuration has the required capabilities and returns the expected safe disposition. It is intentionally small enough to copy into a scratch terminal and replace with your own cases.
+
+## What did the reproduction show?
+
+The result is the useful part of the failure clinic:
+
+| Configuration | Passed | What it could handle |
+| --- | ---: | --- |
+| Retrieval only | 1/6 | The policy-only case |
+| Tool only | 1/6 | The live-state case |
+| Both | 6/6 | Single-source answers, cross-source checks, conflict handling, and approval-gated drafting |
+
+The combined configuration did not “win” because more components are always better. It passed because four of the six cases were deliberately cross-source or control-boundary cases. The first two cases still show why adding both interfaces to every request is wasteful.
+
+This is the decision rule to carry into your own fixture:
+
+> Add retrieval when the assistant must ground an answer in approved unstructured knowledge. Add a data tool when the answer depends on current structured state. Use both when the request must join those facts or gather evidence before a controlled action. If the permission or conflict rule is undefined, stop and keep the system read-only.
+
+## How does the reproduction result support the decision?
+
+The test double held the expected outcomes fixed and varied only the available capability set. Retrieval-only could answer `policy-answer`, but it could not perform `live-lookup`, join `policy-plus-live`, detect `source-conflict`, or prepare `draft-action`. Tool-only showed the mirror failure. The combined configuration satisfied all six expected dispositions.
+
+The artifact does not test a language model. It tests whether the architecture has an interface for each required evidence type and a safe response when the evidence is inconsistent. That is why the result belongs near the top of this article but should not be advertised as a production success rate.
+
+For a production fixture, replace the synthetic cases with redacted questions and record the fields that Microsoft recommends tracking during RAG evaluation: expected evidence, retrieval results, answer quality, experiment settings, and aggregated results. ([Microsoft RAG design and evaluation guide](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/rag/rag-solution-design-and-evaluation-guide))
+
+## How should you repair a combined assistant?
+
+Repair the boundary before tuning the model.
+
+1. **Name each source.** Write down the policy repository, live system, owner, effective-date rule, and allowed user scope.
+2. **Split read tools from action tools.** A retrieval or record lookup should not inherit permission to send, create, or update.
+3. **Carry identity into every call.** Apply authorization before retrieved content becomes model context, and pass the same user scope to live data tools.
+4. **Define the conflict path.** Return both source identifiers, stop the decision, and name the human or system that resolves the disagreement.
+5. **Make the first side effect a draft.** Show the exact target, payload, evidence, and approval requirement before enabling a write.
+6. **Set a run boundary.** Limit tool calls, define a timeout, and stop on missing fields, permission failure, malformed results, or unresolved conflict.
+
+Anthropic's documentation makes the execution round trip explicit: the model produces a structured tool call, the application executes it, and the application returns the result. That means the application can validate identity, schema, and action eligibility outside the model. ([Claude tool-use overview](https://platform.claude.com/docs/en/agents-and-tools/tool-use/overview))
+
+If the sequence is fixed, keep these checks in a workflow. If the assistant must select a source or refine the next search based on intermediate evidence, expose only the smallest set of retrieval and data tools needed for that branch. Microsoft also recommends iteration limits for agentic RAG so an investigation does not become an unbounded loop. ([Microsoft agentic RAG guidance](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/rag/rag-agentic))
+
+## How do you verify the repair before production?
+
+Rerun the original six cases, then add cases that attack the boundary you just repaired.
+
+- A policy question whose answer is not in the approved corpus. Expected: abstain.
+- A live record with a missing required field. Expected: stop and report the missing field.
+- A user who should not see the retrieved document. Expected: filtered result or denial before context assembly.
+- A stale policy and a newer live record. Expected: explicit effective-date handling, not silent selection.
+- A tool timeout after retrieval succeeded. Expected: known retry or escalation path.
+- A draft request with an exact target but no approval. Expected: draft only, no write.
+- A retrieved document containing instructions aimed at the model. Expected: treat it as data, not authority.
+
+Do not grade only the final sentence. Save the user scope, retrieved source IDs, context sent to the model, tool names and arguments, tool results, conflict state, stop reason, and approval record. Microsoft's evaluation guidance separates retrieval and end-to-end response checks because a relevant passage can still produce a poor answer, while a fluent answer can hide a bad retrieval path.
+
+The first release should be smaller than the architecture diagram suggests. Start with one source boundary and one live read tool if a real request needs both. Add a draft tool after the read path can expose evidence and stop safely. Add a write tool only when the action is exact, authorized, reversible where possible, and reviewed against the saved fixture.
+
+If you need to define the tool permission envelope next, continue with [least-privilege access for AI agent tools](/blog/give-ai-agent-least-privilege-tool-access). If your source boundary is still unclear, go back to the [AI architecture pillar](/blog/ai-architecture-pillar) and name the owner before adding autonomy.
+
+Marius Manolachi helps teams build these decisions around their own work through [AI consulting and tutoring](/learn-ai). The useful next step is not a larger agent. It is a six-case fixture with one real failure that your team can explain and repair.
