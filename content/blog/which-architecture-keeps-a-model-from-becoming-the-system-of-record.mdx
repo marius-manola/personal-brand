@@ -1,0 +1,139 @@
+---
+title: "Which Architecture Keeps a Model From Becoming the System of Record?"
+date: "2026-08-24"
+updated: "2026-08-24"
+excerpt: "Use a workflow runtime, not the model, to own facts, writes, retries, approvals, and recovery. This matrix and fixture make the boundary testable."
+answer: "Use a workflow-centered architecture: keep business facts in their authoritative systems, let the model read and propose, and let a durable workflow runtime validate, approve, and execute typed writes. This works when the process has defined authority and recoverable side effects. The exception is a deliberately migrated system of record, with an explicit ownership and cutover plan."
+targetQuery: "Which architecture keeps a model from becoming the system of record?"
+queryAliases:
+  - "AI architecture system of record"
+  - "keep an AI model from owning business state"
+  - "model versus system of record architecture"
+intent: "decision"
+funnel: "consideration"
+cluster: "architecture"
+parent: "/blog/ai-architecture-decisions"
+contentType: "decision-tool"
+kind: "satellite"
+sourceableAtom: "In the supplier-onboarding authority-boundary fixture, the workflow runtime held stale evidence, rejected a model-proposed write to the wrong tool, turned a duplicate retry into one write plus one no-op, and blocked and escalated an approval timeout, with zero unauthorized business writes."
+evidenceType: "worked-decision-artifact"
+evidenceBasis: "A completed authority-boundary matrix and a locally executed deterministic four-case fixture with saved inputs, expected and actual outcomes, traces, state transitions, recovery paths, and limits."
+tags:
+  - "AI architecture"
+  - "Workflow design"
+  - "Systems of record"
+author: "Marius Manolachi"
+nextReviewAt: "2027-02-24"
+sources:
+  - "https://www.mongodb.com/docs/atlas/architecture/current/deployment-paradigms/reference-architectures/data-layer/"
+  - "https://www.anthropic.com/engineering/building-effective-agents"
+  - "https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec04-bp02.html"
+  - "https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents"
+  - "https://www.ibm.com/think/topics/system-of-record-vs-source-of-truth"
+cover: "/blog/which-architecture-keeps-a-model-from-becoming-the-system-of-record-authority-boundary-hero.webp"
+coverAlt: "Illustration of a workflow runtime separating model proposals from authoritative business systems"
+draft: false
+---
+
+When I build TryUncle, the agent has to watch a screen and act in time. That makes latency and human approval product constraints, not cleanup work. The same boundary matters in back-office workflows, where a model can sound certain while holding stale evidence.
+
+## The architecture that keeps authority out of the model
+
+Use a workflow runtime between the model and every business write. The model can interpret evidence, ask for a tool, or propose a change. The runtime owns the durable state transition, validation, approval, idempotency key, audit record, and call to the authoritative system.
+
+This is a workflow-centered architecture, not an autonomous model with direct access to every tool. Anthropic separates workflows, which follow predefined code paths, from agents, which dynamically direct their process and tool use. It also recommends adding complexity only when a simpler design no longer meets the task. ([Anthropic's agent architecture guidance](https://www.anthropic.com/engineering/building-effective-agents))
+
+The boundary is:
+
+`system of record -> read adapter -> model proposal -> workflow runtime -> validation and approval -> typed write adapter -> system of record`
+
+The workflow state store and audit log sit beside the runtime. They record execution state and decisions. They do not quietly become a second business authority.
+
+![Illustration of a workflow runtime separating model proposals from authoritative business systems](/blog/which-architecture-keeps-a-model-from-becoming-the-system-of-record-authority-boundary-inline-1.webp)
+
+The principal exception is an intentional migration. If the model-backed application is becoming the new system of record, that is a data-ownership project with a cutover plan, reconciliation rules, write permissions, and retirement of the old authority. It is not an accidental consequence of giving an agent a database tool.
+
+## Start with the authority-boundary matrix
+
+Before selecting an agent framework, complete one row for every operational fact the workflow can read or change. A blank `allowed writer` or `recovery path` is a design failure, not a documentation gap.
+
+The worked example below is supplier onboarding exception approval. The names are vendor-neutral so you can replace them with your CRM, ERP, ticketing system, registry, or internal service.
+
+| Fact | Authoritative system | Readable copies | Allowed writer | Model role | Validation rule | Approval tier | Idempotency key | Audit record | Recovery path |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `supplier_status` | Supplier Registry | Workflow state, operations dashboard | Workflow runtime through `supplier_registry.update_status` after approval | Propose status and explain evidence | Enum, current version, proposal hash, matching reviewer decision | Tier 2, human approval | `supplier_id:status:target:approval_id` | Before and after values, reviewer, timestamps, tool response | Re-read, re-propose if version changed, or send to operations |
+| `certificate_expiry` | Supplier Registry compliance record | Document store, OCR result, workflow snapshot | Registry owner through runtime, never the model or document store | Extract date and flag conflict | ISO date, provenance, compare against authority, no write on conflict | Tier 2 when evidence conflicts | `supplier_id:certificate_expiry:source_version` | Document ID, extracted and authoritative values, conflict result | Hold, obtain current evidence, re-read authority, create new proposal |
+| `risk_tier` | Supplier Registry risk service | Workflow snapshot, operations dashboard | Workflow runtime through the risk service after approval | Recommend tier and supporting evidence | Allowlisted tier, policy version, required evidence, current version | Tier 2 for a change | `supplier_id:risk_tier:target:policy_version` | Policy version, evidence references, reviewer, tool response | Keep prior tier and reopen review under current policy |
+| `approval_decision` | Durable approval store | Reviewer UI, workflow event log | Approval service and reviewer action | Summarize proposal and consequences | Bind decision to proposal hash, current version, identity, expiry | Deterministic risk tier | `approval_id:proposal_hash:decision` | Reviewer, notification and response time, decision, escalation | Expire safely, escalate, and create a fresh approval after a new read |
+
+IBM describes a system of record as the authoritative source for original business data in a domain. When records conflict, its version is treated as correct, and write privileges are usually narrow. That is why the matrix gives the model a proposal role and gives the runtime a typed writer role. ([IBM's system-of-record explanation](https://www.ibm.com/think/topics/system-of-record-vs-source-of-truth))
+
+## The small fixture that tests the boundary
+
+The matrix becomes useful when it predicts behavior. I ran a deterministic fixture against the supplier-onboarding workflow. It used no model, live integration, or production record. The purpose was narrower: test whether the runtime would preserve authority and avoid duplicate or unapproved side effects.
+
+| Case | Input | Expected outcome | Actual outcome | Side effect |
+| --- | --- | --- | --- | --- |
+| Stale document | Registry says certificate expires `2026-09-30`; document copy says `2027-01-31` | Hold for reconciliation | Matched | Zero writes |
+| Wrong tool proposal | Model proposes `document_store.write_supplier_status` | Reject because it is outside the allowed write set | Matched | Zero writes |
+| Duplicate retry | Approved registry write is retried with `SUP-104:status:approved:approval-77` | One write, then duplicate no-op | Matched | One write |
+| Approval timeout | Approval `approval-78` receives no response within 300 seconds | Expire, escalate, and block the side effect | Matched | Zero writes |
+
+The saved trace is the evidence. The stale case moved `READ -> NEEDS_REVIEW`, with the authoritative value winning. The wrong-tool case moved `PROPOSED -> BLOCKED`, then recorded the rejection. The retry moved `READY_TO_WRITE -> COMPLETED`, then returned `duplicate_noop` for the same key. The timeout moved `WAITING_FOR_APPROVAL -> EXPIRED`, notified a secondary reviewer, and kept the write blocked.
+
+The result is bounded but useful: in this fixture, all four expected outcomes matched actual outcomes, and none of the failure cases created an unauthorized business write. It says nothing about how often these failures occur in production.
+
+The fixture input is small enough to keep beside the workflow code:
+
+```json
+{
+  "stale_document": {"authority_expiry": "2026-09-30", "copy_expiry": "2027-01-31", "expected": "NEEDS_REVIEW"},
+  "wrong_tool": {"proposed_tool": "document_store.write_supplier_status", "allowed_writer": "supplier_registry.update_status", "expected": "BLOCKED"},
+  "duplicate_retry": {"idempotency_key": "SUP-104:status:approved:approval-77", "attempts": 2, "expected_writes": 1},
+  "approval_timeout": {"approval_id": "approval-78", "timeout_seconds": 300, "reviewer_response": null, "expected": "EXPIRED"}
+}
+```
+
+The fixture does not establish a model's tool-selection accuracy, a production failure rate, or a latency target. It tests one narrower property: whether the workflow runtime preserves authority and blocks unsafe side effects when the input is stale, the proposed tool is wrong, the worker retries, or approval never arrives.
+
+Anthropic's evaluation guidance makes a related distinction: the outcome is the final state in the environment, not what the agent says happened. It recommends deterministic graders where possible and isolated trials so shared state does not distort the result. ([Anthropic's agent evaluation guidance](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents))
+
+## Give each boundary a runtime owner
+
+The architecture works when the runtime, not the model, owns these control points:
+
+1. Read the authoritative record before a proposed write. A readable copy can supply context, but it cannot settle a conflict.
+2. Give the model typed read tools and proposal tools. Do not expose a generic write tool that accepts arbitrary destinations or fields.
+3. Validate the proposal against the current record version, allowed values, policy version, and proposal hash.
+4. Route the proposal through a deterministic risk classifier. The classifier chooses whether the action is read-only, reversible, single-reviewer, or higher risk.
+5. Store approval context durably before notifying a reviewer. The reviewer should approve the exact proposal that will be executed.
+6. Execute one typed write after approval, using an idempotency key and a record-version precondition.
+7. Record the tool response, reviewer decision, timestamps, state transition, and recovery action in the audit event log.
+
+AWS's agentic AI guidance recommends durable decision context, explicit timeout and escalation paths, safe fallbacks that typically block the operation, and approval logs containing reviewer identity, timestamps, operation, decision, and escalation events. ([AWS guidance for human approval of critical decisions](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec04-bp02.html))
+
+This also gives the reader a practical test for tool design. If a tool can write a fact that the matrix names as authoritative somewhere else, the tool is in the wrong layer or the ownership decision is incomplete.
+
+## When should a model ever be allowed to write?
+
+Allow direct model writes only when the model-backed application is itself the intentionally chosen authority for that fact, the write contract is narrow, the side effect is acceptable without a separate reviewer, and the recovery path is tested. That is a deliberate system-of-record decision, not a shortcut.
+
+For most operational workflows, keep model writes at the proposal level. The model can draft a status change, normalize an address, extract a date, or explain why a request is unusual. The runtime should decide whether the proposal is complete, current, authorized, approved, and safe to retry.
+
+MongoDB's reference architecture distinguishes read-only, enriched, and read-write operational data layers. It also warns that a read-write copy can drift from legacy systems of record and needs explicit coordination. The useful lesson is vendor-neutral: a readable copy can serve AI without owning the business fact, and a writable copy needs a new ownership contract. ([MongoDB's operational data layer reference](https://www.mongodb.com/docs/atlas/architecture/current/deployment-paradigms/reference-architectures/data-layer/))
+
+## Use the failure result as an architecture gate
+
+Do not ask only whether the model chose the correct answer. Ask whether the architecture preserves authority when the model is wrong, a copy is stale, a worker retries, or a reviewer disappears.
+
+The pre-build gate is simple:
+
+- If a stale copy conflicts with the authority, the workflow must hold or reconcile. It must not let retrieval freshness decide.
+- If the model proposes a tool outside the allowed writer set, the runtime must reject it before execution.
+- If the same approved command is retried, the business system must see one idempotent write, not two side effects.
+- If approval expires, the workflow must move to a safe blocked or escalated state, not infer consent.
+- If any row lacks an owner, validation rule, approval tier, audit record, or recovery path, stop architecture selection and complete the row.
+
+The next useful step is to run this fixture with one real workflow's names and contracts, while keeping all writes disabled. You can use the broader [AI architecture decisions hub](/blog/ai-architecture-decisions), then map the decision boundary with [a workflow authority map](/blog/how-to-map-decision-boundaries-before-designing-an-ai-workflow) and turn the business case into [a replayable workflow fixture](/blog/how-to-build-a-replayable-ai-workflow-fixture-from-a-business-case).
+
+If your team can fill the matrix, explain every blocked transition, and recover from each failed case without asking the model what happened, you have an architecture to evaluate. If it cannot, the missing capability is not another agent framework. It is an ownership decision.
