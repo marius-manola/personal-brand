@@ -1,0 +1,209 @@
+---
+title: "Which Recurring Finance Decision Should a Team Observe Before AI?"
+date: "2026-08-25"
+updated: "2026-08-25"
+excerpt: "Use a bounded observation to choose a reversible finance AI slice. A 30-run fixture shows why checkpointed work belongs before irreversible writes."
+answer: "Observe a recurring AP exception or approval decision that can begin in read-only or shadow mode, where source evidence, reviewer, correction path, financial side-effect, and reversal are visible. Start with evidence assembly or recommendation, not an autonomous write. A bounded 30-run reversibility fixture found checkpointed work left 0 effects and 1 recovery step before detection, while irreversible work left 2 effects and 5 steps. That result guides the boundary, not AP prevalence."
+targetQuery: "which recurring finance decision should a team observe before using AI"
+queryAliases:
+  - "recurring finance decision observation before AI"
+  - "AP decision to observe before an AI pilot"
+intent: "informational decision support"
+funnel: "opportunity"
+cluster: "opportunity"
+parent: "/blog/ai-opportunity-research"
+contentType: "original-research"
+kind: "flagship"
+sourceableAtom: "In 30 deterministic paired runs, the same injected failure was detected at action 5 and 40 ms in both modes, but the checkpointed mode left 0 external effects and 1 recovery step before detection while the irreversible mode left 2 effects and 5 recovery steps."
+evidenceType: "original controlled observational dataset and reusable decision artifact"
+evidenceBasis: "Completed evidence pack: 30 deterministic scripted runs, 15 paired trials per mode, 3 fixed subscription cases, raw traces, checked summary.csv, analysis_summary.json, a pilot charter, and a stated stopping rule. The fixture is boundary evidence for finance pilot design, not an AP prevalence sample."
+tags:
+  - finance
+  - AI opportunity research
+  - reversible AI pilots
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://files.gao.gov/reports/GAO-25-107197/index.html"
+  - "https://airc.nist.gov/airmf-resources/airmf/5-sec-core/"
+  - "https://eur-lex.europa.eu/eli/reg/2024/1689/oj?locale=en"
+  - "https://www.bis.org/fsi/publ/insights63.htm"
+  - "https://www.pwc.com/us/en/tech-effect/ai-analytics/ai-agents-for-finance.html"
+cover: "/blog/which-recurring-finance-decision-should-a-team-observe-before-using-ai-finance-observation-hero.webp"
+coverAlt: "Illustration of a finance AI observation study comparing a checkpointed review with an irreversible write"
+draft: false
+---
+
+Most finance AI proposals begin with a system question: which model, agent framework, or automation platform should we buy? That is usually too early. The first question is which recurring decision can be observed without creating a new financial problem.
+
+For an accounts-payable team, that often means an invoice exception or approval decision. The unit of study is not the invoice by itself. It is the decision: what evidence was available, who reviewed it, what changed after review, and whether the action could be reversed without reconciliation work.
+
+This article reports a bounded operational fixture, not a finance benchmark. The fixture used subscription-record corrections rather than AP records, so it cannot tell you how often invoice exceptions occur or which finance team will benefit most. It does show a boundary that a finance pilot should test early: the same failure can cost more when the system commits an external effect before detection.
+
+![Illustration of a finance operations observation study comparing a checkpointed review with an irreversible write](/blog/which-recurring-finance-decision-should-a-team-observe-before-using-ai-finance-observation-hero.webp)
+
+## Which finance decision should a team observe first?
+
+Observe a recurring AP exception or approval decision that has visible source evidence, a named reviewer, a defined correction path, and a read-only or shadow-mode starting point. Do not begin with an end-to-end promise to approve invoices or change payment records.
+
+That choice gives the team a concrete row to study. A row might represent a quantity mismatch, a missing purchase-order reference, a duplicate invoice warning, or an approval that needs evidence assembled before a person decides. The exact decision depends on the team's policy and systems. The selection rule does not.
+
+The decision should meet five conditions:
+
+| Condition | What to observe | Why it matters before AI |
+| --- | --- | --- |
+| Repetition | The same decision type occurs often enough to observe without cherry-picking | A single unusual case cannot establish a useful pilot slice |
+| Evidence | The reviewer can name the records used at decision time | A model cannot repair evidence that the team itself cannot locate |
+| Ownership | One role can accept, reject, or escalate the recommendation | Someone must be accountable for the outcome |
+| Reversibility | A mistaken recommendation can remain a draft or be undone without compensation | The first pilot should limit the cost of being wrong |
+| Reviewability | A second person or later audit can reconstruct the decision | The team needs a way to challenge an output, not just receive one |
+
+This local observation complements, rather than replaces, sector guidance. The [GAO review of AI in financial services](https://files.gao.gov/reports/GAO-25-107197/index.html) describes data quality, privacy, cybersecurity, explainability, and model-risk concerns, and cautions against generalizing interview information to every company or user. The [NIST AI Risk Management Framework](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/) likewise treats context, intended use, risk tolerance, cost, scope, and human oversight as inputs to a go or no-go decision.
+
+The exception is a decision whose evidence is already unavailable or whose side-effect cannot be isolated. If a proposed AP slice writes directly to payment status, changes a supplier record, or triggers a downstream release with no checkpoint, observe a safer adjacent decision first. Evidence assembly, exception classification, or a draft recommendation may be a better opening slice than the final approval.
+
+## What makes a recurring decision a usable research unit?
+
+A usable research unit is one decision at one point in the workflow, with the state before review and the accepted state after review recorded separately. “Invoice processing” is too broad. “Decide whether a quantity mismatch has enough evidence for a human reviewer to request correction” is narrow enough to study.
+
+The distinction matters because an AI system can look accurate while the workflow remains unsafe. A reviewer may agree with a recommendation but still have no record of which purchase order, receipt, policy version, or supplier message supported it. Another system may produce a correct classification but commit an irreversible update before a downstream failure becomes visible.
+
+For each candidate decision, record the boundary around the work:
+
+1. **Before state:** What is unresolved, and where is it recorded?
+2. **Evidence set:** Which source records are available at the moment of review?
+3. **Decision:** What choice is the reviewer making, in the team's own words?
+4. **Allowed output:** Is the AI allowed to extract, assemble, classify, recommend, or draft only?
+5. **Human action:** Who accepts, edits, rejects, or escalates the output?
+6. **After state:** What evidence proves that the accepted state exists?
+7. **Recovery:** What happens if a later step fails after the recommendation is accepted?
+
+The [BIS Financial Stability Institute's work on AI in finance](https://www.bis.org/fsi/publ/insights63.htm) identifies governance, skills, model-risk management, data governance, third parties, and related regulatory questions as adoption challenges. Those are reasons to define the unit carefully. They are not evidence that a particular AP decision is ready.
+
+The main exception is a high-volume decision with weak evidence. Frequency alone does not make it a good candidate. If reviewers resolve cases through undocumented conversations or changing policy interpretations, the team may need to improve the decision record before it adds an AI output.
+
+## What did the bounded observation actually test?
+
+The observation tested whether a checkpoint before an external write changed the effects and recovery burden of a known downstream failure. It did not test an AI model, invoice accuracy, finance-team behavior, or production reliability.
+
+The evidence pack used a deterministic, scripted harness. It ran the same fixed sequence in two modes:
+
+- **Reversible checkpoint:** the correction was written to a checkpointed working state, and no external effect was released before the failure was detected.
+- **Irreversible commit:** the external record and downstream event were committed before the same injected failure was detected.
+
+The sample contained three fixed subscription-record cases: a percentage correction, a seat increase, and a renewal-date change. Each mode had 15 trials, for 30 total runs. The planner used a fixed tool sequence, a fixed seed, temperature 0, and a maximum of seven actions. Failure F-01 was injected at action 5 as a downstream schema mismatch. Detection occurred at action 5 and 40 milliseconds in both modes.
+
+The test measured accepted final state, external effects before detection, total external effects, recovery steps, rubric-assigned human minutes, and retry count. The source files are the run configuration, case definitions, raw traces, analysis script, recovery rubric, `summary.csv`, and `analysis_summary.json`. The completed worksheet records 15 accepted runs in each mode.
+
+![Illustration of a blank schema for observing recurring accounts-payable decisions](/blog/which-recurring-finance-decision-should-a-team-observe-before-using-ai-finance-observation-schema.webp)
+
+This method is deliberately smaller than a production study. Its value is isolation. Because the failure, cases, sequence, and detection point were held constant, the comparison can attribute the difference in recovery burden to the side-effect boundary in this fixture. It cannot estimate how often the same failure happens in a real finance system.
+
+## What results did the observation produce?
+
+These are the actual observed results from the completed fixture. The checkpointed mode produced fewer external effects and fewer recovery steps before the same failure was detected. Both modes reached the accepted final business state in all 15 trials, so final-state acceptance alone would have hidden the operational difference.
+
+| Execution mode | Runs | Accepted final state | Failure detected | External effects before detection | Total external effects | Recovery steps | Human minutes | Retries |
+| --- | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: |
+| Reversible checkpoint | 15 | 15 | Action 5, 40 ms | 0 | 1 | 1 | 3 | 1 |
+| Irreversible commit | 15 | 15 | Action 5, 40 ms | 2 | 6 | 5 | 17 | 2 |
+
+The result is specific: in this fixture, reversibility changed the number of effects and the work needed to recover, not the failure itself. Across 15 paired trials per mode, the checkpointed path left 0 external effects and 1 recovery step before detection. The irreversible path left 2 external effects and 5 recovery steps. The final state was accepted in all 30 runs.
+
+![Illustration of an empty anonymized AP decision table marked as a future artifact](/blog/which-recurring-finance-decision-should-a-team-observe-before-using-ai-finance-observation-table.webp)
+
+That is the sourceable result of this page. A reader can cite the exact comparison when explaining why a first finance AI pilot should keep recommendation, approval, and write actions separate. The result is not a claim that checkpointing always costs less, that every finance system should use one architecture, or that an AP team will see the same numbers.
+
+## What does the result change about a finance AI pilot?
+
+It changes the first pilot question from “Can the model make the decision?” to “What can the system do before a person accepts the decision, and what remains reversible if the next step fails?”
+
+Use the fixture result as a boundary test for an AP slice:
+
+| Pilot stage | Allowed role | Evidence to collect | Stop condition |
+| --- | --- | --- | --- |
+| Observe | No AI action, only record the current decision | Case type, evidence, reviewer, elapsed time, correction, side-effect, recovery | The decision cannot be reconstructed |
+| Assemble | Extract and link source evidence into a review packet | Missing evidence, conflicting records, policy version, reviewer edits | Evidence is incomplete or links cannot be checked |
+| Recommend | Suggest a classification or next step in shadow mode | Agreement, correction, escalation, and reason for disagreement | A recommendation would trigger a write automatically |
+| Draft | Prepare a proposed approval note or routing action | Human edits, accepted result, rollback path, downstream dependencies | No accountable reviewer can intervene |
+| Commit | Only after a separate gate and replayable test | Accepted outcome, receipt, reconciliation, recovery time | Any effect occurs before detection or cannot be reconciled |
+
+This boundary also fits the finance workflow described by [PwC's attributed finance-agent example](https://www.pwc.com/us/en/tech-effect/ai-analytics/ai-agents-for-finance.html), which includes invoice extraction, purchase-order matching, discrepancy checks, and human review or escalation. That page is a vendor analysis, not independent evidence about prevalence or safety. Use it to name a plausible workflow, then replace its assumptions with your own observation rows.
+
+The legal exception needs separate treatment. The [EU AI Act](https://eur-lex.europa.eu/eli/reg/2024/1689/oj?locale=en) applies according to the system, use, role, and jurisdiction. This article does not classify AP approval as automatically high risk. A finance team should obtain jurisdiction-specific review before relying on an AI system for a regulated or materially consequential decision.
+
+## What should the observation record?
+
+The reusable artifact is a finance decision observation card. Use one row per real decision, not one row per invoice batch or one row per model output. Keep personal identities out of the working copy and preserve only the role needed to understand ownership.
+
+| Field | Record | Example format |
+| --- | --- | --- |
+| Case ID | An anonymized stable identifier | `AP-2026-001` |
+| Decision type | The narrow decision under review | Quantity mismatch requires correction request |
+| Occurrence period | The bounded period and frequency definition | Week of 2026-08-24, 12 cases observed |
+| Source evidence | Records available at decision time | Invoice, PO, receipt, policy version |
+| Exception reason | Why the case left the normal path | Quantity differs from receipt |
+| Reviewer role | Accountable role, not personal name | AP specialist |
+| Decision time | Start and end or a consistently measured duration | Queue received to accepted decision |
+| Correction or escalation | What happened after review | Requested receipt check, no payment change |
+| Financial side-effect | Category and materiality, not invented precision | No external write, or payment hold changed |
+| Reversibility | How the state can be undone and by whom | Draft discarded, or compensating update required |
+| Smallest safe AI role | Extraction, evidence assembly, recommendation, or draft | Read-only evidence packet |
+| Verification | Whether the row was checked against source records | Source checked by owner on date |
+
+The card separates the decision from the tool. If the team fills it out before choosing a vendor or model, it can compare a deterministic rule, a workflow, an AI recommendation, or manual processing against the same evidence boundary. If a row cannot state its source records or recovery path, it is not ready for an automated side-effect.
+
+I taught product managers who went from writing specs to building and shipping the product, and automating work around it. The recurring failure was usually not a missing model feature. It was that nobody could say what “done” meant. That observation is why the card ends with an accepted after state and a recovery path, rather than a model score. It is a teaching observation, not a finance result. [Learn how Marius Manolachi teaches teams to build AI products](/learn-ai).
+
+## How should a team turn the rows into a first pilot boundary?
+
+Turn the observation rows into a conditional decision, not a score that pretends different risks are commensurable. A team should advance only when it can point to a repeated decision, named evidence, an accountable reviewer, a read-only or draft role, and a recovery path that fits its operating limit.
+
+Use this procedure after the observation period:
+
+1. **Group only like decisions.** Do not combine invoice duplicates, quantity mismatches, and approval exceptions merely because they share a queue.
+2. **Remove unverified rows.** A row without permission, source evidence, or a clear reviewer role cannot support an aggregate.
+3. **Count the decision types.** Report the observed sample and period. Do not turn the count into a general prevalence claim.
+4. **Mark the side-effect boundary.** Identify the first action that changes an external record, sends a release, or creates a financial commitment.
+5. **Replay one narrow case.** Use a fixed case with the same evidence packet and a planned injected failure or rejection path.
+6. **Compare recovery, not just acceptance.** Record effects before detection, reconciliation work, human time, retries, and whether the final state was accepted.
+7. **Choose the smallest safe role.** Start with evidence assembly or a recommendation if a write cannot remain behind a checkpoint.
+8. **Write the stop rule before expanding.** State who can stop the pilot and what evidence would trigger a redesign.
+
+![Illustration of a proposed read-only AI pilot boundary around human finance approval](/blog/which-recurring-finance-decision-should-a-team-observe-before-using-ai-finance-pilot-boundary.webp)
+
+The [GAO evidence](https://files.gao.gov/reports/GAO-25-107197/index.html), [NIST context and oversight guidance](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/), and the [BIS governance discussion](https://www.bis.org/fsi/publ/insights63.htm) all support treating local context and oversight as part of the decision. The observation card turns that principle into rows a finance operator can inspect.
+
+## When should a finance team stop or narrow the pilot?
+
+Stop or narrow the pilot when an external effect occurs before the team can detect the failure, when a result cannot be reconciled, when evidence is missing, or when no accountable owner can intervene. A successful final state is not enough if the path created unreviewed effects on the way there.
+
+The completed fixture used this precommitted gate:
+
+| Observed result | Decision |
+| --- | --- |
+| Accepted final state, zero effects before detection, recovery at or below one step, and an owner who can recover | Continue to a narrower checkpointed slice |
+| Accepted final state, but recovery exceeds the team's limit or an operational dependency is unresolved | Narrow the slice and rerun with fewer records, tools, or effects |
+| Any external effect occurs before detection, or recovery requires compensation and reconciliation | Redesign the side-effect boundary before expansion |
+| Final state is rejected, an effect cannot be reconciled, sensitive data is exposed, or no owner can intervene | Stop the pilot and return to manual processing |
+
+This gate is stricter than “the model was right.” It treats the recovery path as part of the product. The result table shows why: both fixture modes achieved 15 accepted final states, yet the irreversible mode created more effects and required more recovery work.
+
+## What does this study still not know?
+
+This study does not know which AP decision is most frequent, which finance team would accept a read-only evidence packet, or whether the fixture's recovery difference would appear in a production ERP and payment stack.
+
+The limits are concrete:
+
+- The sample has 30 scripted runs across three fixed subscription-record cases, not 30 AP decisions.
+- The planner and tool sequence were deterministic, so the study does not estimate model variance, concurrency, production incident frequency, or vendor reliability.
+- The human-minute values are rubric-assigned fixture measurements, not payroll cost or a finance operations time study.
+- The same injected failure was used in both modes. Other failures may have different effects.
+- The analysis measures a narrow side-effect boundary. It does not establish financial materiality, regulatory classification, or return on investment.
+- The external sources provide sector context and governance considerations. They cannot certify a local workflow.
+
+That is why the article recommends observing a recurring finance decision instead of naming one universally. A finance team still needs its own permissioned rows, source-record checks, defined period, reviewer roles, side-effect categories, and aggregation rules. The fixture supplies a test for the boundary around those rows.
+
+The next useful action is small: choose one recurring AP exception or approval decision, keep the first AI role read-only or draft-only, and fill the observation card until the team can explain both the accepted result and the recovery path. If the team cannot do that, it has found a research problem, not a model-selection problem.
+
+For the broader context, start with the [AI opportunity research parent](/blog/ai-opportunity-research), then use the [smallest evidence set for an AI opportunity decision](/blog/smallest-evidence-set-ai-opportunity-decision) to prepare the next review. The article is complete without a platform recommendation. The decision to collect better local evidence comes first.
