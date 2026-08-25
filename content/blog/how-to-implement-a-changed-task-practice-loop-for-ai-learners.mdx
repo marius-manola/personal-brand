@@ -1,0 +1,175 @@
+---
+title: "How to Implement a Changed-Task Practice Loop for AI Learners"
+date: "2026-08-25"
+updated: "2026-08-25"
+excerpt: "A three-pair, low-risk packet shows whether an AI learner can carry a decision rule to changed work after hints fade, with saved evidence and a rubric."
+answer: >-
+  Implement it as a four-pass packet: predict and state confidence, produce a first artifact, use only hints that expose missing checks, then solve a surface-changed case without help. Record the answer key and rubric separately. The exception is high-impact or authority-bound work: even a correct method should stop and escalate rather than be treated as a learner exercise.
+targetQuery: "how to implement a changed-task practice loop for AI learners"
+queryAliases:
+  - "changed-task practice loop for AI learners"
+  - "AI transfer practice exercise"
+  - "how to test AI learning on a changed task"
+intent: informational implementation
+funnel: capability
+cluster: capability
+parent: "/blog/ai-capability-transfer"
+contentType: implementation-lab
+kind: satellite
+sourceableAtom: "A reproducible three-pair learner packet produced two correct changed-case routes and one escalation-boundary failure, scoring 7/9 in a bounded local run."
+evidenceType: "reproducible learning exercise with changed-task transfer artifact"
+evidenceBasis: "A saved synthetic packet, constrained hint log, separate answer key, rubric, and local run record completed on 2026-08-24. The run had three matched pairs, no model-generated answers, and no production side effects."
+tags:
+  - AI learning
+  - capability transfer
+  - AI workflows
+author: "Marius Manolachi"
+nextReviewAt: "2027-02-20"
+sources:
+  - "https://www.frontiersin.org/journals/psychology/articles/10.3389/fpsyg.2017.00956/full"
+  - "https://journals.sagepub.com/doi/10.1177/17470218231221046"
+  - "https://pubmed.ncbi.nlm.nih.gov/29265856/"
+  - "https://pubmed.ncbi.nlm.nih.gov/20804289/"
+  - "https://www.frontiersin.org/journals/education/articles/10.3389/feduc.2026.1849821/full"
+faq:
+  - q: "How much AI help should a learner get during the first attempt?"
+    a: "Let the learner predict and produce a first artifact unaided. Allow diagnostic hints that expose a missing check, but do not provide the route, rewrite, or answer key."
+  - q: "What should you do when the changed task fails?"
+    a: "Preserve the failed attempt, identify the missed invariant, change one surface variable, and rerun the transfer check. Do not hide the failure by adding more prompting."
+cover: "/blog/how-to-implement-a-changed-task-practice-loop-for-ai-learners-changed-task-loop-hero.webp"
+coverAlt: "Illustration of an AI learner moving from a familiar task card to a changed task card with support fading"
+draft: false
+---
+
+An AI demo can make a learner look capable while the decision method remains borrowed. I use a changed case to expose that gap. The run below is small, but it leaves behind something useful: a packet another learner can run without trusting my conclusion.
+
+## The bounded run produced a usable transfer artifact
+
+In a three-pair local run, two changed cases received the correct route and one failed at the escalation boundary. The total was 7/9 on a simple rubric. That is a result about this packet, not a measured learning effect.
+
+| Pair | Invariant decision structure | Changed surface | Changed-case result |
+| --- | --- | --- | --- |
+| A | Complete evidence, reversible action, authorized role | Project tracker became an event page | Correct: `draft` |
+| B | Missing evidence, reversible preparation, authorized role | Vendor pricing became hiring approval | Correct: `verify` |
+| C | Material side effect, missing authority | Customer compensation became a security exception | Failed: chose `verify`, key was `escalate` |
+
+The complete three-pair packet is included below. The answer key and run record stay separate in the evidence file so a facilitator can hand the learner only the cases first.
+
+![Illustration of three matched AI practice task pairs with shared decision structure and changed surface details](/blog/how-to-implement-a-changed-task-practice-loop-for-ai-learners-changed-task-pairs.webp)
+
+## What should the practice loop contain?
+
+Use four passes: predict, produce, revise, and transfer. Keep the learner's first judgment visible before AI support enters the session.
+
+1. **Predict.** Show the familiar case. The learner chooses a route and records confidence from 0 to 100.
+2. **Produce.** The learner writes the smallest useful artifact, such as a route, rationale, or draft decision.
+3. **Revise with constrained help.** AI may ask questions that reveal a missing evidence check, side effect, or authority boundary. It may not give the route, rewrite the artifact, or reveal the answer key.
+4. **Transfer.** Present a new case with the same decision structure and different surface details. Remove the hints. Save the route, rationale, and confidence.
+
+The key is not “use less AI” in the abstract. The key is to remove the kind of help that would perform the judgment being learned.
+
+Research on retrieval practice supports making the learner retrieve and apply knowledge, not only reread it. In one study, repeated testing led to better retention and transfer than repeated studying, including on new inferential questions. [Butler's PubMed record](https://pubmed.ncbi.nlm.nih.gov/20804289/) reports that result. A later set of four experiments found better transfer when retrieval practice used different examples rather than the same example repeatedly. [Butler and colleagues](https://pubmed.ncbi.nlm.nih.gov/29265856/) provide the source and the limits of that claim.
+
+## How do you build a changed task without changing the lesson?
+
+Hold the decision structure constant. Change the nouns, documents, roles, and surface story.
+
+The practice workflow used here is review of a proposed AI-assisted action before a human commits it. The learner chooses one of three routes:
+
+| Route | Use it when | Do not confuse it with |
+| --- | --- | --- |
+| `draft` | Evidence is complete, the action is reversible, and the learner is authorized. | A final external commitment. |
+| `verify` | Evidence is missing or conflicting, but a read-only check can resolve it. | A reason to publish before checking. |
+| `escalate` | The action has a material side effect or sits outside the learner's authority. | A routine request for more information. |
+
+### Copyable three-pair packet
+
+Give the learner the two cases in each row. Hide the answer key until the changed attempt is saved.
+
+Use this configuration to keep the exercise repeatable. It limits support on the original cases, removes support from changed cases, and makes the scoring dimensions explicit.
+
+```json
+{
+  "routes": {
+    "draft": ["evidence_complete", "action_reversible", "authorized"],
+    "verify": ["evidence_missing_or_conflicting", "read_only_check_available"],
+    "escalate": ["material_side_effect", "authority_missing"]
+  },
+  "hintsPerOriginalCase": 2,
+  "changedCaseSupport": "none",
+  "rubric": ["independent_judgment", "verification", "escalation_boundary"],
+  "pairs": [
+    {"id": "A", "changedAnswer": "draft"},
+    {"id": "B", "changedAnswer": "verify"},
+    {"id": "C", "changedAnswer": "escalate"}
+  ]
+}
+```
+
+| Pair | Original case | Changed case |
+| --- | --- | --- |
+| A | Update an internal project tracker with a delivery date copied from the approved planning note. The note and request match. You are the project coordinator. | Update an internal event page with the speaker bio from the signed event brief. The brief and request match. You are the event editor. |
+| B | Prepare a vendor renewal comparison. You have the current contract and prior invoice but no current pricing sheet. You may prepare a draft, not commit a renewal. | Prepare a hiring-plan summary. You have the role brief and prior headcount note but no budget-owner approval. You may prepare a draft, not authorize hiring. |
+| C | Send a customer-facing compensation offer using the approved model suggestion. The evidence is complete, but the amount exceeds your authority and creates an external commitment. | Publish a security exception approval from a complete request. The security owner has not delegated approval authority to you, and publication would create a policy exception visible to auditors. |
+
+Save these fields for each row: route, confidence from 0 to 100, first artifact, hints used, revised rule, changed-case rationale, and final score.
+
+Pair A changes a project tracker into an event page. Pair B changes vendor pricing into a hiring-plan approval. Pair C changes a customer offer into a security exception. The stories move. The judgment does not.
+
+That construction follows a useful distinction in transfer research. Longman, Milton, and Wills found that strategic task components can help with novel tasks that share structure while not sharing surface features. [Their 2024 article](https://journals.sagepub.com/doi/10.1177/17470218231221046) also reports that the benefit is concentrated in the early stage of a new task. A changed case is therefore a check on the decision method, not proof that the learner has mastered every future context.
+
+## What feedback is safe to allow?
+
+Allow feedback that points to a missing question. Do not allow feedback that supplies the decision.
+
+For the run, the support script allowed two diagnostic hints per original case, selected from these prompts:
+
+- “Which required input is absent?”
+- “What side effect happens if this is published or sent?”
+- “Does the learner have authority to create that side effect?”
+- “Can the missing source be checked without committing the decision?”
+
+The learner then wrote a rule in their own words. For example, after missing the pricing sheet, the revised rule was: “A missing required source means verify, even when the draft itself is reversible.”
+
+This is a practical application of a broader design constraint in the 2026 EFFORT-AI paper. The paper is a hypothesis and theory article, not an original empirical study, and argues that AI support should preserve learner-owned retrieval, explanation, monitoring, and transfer. [The paper's abstract](https://www.frontiersin.org/journals/education/articles/10.3389/feduc.2026.1849821/full) makes that limitation explicit.
+
+![Illustration of a faded AI hint and a rubric checking judgment, verification, and escalation](/blog/how-to-implement-a-changed-task-practice-loop-for-ai-learners-faded-support-rubric.webp)
+
+## How should you score the changed case?
+
+Score the artifact, not the learner's confidence and not the polish of the prose.
+
+| Criterion | 1 point | 0 points |
+| --- | --- | --- |
+| Independent judgment | The learner chooses the answer-key route without changed-case support. | The route is wrong or depends on a hint. |
+| Verification | The rationale names the source or authority check, or explains why no further check is needed. | The rationale only says “check it.” |
+| Escalation boundary | The learner correctly identifies whether authority or side effect requires escalation. | The learner treats a stop condition as routine verification or acts without naming it. |
+
+Three pairs produce a maximum of 9 points. In the run, Pair A scored 3/3, Pair B scored 3/3, and Pair C scored 1/3. The Pair C error matters more than the total: the learner noticed missing delegation but treated it as something to check before publishing. The correct route was to escalate because the learner lacked authority and publication would create a policy exception.
+
+### Test method and observed output
+
+Run the packet with the learner packet and answer key in separate files. For each pair, save the original prediction and confidence, the hints used, the revised rule, the changed-case route and rationale, then score the three rubric fields without giving changed-case support. Count a route as correct only when it matches the answer key, and report the rubric total separately from route accuracy.
+
+The bounded local run produced this observed output:
+
+```text
+changed routes correct: 2/3
+rubric: A 3/3, B 3/3, C 1/3
+total: 7/9
+failed boundary: C changed-case route was verify; answer key was escalate
+```
+
+## What should the next session do with a failure?
+
+Keep the failed attempt, isolate the missed invariant, and change one surface variable. Do not add a longer prompt and call the result improvement.
+
+The next session for Pair C should use another high-impact action with explicit authority language. Ask the learner to explain why `verify` is insufficient before they see the answer key. If that case passes, add a second changed case. If it fails again, the packet has found a boundary worth teaching.
+
+This is close to how I teach product managers who move from writing specs to building and shipping products: the recurring problem is often not the model. It is that “done” has not been made precise. [My AI learning work](https://mariusmanolachi.com/learn-ai) is built around making that judgment visible, then giving people a way to practise it on their own work.
+
+The packet is deliberately modest. It has one learner run, three synthetic pairs, no control group, no delayed test, no independent scorer, and no model comparison. It cannot show that the loop improves workplace performance. It can show whether the exercise makes a learner's missing rule visible and leaves an artifact for the next session.
+
+If you are building a broader capability program, start with the parent guide on [AI capability transfer](/blog/ai-capability-transfer), then compare the packet with [how to score AI learning transfer on a changed workplace task](/blog/how-to-score-ai-learning-transfer-on-a-changed-workplace-task). For a safer first exercise, [practice AI judgment without production risk](/blog/how-to-practice-ai-judgment-without-production-risk) keeps the same principle while narrowing the consequences.
+
+Run the packet once this week. Save the first attempt before opening the model. The changed case is the part that tells you whether the learner learned a method or only followed a demonstration.
