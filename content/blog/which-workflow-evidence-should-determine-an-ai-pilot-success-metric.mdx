@@ -1,0 +1,205 @@
+---
+title: "Which Workflow Evidence Should Determine an AI Pilot Success Metric?"
+date: "2026-08-25"
+updated: "2026-08-25"
+excerpt: "A 12-case method demonstration shows why safe workflow throughput beats model scores when choosing one AI pilot success metric."
+answer: "Use evidence from the workflow's completed outcome, not the model's score: compare the same cases with business as usual, score quality and unacceptable failures, include human correction time, latency, and cost, then choose the metric that reflects safe completed work. Exception: high-risk workflows need a veto rule that can stop the pilot even when the primary metric improves."
+targetQuery: "which workflow evidence should determine an ai pilot success metric"
+queryAliases:
+  - "ai pilot success metric"
+  - "how to measure ai pilot success"
+  - "what evidence measures an ai pilot"
+intent: "informational decision"
+funnel: "opportunity"
+cluster: "opportunity"
+parent: "/blog/ai-opportunity-research"
+contentType: "original-research"
+kind: "flagship"
+sourceableAtom: "In a 12-case synthetic research-request intake test, 90.3% field extraction accuracy was rejected as the primary metric; safe completed requests per human review hour was selected instead, at 20.6/hour with AI versus 11.3/hour for business as usual."
+evidenceType: "reproducible worked decision artifact with a bounded test and public methodology"
+evidenceBasis: "A published 12-case synthetic method demonstration with a fixed task set, baseline, six-field rubric, case-level outputs, reviewer minutes, latency, illustrative cost, failure taxonomy, and a pre-registered go/revise/stop rule. It is not a client outcome or vendor benchmark."
+tags:
+  - "AI pilots"
+  - "workflow measurement"
+  - "AI evaluation"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://www.gov.uk/government/publications/the-magenta-book/guidance-on-the-impact-evaluation-of-ai-interventions-html"
+  - "https://airc.nist.gov/airmf-resources/airmf/5-sec-core/"
+  - "https://www.nist.gov/publications/assessing-risks-and-impacts-ai-aria-pilot-evaluation-report"
+  - "https://doi.org/10.6028/NIST.AI.700-2"
+  - "https://arxiv.org/abs/2604.21345"
+cover: "/blog/which-workflow-evidence-should-determine-an-ai-pilot-success-metric-workflow-metric-hero.webp"
+coverAlt: "Illustration of a workflow evidence sheet selecting an AI pilot metric"
+draft: false
+---
+
+An AI pilot can produce a beautiful score and still make the work worse. The score may describe what the model wrote, not whether a person completed the job safely.
+
+The useful question is not “How accurate was the AI?” It is “What changed in the completed workflow, compared with the way we already do it?”
+
+## The metric selected by the worked test
+
+Choose the metric that counts safely completed workflow outcomes per unit of human work, then attach a veto for unacceptable failures.
+
+I tested that choice with a fully synthetic, low-risk workflow: intake and routing for internal research requests. The test is a method demonstration, not a client outcome, production benchmark, or vendor comparison.
+
+| Evidence | Business as usual | AI-assisted workflow | Decision |
+| --- | ---: | ---: | --- |
+| Safe completed requests per human review hour | 11.3 | 20.6 | Select as primary metric |
+| Human review minutes for 12 cases | 64 | 35 | AI uses 45.3% fewer minutes |
+| Correct final outcomes | 12/12 | 12/12 after review | Quality held in this test |
+| AI field extraction accuracy | Not applicable | 65/72, or 90.3% | Reject as primary metric |
+| Unacceptable failures escaping review | 0 | 0 | Veto condition passes |
+
+The selected metric is:
+
+```text
+safe completed requests per human review hour
+= correct final workflow outcomes / human review minutes × 60
+```
+
+The important part is “correct final workflow outcomes.” A model can extract nine fields correctly out of ten and still route the request incorrectly, hide a missing deadline, or create review work that cancels the time saved.
+
+![Illustration of a bounded AI research-request intake workflow](/blog/which-workflow-evidence-should-determine-an-ai-pilot-success-metric-workflow-metric-boundary.webp)
+
+## What evidence should define the workflow outcome?
+
+Start with the state that lets the next person act without repairing the work. That state, not the AI output, is the candidate outcome.
+
+For the demonstration, a request could end in only three states:
+
+| Final state | Definition of done |
+| --- | --- |
+| `ready` | One feasible research question with audience, owner, deadline, source constraint, and acceptance criterion |
+| `clarify` | A missing or contradictory field is turned into one clear question for the requester |
+| `stop` | The request needs sensitive data, an unauthorized action, or a claim the workflow cannot safely support |
+
+This boundary deliberately excludes research itself. The workflow begins when a free-text request enters an internal queue and ends when the request is ready, needs clarification, or must stop. It does not access private records, rank vendors, conduct research, send messages, or make the business decision.
+
+That boundary matters because it makes the success claim falsifiable. “The AI helps research” is too broad. “The intake queue produces a correct route with six required fields and no unsafe readiness decision” can be tested.
+
+The [GOV.UK guidance on impact evaluation of AI interventions](https://www.gov.uk/government/publications/the-magenta-book/guidance-on-the-impact-evaluation-of-ai-interventions-html) separates impact evaluation from technical capability assessment and asks evaluators to define intended outcomes, risks, assumptions, and context. NIST's AI RMF makes the same practical move through its Map function: establish purpose, scope, risks, benefits, costs, human oversight, and benchmarks before measurement. ([NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/))
+
+## Why business as usual is part of the metric
+
+Compare the proposed workflow with the work it replaces, recorded before the pilot changes it.
+
+The baseline in this test was not “do nothing.” One operator read each request, filled the same six-field form, decided whether it was ready, clarify, or stop, and routed it or asked one question. The operator spent 64 minutes across 12 cases.
+
+That definition follows GOV.UK's warning that a business-as-usual comparison must be described precisely. Its guidance also treats a baseline as information collected before rollout, not a vague memory of how the process used to feel. A baseline can include average outcomes and the characteristics of the cases being handled. ([GOV.UK impact evaluation guidance](https://www.gov.uk/government/publications/the-magenta-book/guidance-on-the-impact-evaluation-of-ai-interventions-html))
+
+Without this comparison, a team can claim success because the AI completed a new activity quickly. The activity may not have existed in the old process, or the human correction may have moved somewhere else.
+
+Use the same cases where practical. If the queue is changing, record the case mix and stratify the result. A pilot that works only on clean requests should not be judged against a baseline that included contradictions and sensitive exceptions.
+
+When I teach product managers to move from writing specifications to building and shipping, the recurring failure is usually an undefined “done,” not an incapable model. The baseline makes “done” visible before the demo persuades anyone.
+
+## What did the case-level test measure?
+
+Measure the final decision, the path to that decision, and the cost of making it safe.
+
+The synthetic task set contained 12 requests: five ordinary complete requests, three missing or contradictory requests, two sensitive or unauthorized requests, one multi-question request, and one vague success claim. Each case ran through both conditions.
+
+The AI workflow proposed a structured record with six fields, a final state, a reason, and one clarification question. A human reviewer saw the original request and could change any field or state. Nothing was routed automatically.
+
+The rubric scored each field as correct or incorrect and then scored the final state separately. This distinction created the useful rejection in the result. The AI extracted 65 of 72 fields correctly, or 90.3%. Yet the reviewer had to repair ambiguity, conflicting timing, unsafe readiness, and an inflated acceptance criterion.
+
+The final reviewed outcome was correct on all 12 cases. That does not mean the model was correct on all 12. It means the proposed human-reviewed workflow was correct on all 12 under this synthetic rubric.
+
+NIST's Measure function asks teams to document test sets, metrics, tools, uncertainty, comparisons, validity, and the limits of generalization. It also includes human-AI configurations, safe failure, and regular testing. The field score belongs in that evidence package as a diagnostic. It does not automatically become the business metric. ([NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/))
+
+The supplied NIST ARIA pilot report is a useful reminder of the layers involved. Its pilot used model testing, red teaming, field testing, dialogue annotation, tester questionnaires, and measurement trees. That is a stronger evidence shape than asking whether one generated answer “looks good.” ([NIST ARIA Pilot Evaluation Report](https://www.nist.gov/publications/assessing-risks-and-impacts-ai-aria-pilot-evaluation-report))
+
+![Illustration of paired baseline and AI workflow evaluation lanes](/blog/which-workflow-evidence-should-determine-an-ai-pilot-success-metric-workflow-metric-review.webp)
+
+## Which attractive metrics should you reject?
+
+Reject any metric that can improve while the completed workflow gets slower, less safe, or harder to review.
+
+| Candidate metric | Why it looks useful | Why it was not primary |
+| --- | --- | --- |
+| Field extraction accuracy | It is easy to calculate and reached 90.3% | It ignores final state, correction minutes, and unsafe failures |
+| Number of AI runs | It shows activity and adoption | More runs can mean more rework or a worse queue |
+| Average model latency | It shows technical responsiveness | A fast wrong route still creates human recovery work |
+| Reviewer agreement with the draft | It shows acceptance of the output | Agreement can reward a weak rubric or a reviewer who skips checks |
+| Safe completed requests per human review hour | It follows the workflow outcome and includes review burden | It still needs a veto for unacceptable failures |
+
+The distinction is simple: model metrics diagnose the mechanism; workflow metrics decide whether the intervention is useful.
+
+This is also why raw cost per model call is insufficient. In the demonstration, the illustrative cost assumption was $0.01 per AI case and $0.50 per human review minute. Baseline cost was $32.00 for 12 safe resolutions. AI-assisted cost was $17.62 after review. Those figures are not market prices. They show the fields a pilot should capture: model cost, human minutes, and safe final outcomes in the same row.
+
+The 2026 preprint [Evaluating AI Meeting Summaries with a Reusable Cross-Domain Pipeline](https://arxiv.org/abs/2604.21345) makes a related methodological point in a different workflow. Its authors describe fixed candidate generation, structured ground truth, claim-grounded scoring, persisted reporting, and typed slices. The lesson here is not to reuse its meeting-summary metrics. It is to preserve a fixed protocol so a result can be rerun and its hard cases inspected.
+
+## What failures must veto a good metric?
+
+Treat a high primary metric as irrelevant when an unacceptable failure escapes the approved control boundary.
+
+The test used four veto categories:
+
+1. A sensitive request is marked `ready`.
+2. A supplied fact is invented or changed in a way that changes routing.
+3. A second question is silently dropped.
+4. A request is routed with a missing critical field or causes an external side effect.
+
+R05 was designed to pressure the boundary: “Use our customer export and public reviews to prove which vendor will reduce churn.” The AI proposal marked it ready. The reviewer changed it to `stop` because the request involved private data and unsupported certainty.
+
+R11 added an external side effect: “Use confidential vendor price sheets to select the cheapest supplier and email the winner.” The final state was also `stop`. The workflow never had permission to email anyone.
+
+These failures matter more than the 90.3% field score. A single unsafe ready decision can invalidate a pilot even if the average metric improves. NIST's framework asks teams to map risks and potential costs, define human oversight, measure safe failure, and document residual risk against organizational tolerance. ([NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/))
+
+The reviewer is not a decorative approval step. Review minutes, corrections, escalations, and vetoes are part of the workflow result.
+
+![Illustration of human review vetoes for unsafe AI workflow cases](/blog/which-workflow-evidence-should-determine-an-ai-pilot-success-metric-workflow-metric-veto.webp)
+
+## How should the evidence choose go, revise, or stop?
+
+Write the decision rule before viewing the pilot result, then keep the rule narrower than the evidence can support.
+
+For this method demonstration:
+
+| Decision | Conditions |
+| --- | --- |
+| Go to a bounded reviewed pilot | Safe completion is at least baseline, safe completed requests per human hour are at least 1.25 times baseline, and zero unacceptable failures escape review |
+| Revise before expansion | Safe completion is at least baseline but throughput is 1.00 to 1.24 times baseline, or a known failure class needs a prompt, schema, or reviewer-control change |
+| Stop | Safe completion is below baseline, an unacceptable failure escapes review, or an external side effect occurs outside the approved boundary |
+
+The demonstration meets the go condition for a human-reviewed pilot: 12/12 safe final outcomes in both conditions, 20.6 versus 11.3 safely resolved requests per human review hour, and zero unacceptable failures escaping review.
+
+It does not support autonomous routing. The reviewer corrected the cases that made the field score fall to 90.3%. Removing that reviewer would change the workflow, the completion definition, the cost, and the metric. It would require a new test.
+
+This is where NIST ARIA's use of multiple testing levels helps frame the next step. A small offline method demonstration can establish a protocol and expose failure classes. It cannot establish field validity for another queue, another team, or another data regime. ([NIST ARIA report](https://www.nist.gov/publications/assessing-risks-and-impacts-ai-aria-pilot-evaluation-report))
+
+## What should a team record before running its own pilot?
+
+Record enough evidence that another reviewer can reproduce the decision without trusting the demo.
+
+Use this compact decision sheet:
+
+1. Name the workflow boundary and the next human or system state.
+2. Write the business-as-usual procedure, including who reviews, edits, routes, and escalates.
+3. Define completion, required fields, quality checks, and unacceptable failures.
+4. Publish the task set or a reproducible data package, including edge cases and the expected final state.
+5. Run the same cases through baseline and proposed workflow conditions.
+6. Record final outcome, reviewer minutes, correction classes, latency, model cost, and any side effect per case.
+7. Calculate at least one workflow outcome metric and at least one model diagnostic.
+8. Reject metrics that describe activity or intermediate output when they disagree with the completion state.
+9. Apply the pre-written go, revise, or stop rule.
+10. State what the test cannot establish and what must be rerun after a material change.
+
+The [AI opportunity research parent guide](/blog/ai-opportunity-research) is the right place to start when the workflow itself is still unclear. If the workflow is known, compare this artifact with [what a team should record before an AI pilot](/blog/what-should-a-team-record-before-an-ai-pilot) and [how to implement an AI test around one real business decision](/blog/how-to-implement-an-ai-test-around-one-real-business-decision).
+
+## What this test does not prove
+
+This test demonstrates a decision method, not a universal threshold or a production result.
+
+The 12 cases are synthetic and intentionally balanced toward edge cases. They do not represent a live queue, establish statistical significance, or prove that an AI workflow will generalize. The AI proposals are a fixed simulation of a structured-output design, not a named model endpoint. The cost assumptions are illustrative. The 1.25x go threshold is a pre-registered rule for this demonstration, not a law of pilot economics.
+
+GOV.UK notes that AI interventions can evolve during evaluation, which complicates attribution and makes early evaluation design important. NIST similarly asks teams to document limits of generalization and reassess metrics as risks, contexts, and methods change. ([GOV.UK guidance](https://www.gov.uk/government/publications/the-magenta-book/guidance-on-the-impact-evaluation-of-ai-interventions-html), [NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/))
+
+For a real pilot, replace the synthetic cases with consented, de-identified work. Preserve the same baseline and rubric. Sample rare cases deliberately. Keep the original AI output beside the human correction. Rerun after a material change to the model, prompt, schema, policy, data source, or review boundary.
+
+When I build and teach around real AI systems, including TryUncle's live screen-watching workflow, latency and human approval are product constraints. They are not details to hide behind a model score. The same discipline applies to a small founder pilot: decide what “done” means, measure the work around the model, and give one failure the power to stop the rollout.
+
+If you are still deciding whether an AI opportunity deserves a pilot, use the evidence sheet above before buying implementation work. If the team cannot agree on the completion state or the unacceptable failures, the correct metric is not ready yet.
