@@ -1,0 +1,179 @@
+---
+title: "How to Implement a Counterexample Library for AI Workflow Reviews"
+date: "2026-08-25"
+updated: "2026-08-25"
+excerpt: "Turn workflow failures into pinned replay fixtures with verified outcomes, named hypotheses, and CI results you can inspect before release."
+answer: "Implement a counterexample library as a versioned replay set, not a list of incident links. Preserve a minimized input, relevant initial state, trace, expected and observed final state, failure hypothesis, deterministic assertions, and review verdict. Run the pinned set before and after each repair and block CI on new failures. Keep ambiguous cases out of deterministic release gates."
+targetQuery: "how to implement a counterexample library for AI workflow reviews"
+queryAliases:
+  - "counterexample library for AI workflows"
+  - "turn AI workflow failures into regression tests"
+intent: "implementation"
+funnel: "problem-aware builder"
+cluster: "evaluation"
+parent: "/blog/ai-workflow-evaluation"
+contentType: "implementation-lab"
+kind: "satellite"
+sourceableAtom: "A redacted three-case counterexample pack produced 0/3 passes before repair and 3/3 passes after one workflow-boundary repair, while preserving the replay input, state, trace, hypothesis, assertions, and verdict for every case."
+evidenceType: "reproducible test and reusable artifact"
+evidenceBasis: "Local deterministic fixture pack and harness run on 2026-08-24, with primary-source guidance from Anthropic, MLflow, OpenAI Evals, Microsoft, and Zapier."
+tags: ["AI evaluation", "AI workflow", "regression testing"]
+author: "Marius Manolachi"
+nextReviewAt: "2027-02-20"
+sources:
+  - "https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents"
+  - "https://mlflow.org/docs/latest/genai/eval-monitor/regression-testing/"
+  - "https://github.com/openai/evals/blob/main/docs/build-eval.md"
+  - "https://github.com/microsoft/ai-agent-eval-scenario-library/blob/main/capability-scenarios/regression-testing.md"
+  - "https://github.com/zapier/AutomationBench"
+faq:
+  - q: "How many counterexamples should a minimal library contain?"
+    a: "Start with one reproducible case for each distinct failure mechanism you need to protect. Three cases can prove the record and harness shape, but they do not measure coverage. Grow the set from new failures and retire only cases that no longer describe supported behavior."
+  - q: "Should every counterexample block CI?"
+    a: "Only deterministic, reproducible cases with a verified expected outcome should block a release. Keep subjective quality checks, exploratory cases, and intentionally accepted behavior in a reported but non-blocking lane until their grading contract is stable."
+cover: "/blog/how-to-implement-a-counterexample-library-for-ai-workflow-reviews-counterexample-library-hero.webp"
+coverAlt: "Illustration of a versioned counterexample library connected to an AI workflow review and CI gate"
+draft: false
+---
+
+When I teach product managers to move from writing specs to building and shipping, the hard part is rarely the model. It is agreeing on what `done` means. A counterexample library forces that agreement onto a failure you can rerun.
+
+I built the small redacted pack below around a local invoice-review workflow. It has three failure classes and one useful result: the original version passed 0 of 3 cases; the repaired version passed 3 of 3. The result is small, but the record is reusable.
+
+| Case | Failure class | Before repair | After repair |
+| --- | --- | ---: | ---: |
+| `route-budget-001` | Wrong route or tool arguments | fail | pass |
+| `state-close-001` | Invalid final state | fail | pass |
+| `approval-refund-001` | Approval or policy bypass | fail | pass |
+
+![Illustration of a counterexample trace being reduced to a small replay fixture](/blog/how-to-implement-a-counterexample-library-for-ai-workflow-reviews-counterexample-trace-minimization.webp)
+
+## What belongs in a counterexample record?
+
+A useful record preserves enough context to rerun the failure and enough judgment to explain why it matters. Do not save only the user complaint or the final text.
+
+Anthropic separates the transcript, which records the trial, from the outcome, which is the final state of the environment. That distinction matters when an agent says it completed a task but the database or queue disagrees. Its guidance also treats a task as inputs plus success criteria and a grader as assertions over the result. [Anthropic's eval guidance](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents) supports this split.
+
+Use this record shape:
+
+```json
+{
+  "schema_version": "counterexample.v1",
+  "id": "approval-refund-001",
+  "workflow_version": "workflow-v1",
+  "failure_class": "approval_or_policy_bypass",
+  "original_trace": [],
+  "replay_input": {},
+  "initial_state": {},
+  "expected_final_state": {},
+  "observed_final_state": {},
+  "failure_hypothesis": "The executor commits without rechecking approval.",
+  "assertions": [],
+  "review_verdict": "block_release_until_commit_rechecks_policy",
+  "provenance": {"source": "redacted_local_fixture", "captured_at": "2026-08-24"}
+}
+```
+
+The fields have different jobs:
+
+| Field | Why it stays |
+| --- | --- |
+| `original_trace` | Shows what actually happened before you simplified it. |
+| `replay_input` | Gives CI the smallest input that still triggers the failure. |
+| `initial_state` | Prevents hidden fixtures, caches, or stale records from deciding the result. |
+| `expected_final_state` | Makes “correct” testable without trusting the agent's final sentence. |
+| `observed_final_state` | Records the failure as a state difference, not a vague impression. |
+| `failure_hypothesis` | Gives repair work a falsifiable explanation. |
+| `assertions` | Turns the hypothesis into deterministic checks where possible. |
+| `review_verdict` | States whether the case blocks, reports, or is intentionally accepted. |
+| `provenance` | Lets another reviewer tell where the case came from and when it was captured. |
+
+OpenAI's public Evals instructions use JSONL samples with an `input` and, for basic match tests, an `ideal` reference. The field names above are wider because workflow review needs trace and state, but the principle is the same: make the case a versioned data record rather than prose in a ticket. [OpenAI Evals](https://github.com/openai/evals/blob/main/docs/build-eval.md) documents the dataset-and-eval pattern.
+
+## How do you minimize a failure without deleting the cause?
+
+Minimize the replay input, not the evidence. A good reduction removes irrelevant turns while leaving the first broken invariant intact.
+
+1. Save the original trace unchanged. Redact secrets, personal data, and production identifiers, but do not rewrite the sequence that revealed the failure.
+2. Mark the first observable break. In a tool-argument failure, that is often the first wrong route or parameter, not the later error message.
+3. Remove one input element or prior turn at a time. Rerun after each removal. Keep the smaller case only if the same assertion still fails for the same hypothesis.
+4. Freeze the relevant initial state. Include only the records, policy values, permissions, and pending approvals that can change the verdict.
+5. Record the reduction. Keep the original trace beside the minimized replay input so a reviewer can challenge the simplification.
+
+Microsoft's regression scenario recommends a baseline, an unchanged rerun after the change, and a comparison that distinguishes a true regression from an intended behavior change. That is also a good minimization discipline: never change the input and the workflow at the same time. [Microsoft's regression testing scenario](https://github.com/microsoft/ai-agent-eval-scenario-library/blob/main/capability-scenarios/regression-testing.md) describes the before-and-after comparison.
+
+The promotion rule is simple: do not move a report into a blocking library until another reviewer can run the minimized input from the recorded initial state and agree on the expected outcome. If the expected outcome is still disputed, keep the case in review, not in the release gate.
+
+## What does a three-case fixture pack look like?
+
+The smallest useful pack spans different failure mechanisms. Three variants of “the answer was wrong” will not tell you whether the library protects routing, state, and authority boundaries.
+
+Here is the minimized approval case:
+
+```json
+{
+  "id": "approval-refund-001",
+  "failure_class": "approval_or_policy_bypass",
+  "replay_input": {"invoice_id": "INV-7", "amount": 900, "approval_token": null},
+  "initial_state": {"refund_status": "none", "approval_above": 500},
+  "expected_final_state": {"refund_status": "awaiting_approval"},
+  "observed_final_state": {"refund_status": "refunded"},
+  "failure_hypothesis": "The executor trusts the proposal and skips the commit-time policy check.",
+  "assertions": [
+    "refund_status == 'awaiting_approval'",
+    "commit_refund.approval_token != null"
+  ],
+  "review_verdict": "block_release_until_commit_rechecks_policy"
+}
+```
+
+The other two cases make the same contract concrete. `route-budget-001` records `lookup_policy(policy_id=marketing)` where the expected call is `lookup_budget(budget_id=marketing)`. `state-close-001` records a case marked `closed` while its required resolution is missing; the expected state is `needs_review`.
+
+This shape follows the useful part of [Zapier's AutomationBench design](https://github.com/zapier/AutomationBench): a trigger, initial state, tools, and programmatic final-state assertions. It also keeps the library provider-neutral. You can adapt the trace fields to an SDK, HTTP workflow, queue worker, or custom orchestrator without changing the review contract.
+
+## How do you verify a repair?
+
+Run the exact same fixtures against a pinned workflow version before and after the repair. The local run produced this result:
+
+| Fixture | Expected outcome | `workflow-v1` observed outcome | `workflow-v2` observed outcome | Verdict |
+| --- | --- | --- | --- | --- |
+| `route-budget-001` | Budget route and `budget_id` argument | Policy route and `policy_id` argument | Budget route and `budget_id` argument | pass after repair |
+| `state-close-001` | `needs_review` with no resolution | `closed` with no resolution | `needs_review` with no resolution | pass after repair |
+| `approval-refund-001` | `awaiting_approval` without token | `refunded` without token | `awaiting_approval` without token | pass after repair |
+
+The repair was one boundary change with three explicit protections: route the intent to the matching tool, validate required fields before writing a terminal state, and recheck approval before the side effect. The library does not claim that this is the only repair. It shows that each hypothesis changed the expected invariant and that the old failures no longer pass unnoticed.
+
+## How do you put the library in CI?
+
+Make the harness answer a gating question: did a known behavior break? MLflow draws this distinction directly. A dataset evaluation measures a score across examples; a regression test turns a known failure into a binary check that runs on every change. [MLflow's regression testing guide](https://mlflow.org/docs/latest/genai/eval-monitor/regression-testing/) shows the same pass/fail pattern in `pytest` and CI.
+
+The provider-neutral harness can stay this small:
+
+```python
+for case in load_jsonl("counterexamples.jsonl"):
+    result = run_workflow(version=PINNED_VERSION,
+                          replay_input=case["replay_input"],
+                          initial_state=case["initial_state"])
+    assert_matches(case["assertions"], result.trace, result.final_state)
+    write_result(case["id"], result.observed, case["expected_final_state"])
+```
+
+The CI contract should be explicit:
+
+- fail when a deterministic assertion fails;
+- print the case ID, expected state, observed state, trace excerpt, and hypothesis;
+- preserve the per-case result as a build artifact;
+- keep the workflow version and fixture-pack version in the result;
+- require a review verdict when a failure is intentionally accepted or the expected state changes.
+
+For broader workflow libraries, partial credit can be useful for triage, but the release gate still needs a strict pass rule for safety, authorization, and final-state invariants. AutomationBench reports both assertion fraction and strict task completion, which is a useful model for separating diagnosis from ship/no-ship decisions.
+
+![Illustration of a CI run comparing pinned workflow versions with per-case pass and fail results](/blog/how-to-implement-a-counterexample-library-for-ai-workflow-reviews-counterexample-ci-verdict.webp)
+
+## What should stay out of the blocking set?
+
+Keep a case non-blocking when its expected outcome cannot be independently verified, its input still contains irrelevant production state, or its grader depends on an uncalibrated subjective judgment. Do not turn “the response felt less helpful” into a hard release gate until reviewers agree on a rubric and you have checked the grader against human judgments.
+
+The same separation helps with duplicate failures. If five incidents share the same first broken invariant, keep one canonical counterexample and link the other incidents as provenance. Create a new case only when the minimized input, initial state, or expected invariant is materially different. Otherwise the library grows in volume without growing in protection.
+
+The result is a small artifact with a sharp job. It tells you which failure is protected, why it matters, what state proves it, and whether the current workflow still passes. For the wider release decision, connect this library to the [AI workflow evaluation guide](/blog/ai-workflow-evaluation) and the site's [replayable AI workflow fixture guide](/blog/how-to-build-a-replayable-ai-workflow-fixture-from-a-business-case). If your team needs to define those invariants before implementation, Marius Manolachi's [AI learning and consulting work](/learn-ai) is the next step.
