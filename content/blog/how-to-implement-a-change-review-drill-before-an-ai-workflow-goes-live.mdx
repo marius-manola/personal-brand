@@ -1,0 +1,197 @@
+---
+title: "How to Implement a Change-Review Drill Before an AI Workflow Goes Live"
+date: "2026-08-25"
+updated: "2026-08-25"
+excerpt: "Run one bounded change through baseline and changed cases, approval, fallback, and rollback checks before an AI workflow goes live."
+answer: "Implement the drill as a versioned change packet: freeze representative normal, edge, approval, failure, and rollback cases; run the unchanged baseline and the changed workflow against the same inputs; compare behavior, review boundaries, escalation, and rollback; then record go, hold, or revise. The main exception is a change that alters the input, state, or tool contract: expand the case set before deciding."
+targetQuery: "how to implement a change-review drill before an AI workflow goes live"
+queryAliases:
+  - "AI workflow change review before launch"
+  - "pre-launch AI workflow regression drill"
+  - "AI workflow go hold revise review"
+intent: "implementation"
+funnel: "consideration"
+cluster: "implementation"
+parent: "/blog/ai-workflow-implementation"
+contentType: "implementation-lab"
+kind: "satellite"
+sourceableAtom: "A provider-neutral change-review packet compares one unchanged baseline and one changed AI workflow across normal, edge, approval, failure, and rollback cases, then records a case-level go, hold, or revise decision when the changed failure path is not fail-closed."
+evidenceType: "reproducible test plus worked decision artifact"
+evidenceBasis: "A provider-neutral Node.js fixture was executed locally on 2026-08-24 against five synthetic cases. It compared baseline and changed decisions, recorded one intentional hold for a changed failure path, and emitted a case-level go, hold, or revise outcome. This is a bounded design test, not a production or client result."
+tags:
+  - "AI implementation"
+  - "AI evaluation"
+  - "AI workflows"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://airc.nist.gov/airmf-resources/airmf/5-sec-core/"
+  - "https://learn.microsoft.com/en-us/azure/well-architected/ai/test"
+  - "https://docs.cloud.google.com/architecture/deploy-operate-generative-ai-applications"
+  - "https://developers.openai.com/api/reference/overview#backwards-compatibility"
+  - "https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentrel02-bp05.html"
+cover: "/blog/how-to-implement-a-change-review-drill-before-an-ai-workflow-goes-live-change-review-drill-hero.webp"
+coverAlt: "Illustration of a baseline and changed AI workflow being compared before launch"
+draft: false
+---
+
+A happy-path demonstration tells you that a workflow can work. It does not tell you whether a prompt, model, retrieval, routing, tool, or policy change quietly moved the approval boundary or weakened recovery.
+
+The practical fix is a small, versioned change packet. The packet below is a provider-neutral implementation artifact with a synthetic fixture, a runnable comparison, and a worked launch decision. It does not claim that a production workflow or client was tested.
+
+Here is the result of the fixture before the walkthrough:
+
+| Case | Changed behavior preserved? | Failure path safe? | Decision |
+| --- | --- | --- | --- |
+| `normal-01` | yes | yes | pass |
+| `edge-01` | yes | yes | pass |
+| `approval-01` | yes | yes | pass |
+| `failure-01` | no | no | hold |
+| `rollback-01` | yes | yes | pass |
+
+The changed failure case returned `retry` where the baseline returned `stop`. That is enough to hold the release. The result is a design-test observation from the supplied synthetic fixture, not a reliability rate.
+
+![Illustration of a baseline and changed AI workflow being compared across five case types before launch](/blog/how-to-implement-a-change-review-drill-before-an-ai-workflow-goes-live-change-review-drill-hero.webp)
+
+## Put the release decision in the packet before testing
+
+Define the changed component, the comparison baseline, the safety boundary, and the decision states before running a case. This prevents the team from changing its definition of success after seeing the output.
+
+NIST describes AI risk management as continuous across the lifecycle and calls for testing before deployment and during operation. Its guidance also connects documented test sets, repeatable evaluation, independent review, and documented limitations. Microsoft makes a related distinction: model evaluation is not the same as whole-system testing after a change. ([NIST AI Risk Management Framework](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/), [Microsoft AI testing guidance](https://learn.microsoft.com/en-us/azure/well-architected/ai/test))
+
+Start with a packet like this. The timeout and case names are explicit local inputs, not universal standards.
+
+```json
+{
+  "drill_id": "change-review-2026-08-24-01",
+  "baseline": "workflow@1.4.0",
+  "changed": "workflow@1.5.0",
+  "injected_change": "failure route changed from stop to retry",
+  "success_definition": [
+    "baseline and changed behavior match on unchanged cases",
+    "approval-required cases remain approval-required",
+    "failure cases remain fail-closed or use an approved fallback",
+    "rollback target and reviewer decision are recorded"
+  ],
+  "reviewer": "reviewer-01",
+  "escalation_timeout_seconds": 900,
+  "rollback_target": "workflow@1.4.0",
+  "decision_states": ["go", "hold", "revise"]
+}
+```
+
+The packet gives the reviewer something concrete to reject. If the changed version also modifies the tool schema, retrieved data contract, state machine, or input fields, the packet is no longer a one-change comparison. Expand the case set or split the release into smaller changes before testing.
+
+The broader [AI workflow implementation guide](/blog/ai-workflow-implementation) is the canonical parent for implementation decisions. This page narrows that job to the review event immediately before launch.
+
+## Freeze five cases that expose behavior and recovery
+
+Use at least one case for normal behavior, an edge condition, an approval boundary, a failure, and rollback. The point is not to claim that five cases represent a workload. The point is to force the release review to cover the places where a demo usually stops.
+
+Google recommends recording prompts, component versions, model versions, metrics, and output data, while also using version control, testing, monitoring, and rollback-capable deployment practices. It notes that generative-model randomness makes comparison harder, so the evaluation approach, metrics, and ground truth need to be stable enough for the comparison. ([Google Cloud generative AI deployment guidance](https://docs.cloud.google.com/architecture/deploy-operate-generative-ai-applications))
+
+Use a case table with an expected outcome that exists before the run:
+
+| Case type | Fixture question | Expected boundary | Evidence to retain |
+| --- | --- | --- | --- |
+| Normal | Does an ordinary input take the ordinary path? | Complete or propose | Input reference, output, version fields |
+| Edge | What happens when a required fact is missing or ambiguous? | Ask, defer, or escalate | Missing-field reason and reviewer route |
+| Approval | Does a consequential action stop for a person? | Approval required | Approval request, identity, decision, rationale |
+| Failure | Does a dependency or tool error stop safely? | Fail closed or approved fallback | Error, retry count, timeout, final state |
+| Rollback | Can the previous version be selected and verified? | Known rollback target | Version record, trigger, verification result |
+
+Freeze the inputs and expected outcomes in the packet. Do not let the changed workflow generate the answer key it is later judged against. If the output is probabilistic, pin the model snapshot where the provider supports it and record the evaluation configuration. OpenAI recommends pinned model versions and application evals because prompting behavior can change between snapshots. ([OpenAI API backwards-compatibility guidance](https://developers.openai.com/api/reference/overview#backwards-compatibility))
+
+The cases are not a substitute for domain coverage. A regulated action, an external side effect, or a high-cost failure may need more fixtures and a stronger reviewer process. Five is the smallest useful shape for this implementation artifact, not a claim about your risk tier.
+
+## Run the same cases against baseline and changed versions
+
+Run both versions through the same harness, inputs, evaluator, and decision fields. Compare the changed result with the baseline, then apply a separate safety rule to failure behavior. A changed output is not automatically a regression, and a matching output is not automatically safe.
+
+This dependency-free JavaScript fixture makes the decision rule visible. The `failure-01` row deliberately changes from `stop` to `retry`, so the test should hold the release instead of hiding the exception in a summary score.
+
+```js
+const cases = [
+  { id: "normal-01", expected: "propose", baseline: "propose", changed: "propose" },
+  { id: "edge-01", expected: "ask", baseline: "ask", changed: "ask" },
+  { id: "approval-01", expected: "hold", baseline: "hold", changed: "hold" },
+  { id: "failure-01", expected: "stop", baseline: "stop", changed: "retry" },
+  { id: "rollback-01", expected: "rollback", baseline: "rollback", changed: "rollback" }
+];
+
+const results = cases.map((item) => {
+  const behaviorPreserved = item.baseline === item.changed;
+  const failureSafe = item.id !== "failure-01" || item.changed === "stop";
+  return {
+    id: item.id,
+    behaviorPreserved,
+    failureSafe,
+    decision: behaviorPreserved && failureSafe ? "pass" : "hold"
+  };
+});
+
+const outcome = results.every((item) => item.decision === "pass")
+  ? "go"
+  : results.some((item) => item.decision === "hold")
+    ? "hold"
+    : "revise";
+
+console.log(JSON.stringify({ cases: results, outcome }, null, 2));
+```
+
+The executed output was `pass, pass, pass, hold, pass`, with an overall `hold`. That is the useful output: the harness found a changed failure path and made the release decision visible. It did not measure model quality, latency, or production risk.
+
+![Illustration of a reviewer comparing paired AI workflow outputs in a case-level change matrix](/blog/how-to-implement-a-change-review-drill-before-an-ai-workflow-goes-live-change-review-case-table.webp)
+
+Keep the raw baseline and changed records, not only the final table. Google recommends recording the versions and output data needed for comparison. The [AI workflow audit trail guide](/blog/how-to-add-an-audit-trail-to-an-ai-workflow) shows the related record-lineage problem: a reviewer needs the versions and events that explain one run, not just a final answer.
+
+## Treat approval, escalation, and rollback as test cases
+
+An approval checkbox is not a control until the drill shows what happens when nobody approves, the reviewer rejects the action, or the primary reviewer cannot respond. Test the boundary and the recovery path, not only the presence of a review screen.
+
+AWS recommends risk-tiered human oversight, structured approval requests, reviewer identity and rationale logging, timeouts, escalation, and safe fallbacks. Use those as fields in the packet. They describe controls to implement, not a guarantee that your workflow is safe. ([AWS Agentic AI Lens, human oversight](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentrel02-bp05.html))
+
+Record one decision row per case:
+
+```json
+{
+  "case_id": "failure-01",
+  "baseline": {"output": "stop", "side_effect": "none"},
+  "changed": {"output": "retry", "side_effect": "none"},
+  "risk_tier": "consequential",
+  "approval": {"required": true, "decision": "hold", "reviewer": "reviewer-01"},
+  "escalation": {"timeout_seconds": 900, "fallback": "safe-stop"},
+  "rollback": {"target": "workflow@1.4.0", "verified": false},
+  "launch_decision": "hold",
+  "reason": "changed failure path is not fail-closed"
+}
+```
+
+The `rollback.verified` field is intentionally false in this worked record. A rollback target written in a document is not rollback evidence. To mark it verified, run the previous version against the affected case, confirm the expected state, and retain that output. If the rollback simulation is not available, the decision remains hold or revise according to the risk owner.
+
+Escalation is also a capacity decision. If the timeout expires, choose a safe fallback before launch. Do not let a human approval step become an unbounded pause that the rest of the workflow treats as success.
+
+## Use explicit rules for go, hold, and revise
+
+Use `go` only when the changed version preserves the defined behavior and the approval, fallback, and rollback records are complete. Use `hold` when a high-risk case is unresolved. Use `revise` when the change altered the contract so much that the original case set no longer tests the same system.
+
+| Observed result | Decision | Required next action |
+| --- | --- | --- |
+| All cases preserve expected behavior, review boundary is intact, fallback and rollback are verified | `go` | Approve the version and retain the packet |
+| A failure path changes, approval is bypassed, or a consequential case is unresolved | `hold` | Keep the baseline live and assign a fix or review |
+| Inputs, tools, state transitions, or output schema changed | `revise` | Expand or replace the case set, then rerun both versions |
+| A non-critical output changes but its expected behavior and reviewer rule still pass | `go` or `hold` | Decide from the declared risk tier, not from textual similarity alone |
+
+For this article's fixture, the correct decision is `hold`: the changed workflow returned `retry` for a failure case whose baseline behavior was `stop`. That does not prove that retry is always wrong. It proves that this specific change did not satisfy the declared fail-closed rule.
+
+Before launch, sign the packet with the workflow owner, reviewer, version IDs, test date, decision, and unresolved exceptions. Then link the packet to the release record. The artifact is useful because a later reviewer can see what changed and why the decision was made.
+
+## What this artifact proves, and what it does not
+
+The artifact proves that a small, provider-neutral harness can make a single change, compare paired cases, expose a changed failure path, and produce a bounded launch decision. It does not prove production reliability, model quality, reviewer agreement, response time, or safety across unseen inputs.
+
+Those limits are part of the evidence. A synthetic fixture is useful for checking the shape of a control and the behavior of a release decision. It cannot stand in for representative data, real permissions, real side effects, or a real reviewer. Replace the fixture with your own redacted cases before treating the packet as launch evidence.
+
+If the test exposes a design choice your team cannot yet own, start with the [AI agent evaluation guide](/blog/how-to-evaluate-an-ai-agent) and return with a runnable case set. If the team needs help becoming capable of building and testing the workflow on its own work, Marius Manolachi's [AI consulting and tutoring approach](/learn-ai) is the relevant next step. The article is complete without that step; the packet is the deliverable.
+
+![Illustration of an AI workflow stopping at approval, escalating after timeout, and returning to a versioned rollback target](/blog/how-to-implement-a-change-review-drill-before-an-ai-workflow-goes-live-change-review-fallback-rollback.webp)
