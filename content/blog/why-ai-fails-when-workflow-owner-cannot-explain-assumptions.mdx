@@ -1,0 +1,142 @@
+---
+title: "Why AI Fails When the Workflow Owner Cannot Explain Its Assumptions"
+date: "2026-08-25"
+updated: "2026-08-25"
+excerpt: "A reproducible handoff test shows how hidden workflow assumptions turn a small AI maintenance change into an unsafe routing decision."
+answer: "AI fails here because the workflow owner carries unstated rules about inputs, decision boundaries, evidence, escalation, and rollback. A successor then treats missing information as a safe default. Run an opaque-versus-explicit handoff test before accepting ownership. The exception is a low-risk, reversible workflow with deterministic rules, but even that needs a named owner and a tested rollback path."
+targetQuery: "why AI fails when the workflow owner cannot explain its assumptions"
+queryAliases:
+  - "why does AI fail when a workflow owner cannot explain assumptions"
+  - "AI workflow assumptions maintenance failure"
+  - "how to diagnose hidden assumptions in an AI workflow maintenance request"
+intent: "informational diagnostic"
+funnel: "implementation"
+cluster: "implementation"
+parent: "/blog/ai-workflow-implementation"
+contentType: "failure-clinic"
+kind: "satellite"
+sourceableAtom: "In a three-case handoff fixture, the opaque packet produced two unsafe routing decisions while the explicit packet produced zero on the same cases."
+evidenceType: "failure-reproduction-and-worked-decision-artifact"
+evidenceBasis: "A document-only successor test comparing opaque and explicit handoff packets, with archived fixture, routing functions, raw observations, decision table, and limitations in research.md."
+tags: ["AI workflows", "AI implementation", "AI governance"]
+author: "Marius Manolachi"
+nextReviewAt: "2027-02-20"
+sources:
+  - "https://airc.nist.gov/airmf-resources/airmf/5-sec-core/"
+  - "https://www.iso.org/home/insights-news/resources/iso-42001-explained-what-it-is.html"
+  - "https://learn.microsoft.com/en-us/agents/center-of-excellence/responsible-ai"
+  - "https://journals.plos.org/digitalhealth/article?id=10.1371%2Fjournal.pdig.0001534"
+  - "https://www.jmir.org/2026/1/e92680/"
+cover: "/blog/why-ai-fails-when-workflow-owner-cannot-explain-assumptions-hero.webp"
+coverAlt: "Illustration of an AI workflow handoff where hidden assumptions cause a maintenance decision to split into safe and unsafe paths"
+draft: false
+---
+
+The dangerous moment is often not the first demo. It is the first small change after the person who built the workflow stops being available.
+
+I ran a compact handoff fixture for that moment. The opaque packet produced two unsafe routing decisions in three cases. After I added explicit assumptions, decision rights, evidence requirements, and rollback ownership, the same three cases produced zero unsafe decisions.
+
+That is one fixture, not a failure rate. Its value is diagnostic: it shows how to find the first hidden assumption before a successor edits a live workflow.
+
+## The failure is hidden policy, not just a missing prompt
+
+AI fails when the owner knows rules that the workflow does not state. The successor then fills the gap with a plausible default, and the maintenance change silently changes the decision boundary.
+
+An AI workflow usually depends on more than a prompt. It depends on assumptions about which inputs are valid, what evidence is authoritative, which cases may be auto-routed, who can override a proposal, and what happens when the system is wrong. If those rules exist only in the owner's head, the workflow is not maintainable by its successor.
+
+NIST's AI Risk Management Framework places context, assumptions, human oversight, roles, testing, monitoring, and recovery inside lifecycle risk management. Its functions are govern, map, measure, and manage, not “write a better prompt.” [NIST AI RMF](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/) also warns that its actions are not a universal ordered checklist. The useful translation here is simple: make the context and boundaries inspectable before you ask someone else to change the system.
+
+When I taught product managers who moved from writing specifications to building and shipping products, the recurring gap was not a lack of enthusiasm for AI. It was that “done” and the decision boundary were still undefined. That is the same maintenance problem in a different costume.
+
+## Reproduce and trace the failure
+
+Give a clean successor the opaque packet, the maintenance request, and three fixed boundary cases. In this reproduction, the opaque version made two unsafe decisions: it sent a temporary export of customer rows to the standard queue, and it sent an unknown request type there too.
+
+The fixture prepared a route proposal for access-related requests. It never approved access and never moved data. The maintenance request was deliberately small:
+
+> Add support for temporary export requests. Make the smallest change that preserves existing behavior.
+
+The opaque handoff showed only this logic:
+
+```text
+extract request type
+if urgent or data, route to specialist review
+otherwise route to standard queue
+```
+
+It also showed two examples: temporary dashboard access went to the standard queue, while exporting customer records went to specialist review. It did not say that data leaving the system was the real boundary. It did not say what to do with unknown types. It did not say whether approval evidence could bypass the route. It did not name a rollback owner.
+
+The clean successor pass inferred that `temporary_export` should behave like `temporary_access`, because the visible example was standard and manager approval was present. That inference was understandable. It was also unsafe.
+
+| Case | Expected safe route | Opaque packet | Explicit packet |
+| --- | --- | --- | --- |
+| Temporary dashboard access, no data egress | `standard_queue` | `standard_queue` | `standard_queue` |
+| Temporary export of 500 customer rows | `specialist_review` | `standard_queue`, unsafe | `specialist_review` |
+| Unknown type, unknown scope, no approval evidence | `specialist_review` | `standard_queue`, unsafe | `specialist_review` |
+
+This is the sourceable result from the page: two unsafe decisions out of three in the opaque fixture, zero out of three after the assumptions were made explicit. Do not read it as “AI workflows fail 67% of the time.” The trace says something narrower and more useful: this packet did not let a successor distinguish a reversible read-only request from an ambiguous or data-egress request.
+
+![Illustration of an opaque and explicit AI workflow handoff packet compared across the same boundary test cases](/blog/why-ai-fails-when-workflow-owner-cannot-explain-assumptions-inline-1.webp)
+
+## Diagnose the first unsafe decision
+
+The first unsafe decision was T2: the successor routed a temporary export to `standard_queue` because the packet named request labels but never defined data egress as the boundary. T3 exposed the same undocumented default for an unknown input.
+
+The new case crossed a semantic boundary that the owner had treated as obvious. The packet named labels, not meanings.
+
+That distinction matters because maintenance requests rarely arrive as perfect copies of the original examples. A new request type, a changed policy, a different source field, or a new reviewer can expose the rule that was never written down. The successor has to choose between extending a known branch, creating a new branch, or stopping for review. Without an explicit boundary, the smallest code change is often the wrong safety decision.
+
+The lifecycle evidence points in the same direction. Microsoft says responsible AI choices belong in the architecture from the start, including grounding sources, access boundaries, human approval, purpose, and limits. It also says accountability means a named owner is answerable for an agent's behavior and outcomes, and that monitoring continues after launch. [Microsoft's responsible AI guidance](https://learn.microsoft.com/en-us/agents/center-of-excellence/responsible-ai) is practical here because it treats explainability and ownership as reviewable design properties.
+
+ISO/IEC 42001 describes an AI management system as something organizations establish, implement, maintain, and continually improve. Its practical first steps include defining oversight roles, documenting policies, monitoring performance and impacts, and planning corrective action. [ISO's explainer](https://www.iso.org/home/insights-news/resources/iso-42001-explained-what-it-is.html) supports the same conclusion: a handoff is not complete when the successor can start the workflow. It is complete when the successor can maintain it under change.
+
+The PLOS Digital Health study is clinical and should stay in that scope. Its longitudinal analysis found that validation-era behavior did not remain stable after deployment and that workflow-associated signals such as input missingness, data latency, and feature availability were associated with degradation. [The study](https://journals.plos.org/digitalhealth/article?id=10.1371%2Fjournal.pdig.0001534) is not evidence that every business workflow will drift in the same way. It is evidence for a more modest governance point: the operating workflow can change the behavior you thought you had validated.
+
+## Repair the handoff contract
+
+Repair the handoff with the smallest set of fields that prevents guessing: purpose, input assumptions, decision boundary, decision rights, evidence requirements, unknown behavior, and rollback ownership. The repair was not a longer description of every implementation detail.
+
+| Field | Explicit statement in the fixture | Why it changes maintenance |
+| --- | --- | --- |
+| Purpose | Prepare a route proposal; never approve access or move data | Keeps the model from becoming the authority |
+| Input assumptions | Type, scope, data egress, approval evidence, and known-case status matter | Prevents labels from standing in for meaning |
+| Decision boundary | Data egress, ambiguous scope, or missing evidence goes to specialist review | Turns a hidden rule into a testable route |
+| Decision rights | Security Operations decides exceptions | Gives the successor a real escalation owner |
+| Evidence requirement | Approval is evidence, not permission to bypass the route | Stops a visible attachment from becoming false authority |
+| Unknown behavior | Unknown or mixed cases stop for human review | Makes abstention explicit |
+| Rollback | Disable the new branch and requeue pending items to specialist review | Makes recovery an owned action, not a hope |
+
+The JMIR governance framework is about clinical AI, not internal business automations. Within that scope, it identifies durable ownership, defined authorization boundaries, cross-functional coordination, scaling pathways, and lifecycle oversight as conditions for moving from pilot to sustained use. [The framework](https://www.jmir.org/2026/1/e92680/) gives useful language for the handoff artifact: ownership is not a name in a document. It is a function with authority, coordination, and lifecycle responsibility.
+
+## Verify the repair before accepting ownership
+
+Verification requires the same maintenance change and the same three cases to pass through the repaired packet. Use this procedure when an owner changes, a pilot moves into operations, or a maintenance request crosses a new boundary.
+
+1. **Freeze one small change.** Pick a real maintenance request that sounds harmless, such as adding a request type, changing a source field, or updating a routing rule. Do not let the successor choose a different task for the explicit run.
+2. **Prepare the opaque packet.** Include the current steps, visible examples, and interfaces. Remove owner commentary, unstated defaults, and private context. Keep the packet reproducible.
+3. **Ask for an explanation before implementation.** The successor must state the workflow's purpose, required inputs, decision boundary, escalation route, and rollback condition. Record the words, not only a pass or fail score.
+4. **Ask for the smallest change.** Require the successor to name the branch they would change, the tests they would add, and the decision they would make for an unknown input.
+5. **Run boundary cases.** Include at least one ordinary case, one case that crosses the new boundary, and one unknown or ambiguous case. A happy-path example is not enough.
+6. **Record the first unsafe decision.** Identify the first route, tool call, write, or escalation that would be unsafe under the intended policy. Do not average it away.
+7. **Make the missing assumptions explicit.** Add purpose, input assumptions, evidence requirements, decision rights, escalation owner, monitoring signal, and rollback owner. Keep the list short enough to maintain.
+8. **Retest the exact fixture.** Use the same change and cases. Confirm that T2 routes to `specialist_review`, T3 stops for human review, and no unsafe decision appears in the three-case trace. The result you want is not perfect prose. It is a safer explanation, a bounded change, and a visible stop condition.
+
+The handoff is not ready when the successor can repeat the happy path. It is ready when the successor can explain why a new case belongs inside or outside the workflow, who decides when the rule is unclear, and how to reverse the change.
+
+For a fuller field list, use the existing [AI workflow handoff packet guide](/blog/what-should-an-ai-workflow-handoff-packet-contain). For a release-oriented scoring pass, see [how to score an AI workflow handoff before release](/blog/how-to-score-ai-workflow-handoff-before-release). The implementation context sits under the [AI workflow implementation parent](/blog/ai-workflow-implementation).
+
+## When this test is not enough
+
+An explicit handoff packet does not prove that the model is accurate, that the data is complete, or that production monitoring works. It only proves that a successor can see and apply the stated contract to the tested change.
+
+Use stronger evidence when the workflow can affect money, access, customers, compliance, or irreversible state. Add tool-permission tests, replay cases from production traces, independent review, monitoring checks, and a live rollback rehearsal. Microsoft recommends human approval for consequential actions and clear escalation for sensitive or ambiguous cases. NIST likewise treats testing, monitoring, recovery, and decommissioning as lifecycle work, not a one-time launch ceremony.
+
+The exception in the Quick Answer is real but narrow. A low-risk, reversible workflow can use a lighter packet because an error is cheap to undo. It still needs a named owner, known inputs, a stop condition, and a rollback that someone has actually tested. Reversibility reduces the consequence of a hidden assumption. It does not make the assumption disappear.
+
+## The decision to make before handoff
+
+If the owner cannot explain the assumptions that make the next change safe, pause the handoff and run the fixture. Do not ask the successor to compensate with confidence or prompt skill.
+
+The useful output is not a more polished diagram. It is a decision table that says what the workflow assumes, what it may decide, what evidence it needs, who owns the exception, and how the change is reversed. That is the smallest artifact that turns private operator knowledge into maintainable system knowledge.
+
+If your team is moving an AI pilot into operations, [Marius Manolachi's AI consulting and tutoring work](/learn-ai) is the next step when you need help running the exercise with your own workflow. The decision remains yours. The point of the exercise is that your team can explain and own the result afterward.
