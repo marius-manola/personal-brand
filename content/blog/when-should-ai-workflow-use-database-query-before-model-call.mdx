@@ -1,0 +1,148 @@
+---
+title: "When Should an AI Workflow Use a Database Query Before a Model Call?"
+date: "2026-08-25"
+updated: "2026-08-25"
+excerpt: "A trace-backed routing matrix for choosing query-first, model-first, or fixed-route AI workflows when structured data is involved."
+answer: "Use a database query before a model call when structured data is authoritative, the query is specific enough to run safely, and the returned rows change the answer or the next retrieval step. Use a fixed route for known exact, aggregate, or authorization paths. Let the model go first only to clarify an unformulated request or handle work that needs no live data."
+targetQuery: "when should an AI workflow use a database query before a model call"
+queryAliases:
+  - "database query before model call"
+  - "query-first AI workflow"
+intent: "architecture decision"
+funnel: "consideration"
+cluster: "architecture"
+parent: "/blog/ai-architecture-decisions"
+contentType: "decision-tool"
+kind: "satellite"
+sourceableAtom: "A six-case, 18-trace bounded fixture and routing matrix showing when query-first, model-first, or deterministic fixed-route wins, including permission outcomes, abstentions, model-call counts, and configured latency estimates."
+evidenceType: "worked-decision-artifact"
+evidenceBasis: "Local fixture.py and fixture-results.json, version 1.0.0, run 2026-08-24, using a deterministic route simulator with six synthetic cases, plus four cited primary sources."
+tags:
+  - "AI architecture"
+  - "AI workflows"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://cloud.google.com/blog/products/databases/techniques-for-improving-text-to-sql"
+  - "https://learn.microsoft.com/en-us/fabric/database/sql/use-case-ai-application"
+  - "https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/rag/rag-agentic"
+  - "https://codelabs.developers.google.com/codelabs/production-ready-ai-with-gc/7-advanced-agent-capabilities/building-agents-with-retrieval-augmented-generation?hl=en"
+cover: "/blog/when-should-ai-workflow-use-database-query-before-model-call-query-first-routing-hero.webp"
+coverAlt: "Illustration of an AI workflow choosing between a database query, a model call, and a fixed route"
+draft: false
+---
+
+The expensive mistake isn’t always a bad SQL query. Sometimes the workflow asks the model to reason about data it could have read exactly, or lets it see a request before the permission boundary has spoken.
+
+I build with Claude Code, Codex, ChatGPT, and related tools on actual work every day. That makes the routing question practical: which step should happen first, and which step should never happen at all? (F-daily, [Marius Manolachi’s AI practice](https://mariusmanolachi.com/learn-ai))
+
+## The fixture’s decision matrix
+
+The result from my bounded local fixture is simple: query-first is a strong default for a structured result that will feed a later interpretation step. It isn’t the cheapest route for every structured question.
+
+| Request shape | Best route in the fixture | Why |
+| --- | --- | --- |
+| Exact lookup | Fixed route | The query and response shape are known. No model call is needed. |
+| Aggregation | Fixed route | A typed aggregate can be returned directly when the metric is already defined. |
+| Authorization-sensitive read | Fixed route | Deny at the tool boundary before protected rows enter model context. |
+| Ambiguous natural-language request | Fixed route when clarification options are known | Ask for the missing metric without guessing at SQL. A model can phrase the question when the options are not known. |
+| Document-plus-row question | Query-first | Current rows identify the entities that the document search must interpret. |
+| Request with no live-data requirement | Model-first | There is no database fact to retrieve, so a model can transform the supplied input directly. |
+
+The fixture compared 18 traces across six cases. Query-first used one model call and an estimated 12 ms for the document-plus-row case. Model-first used two model calls and an estimated 19 ms for the same case. The fixed route matched query-first there, but it won on exact, aggregate, authorization, and known clarification paths by avoiding unnecessary model calls. These are configured local estimates, not production latency measurements.
+
+![Illustration of query-first routing from a user request through structured data and then a model](/blog/when-should-ai-workflow-use-database-query-before-model-call-query-first-sequence.webp)
+
+## When should the database come first?
+
+Put the database query first when all three conditions hold:
+
+1. The database or an authorized structured API is the source of truth for the fact.
+2. The request contains enough identity, filter, time, or grouping information to form a safe query.
+3. The returned fields either answer the question or determine what the workflow must retrieve next.
+
+This is the useful boundary, not “use SQL whenever numbers appear.” A current order status satisfies it. A request to find overdue customers and then interpret a cancellation policy satisfies it too. The first query narrows the document search to real customer rows.
+
+[Google’s RAG codelab](https://codelabs.developers.google.com/codelabs/production-ready-ai-with-gc/7-advanced-agent-capabilities/building-agents-with-retrieval-augmented-generation?hl=en) describes structured retrieval as more direct and exact for structured data than semantic search, and shows a multi-step route that queries a structured source before searching document content. [Microsoft’s SQL guidance](https://learn.microsoft.com/en-us/fabric/database/sql/use-case-ai-application) describes the same pattern as retrieving operational data before generation and joining relational filters with semantic retrieval.
+
+The result is not a command to pass raw rows to the model. Return the smallest field set that the next step needs. Keep the query read-only, parameterized, and scoped to the current user. If the tool returns `denied`, stop. Do not ask the model to explain a row it was not allowed to receive.
+
+## When is a fixed route better than query-first?
+
+A fixed route wins when the application already knows the operation and the answer contract. Exact lookups, typed aggregates, and permission checks should not spend a model call deciding what the application already knows.
+
+The fixture’s exact lookup used a fixed operation, `SELECT status FROM orders WHERE order_id = :order_id`, and returned the typed status directly. Its aggregate used a fixed count over an explicit customer, status, and time window. The fixed route used zero model calls in both cases, while query-first used one final synthesis call and model-first used two calls.
+
+This is also the right place for authorization. In the fixture, the viewer asking for payroll records received `denied_by_tool_contract` before model context was assembled on the query-first and fixed routes. Model-first made one model call before the same denial. [Microsoft’s SQL MCP guidance](https://learn.microsoft.com/en-us/fabric/database/sql/use-case-ai-application) makes the production principle explicit: a governed tool can expose defined operations, enforce permissions and constraints, and avoid schema guessing. The model may request a tool. It should not be the permission system.
+
+Use a fixed route when you can write the operation as a small application rule:
+
+```text
+known intent + known parameters + known output shape -> typed tool result
+permission failure -> stop and abstain
+```
+
+If the output needs explanation, add one model call after the tool result. If it does not, return the structured result and keep the model out of the path.
+
+## When should the model go first?
+
+Let the model go first when the workflow cannot yet name a safe live-data operation, or when live data is irrelevant.
+
+The fixture’s “best customers” request did not define the metric. Querying first would force an arbitrary choice among revenue, order count, retention, or margin. The safest result is a clarification. If the clarification options are known, a fixed route can ask it without a model. If the system must infer which missing concept to clarify, a model call can earn its place before retrieval.
+
+The no-live-data case was a rewrite of text already supplied by the user. All three routes used one model call because a database query adds no evidence. That is not a failure of query-first. It is a veto condition: there is no live structured fact that can change the answer.
+
+Google Cloud’s text-to-SQL guidance makes the same distinction from another angle. Natural language can be ambiguous, and a useful system should ask follow-up questions instead of inventing a definition. It also recommends non-AI validation, such as parsing or a dry run, after generated SQL. [Google Cloud’s text-to-SQL techniques](https://cloud.google.com/blog/products/databases/techniques-for-improving-text-to-sql) support both decisions: clarify before querying when intent is underspecified, and validate any model-generated query before execution.
+
+## How do you implement the boundary safely?
+
+Treat route choice as an observable application decision, not an invisible prompt instruction.
+
+1. **Classify the source of truth.** Mark whether the answer depends on a current row, an aggregate, a document, user-supplied text, or a combination.
+2. **Check queryability before execution.** Require the identity, filters, time range, and metric definition needed by the operation. If one is missing, clarify or abstain.
+3. **Enforce permissions in the tool.** The database or governed API should receive the user identity and enforce row, column, and operation permissions before returning fields.
+4. **Return a narrow result envelope.** Record status, returned fields, row count, permission outcome, and source timestamp. Avoid sending an entire table when the model needs two fields.
+5. **Trace the next-step reason.** Log whether the result answered the request, selected a document search, caused an abstention, or exposed a validation failure.
+6. **Measure route cost.** Count model calls, structured calls, document calls, total latency, and permission outcomes. [Azure’s agentic RAG guidance](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/rag/rag-agentic) recommends measuring tool selection, tool-call count, component latency, cost, security, and step-level observability because each reasoning step adds work.
+
+The important design choice is the stop state. A workflow that cannot identify the entity, define the metric, or pass authorization should return `clarify`, `deny`, or `abstain`. It should not turn missing inputs into a broad query.
+
+## What exactly did the fixture test?
+
+The local artifact is intentionally small enough to inspect. `fixture.py` contains the schema, tool contracts, cases, configuration, expected dispositions, and route implementations. Running it produces `fixture-results.json` with actual traces and the comparison table.
+
+The simulator uses six synthetic cases and three strategies. It records the model label and version, run date, query text, returned fields, permission outcomes, abstentions, failure examples, call counts, estimated component latency, and local wall-clock timing. The model label is `deterministic-route-simulator@1.0.0`; no external model or database was called.
+
+One redacted trace shows the security boundary:
+
+```json
+{
+  "case_id": "authorization_sensitive",
+  "strategy": "query_first",
+  "route_choice": "query_first",
+  "permission_outcome": "denied_by_tool_contract",
+  "abstention": "permission_denied",
+  "model_call_count": 0,
+  "structured_query_count": 1
+}
+```
+
+Another shows why document-plus-row questions are different:
+
+```json
+{
+  "case_id": "document_plus_row",
+  "strategy": "query_first",
+  "structured_query_count": 1,
+  "document_query_count": 1,
+  "model_call_count": 1,
+  "estimated_latency_ms": 12,
+  "disposition": "join_current_rows_to_effective_policy"
+}
+```
+
+This is a bounded reproduction, not a production benchmark. It uses hand-authored synthetic cases, configured latency estimates, and a deterministic model simulator. It does not establish provider token cost, SQL-generation accuracy, real authorization behavior, concurrency limits, schema drift behavior, or a universal winner.
+
+For a broader architecture choice, start with the [AI architecture decisions](/blog/ai-architecture-decisions) hub. If your question is really about choosing between structured and unstructured retrieval, use [When Should an AI Workflow Use SQL, Retrieval, or Both?](/blog/when-should-an-ai-workflow-use-sql-retrieval-or-both). If the workflow must stop on uncertain identity, see [How to Make an AI Workflow Abstain on Ambiguous CRM Identity](/blog/how-to-make-an-ai-workflow-abstain-on-ambiguous-crm-identity).
+
+The practical next step is to take six real requests from your workflow and record the same fields as this fixture. If the query shape is known, make it fixed. If current rows change the next step, query first. If the request is not yet queryable, clarify. If no live fact matters, skip the database.
