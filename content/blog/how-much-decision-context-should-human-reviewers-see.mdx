@@ -1,0 +1,146 @@
+---
+title: "How Much Decision Context Should Human Reviewers See?"
+date: "2026-08-26"
+updated: "2026-08-26"
+excerpt: "A bounded fixture compares how much decision context human reviewers need across final-only, decision-summary, and expandable-trace surfaces."
+answer: "Give human reviewers the smallest context that can change an approve, reject, correct, or escalate decision. For clear and reversible work, final output plus an audit route may suffice; for consequential or ambiguous work, show decision-relevant evidence by default and keep deeper trace details expandable or redacted. In the fixture, the middle surface reached 100% accuracy."
+targetQuery: "how much decision context should human reviewers see in AI systems"
+queryAliases:
+  - "how much context should an AI operator see"
+  - "what decision context should human reviewers get"
+  - "when should human reviewers see AI reasoning"
+intent: "informational decision support"
+funnel: "consideration"
+cluster: "architecture"
+parent: "/blog/ai-architecture"
+contentType: "decision-tool"
+kind: "satellite"
+sourceableAtom: "In a pinned provider-free fixture, decision-relevant summaries reached 100% accuracy across 12 scripted review passes, while expandable full traces reached 92% and added 11 expansion clicks, 3 unnecessary expansions, and 1 confusion/privacy event."
+evidenceType: "reproducible test + worked decision artifact"
+evidenceBasis: "Pinned 2026-08-24 provider-free fixture with six fixed cases, three disclosure surfaces, two independent scripted reviewer roles, raw decisions, timing values, expansion events, and implementation recorded in research.md."
+tags: ["AI architecture", "human review", "AI workflows"]
+author: "Marius Manolachi"
+nextReviewAt: "2026-10-01"
+sources:
+  - "https://www.iso.org/obp/ui?_escaped_fragment_=iso%3Astd%3Aiso-iec%3A42105%3Adis%3Aed-1%3Av1%3Aen"
+  - "https://docs.aws.amazon.com/wellarchitected/latest/responsible-ai-lens/raiuc04-bp02.html"
+  - "https://docs.aws.amazon.com/wellarchitected/latest/responsible-ai-lens/rairc04-bp02.html"
+  - "https://www.oecd.org/en/publications/oecd-due-diligence-guidance-for-responsible-ai_41671712-en/full-report/component-4.html"
+  - "https://digital-strategy.ec.europa.eu/en/library/guidelines-transparency-obligations-providers-and-deployers-ai-systems"
+faq:
+  - q: "Which decision context should human reviewers see first?"
+    a: "Show the source identifier, normalized fields that feed the decision, policy result, proposed side effect, and any ambiguity, conflict, or freshness flag."
+  - q: "Should every human reviewer see the full AI trace?"
+    a: "No. Keep the full trace available for debugging and recovery, but make it expandable unless the operator must inspect those details to approve the action."
+  - q: "What should be redacted from a reviewer trace?"
+    a: "Redact secrets, personal data, irrelevant retrieved text, and implementation details that do not change the decision or the operator's recovery path."
+cover: "/blog/how-much-decision-context-should-human-reviewers-see-hero.webp"
+coverAlt: "Illustration of an AI workflow review surface separating decision-relevant artifacts from an expandable full trace"
+draft: false
+---
+
+> **Quick answer:** Give human reviewers the smallest context that can change an approve, reject, correct, or escalate decision. For clear and reversible work, final output plus an audit route may suffice; for consequential or ambiguous work, show decision-relevant evidence by default and keep deeper trace details expandable or redacted. In the fixture, the middle surface reached 100% accuracy.
+
+![Illustration of an AI workflow review surface separating a final answer, decision summary, and expandable trace](/blog/how-much-decision-context-should-human-reviewers-see-inline-1.webp)
+
+When a workflow returns only its final answer, an operator has to trust every hidden transition. That is cheap for a clear, reversible task. It is a poor review surface when the failure could be in retrieval, normalization, policy, or the proposed side effect.
+
+I build with AI tools on actual work every day. That makes this boundary practical rather than philosophical: the operator needs enough context to make the next decision, not a transcript of everything the system did.
+
+## The bounded result: a decision summary was enough
+
+In the pinned fixture, the decision-relevant summary was the best default surface. It reached 100% accuracy across 12 scripted review passes, compared with 50% for final-only review and 92% for the expandable full trace.
+
+| Review surface | Decision accuracy | Mean time to disposition | Extra interaction |
+| --- | ---: | ---: | --- |
+| Final output only | 50% | 24.3 sec | No expansion path |
+| Final output plus decision summary | 100% | 15.4 sec | No expansion needed |
+| Summary plus expandable full trace | 92% | 20.0 sec | 11 expansion clicks; 3 unnecessary |
+
+The summary corrected the cases where final-only review hid an ambiguous identity, a stale retrieval result, or a policy conflict. The full trace still helped preserve a debugging path, but it introduced one confusion and privacy-cost event in the synthetic privacy-sensitive case. This is a result from six fixed cases, not a claim about all operators or workflows.
+
+## What counts as a decision-relevant artifact?
+
+An artifact is decision-relevant when changing it could change the operator's approve, reject, correct, or escalate action. Show those artifacts in the default review surface.
+
+For a workflow that reads a request and proposes an action, the minimum useful envelope is:
+
+| Workflow stage | Show by default | Why it matters |
+| --- | --- | --- |
+| Input | Request ID and the fields the workflow received | Lets the operator check scope and identity. |
+| Retrieval | Source ID, freshness, and conflict flag | Lets the operator see whether the evidence is current and singular. |
+| Normalization | Only fields that feed the decision | Makes hidden transformations reviewable without exposing parser noise. |
+| Policy check | Rule ID, pass or fail, and short reason | Shows the control that allowed or blocked the proposal. |
+| Proposed action | Action type, target, reversibility, and side-effect summary | Lets the operator approve the actual consequence, not a vague sentence. |
+| Final output | The user-facing response and current status | Connects the review evidence to what the system will communicate. |
+
+AWS recommends placing human review where input or output quality is difficult to judge, where consequences are significant, or where human expertise adds unique value. It also names explanations, contributing factors, confidence, and similar cases as possible reviewer support. That supports a decision summary, but it does not require every internal event to be visible. ([AWS Responsible AI Lens](https://docs.aws.amazon.com/wellarchitected/latest/responsible-ai-lens/raiuc04-bp02.html))
+
+## Choose the surface by consequence, ambiguity, and reversibility
+
+Use this scorecard before you design the operator UI. Score each dimension from 0 to 2.
+
+| Dimension | 0 | 1 | 2 |
+| --- | --- | --- | --- |
+| Consequence | Low impact | Material rework | Access, money, safety, legal, or customer harm |
+| Ambiguity | Clear input and evidence | One unresolved uncertainty | Conflicting identity, source, or policy |
+| Reversibility | Easy undo | Manual recovery | Hard or impossible to reverse |
+| Operator expertise | Routine approval | Some domain judgment | Specialist judgment is required |
+
+Apply the total as a design starting point:
+
+| Score | Default surface | Required behavior |
+| ---: | --- | --- |
+| 0-2 | Final output can be enough | Keep an audit record and a recovery route. Do not imply that the answer proves the hidden steps were correct. |
+| 3-5 | Decision summary | Show the evidence, normalized fields, policy result, and proposed action that affect the decision. |
+| 6-8 | Decision summary plus controlled expansion | Require explicit review of the relevant artifacts, preserve the full trace for debugging, and route unresolved conflicts to escalation. |
+
+The score is a design heuristic derived from the fixture and the cited oversight guidance. It is not a compliance threshold. If one dimension is a hard veto, such as an irreversible side effect or a privacy restriction, use the stricter surface regardless of the total.
+
+## Keep the full trace available, but do not make it the default
+
+The full trace belongs in the recovery and debugging path when it contains information an operator may need after a failure. It should not automatically become the operator's first screen.
+
+In the fixture, the expandable surface preserved access to retrieval ranking, parser events, and other implementation details. Reviewers expanded it 11 times. Three expansions were unnecessary: one reviewer expanded the privacy-sensitive case and both reviewers expanded the low-value-trace case twice even though the decision stayed approve. One expansion exposed synthetic contact context and changed an approve decision to escalate.
+
+That pattern matches the limits in the OECD guidance. Transparency should help people understand and challenge an outcome, but it need not disclose proprietary code or datasets that are too technical to be useful. The same principle applies to internal workflow events: retain them for the people who need to reconstruct a failure, and withhold them from a routine review surface when they cannot change the decision. ([OECD Due Diligence Guidance for Responsible AI](https://www.oecd.org/en/publications/oecd-due-diligence-guidance-for-responsible-ai_41671712-en/full-report/component-4.html))
+
+## Add two gates before exposing an artifact
+
+Before an intermediate field reaches an operator, ask two questions:
+
+1. **Decision test:** Could this field change approve, reject, correct, or escalate?
+2. **Disclosure test:** Does showing it create a privacy, security, confidentiality, or attention cost greater than its review value?
+
+Expose the field by default only when the decision test is yes and the disclosure test is acceptable. Otherwise keep it redacted, aggregated, or expandable for an authorized recovery role.
+
+This is not a reason to hide inconvenient evidence. It is a reason to separate evidence that supports a decision from evidence that only explains implementation. AWS explicitly treats privacy and transparency as competing release criteria and recommends documenting the trade-off and threshold choice. ([AWS Responsible AI Lens](https://docs.aws.amazon.com/wellarchitected/latest/responsible-ai-lens/rairc04-bp02.html))
+
+The EU transparency guidance is also narrower than a blanket trace-disclosure rule. Article 50 obligations for certain AI systems apply from 2 August 2026, but those obligations concern specific transparency situations such as informing people when they interact with AI or labeling certain generated content. They do not by themselves say that every internal retrieval or policy event must be shown to an operator. Check the applicable system category and jurisdiction separately. ([European Commission guidance](https://digital-strategy.ec.europa.eu/en/library/guidelines-transparency-obligations-providers-and-deployers-ai-systems))
+
+## A worked decision artifact
+
+For a proposed action, store the original run and the operator-facing summary separately. The summary should point back to the trace without copying the whole trace into the review screen.
+
+```json
+{
+  "input": {"request_id": "C3", "question": "Which renewal threshold applies?"},
+  "retrieval_result": {"source_id": "policy-17", "freshness": "stale", "conflict": true},
+  "normalized_state": {"threshold": "20%", "account": "acct-42"},
+  "policy_check": {"rule_id": "renewal-v4", "status": "fail", "reason": "source is stale"},
+  "proposed_action": {"type": "send_notice", "reversible": true},
+  "final_output": {"text": "Do not send. Correct the source or escalate."}
+}
+```
+
+The operator does not need every parser event to reject this proposal. They do need the stale source flag, the normalized threshold, the failed policy check, and the proposed side effect. The full trace remains useful if an engineer must explain why `policy-17` was retrieved or why the threshold was normalized incorrectly.
+
+## What this test does not prove
+
+The fixture is deliberately small. It has six cases, two scripted passes per case, and abstract review surfaces. Its timing values are deterministic fixture costs, not measurements of recruited operators. Its privacy event uses synthetic contact context. The result supports a design choice for the artifact contract, not a universal law that more transparency is always better or worse.
+
+The next production test should keep the same cases and schema, then replace the scripted passes with the actual operator role, real task timing, and approved redaction rules. That is the point of preserving the fixture: you can change the surface without changing the decision cases.
+
+If the workflow is still deciding where human authority belongs, start with the [AI architecture parent guide](/blog/ai-architecture), then use the [human decision boundary guide](/blog/where-should-an-ai-workflow-keep-the-human-decision-boundary) to place approval, correction, and escalation. For provenance and replay mechanics, see [how to preserve model output after a reviewer edits extracted data](/blog/how-to-preserve-model-output-after-a-reviewer-edits-extracted-data).
+
+Marius Manolachi helps teams learn to build AI products on their own work. If you need to turn this decision rule into an operator-review contract, [learn about the AI consulting and tutoring work](/learn-ai).
