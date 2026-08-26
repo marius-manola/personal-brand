@@ -1,0 +1,192 @@
+---
+title: "How Should an AI Workflow Handle Database and Document Conflicts?"
+date: "2026-08-26"
+updated: "2026-08-26"
+excerpt: "A reproducible eight-case fixture shows how to preserve source authority, expose conflicts, and abstain when mixed-source evidence cannot establish current state."
+answer: "When a database row and document disagree, identify which source owns the field before generating an answer. Use the current database value for mutable account state, keep the document and source ID visible as a conflict, and abstain from current-state decisions when the live row is missing. Use parallel retrieval when the disagreement itself must be detected."
+targetQuery: "how should an AI workflow handle conflicting database and document evidence"
+queryAliases:
+  - "database and document conflict handling in RAG"
+  - "what to do when database and document sources disagree"
+  - "how to preserve source authority when retrieval conflicts"
+intent: "architecture decision"
+funnel: "consideration"
+cluster: "architecture"
+parent: "/blog/ai-architecture"
+contentType: "decision-tool"
+kind: "satellite"
+sourceableAtom: "On the versioned eight-case fixture, a row-document conflict used the database value for mutable account state while keeping the disagreement and source ID visible; parallel retrieval was preferred when the conflict had to be detected, and route-first abstained when the live identity was missing."
+evidenceType: "reproducible decision artifact"
+evidenceBasis: "Fixture mixed-source-order-v1 and harness order-harness-v1, run 2026-08-24 with 8 cases and 32 complete traces."
+tags:
+  - "AI architecture"
+  - "retrieval"
+author: "Marius Manolachi"
+nextReviewAt: "2027-02-24"
+sources:
+  - "https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/rag/rag-agentic"
+  - "https://www.gov.uk/government/publications/ai-insights/ai-insights-rag-systems-html"
+  - "https://aclanthology.org/2025.naacl-industry.48.pdf"
+  - "https://unstructured.io/insights/scaling-retrieval-systems-for-large-enterprise-data"
+faq:
+  - q: "Should a database always beat a document store?"
+    a: "No. The authoritative source depends on the field. In the fixture, the database owns mutable account state while documents own policy and procedure."
+  - q: "What should an AI workflow do when the database row is missing?"
+    a: "It should abstain from a current-state decision, even if a document describes the entity. Ask for a valid identity or send the case to review."
+cover: "/blog/how-should-an-ai-workflow-handle-conflicting-database-and-document-evidence-img-01.webp"
+coverAlt: "Illustration of four bounded retrieval paths joining database rows and document evidence"
+draft: false
+---
+
+I’ve seen teams make this choice by habit: SQL first because numbers feel authoritative, or document search first because the system is called RAG. The order is a design decision. It changes which evidence enters the context, which conflicts become visible, and when the workflow should stop.
+
+The wider [AI architecture guide](/blog/ai-architecture) covers the larger system choices. This page answers the narrower question: which source should a mixed-source workflow read first?
+
+## The fixture changes the answer
+
+When database and document evidence conflict, identify the field owner and freshness before generation. Use the database for mutable account state, retain the document and source ID as a visible conflict, and abstain when the live row is missing. Use parallel retrieval when the disagreement itself must be surfaced.
+
+The answer depends on the shape of the question, not on a universal ranking between databases and document stores.
+
+I ran a provider-neutral fixture on 2026-08-24. It contains four canonical database rows, seven policy, procedure, and account documents, stale documents, a missing record, and two deliberate row-document conflicts. The same eight questions ran through database-first, document-first, parallel, and route-first paths. That produced 32 complete traces.
+
+| Question shape | Preferred start | Stop or continue rule | Failure to watch |
+|---|---|---|---|
+| Exact live state | Database | Use the row for mutable state; retrieve policy only if the question also asks what the state permits | A stale document overrides current state |
+| Policy or procedure only | Document store | Filter by effective date and stop when the exact current source is sufficient | An unnecessary database call adds noise |
+| Two independent facts or explicit conflict | Parallel | Keep both source IDs and compare before generating | One first result hides the disagreement |
+| Missing identity or uncertain source | Route-first | Route to both when needed; abstain if live identity is missing | A document note becomes fake current state |
+
+The most useful result is not that one path won more cases. It is that each path has a defensible job.
+
+| Case | Observed preferred path | Result |
+|---|---|---|
+| A-100 plan and seat limit | Database-first | Exact row, no document context needed |
+| Current API-key policy | Parallel or route-first with freshness filtering | The bounded document-first stop saw the stale policy first and failed |
+| A-200 API-key eligibility | Database-first | Suspended row beat the stale “active” note; policy still applied |
+| A-400 seat conflict | Parallel | Database value 10 won, and the document value 12 stayed visible |
+| A-300 support plus EU policy | Parallel | Independent row and policy evidence were combined |
+| A-500 access with no row | Route-first | The workflow abstained instead of treating a closure note as current access |
+| A-400 API-key eligibility | Database-first | Current status was read before policy interpretation |
+| API-key rotation procedure | Document-first | The exact runbook answered the question without a database lookup |
+
+The full fixture, harness description, trace ledger, and limitations are recorded in the accompanying research artifact. The measurements below are deliberately bounded. They describe this fixture, not your infrastructure.
+
+![Illustration of database-first, document-first, parallel, and route-first retrieval paths joining live rows with policy documents](/blog/how-should-an-ai-workflow-handle-conflicting-database-and-document-evidence-img-02.webp)
+
+## When does database-first win?
+
+Start with the database when the answer contains a live entity field: status, plan, balance, seat limit, owner, timestamp, or another value that changes independently of prose.
+
+In the fixture, database-first passed the A-100 state question and both A-200 and A-400 eligibility questions. The database row established the current account state. The document retrieval then supplied the policy needed to interpret that state.
+
+This order also gives the workflow a useful dependency:
+
+```text
+identify entity
+  -> read current row
+  -> if the question asks what the state permits, read the applicable policy
+  -> compare dates and authority
+  -> answer or abstain
+```
+
+That is different from using SQL as a universal answer engine. A row can tell you that an account is suspended. It cannot, by itself, tell you what a current policy allows a suspended account to do.
+
+The NAACL industry case study describes the same broad source split in a financial call-center setting: structured data supplied customer-specific facts while policy documents supplied unstructured rules. It also reports overlapping sources and failures caused by missing data or ambiguous context. That is why the fixture treats source overlap as a case to test, not as a detail to hide. ([Murtaza et al.](https://aclanthology.org/2025.naacl-industry.48.pdf))
+
+Use database-first when all three conditions hold:
+
+1. The question names or implies an entity.
+2. The database owns the mutable field being asked about.
+3. A policy or procedure may be needed after the row is known.
+
+If the question only asks for a procedure, the first database call is usually a wasted branch. If the row is missing, do not fill the gap with a document that sounds current.
+
+## When should documents come first?
+
+Start with the document store for a policy, procedure, definition, or runbook question that does not depend on current entity state.
+
+The fixture's API-key rotation question was answered by one fresh runbook. The database had nothing useful to add. Database-first was rejected because it performed a lookup before reading the only source that could answer the question.
+
+Document-first has a strict condition: “first document returned” is not the same as “current policy.” The Q2 policy case exposed this. The stale July policy ranked ahead of the current August policy in the simple fixture. A bounded document-first path that stopped immediately failed. Parallel and route-first passed because they retained enough evidence to apply freshness filtering.
+
+The document path should return, at minimum:
+
+- source ID and document type;
+- effective date and last-updated date;
+- permission or tenant scope;
+- whether the result is current, stale, superseded, or unknown;
+- the exact passage used in the answer.
+
+Retrieval guidance from Unstructured makes the same operational point: metadata such as timestamps, source paths, permissions, and document type can filter results before ranking, while context assembly should keep source identifiers attached and cap the material sent to the model. ([Unstructured's retrieval guidance](https://unstructured.io/insights/scaling-retrieval-systems-for-large-enterprise-data))
+
+If you are still deciding whether the workflow needs SQL, retrieval, or both, start with [the broader RAG-versus-SQL decision](/blog/should-i-use-rag-or-sql-for-internal-business-questions). This page begins after that choice and tests the read order.
+
+## When are parallel or route-first worth the extra machinery?
+
+Use parallel retrieval when the question needs two independent facts or when the disagreement itself is evidence. Use route-first when the system cannot safely know which source matters until it inspects the request.
+
+The A-400 conflict is the clearest example. The database says 10 seats. The account note says 12. A database-first path that also performs a document conflict check passes, but the intended preferred path is parallel because both sources are required for the comparison. Document-first fails by stopping on 12 before it has a live row.
+
+The A-300 question is a different mixed-source shape. The row says the account has premium support and is in the EU. The document says an approved data-processing agreement is required for a regional export. Neither source needs the other to be retrieved. Parallel retrieval makes that independence explicit.
+
+Route-first is most useful when a cheap classifier can distinguish these shapes:
+
+| Route | Use when | Required guard |
+|---|---|---|
+| Database | Exact live state | Return row freshness and identity match |
+| Documents | Policy or procedure | Filter effective date and permissions |
+| Both | Mixed question, conflict, or missing authority | Preserve both source IDs and compare |
+| Abstain | Missing identity or unresolved authority | Ask for clarification or send to review |
+
+Microsoft's current agentic RAG guidance describes dynamic source selection, intermediate-result evaluation, and retrieval as tool calls. It also warns that every additional step adds latency, token use, and complexity. That supports route-first as a bounded decision, not as permission for an open-ended reasoning loop. ([Microsoft Learn](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/rag/rag-agentic))
+
+When I build TryUncle, an AI agent that watches the screen and annotates it live, latency and human approval are product constraints. That is the practical reason to keep route-first bounded: a classifier should prevent unnecessary retrieval, not become another opaque loop.
+
+## What is the stop rule when sources disagree?
+
+Stop generation and emit a conflict record when two sources assert different values for the same field. Do not average them, pick the longer document, or let the model decide silently.
+
+For a field owned by the database, use this rule:
+
+```text
+if database row exists and field is current:
+    use database value
+    retain document value and source ID as a conflict
+elif database row is missing:
+    abstain from current-state decisions
+else:
+    route to the source that owns the field, or escalate authority ambiguity
+```
+
+The rule is fixture-specific in one important way: the database owns mutable account state. Your system may assign that authority to a document store, policy engine, or another service. The architecture must state the owner before retrieval begins.
+
+This is also where [field-level provenance](/blog/how-to-attach-source-evidence-to-ai-workflow-outputs) becomes useful. The answer should carry the field, source ID, freshness, and conflict state instead of only a paragraph of blended context.
+
+## How should you implement the decision?
+
+Make retrieval order an inspectable policy with a small result envelope.
+
+1. Classify the question as live state, policy or procedure, mixed, conflict check, or unknown.
+2. Extract the entity ID when one exists. Do not infer an identity from a fuzzy document match.
+3. Choose the initial path from the matrix above.
+4. Record every source call before the model sees the result.
+5. Attach freshness, authority, permissions, and source IDs to each returned field or passage.
+6. Apply the conflict and missing-row stop rules.
+7. Cap calls, context size, and elapsed time. If the workflow cannot establish sufficient evidence, abstain.
+
+The GOV.UK RAG guidance recommends evaluating retrieval and generation separately and calls out latency, retrieval quality, and security as system concerns. That is why this test scores source behavior before asking a model to phrase an answer. ([GOV.UK RAG guidance](https://www.gov.uk/government/publications/ai-insights/ai-insights-rag-systems-html))
+
+The harness recorded source calls, returned evidence, freshness, conflicts, abstention, context characters, and local elapsed microseconds for every path. It did not call an LLM. That makes the result easier to inspect: a failing path failed because of an explicit retrieval rule, not because a model happened to word the answer badly.
+
+## What this test does not prove
+
+This is a decision artifact, not a production performance benchmark. The fixture uses four rows, seven documents, eight questions, deterministic keyword search, and one local CPython run. It does not measure vector recall, SQL generation, permissions, concurrent service latency, token cost, prompt injection, document poisoning, or write safety.
+
+The local elapsed values are diagnostic only. The research ledger records them so a rerun can detect a gross regression, but they should not be compared with the response times in a vendor case study or treated as evidence that parallel retrieval is always faster. A real evaluation should add representative queries, tail latency, cost, authorization, and production-shaped freshness delays.
+
+## The decision
+
+Read the database first when the question needs current entity state. Read the document store first when the question is a self-contained policy or procedure. Use parallel retrieval for independent facts or explicit conflict checks. Use route-first when source relevance or identity is uncertain, and make abstention a successful outcome when the live record is missing.
+
+The important design choice is not “database or documents.” It is declaring which source owns each field, then making the retrieval order and stop rule visible in the trace.
