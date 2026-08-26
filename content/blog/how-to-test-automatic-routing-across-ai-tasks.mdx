@@ -1,0 +1,202 @@
+---
+title: "How to Test Automatic Routing Across AI Tasks"
+date: "2026-08-26"
+updated: "2026-08-26"
+excerpt: "A fixed ten-case replay shows how to test automatic routing against explicit rules and one capable path before adding another architecture layer."
+answer: "Test automatic routing with a labeled replay covering each task type, expected output, context size, route, fallback, latency, cost, and human review. Compare it with explicit rules and one capable baseline. Keep routing only when it handles variable task identity without weakening critical checks; otherwise use rules or a fixed path."
+targetQuery: "how to test automatic routing across AI tasks"
+queryAliases:
+  - "when to test automatic routing"
+  - "automatic routing evaluation for AI workflows"
+  - "how to compare routing paths across tasks"
+intent: decision
+funnel: consideration
+cluster: architecture
+parent: "/blog/ai-architecture"
+contentType: decision-tool
+kind: satellite
+sourceableAtom: "In a fixed ten-case orchestration harness, explicit task rules with specialist adapters matched the capable baseline at 100% quality while reducing declared mean latency from 227.9 ms to 126.5 ms and total simulated cost from $0.00852 to $0.006995; the automatic router passed 9/10 cases, added one route error, and triggered two human-review escalations."
+evidenceType: "reproducible comparative test plus worked decision matrix"
+evidenceBasis: "Offline deterministic harness rerun on 2026-08-24, corpus SHA-256 8882c53b01e65835a04b8118ad41aa1b67487d7f006482c513348cb55987e85d, with raw request, response, timing, cost, route, fallback, and review logs retained in research.md."
+tags:
+  - AI architecture
+  - model routing
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://docs.aws.amazon.com/prescriptive-guidance/latest/agentic-ai-patterns/workflow-for-routing.html"
+  - "https://learn.microsoft.com/en-us/azure/foundry/openai/concepts/model-router-how-it-works"
+  - "https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/choose-ai-model"
+  - "https://cursor.com/guides/model-routing"
+  - "https://arxiv.org/abs/2408.13510"
+faq:
+  - q: "Do I need a model router if the task type is already known?"
+    a: "Usually not. Use an explicit rule and a specialist model first. Add automatic routing only when labels are unreliable, the task mix changes often, or the routing decision itself is worth measuring."
+  - q: "Can a model router solve context-window failures?"
+    a: "Not by itself. The smallest model in the candidate pool can set the effective context floor. Restrict the pool or route long inputs to a fixed model with the required context window."
+  - q: "Should vendor-reported routing savings decide the architecture?"
+    a: "No. Treat them as a hypothesis. Replay your own labeled requests with the same model pool, cache assumptions, quality checks, and fallback costs."
+cover: "/blog/how-to-test-automatic-routing-across-ai-tasks-hero-model-router-decision.webp"
+coverAlt: "Illustration of a model router choosing between a capable baseline and specialist task models"
+draft: false
+---
+
+When a workflow mixes classification, extraction, tool calls, and reasoning, automatic routing can look like an easy way to match each request with a specialist. But you need a replay before you make it part of the architecture. I ran the same ten labeled cases through three paths to see where the extra layer helped and where it failed. This is a narrower decision inside the broader [AI architecture guide](/blog/ai-architecture).
+
+## The test result: explicit rules won this corpus
+
+On this fixed run, explicit task rules plus specialist adapters matched the capable baseline and used less declared latency and cost. The automatic router was faster and cheaper than the baseline, but it failed one task check and created two human-review flags.
+
+| Path | Quality | Mean declared latency | Total declared cost | Route errors | Context failures | Human review flags |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| One capable baseline | 10/10 | 227.9 ms | $0.008520 | 0 | 0 | 0 |
+| Explicit rules plus specialists | 10/10 | 126.5 ms | $0.006995 | 0 | 1 | 1 |
+| Automatic router | 9/10 | 152.8 ms | $0.007989 | 1 | 1 | 2 |
+
+The rules path is the observed winner here. It reduced declared mean latency by 44.5% and total declared cost by 17.9% versus the baseline. The router reduced them by 32.9% and 6.2%. Those are results from this harness, not universal thresholds.
+
+![Illustration of the comparison between a capable baseline, explicit specialist rules, and automatic routing](/blog/how-to-test-automatic-routing-across-ai-tasks-inline-routing-result-matrix.webp)
+
+The test used deterministic adapters because the local LLM endpoint was unavailable in the sandbox. That makes the result narrower and more honest. It tests orchestration choices, context gating, fallbacks, declared token economics, and route observability. It does not claim that any commercial model will produce these scores.
+
+## What a model router adds
+
+A model router sits between the application and a pool of models. It interprets the request, selects an eligible model, and forwards the request to that model. AWS describes this as a classifier or router delegating input to a specialized downstream task or agent. That pattern fits mixed requests such as search, summarization, booking, and calculations. [AWS Prescriptive Guidance](https://docs.aws.amazon.com/prescriptive-guidance/latest/agentic-ai-patterns/workflow-for-routing.html)
+
+The added layer has four jobs:
+
+1. Identify the task or its difficulty.
+2. Select a model from an allowed pool.
+3. Preserve the context and output contract the task needs.
+4. Expose the selection and failure path for later evaluation.
+
+Microsoft's current model-router documentation makes the fourth job concrete: the selected model is disclosed in the response, and the workload should be reevaluated after changing routing modes or the model subset. [Microsoft Foundry model router documentation](https://learn.microsoft.com/en-us/azure/foundry/openai/concepts/model-router-how-it-works)
+
+If your design does not log the selected model, prompt version, context size, fallback, task result, and human review, you cannot tell whether routing improved the workflow or only moved failures around.
+
+## When should explicit rules win?
+
+Use explicit rules when the workflow already knows its task type. A typed event such as `{task: "extraction"}` does not need an LLM to rediscover that fact. It needs a specialist that can satisfy the extraction contract, plus a fallback for inputs outside its context window.
+
+That is what happened in the test. The rules path sent C01 and C02 to `classify-v1`, C03 and C04 to `extract-v1`, C05 and C06 to `summary-v1`, C07 and C08 to `tool-v1`, and C09 and C10 to `reason-v1`. C10 exceeded `reason-v1`'s context limit, so the path fell back to `capable-v1`. The task still passed, but the fallback was correctly marked for review.
+
+Rules are the better first choice when:
+
+- task labels are already present in the request contract;
+- the task set is small and stable;
+- a wrong route is more expensive than a little extra model cost;
+- compliance requires a fixed model or a fixed region;
+- you need predictable debugging and cost forecasting.
+
+This is also the practical meaning of the broader model-selection guidance: manual selection favors predictability and control, while automatic selection is more useful when workload requirements vary. [Microsoft's model-selection guidance](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/choose-ai-model)
+
+## What failed in the automatic router?
+
+The router made two instructive mistakes.
+
+First, C08 asked for a read-only account status check without using the words “tool call,” “calendar,” or “CRM.” The router classified it as reasoning and returned an unsupported-task response. The route error was visible, and the request was marked for human review. This is the cost of inferring task identity from prose when an application could have supplied a typed task.
+
+Second, C10 was 310 input tokens. The router selected `reason-v1`, whose configured context limit was 256 tokens. The harness rejected that route, fell back to `capable-v1`, and marked the event for review. The final answer passed, but the attempted route still mattered because it added latency, cost, and an operational signal.
+
+The context failure was not surprising. Microsoft warns that the effective context window of a router can be constrained by the smallest candidate model. The safe design is to set a context floor deliberately, restrict the model subset, or keep long-context work on a fixed path. [Microsoft's model-selection guidance](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/choose-ai-model)
+
+Vendor case studies can point to useful measurements, but they don't replace your replay. Cursor reports savings for its own routing modes and notes that switching models can lose prompt-cache benefits. That is a vendor-reported result and a useful reminder to include cache behavior in your own cost test, not a threshold for this architecture. [Cursor's model-routing guide](https://cursor.com/guides/model-routing)
+
+## A decision matrix for specialist tasks
+
+Use this matrix after you have a labeled sample. It turns “our workflow is diverse” into a decision you can audit.
+
+| Workflow condition | Default architecture | Add automatic routing when | Keep a veto when |
+| --- | --- | --- | --- |
+| Task type is explicit | Rule to a specialist | Labels are missing, noisy, or changing faster than rules | The path is high-risk or compliance-bound |
+| Mostly classification and extraction | Rules plus specialists | Volume and task mix make maintenance measurable | A pinned model is easier to explain and already meets quality |
+| Long context is common | Fixed model with the required window | Every candidate meets the context floor | A smaller candidate would require frequent fallback |
+| Tool calls can cause side effects | Fixed policy and validated tool specialist | Routing only dispatches and cannot authorize a write | Approval and validation are not separate from selection |
+| Task identity is hard to infer | Router pilot | You can log model, route, result, fallback, and review | You cannot inspect why a request was routed |
+| Models change frequently | Hybrid | Replays show the new pool still meets task checks | Vendor savings are the only evidence |
+
+The hybrid pattern is often the practical endpoint: keep critical or specialized paths fixed and let a router handle variable general traffic. Microsoft documents this combination as a way to preserve control where it matters while optimizing broader traffic. [Microsoft Foundry model router documentation](https://learn.microsoft.com/en-us/azure/foundry/openai/concepts/model-router-how-it-works)
+
+## How to run the comparison on your workflow
+
+The useful artifact is not a router slogan. It is a replayable evaluation. If you need the broader process for comparing models on business work, start with [how to compare AI models on your own business tasks](/blog/how-to-compare-ai-models-on-your-own-business-tasks), then add the routing paths below.
+
+### Corpus schema
+
+Create one row per representative request:
+
+```text
+id, task, text, expected_output, input_tokens, context_requirement, risk, review_rule
+```
+
+The test corpus used ten cases, two per task:
+
+| Task | Cases | Check |
+| --- | --- | --- |
+| Classification | C01, C02 | Exact intent label |
+| Extraction | C03, C04 | Exact required fields and values |
+| Summarization | C05, C06 | Exact decision fields |
+| Tool calling | C07, C08 | Exact tool name and arguments |
+| Reasoning | C09, C10 | Exact safe decision |
+
+The final prompt set was:
+
+```text
+C01 Classify this request: the customer wants to dispute an invoice.
+C02 Classify this request: the user cannot sign in after a password reset.
+C03 Extract vendor, renewal_date, and notice_days from this contract clause: Acme renews on 2027-04-01 with 60 days notice.
+C04 Extract invoice_number, total, and currency: invoice INV-1042 totals EUR 1800.
+C05 Summarize these notes into decision, owner, and next_step: approve pilot; Priya owns review; rerun Friday.
+C06 Summarize this incident into impact, cause, and action: exports failed for 12 minutes after a schema change; rollback completed.
+C07 Choose the tool call: create a calendar event for the launch review next Tuesday.
+C08 The account status is needed for a read-only check. Return the next action.
+C09 Choose a retry policy: transient failures may repeat, but writes must not duplicate.
+C10 Given a long policy record, decide whether to retry or escalate. The record says retries are allowed only for transient failures, the write may already have committed, the operator is unavailable, and the policy version changed mid-run. Explain the safe next step.
+```
+
+### Run configuration
+
+Keep the corpus, prompts, model pool, and scoring rubric fixed while comparing paths. Log `selected_model`, `models_called`, `response`, `quality_pass`, `latency_ms`, `declared_cost_usd`, `route_error`, `context_window_failure`, `fallback`, and `human_review` for every invocation.
+
+The adapter versions in this run were `capable-v1`, `classify-v1`, `extract-v1`, `summary-v1`, `tool-v1`, `reason-v1`, and `router-v1`. Their context limits, base latency, token schedule, routing rules, and all raw rows are retained in the job's research record. To replace this synthetic corpus with real traces, see [how to build an evaluation dataset from production traces](/blog/how-to-build-an-evaluation-dataset-from-production-traces).
+
+A minimal replay loop looks like this:
+
+```text
+for case in corpus:
+    selected = route(case.text)             # fixed rule or router
+    if tokens(case) > context[selected]:
+        selected = capable_fallback
+    response = models[selected].run(case.text)
+    log(case.id, selected, response, check(response, case.expected_output),
+        latency, cost, route_error, context_failure, fallback, human_review)
+```
+
+### Scoring rubric
+
+Score each request before calculating an average:
+
+- Pass only when the response satisfies the task-specific check.
+- Record a route error when the selected model does not match the labeled task and no safe fallback occurs.
+- Record a context failure before fallback when the selected model cannot accept the input.
+- Count a human-review flag for a route error, context fallback, policy violation, or low-confidence result.
+- Compare cost per successful task, not cost per request alone.
+
+Microsoft's guidance recommends evaluating the same representative dataset across candidate models and considering accuracy, speed, cost, context retention, and output quality. [Azure Architecture Center](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/choose-ai-model)
+
+The arXiv study in the source set is useful context for latency-aware routing, but it studies workload-aware scheduling across inference instances. It should not be mixed into this task-quality result. [Intelligent Router for LLM Workloads](https://arxiv.org/abs/2408.13510)
+
+## The practical rule
+
+Use automatic routing across specialist tasks only when all four conditions are true:
+
+1. The workflow receives materially different task types or difficulty levels.
+2. You cannot classify the requests reliably with application rules alone, or maintaining those rules is now a measured burden.
+3. The candidate pool has the required context, compliance, latency, and tool capabilities.
+4. You can replay the workload and observe routes, quality, fallbacks, cost, and human review.
+
+If the task type is already explicit, start with rules. If one capable model already meets the quality, latency, and cost requirements, keep it. If routing improves the average but weakens a critical task, use a hybrid and pin that task.
+
+When I teach product managers to move from writing specifications to building and shipping products, the important change is not choosing a more elaborate model stack. It is defining what “done” means and testing it against the work. That is the same discipline this decision needs.
+
+If you want help turning a real workflow into a labeled replay and architecture choice, [Marius Manolachi's AI consulting and tutoring work](/learn-ai) is the relevant next step. Bring the task corpus and the failure log. The decision should be inspectable before the router becomes a production dependency.
