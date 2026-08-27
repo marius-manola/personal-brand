@@ -1,0 +1,155 @@
+---
+title: "How to Implement a Before-and-After AI Tutoring Transfer Evaluation"
+date: "2026-08-27"
+updated: "2026-08-27"
+excerpt: "Build a runnable before-and-after test for AI tutoring transfer with matched forms, independent near and far tasks, rubric calibration, and a go/no-go gate."
+answer: "Implement the evaluation as four linked checks: matched pre/post items for immediate change, an independent near-transfer task, an independent far-transfer task, and a predeclared rubric with opportunity counts. Use a small human-scored calibration subset before automating. Treat GO as evidence that the kit cleared its threshold, not proof of causal learning, unless you add a real learner sample, controls, and delayed retention."
+targetQuery: "how to implement a before-and-after evaluation for AI tutoring transfer"
+queryAliases:
+  - "before and after AI tutoring transfer evaluation"
+  - "how to validate an AI tutoring evaluation rubric"
+  - "AI tutoring pretest posttest transfer"
+intent: "implementation"
+funnel: "consideration"
+cluster: "evaluation"
+parent: "/blog/ai-evaluation"
+contentType: "implementation-lab"
+kind: "satellite"
+sourceableAtom: "A runnable v0.1.0 transfer-evaluation kit pairs matched pre/post items with independent near and far tasks, counts missed decision opportunities, and applies a predeclared GO rule. Its six-case instrument pilot moved from 50.0% pre to 87.5% post, with 87.5% near transfer, 70.8% far transfer, 25.0% post missed-opportunity rate, and 93.8% raw calibration agreement. The cases are anonymized fixtures, not learner outcomes."
+evidenceType: "reproducible evaluation artifact plus bounded pilot result"
+evidenceBasis: "Versioned evaluation kit v0.1.0 in the accompanying job artifact, runnable Python analysis, six anonymized fixture cases, 16 calibration cells, and primary research on pre/post design, tutor rubrics, automated scoring, transfer separation, and authentic application."
+tags:
+  - "AI tutoring"
+  - "AI evaluation"
+  - "learning transfer"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-24"
+sources:
+  - "https://pmc.ncbi.nlm.nih.gov/articles/PMC12179260/"
+  - "https://aclanthology.org/2025.naacl-long.57/"
+  - "https://proceedings.mlr.press/v257/han24a.html"
+  - "https://onlinelibrary.wiley.com/doi/full/10.1111/jcal.12757"
+  - "https://arxiv.org/abs/2606.18617"
+faq:
+  - q: "Can a higher post-test score prove transfer?"
+    a: "No. A post-test can show immediate change. Transfer requires a separate task completed without the tutor, preferably with a changed surface and an explicit decision rubric."
+  - q: "Should an AI score the transfer tasks?"
+    a: "Only after a human-scored calibration subset shows acceptable agreement. Keep the original response, rubric evidence, and model score so disagreements can be audited."
+cover: "/blog/how-to-implement-before-and-after-ai-tutoring-transfer-evaluation-transfer-evaluation-hero.webp"
+coverAlt: "Illustration of a before-and-after AI tutoring transfer evaluation worksheet"
+draft: false
+---
+
+The easiest way to overstate an AI tutor's value is to stop after the session. A learner can sound fluent while the skill remains tied to the tutor's prompts.
+
+The kit behind this post makes the separation explicit. Its six-case instrument pilot moved from 50.0% on the pre-form to 87.5% on the post-form, then reached 87.5% on an independent near-transfer task and 70.8% on a farther-transfer task. It also cut missed opportunities from 6 to 3. Those are fixture results that verify the evaluator's mechanics, not learner outcomes.
+
+![Before-and-after result table for the transfer-evaluation kit](/blog/how-to-implement-before-and-after-ai-tutoring-transfer-evaluation-transfer-result-table.webp)
+
+## What should the before-and-after test measure?
+
+Measure three different things: immediate change, independent near transfer, and independent far transfer. Do not collapse them into one session score.
+
+The first check is a matched pre/post form. It tells you whether the learner can perform the taught objective immediately after tutoring. The AI-tutor RCT that informs this design used a pre-class quiz to establish baseline knowledge and a post-class quiz after each lesson. Its test questions were built from the learning goals rather than copied from the lesson wording, which is the important design choice here. [Kestin et al., 2025](https://pmc.ncbi.nlm.nih.gov/articles/PMC12179260/)
+
+The second check is near transfer. Keep the same underlying decision, but change the example, inputs, or context. The third is far transfer. Change the surface and require the learner to recognize when the skill applies in a less familiar situation. The Trace Table Tutor research separates supported practice as near transfer from assessment problems without the same support and with more integrated skills as far transfer. [Huang et al., 2023](https://onlinelibrary.wiley.com/doi/full/10.1111/jcal.12757)
+
+The practical interpretation is simple:
+
+| Result pattern | What it supports | What it does not support |
+| --- | --- | --- |
+| Post rises, near and far stay low | Immediate learning or test familiarity | Independent transfer |
+| Post and near rise, far stays low | Local recombination | Flexible application |
+| Post, near, and far clear threshold | A stronger transfer signal | Causal efficacy or retention |
+| Scores are low because opportunities never appear | An exposure problem | A conclusion that execution failed |
+
+For the objective in the pilot, the learner had to inspect an AI recommendation, find missing evidence, choose a verification step, and state when to stop or escalate. That objective is concrete enough to test without asking whether the learner feels confident.
+
+## How do you design matched forms and independent transfer tasks?
+
+Write the learning objective first, then create parallel prompts that test the same decisions with different surface details.
+
+1. State the observable objective in one sentence. Avoid “understands AI evaluation.” Use “identifies missing evidence, chooses a verification action, and states an escalation condition.”
+2. Build an item blueprint with one row per construct. The kit uses missing evidence, verification choice, bounded decision, and stop rule.
+3. Write pre and post forms separately. Keep the construct and difficulty stable, but change the business example and values.
+4. Create one near-transfer task that preserves the reasoning pattern. The kit changes the example to a customer-onboarding exception.
+5. Create one far-transfer task that changes both the domain and the decision surface. The kit uses a hiring summary with conflicting interview evidence.
+6. Remove tutor help from both transfer tasks. No hints, leading questions, or answer-shaped follow-ups.
+7. Freeze the forms and rubric before looking at pilot scores. Version them together, for example `transfer-kit-v0.1.0`.
+
+This is where the RCT's test-construction detail matters. If the post items repeat the tutor's examples, the score can reflect memory for the session instead of a transferable capability. The test writer should work from the objective and item blueprint, not from the tutor transcript.
+
+The [AI evaluation hub](/blog/ai-evaluation) is useful for the broader measurement choices. This page narrows that job to the design of a transfer test.
+
+## How should you score transfer?
+
+Score the learner's independent work against a small, visible rubric. A single “good answer” label hides which part of the capability transferred.
+
+The kit uses four binary dimensions for each independent task:
+
+| Dimension | One point when the response... |
+| --- | --- |
+| Evidence | Names the missing or conflicting evidence |
+| Verification | Chooses a check that could resolve the uncertainty |
+| Bounded decision | Makes a decision without treating plausibility as proof |
+| Stop rule | States an abstention, escalation, or stop condition |
+
+The four dimensions are a local rubric for the chosen objective, not a universal tutor-quality standard. The NAACL taxonomy is useful here because it treats AI tutoring as multiple pedagogical abilities rather than one answer-accuracy score. It introduces eight dimensions and MRBench, a benchmark with 192 conversations and 1,596 responses from seven LLM-based and human tutors. [Maurya et al., 2025](https://aclanthology.org/2025.naacl-long.57/)
+
+Add an opportunity count beside the score. For every task, record whether the response had a chance to demonstrate evidence checking and whether it had a chance to state a decision boundary. Then report both:
+
+```text
+missed_opportunity_rate = missed opportunities / available opportunities
+task_score = rubric points earned / rubric points available
+```
+
+This distinction prevents a common mistake. A learner cannot demonstrate a move when the task never creates the relevant moment. The 2026 tutor-transfer study makes that distinction explicit by separating the likelihood of encountering a pedagogical opportunity from execution quality when the opportunity appears. [Thomas et al., 2026](https://arxiv.org/abs/2606.18617)
+
+## When can automated scoring be trusted?
+
+Use automated scoring for scale only after a manual calibration subset shows that the rubric is readable and the scorer follows it.
+
+The calibration sequence is:
+
+1. Select a small sample that includes clear passes, clear failures, and ambiguous cases.
+2. Have two assessors score each rubric dimension independently.
+3. Record both scores before discussing disagreements.
+4. Reconcile the differences and retain the adjudication notes.
+5. Compare any automated score with the reconciled reference set.
+6. Keep the original response, evidence excerpt, score, and disagreement reason.
+
+The pilot's calibration file contains 16 rubric cells across four cases. It produced 15 matches, or 93.8% raw agreement. That number is only instrument QA for anonymized fixture cases. It is not a claim about human inter-rater reliability in a live study.
+
+![Rubric calibration before automated scoring](/blog/how-to-implement-before-and-after-ai-tutoring-transfer-evaluation-rubric-calibration.webp)
+
+Automated scoring can reduce review cost, but it should not erase the review trail. Han et al. evaluated GPT-based assessment of tutoring practices and included financial considerations; their tested retrieval-augmented approach had the best accuracy and lowest cost among the strategies they compared. That finding supports testing the scoring setup, not blindly adopting it for every rubric. [Han et al., 2024](https://proceedings.mlr.press/v257/han24a.html)
+
+For high-stakes decisions, keep humans on the calibration and exception path. An automated scorer can produce a first pass. It should not become the evidence that the scorer itself is reliable.
+
+## What is the go/no-go rule?
+
+Predeclare thresholds before reviewing results. The kit returns GO only when all five conditions pass:
+
+| Gate | Threshold |
+| --- | ---: |
+| Post-form score | At least 75% |
+| Near-transfer score | At least 75% |
+| Far-transfer score | At least 60% |
+| Post missed-opportunity rate | No more than 25% |
+| Calibration raw agreement | At least 80% |
+
+The far-transfer threshold is lower because the task deliberately changes more of the context. That is a design choice, not a published universal standard. Change it when the cost of a wrong independent decision is higher, and record the reason in the test version.
+
+The pilot clears every gate: post 87.5%, near transfer 87.5%, far transfer 70.8%, post missed-opportunity rate 25.0%, and calibration agreement 93.8%. The correct interpretation is “the instrument returned GO on its fixture cases.” The incorrect interpretation is “the tutor caused a 37.5-point learning gain.”
+
+Marius Manolachi has taught product managers who moved from writing specifications to building and shipping products and automating work around them. In that kind of capability work, a threshold matters because “done” has to mean independent performance, not a convincing walkthrough. The [accuracy-beyond-answer-quality guide](/blog/what-does-a-useful-ai-evaluation-measure-beyond-answer-accuracy) covers the broader evaluation problem.
+
+## What does this evaluation still fail to prove?
+
+This kit is ready to implement, but its fixture pilot is not a learner study. It does not prove that a tutor caused learning, that the skill persists after a delay, that learners can use it in their real jobs, or that a product will produce the same result at scale.
+
+For a real tutoring evaluation, add a consented learner sample, a control or comparison condition when causal attribution matters, a delayed post-test, and authentic application evidence. The 2026 tutor-transfer work is a useful model for connecting training performance to real-life transcripts, while also showing why opportunity counts and execution quality need to remain separate. [Thomas et al., 2026](https://arxiv.org/abs/2606.18617)
+
+Start with one objective and one versioned kit. If the post score rises but far transfer fails, improve practice and task design before expanding the tutoring program. If far transfer clears but calibration fails, fix the rubric or reviewer process before trusting the result. If all gates clear on real learner data, you have a defensible basis for the next pilot, not a blanket claim that AI tutoring transfers every skill.
+
+If you need help turning a capability goal into a testable learning and evaluation plan, Marius Manolachi offers [AI tutoring and consulting](/learn-ai). The artifact should remain yours to run after the engagement ends.
