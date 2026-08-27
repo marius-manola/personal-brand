@@ -1,0 +1,209 @@
+---
+title: "How to Reproduce an Approval Failure Before External Side Effects"
+date: "2026-08-27"
+updated: "2026-08-27"
+excerpt: "A bounded failure clinic for reproducing an AI approval failure, locating the first side effect, and verifying the repaired checkpoint before release."
+answer: "Reproduce an approval failure with the same action list, injected schema defect, and success rubric in two boundary placements. Diagnose whether approval came before or after the first external effect, repair the checkpoint and harness, then verify every accepted trace. In this fixture, the pre-effect checkpoint left 0 effects and 1 rework step, versus 2 and 5 after commit."
+targetQuery: "how to reproduce an approval failure before external side effects"
+queryAliases:
+  - "reproduce an approval boundary failure"
+  - "approval failure before external side effects"
+intent: "implementation"
+funnel: "consideration"
+cluster: "implementation"
+parent: "/blog/implementation-shadow"
+contentType: "failure-clinic"
+kind: "satellite"
+sourceableAtom: "In a deterministic paired fixture, the same injected downstream schema failure appeared at action index 4 in all 30 accepted runs; reversible checkpoint produced 0 pre-detection external effects and 1 rework step versus 2 effects and 5 rework steps after commit."
+evidenceType: "paired deterministic failure reproduction"
+evidenceBasis: "Contract-faithful local fixture run from evidence/harness.py and evidence/analyze.py on 2026-08-24, with root-level detection_time_ms lookup repaired and 30 accepted runs verified."
+tags:
+  - "AI implementation"
+  - "approval workflows"
+  - "failure clinic"
+author: "Marius Manolachi"
+nextReviewAt: "2027-02-20"
+sources:
+  - "https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec04-bp02.html"
+  - "https://github.com/OWASP/www-project-ai-security-and-privacy-guide/blob/main/content/ai_exchange/content/docs/1_general_controls.md"
+  - "https://docs.langchain.com/oss/python/langchain/human-in-the-loop"
+  - "https://learn.microsoft.com/en-us/agent-framework/concepts/agents/safety"
+faq:
+  - q: "Should the first slice send or write anything automatically?"
+    a: "No. Let the first slice read, normalize, validate, and prepare a proposed action. Put approval immediately before the first external effect, then release only the exact reviewed payload."
+  - q: "What should an approval decision contain?"
+    a: "At minimum, show the operation, target, parameters, evidence used, expected side effect, expiry or timeout, and whether the reviewer approved, edited, or rejected the exact proposal."
+  - q: "Does this fixture prove every approval checkpoint belongs in the same place?"
+    a: "No. It isolates one injected schema failure in three deterministic cases. Use the result to test your own boundary, not to claim a universal production effect."
+cover: "/blog/how-to-reproduce-an-approval-failure-before-external-side-effects-approval-boundary-hero.webp"
+coverAlt: "Illustration of an AI-assisted approval workflow paused before its first external effect"
+draft: false
+---
+
+When I teach product managers to move from writing specs to building and shipping the product, the useful question is always where the work becomes real. An approval label isn't enough. The system has to stop before it changes something outside its own workspace.
+
+This failure clinic makes that boundary measurable and gives you a way to check the repair.
+
+## The result: place approval before the first external effect
+
+Start with a prepare-and-review slice. Let the AI read inputs, produce a typed proposal, validate it, and package the evidence. Pause immediately before the first write, send, purchase, permission change, or other external effect. In the fixture below, that placement held the injected failure at the same action index while reducing recovery work.
+
+| Mode | Runs | Accepted | Failure index | Detection time | External effects before detection | Rework steps |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `reversible_checkpoint` | 15 | 15 | 4 | 120 ms | 0 | 1 |
+| `irreversible_commit` | 15 | 15 | 4 | 120 ms | 2 | 5 |
+
+The fixture therefore gives a bounded implementation rule: if the first external effect is not necessary to learn whether the proposed action is valid, place the checkpoint before it. Do not read this as a production benchmark. It is a failure-reproduction result for one action contract.
+
+![Illustration of an approval boundary separating reversible preparation from external side effects](/blog/how-to-reproduce-an-approval-failure-before-external-side-effects-reversible-versus-irreversible-boundary.webp)
+
+AWS describes the same control shape at a systems level: pause high-risk operations before execution, classify risk with deterministic logic, preserve decision context, set timeouts, and log the decision. [AWS's Agentic AI Lens](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec04-bp02.html) also warns that routing every action through review can create rubber-stamp approvals. The first slice needs a narrow boundary, not a human button on every step.
+
+## What can the workflow prepare before approval?
+
+The workflow can read, normalize, validate, and package a proposed action before approval. It should not own the decision or create the side effect. Its output is a review packet that another person can accept, edit, reject, or send back for more information.
+
+| Action | First-slice treatment | Why |
+| --- | --- | --- |
+| Read source records | Allow, with scoped access | It gathers evidence without changing state. |
+| Normalize and validate fields | Allow, but fail closed | The result remains a proposal until checked. |
+| Draft a target action | Allow as a typed proposal | A reviewer can inspect the exact parameters. |
+| Create a write, send, purchase, or permission call | Pause before execution | This is the first external effect. |
+| Commit the approved action | Release only the reviewed payload | Do not let the model silently change the approved request. |
+
+This follows two useful primary-source distinctions. Microsoft says to treat model-provided tool arguments as untrusted input and to consider side effects, data sensitivity, reversibility, and scope when deciding which tools need approval. OWASP's general controls call for documented oversight tiers, prohibited autonomous actions, assigned responsibilities, and technical policy controls. See [Microsoft Agent Safety](https://learn.microsoft.com/en-us/agent-framework/concepts/agents/safety) and [OWASP's general controls](https://github.com/OWASP/www-project-ai-security-and-privacy-guide/blob/main/content/ai_exchange/content/docs/1_general_controls.md).
+
+The exception is a genuinely read-only workflow whose output cannot change another system and does not expose sensitive data. Even then, validate the inputs and keep the boundary explicit so a later tool addition doesn't quietly turn a safe slice into an executor.
+
+## How to reproduce and diagnose the failure
+
+Reproduce the failure with two identical runs that differ only in checkpoint placement. The diagnosis is then specific: the injected schema defect triggers the failure, while an approval boundary after the first external effect explains why the irreversible mode carries more recovery work.
+
+The test used three complete input cases, five trials per case, and two modes. Both modes received the same injected downstream schema failure:
+
+```json
+{
+  "failure": "downstream_schema_failure",
+  "action_index": 4,
+  "message": "approved_payload is missing required field: owner_id",
+  "detection_time_ms": 120
+}
+```
+
+The cases were:
+
+```text
+invoice_exception
+access_request
+vendor_change
+```
+
+The success rubric accepted a run only when the failure appeared at action index 4, detection time was 120 ms, and the mode's external-effect and rework values matched the rubric. The harness first had to read `detection_time_ms` from the rubric root. The repaired lookup is:
+
+```python
+detection_time_ms = rubric["detection_time_ms"]
+```
+
+That is the harness repair. Before it, a nested lookup would read the wrong configuration path and could fail before testing the approval boundary. After it, both modes use the same root-level detection time, failure index, and acceptance rules.
+
+| Success criterion | Required value |
+| --- | --- |
+| Accepted runs | 30 total, 15 per mode |
+| Failure action index | 4 in every run |
+| Detection time | 120 ms in every run |
+| Reversible checkpoint effects and rework | 0 and 1 |
+| Irreversible commit effects and rework | 2 and 5 |
+
+That small defect matters. A test that reads the wrong configuration path can fail before it tests the approval boundary, or worse, appear to pass with a default value. Make the rubric structure part of the test contract.
+
+LangChain's current human-in-the-loop documentation makes the runtime version of this idea concrete: tool calls can interrupt execution, state can be persisted for later resumption, and a reviewer can approve, edit, reject, or respond. The approval decision should be bound to the exact tool call, not to a vague statement that the workflow is generally trusted. [LangChain's HITL documentation](https://docs.langchain.com/oss/python/langchain/human-in-the-loop) is a useful reference for that contract.
+
+The diagnosis is complete when the trace can answer two separate questions: which defect was injected, and whether any external effect happened before the system detected it. Do not collapse those into one pass or fail label.
+
+## How to verify the repair before release
+
+Verify the repair by rerunning every case and trial, then checking the raw trace and summary against the same rubric. A passing verification has 30 accepted records, action index 4 and detection time 120 ms in every record, plus the two mode-specific effect and rework values shown below.
+
+| Verification check | Required result |
+| --- | --- |
+| Total accepted records | 30 |
+| Failure action index | 4 in every record |
+| Detection time | 120 ms in every record |
+| `reversible_checkpoint` effects and rework | 0 and 1 |
+| `irreversible_commit` effects and rework | 2 and 5 |
+
+The verification commands are:
+
+```text
+python3 evidence/harness.py
+python3 evidence/analyze.py
+```
+
+The harness returned `{"status":"ok","runs":30}` and the analyzer returned `{"status":"ok"}` for this fixture. Those outputs verify the repaired lookup and the stated comparison. They do not verify a live integration, which still needs its own action list and failure injection.
+
+## What do the raw traces show?
+
+The raw traces below are the 30 accepted JSONL records from the run. Keeping the trace compact makes the comparison inspectable without turning the result into a chart that hides the failure.
+
+```jsonl
+{"run_id":"reversible_checkpoint-invoice_exception-1","case_id":"invoice_exception","trial":1,"mode":"reversible_checkpoint","failure":"downstream_schema_failure","failure_action_index":4,"detection_time_ms":120,"external_effects_before_detection":0,"rework_steps":1,"accepted":true}
+{"run_id":"reversible_checkpoint-invoice_exception-2","case_id":"invoice_exception","trial":2,"mode":"reversible_checkpoint","failure":"downstream_schema_failure","failure_action_index":4,"detection_time_ms":120,"external_effects_before_detection":0,"rework_steps":1,"accepted":true}
+{"run_id":"reversible_checkpoint-invoice_exception-3","case_id":"invoice_exception","trial":3,"mode":"reversible_checkpoint","failure":"downstream_schema_failure","failure_action_index":4,"detection_time_ms":120,"external_effects_before_detection":0,"rework_steps":1,"accepted":true}
+{"run_id":"reversible_checkpoint-invoice_exception-4","case_id":"invoice_exception","trial":4,"mode":"reversible_checkpoint","failure":"downstream_schema_failure","failure_action_index":4,"detection_time_ms":120,"external_effects_before_detection":0,"rework_steps":1,"accepted":true}
+{"run_id":"reversible_checkpoint-invoice_exception-5","case_id":"invoice_exception","trial":5,"mode":"reversible_checkpoint","failure":"downstream_schema_failure","failure_action_index":4,"detection_time_ms":120,"external_effects_before_detection":0,"rework_steps":1,"accepted":true}
+{"run_id":"reversible_checkpoint-access_request-1","case_id":"access_request","trial":1,"mode":"reversible_checkpoint","failure":"downstream_schema_failure","failure_action_index":4,"detection_time_ms":120,"external_effects_before_detection":0,"rework_steps":1,"accepted":true}
+{"run_id":"reversible_checkpoint-access_request-2","case_id":"access_request","trial":2,"mode":"reversible_checkpoint","failure":"downstream_schema_failure","failure_action_index":4,"detection_time_ms":120,"external_effects_before_detection":0,"rework_steps":1,"accepted":true}
+{"run_id":"reversible_checkpoint-access_request-3","case_id":"access_request","trial":3,"mode":"reversible_checkpoint","failure":"downstream_schema_failure","failure_action_index":4,"detection_time_ms":120,"external_effects_before_detection":0,"rework_steps":1,"accepted":true}
+{"run_id":"reversible_checkpoint-access_request-4","case_id":"access_request","trial":4,"mode":"reversible_checkpoint","failure":"downstream_schema_failure","failure_action_index":4,"detection_time_ms":120,"external_effects_before_detection":0,"rework_steps":1,"accepted":true}
+{"run_id":"reversible_checkpoint-access_request-5","case_id":"access_request","trial":5,"mode":"reversible_checkpoint","failure":"downstream_schema_failure","failure_action_index":4,"detection_time_ms":120,"external_effects_before_detection":0,"rework_steps":1,"accepted":true}
+{"run_id":"reversible_checkpoint-vendor_change-1","case_id":"vendor_change","trial":1,"mode":"reversible_checkpoint","failure":"downstream_schema_failure","failure_action_index":4,"detection_time_ms":120,"external_effects_before_detection":0,"rework_steps":1,"accepted":true}
+{"run_id":"reversible_checkpoint-vendor_change-2","case_id":"vendor_change","trial":2,"mode":"reversible_checkpoint","failure":"downstream_schema_failure","failure_action_index":4,"detection_time_ms":120,"external_effects_before_detection":0,"rework_steps":1,"accepted":true}
+{"run_id":"reversible_checkpoint-vendor_change-3","case_id":"vendor_change","trial":3,"mode":"reversible_checkpoint","failure":"downstream_schema_failure","failure_action_index":4,"detection_time_ms":120,"external_effects_before_detection":0,"rework_steps":1,"accepted":true}
+{"run_id":"reversible_checkpoint-vendor_change-4","case_id":"vendor_change","trial":4,"mode":"reversible_checkpoint","failure":"downstream_schema_failure","failure_action_index":4,"detection_time_ms":120,"external_effects_before_detection":0,"rework_steps":1,"accepted":true}
+{"run_id":"reversible_checkpoint-vendor_change-5","case_id":"vendor_change","trial":5,"mode":"reversible_checkpoint","failure":"downstream_schema_failure","failure_action_index":4,"detection_time_ms":120,"external_effects_before_detection":0,"rework_steps":1,"accepted":true}
+{"run_id":"irreversible_commit-invoice_exception-1","case_id":"invoice_exception","trial":1,"mode":"irreversible_commit","failure":"downstream_schema_failure","failure_action_index":4,"detection_time_ms":120,"external_effects_before_detection":2,"rework_steps":5,"accepted":true}
+{"run_id":"irreversible_commit-invoice_exception-2","case_id":"invoice_exception","trial":2,"mode":"irreversible_commit","failure":"downstream_schema_failure","failure_action_index":4,"detection_time_ms":120,"external_effects_before_detection":2,"rework_steps":5,"accepted":true}
+{"run_id":"irreversible_commit-invoice_exception-3","case_id":"invoice_exception","trial":3,"mode":"irreversible_commit","failure":"downstream_schema_failure","failure_action_index":4,"detection_time_ms":120,"external_effects_before_detection":2,"rework_steps":5,"accepted":true}
+{"run_id":"irreversible_commit-invoice_exception-4","case_id":"invoice_exception","trial":4,"mode":"irreversible_commit","failure":"downstream_schema_failure","failure_action_index":4,"detection_time_ms":120,"external_effects_before_detection":2,"rework_steps":5,"accepted":true}
+{"run_id":"irreversible_commit-invoice_exception-5","case_id":"invoice_exception","trial":5,"mode":"irreversible_commit","failure":"downstream_schema_failure","failure_action_index":4,"detection_time_ms":120,"external_effects_before_detection":2,"rework_steps":5,"accepted":true}
+{"run_id":"irreversible_commit-access_request-1","case_id":"access_request","trial":1,"mode":"irreversible_commit","failure":"downstream_schema_failure","failure_action_index":4,"detection_time_ms":120,"external_effects_before_detection":2,"rework_steps":5,"accepted":true}
+{"run_id":"irreversible_commit-access_request-2","case_id":"access_request","trial":2,"mode":"irreversible_commit","failure":"downstream_schema_failure","failure_action_index":4,"detection_time_ms":120,"external_effects_before_detection":2,"rework_steps":5,"accepted":true}
+{"run_id":"irreversible_commit-access_request-3","case_id":"access_request","trial":3,"mode":"irreversible_commit","failure":"downstream_schema_failure","failure_action_index":4,"detection_time_ms":120,"external_effects_before_detection":2,"rework_steps":5,"accepted":true}
+{"run_id":"irreversible_commit-access_request-4","case_id":"access_request","trial":4,"mode":"irreversible_commit","failure":"downstream_schema_failure","failure_action_index":4,"detection_time_ms":120,"external_effects_before_detection":2,"rework_steps":5,"accepted":true}
+{"run_id":"irreversible_commit-access_request-5","case_id":"access_request","trial":5,"mode":"irreversible_commit","failure":"downstream_schema_failure","failure_action_index":4,"detection_time_ms":120,"external_effects_before_detection":2,"rework_steps":5,"accepted":true}
+{"run_id":"irreversible_commit-vendor_change-1","case_id":"vendor_change","trial":1,"mode":"irreversible_commit","failure":"downstream_schema_failure","failure_action_index":4,"detection_time_ms":120,"external_effects_before_detection":2,"rework_steps":5,"accepted":true}
+{"run_id":"irreversible_commit-vendor_change-2","case_id":"vendor_change","trial":2,"mode":"irreversible_commit","failure":"downstream_schema_failure","failure_action_index":4,"detection_time_ms":120,"external_effects_before_detection":2,"rework_steps":5,"accepted":true}
+{"run_id":"irreversible_commit-vendor_change-3","case_id":"vendor_change","trial":3,"mode":"irreversible_commit","failure":"downstream_schema_failure","failure_action_index":4,"detection_time_ms":120,"external_effects_before_detection":2,"rework_steps":5,"accepted":true}
+{"run_id":"irreversible_commit-vendor_change-4","case_id":"vendor_change","trial":4,"mode":"irreversible_commit","failure":"downstream_schema_failure","failure_action_index":4,"detection_time_ms":120,"external_effects_before_detection":2,"rework_steps":5,"accepted":true}
+{"run_id":"irreversible_commit-vendor_change-5","case_id":"vendor_change","trial":5,"mode":"irreversible_commit","failure":"downstream_schema_failure","failure_action_index":4,"detection_time_ms":120,"external_effects_before_detection":2,"rework_steps":5,"accepted":true}
+```
+
+The analyzer reduces those records to the summary table at the top. Because every case and trial accepted under the same rubric, the comparison is about boundary placement rather than random model variation.
+
+## How should you implement the approval boundary?
+
+Use this sequence for a first slice:
+
+1. List every action in the proposed workflow, including reads, transformations, writes, messages, purchases, permission changes, and retries.
+2. Mark the first action that changes an external system or creates a consequence outside the workflow's temporary workspace.
+3. Keep preparation on the safe side of that line. Validate tool arguments as untrusted input and fail closed on missing or malformed fields.
+4. Persist the proposal and its evidence so a reviewer can return later without reconstructing the run.
+5. Show the exact target, parameters, source evidence, expected consequence, and expiry or timeout to the reviewer.
+6. Accept only an explicit decision for that exact proposal. If the payload changes materially, require a new review.
+7. Release the action, then record the reviewer, decision, timestamps, and any escalation.
+
+The approval decision is not a generic permission slip. It is a release for one concrete operation. AWS recommends storing decision context, configuring timeouts and escalation, and logging reviewer identity and timestamps. LangChain's implementation similarly binds decisions to individual interrupted tool calls and persists state for resumption.
+
+If a tool's effect is genuinely reversible, you can place it in a later slice after you have measured its rollback. But don't call an action reversible because the UI has an undo button. Define what gets restored, by whom, within what time, and what downstream systems may already have observed.
+
+## What this failure reproduction does not prove
+
+It does not prove that every AI-assisted approval workflow will have five recovery steps after commit. It does not measure latency in a production queue, reviewer capacity, model accuracy, or the cost of an incident. It only shows that this fixture held the failure constant and changed two recovery outputs when the approval boundary moved.
+
+That limit is the point. A first slice should make the risk decision inspectable before a team argues about scale. Re-run the fixture with your actual action list, failure injection, and success rubric. If the first external effect is still needed to discover whether the payload is valid, move validation earlier or narrow the slice until it isn't.
+
+For the broader shadow-mode implementation context, continue with [the implementation shadow guide](/blog/implementation-shadow). For a concrete preview-before-execution pattern, see [how to build a dry-run mode for an AI agent](/blog/how-to-build-a-dry-run-mode-for-an-ai-agent).
+
+If your team can name the first external effect but cannot reproduce the failure around it, Marius Manolachi works as an AI consultant and AI tutor to make existing people capable of building AI products on their own work. [Learn about that work](/learn-ai).
+
+The next release decision is simple: ship the prepare-and-review slice only when the raw trace proves that detection happens before an external effect, and keep the commit path behind an explicit approval for the exact payload.
