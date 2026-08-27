@@ -1,0 +1,243 @@
+---
+title: "How to Reject Schema-Valid AI Output Before State Changes"
+date: "2026-08-27"
+updated: "2026-08-27"
+excerpt: "Schema-valid AI output can still violate workflow invariants. Reproduce the failure, name the first failed check, and reject it before state changes."
+answer: "Reject schema-valid AI output after parsing and envelope validation but before any state mutation. Check identifier ownership, quantity consistency, policy, and the current state revision against the request and live state. A strict provider can prevent malformed output, but it cannot infer every business invariant, so only a result that passes the application gate should reach execution."
+targetQuery: "how to reject schema-valid AI output before a state change"
+queryAliases:
+  - "how to stop schema-valid AI output from mutating state"
+  - "how to validate AI output before committing workflow state"
+  - "semantic validation before AI workflow state mutation"
+intent: "prevent schema-valid AI output from causing unsafe workflow state changes"
+funnel: "implementation"
+cluster: "implementation"
+parent: "/blog/ai-workflow-implementation"
+contentType: "failure-clinic"
+kind: "satellite"
+sourceableAtom: "A provider-neutral seven-case fixture run through two structured-output mocks produces a deterministic wrong-owner result that passes JSON parsing and the versioned envelope schema but fails the identifier_ownership invariant."
+evidenceType: "failure-reproduction"
+evidenceBasis: "Pure Python 3 fixture executed on 2026-08-24 with seven exact cases and two provider-neutral mocked structured-output adapters; no live provider calls."
+tags: ["structured outputs", "workflow validation", "AI reliability"]
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://developers.openai.com/api/docs/guides/structured-outputs"
+  - "https://openai.com/index/introducing-structured-outputs-in-the-api/"
+  - "https://ai.google.dev/gemini-api/docs/structured-output"
+  - "https://platform.claude.com/docs/en/build-with-claude/structured-outputs"
+  - "https://json-schema.org/understanding-json-schema/reference/conditionals"
+faq:
+  - q: "Does strict structured output guarantee business correctness?"
+    a: "No. It can constrain JSON shape and types, but application code still has to check values against the request, policy, permissions, and current state."
+  - q: "Where should semantic validation live?"
+    a: "At the application boundary after parsing and schema validation, before a result can mutate state or call a side-effecting tool."
+  - q: "What should happen when a semantic check fails?"
+    a: "Reject or hold the result, preserve the raw response and validator reason, and make the failure replayable. Do not retry blindly when the request or state is the problem."
+cover: "/blog/reject-schema-valid-ai-output-before-state-change-result-envelope-boundary-hero.webp"
+coverAlt: "Illustration of a valid AI result envelope stopped by a semantic workflow gate"
+draft: false
+---
+
+The parser can be completely happy while the workflow is wrong. That’s the uncomfortable case: the envelope is valid, the typed object exists, and the next line still points at the wrong order or approves the wrong quantity.
+
+When I taught product managers to move from writing specs to building and shipping, the failure was usually an undefined “done,” not the model. The same distinction matters in code: a result envelope defines what arrived. It does not prove that the workflow may act on it. [Marius Manolachi’s AI learning work](/learn-ai) treats that boundary as part of the capability, not a cleanup task.
+
+## The observed break is after schema validation
+
+Reject the object at the application boundary. The fixture produced the requested failure twice, once for each provider-neutral mock. In both runs, `wrong_owner` parsed, passed the versioned schema, and failed only when the application compared the returned `order_id` with the requested `order_id`.
+
+| Case | JSON parse | Envelope schema | First failed invariant | Action |
+| --- | --- | --- | --- | --- |
+| `happy_path` | pass | pass | none | commit |
+| `wrong_owner` | pass | pass | `identifier_ownership` | reject |
+| `quantity_mismatch` | pass | pass | `quantity_consistency` | reject |
+| `policy_block` | pass | pass | `policy_allows_transition` | hold for review |
+| `stale_state` | pass | pass | `revision_matches_current_state` | reload and revalidate |
+| `parse_failure` | fail | not run | parser | reject |
+| `schema_failure` | pass | fail | required field | reject |
+
+The exact deterministic line for the semantic failure was:
+
+```text
+parse=True schema=True invariant=identifier_ownership failure=semantic action=reject
+```
+
+The same result is the point of the article. “Structured output succeeded” is true. “The workflow may commit” is false.
+
+![Illustration of a result envelope crossing parser, schema, semantic, policy, and state gates before execution](/blog/reject-schema-valid-ai-output-before-state-change-result-envelope-validation-gates.webp)
+
+OpenAI documents the difference between valid JSON and schema adherence, while Google’s structured-output guidance explicitly says to validate values in the application and handle schema-compliant but semantically incorrect outputs. Anthropic makes the same boundary visible from another implementation: structured outputs make responses valid and schema-constrained, while SDK validation still enforces the original constraints. [OpenAI](https://developers.openai.com/api/docs/guides/structured-outputs), [Google](https://ai.google.dev/gemini-api/docs/structured-output), [Anthropic](https://platform.claude.com/docs/en/build-with-claude/structured-outputs)
+
+## What the result envelope proves, and what it does not
+
+A result envelope should prove transport-level facts: the version is known, required fields exist, values have the expected types, and the response can be parsed. It should not pretend to be the entire business contract.
+
+| Layer | Question | Typical owner | Fail-closed action |
+| --- | --- | --- | --- |
+| Parser | Can the bytes become JSON? | parser | reject and record raw output |
+| Schema | Does the object have the required shape and types? | schema or typed parser | reject and record validation errors |
+| Semantic | Do values agree with the request and domain relationships? | application validator | reject, do not retry blindly |
+| Policy | Is this transition allowed for this actor, risk flag, and policy version? | policy layer | hold or escalate |
+| Downstream state | Is the source revision still current at commit time? | transaction or state owner | reload, revalidate, then decide |
+
+OpenAI recommends Structured Outputs when an application needs schema adherence, and its guide places tool and data integration at the application boundary. JSON Schema can express conditional rules with `if`, `then`, and `else`, but this fixture compares the output with request data and a runtime revision. Those checks belong next to the state they protect. [OpenAI’s Structured Outputs guide](https://developers.openai.com/api/docs/guides/structured-outputs), [JSON Schema conditionals](https://json-schema.org/understanding-json-schema/reference/conditionals)
+
+## The smallest reproducible fixture
+
+The fixture uses an order-like workflow because the invariants are easy to inspect. It is not a claim about orders in production. Each response is a provider-neutral mocked result, and both mocks receive the same cases.
+
+The versioned envelope schema is:
+
+```json
+{
+  "type": "object",
+  "required": ["envelope_version", "case_id", "decision", "order_id", "policy_version", "source_revision", "item_summary"],
+  "additionalProperties": false,
+  "properties": {
+    "envelope_version": {"type": "string", "enum": ["1.0"]},
+    "case_id": {"type": "string"},
+    "decision": {"type": "string", "enum": ["ship", "hold", "cancel"]},
+    "order_id": {"type": "string"},
+    "policy_version": {"type": "string"},
+    "source_revision": {"type": "string"},
+    "item_summary": {
+      "type": "object",
+      "required": ["requested_qty", "approved_qty"],
+      "additionalProperties": false,
+      "properties": {
+        "requested_qty": {"type": "integer", "minimum": 0},
+        "approved_qty": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}
+```
+
+The raw fixture cases are these exact input and response pairs:
+
+```json
+[
+  {"id":"happy_path","input":{"case_id":"happy_path","order_id":"ord-042","risk_flags":[],"requested_qty":2,"current_revision":"rev-7"},"response":{"envelope_version":"1.0","case_id":"happy_path","decision":"ship","order_id":"ord-042","policy_version":"policy-3","source_revision":"rev-7","item_summary":{"requested_qty":2,"approved_qty":2}}},
+  {"id":"wrong_owner","input":{"case_id":"wrong_owner","order_id":"ord-042","risk_flags":[],"requested_qty":2,"current_revision":"rev-7"},"response":{"envelope_version":"1.0","case_id":"wrong_owner","decision":"ship","order_id":"ord-043","policy_version":"policy-3","source_revision":"rev-7","item_summary":{"requested_qty":2,"approved_qty":2}}},
+  {"id":"quantity_mismatch","input":{"case_id":"quantity_mismatch","order_id":"ord-042","risk_flags":[],"requested_qty":2,"current_revision":"rev-7"},"response":{"envelope_version":"1.0","case_id":"quantity_mismatch","decision":"ship","order_id":"ord-042","policy_version":"policy-3","source_revision":"rev-7","item_summary":{"requested_qty":2,"approved_qty":1}}},
+  {"id":"policy_block","input":{"case_id":"policy_block","order_id":"ord-042","risk_flags":["manual_review"],"requested_qty":2,"current_revision":"rev-7"},"response":{"envelope_version":"1.0","case_id":"policy_block","decision":"ship","order_id":"ord-042","policy_version":"policy-3","source_revision":"rev-7","item_summary":{"requested_qty":2,"approved_qty":2}}},
+  {"id":"stale_state","input":{"case_id":"stale_state","order_id":"ord-042","risk_flags":[],"requested_qty":2,"current_revision":"rev-8"},"response":{"envelope_version":"1.0","case_id":"stale_state","decision":"ship","order_id":"ord-042","policy_version":"policy-3","source_revision":"rev-7","item_summary":{"requested_qty":2,"approved_qty":2}}},
+  {"id":"parse_failure","input":{"case_id":"parse_failure","order_id":"ord-042","risk_flags":[],"requested_qty":2,"current_revision":"rev-7"},"response":"{\"envelope_version\":\"1.0\","},
+  {"id":"schema_failure","input":{"case_id":"schema_failure","order_id":"ord-042","risk_flags":[],"requested_qty":2,"current_revision":"rev-7"},"response":{"envelope_version":"1.0","case_id":"schema_failure","decision":"ship","order_id":"ord-042","source_revision":"rev-7","item_summary":{"requested_qty":2,"approved_qty":2}}}
+]
+```
+
+The validator is deliberately small enough to audit:
+
+```python
+import json
+
+def schema_errors(value, schema, path="$"):
+    expected = schema.get("type")
+    type_ok = {
+        "object": isinstance(value, dict),
+        "string": isinstance(value, str),
+        "integer": isinstance(value, int) and not isinstance(value, bool),
+    }.get(expected, True)
+    if not type_ok:
+        return [f"{path}: expected {expected}"]
+    errors = []
+    if "enum" in schema and value not in schema["enum"]:
+        errors.append(f"{path}: not in enum")
+    if expected == "integer" and value < schema.get("minimum", value):
+        errors.append(f"{path}: below minimum")
+    if expected == "object":
+        errors += [f"{path}.{key}: required" for key in schema.get("required", []) if key not in value]
+        if schema.get("additionalProperties") is False:
+            errors += [f"{path}.{key}: additional property" for key in value if key not in schema.get("properties", {})]
+        for key, child in schema.get("properties", {}).items():
+            if key in value:
+                errors.extend(schema_errors(value[key], child, f"{path}.{key}"))
+    return errors
+
+def inspect(case, schema):
+    try:
+        parsed = json.loads(case["raw_response"])
+    except json.JSONDecodeError:
+        return True, False, None, "not_run", "parser", "reject"
+    errors = schema_errors(parsed, schema)
+    if errors:
+        return True, False, parsed, "not_run", "schema", "reject"
+    source = case["input"]
+    if parsed["case_id"] != source["case_id"] or parsed["order_id"] != source["order_id"]:
+        return True, True, parsed, "identifier_ownership", "semantic", "reject"
+    if parsed["decision"] == "ship" and parsed["item_summary"]["approved_qty"] != source["requested_qty"]:
+        return True, True, parsed, "quantity_consistency", "semantic", "reject"
+    if "manual_review" in source["risk_flags"] and parsed["decision"] == "ship":
+        return True, True, parsed, "policy_allows_transition", "policy", "hold_for_review"
+    if parsed["source_revision"] != source["current_revision"]:
+        return True, True, parsed, "revision_matches_current_state", "downstream_state", "reload_and_revalidate"
+    return True, True, parsed, "all", "none", "commit"
+```
+
+The JSON blocks above are valid Python literals. Assign them to `SCHEMA` and `CASES`, change each object response into the raw string consumed by `inspect`, and run both provider-neutral adapters with this small runner:
+
+```python
+for case in CASES:
+    response = case["response"]
+    case["raw_response"] = response if isinstance(response, str) else json.dumps(response, separators=(",", ":"))
+
+for provider in ("openai-structured-mock", "gemini-structured-mock"):
+    for case in CASES:
+        parse_ok, schema_ok, parsed, invariant, failure, action = inspect(case, SCHEMA)
+        print(provider, case["id"], parse_ok, schema_ok, invariant, failure, action, parsed)
+```
+
+Save the complete code and case data as `.result-envelope-fixture.py` in a clean directory, then run:
+
+```bash
+python3 .result-envelope-fixture.py
+```
+
+The run used Python 3, no SDK, no network, and the same cases for `openai-structured-mock` and `gemini-structured-mock`. It produced 14 rows and ended with `fixture=PASS cases=7 providers=2 rows=14`.
+
+## How to repair the boundary
+
+1. Preserve the raw provider response, request input, schema version, policy version, model metadata when available, and current state revision.
+2. Parse JSON. A parse failure is a parser failure. Reject it before typed code sees it.
+3. Validate the versioned envelope and typed fields. A schema failure is not a semantic retry.
+4. Check relationships that the response cannot establish by itself: identifier ownership, quantities, totals, allowed transitions, and required evidence.
+5. Evaluate policy and authorization separately. A valid recommendation can still be forbidden for this actor or risk flag.
+6. Compare the response's source revision with the current state immediately before the side effect.
+7. Commit only when every gate passes. Otherwise reject, hold, or reload and revalidate according to the failure class.
+8. Add each failure to a replay fixture. The next release should prove that the old bad result still stops at the same boundary.
+
+The important detail is the order. Don’t put semantic checks after the database write because the object “already passed validation.” That sentence confuses shape validation with permission to mutate state.
+
+## The fail-closed decision table
+
+| Failure class | Example from fixture | Retry? | Safe action |
+| --- | --- | --- | --- |
+| Parser | truncated JSON | Only if the request is retryable and the raw failure is preserved | reject |
+| Schema | missing `policy_version` | Usually once with the same contract, then stop | reject |
+| Semantic | `ord-043` returned for `ord-042` | No blind retry | reject and inspect prompt, retrieval, or mapping |
+| Policy | `manual_review` paired with `ship` | No | hold for a human or policy service |
+| Downstream state | response built from `rev-7`, current state `rev-8` | Re-read, then revalidate | reload and revalidate |
+
+This is also where a result envelope becomes useful. It gives the validators a stable place to report `failure_class`, `invariant`, `policy_version`, and `source_revision`. It doesn’t turn a model response into the system of record.
+
+## How to verify the repair
+
+Rerun the same fixture after adding the gate and confirm that only `happy_path` reaches `commit`; every other case must stop with its recorded failure class and action.
+
+```bash
+python3 .result-envelope-fixture.py
+```
+
+The observed verification output was `fixture=PASS cases=7 providers=2 rows=14`. The `wrong_owner` trace appeared twice as `parse=True schema=True invariant=identifier_ownership failure=semantic action=reject`, while `quantity_mismatch`, `policy_block`, and `stale_state` stopped at their own later checks. This confirms the repair at the boundary, but it does not predict live-provider failure rates.
+
+## What the fixture does not prove
+
+It does not measure how often OpenAI, Gemini, Claude, or any other live model produces these cases. It does not compare provider quality. It does not show that JSON Schema cannot express a particular rule. Conditional schemas can express some dependent requirements, as the JSON Schema reference shows. The narrower result is enough: when a rule depends on request identity or mutable runtime state, the application must own the check that protects the transition.
+
+If this boundary is missing, improve the contract before tuning the prompt. If you already have a schema, add the first failing invariant as a deterministic test. Then make the side-effecting consumer refuse any object that has not passed it.
+
+The next useful step is the broader [AI workflow implementation guide](/blog/ai-workflow-implementation). For the contract that a typed task should carry before it reaches a model, see [How to Build a Typed Task Contract for an AI Workflow](/blog/how-to-build-a-typed-task-contract-for-an-ai-workflow).
+
+Marius Manolachi helps teams build this kind of capability on their own work through [AI consulting and tutoring](/learn-ai). The practical test is simple: can the internal owner explain which layer failed, reproduce it, and show why the workflow stopped?
