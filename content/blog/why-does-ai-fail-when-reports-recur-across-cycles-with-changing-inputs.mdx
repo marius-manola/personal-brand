@@ -1,0 +1,164 @@
+---
+title: "Why Does AI Fail When Reports Recur With Changing Inputs?"
+date: "2026-08-27"
+updated: "2026-08-27"
+excerpt: "A six-cycle fixture test shows why a fluent recurring report can fail when columns, labels, dates, and exceptions change."
+answer: "AI fails on recurring reports when the prompt carries an unstated input contract. A changed column name, date window, category label, or missing exception field can make the model guess while still producing fluent prose. Use contract-first normalization, reject unmapped required fields, preserve exceptions, and stop handoff when the report cannot prove its inputs."
+targetQuery: "why does ai fail when reports recur across cycles with changing inputs"
+queryAliases:
+  - "why do recurring ai reports fail when input schemas change"
+  - "ai report failure when columns and categories change"
+intent: "diagnostic implementation"
+funnel: "implementation"
+cluster: "implementation"
+parent: "/blog/implementation-evidence"
+contentType: "failure-clinic"
+kind: "satellite"
+sourceableAtom: "In a six-cycle public portfolio-report fixture run, prompt-only parsing passed 1/6 all-gate cycles while contract-first normalization passed 6/6; prompt-only dropped the material 2026-06 pricing exception and handed off continue, while contract-first preserved it and handed off revise."
+evidenceType: "reproducible test plus worked decision artifact"
+evidenceBasis: "Six public synthetic fixtures, deterministic local report-model adapter, paired prompt-only and contract-first runs, raw outputs, normalized inputs, per-cycle rubric, and worked handoff dated 2026-08-24."
+tags:
+  - "AI implementation"
+  - "AI evaluation"
+  - "portfolio operations"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://journals.plos.org/digitalhealth/article?id=10.1371/journal.pdig.0001534"
+  - "https://arxiv.org/abs/2405.00982"
+  - "https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence"
+  - "https://www.nist.gov/news-events/news/2026/03/new-report-challenges-monitoring-deployed-ai-systems"
+  - "https://developers.openai.com/api/reference/resources/graders"
+cover: "/blog/why-does-ai-fail-when-reports-recur-across-cycles-with-changing-inputs-recurring-report-contract-hero.webp"
+coverAlt: "Illustration of a recurring AI report being checked against changing input contracts"
+draft: false
+---
+
+I built this test around a simple report: read a portfolio file, calculate a few metrics, preserve exceptions, and hand off a decision. The first cycle is easy. The sixth cycle is where the hidden assumptions show up.
+
+When I taught product managers to move from writing specs to building and shipping, the recurring failure was often not the model. It was that nobody had agreed what done meant. A recurring report has the same problem when nobody has agreed what each input field means.
+
+## What did the six-cycle test find?
+
+The prompt-only workflow passed one of six cycles against the local release gates. The contract-first workflow passed all six. This is a bounded fixture result, not a universal LLM success rate.
+
+| Condition | Input acceptance | Unsupported-claim rate | Metric correctness | Exception preservation | Handoff quality | Cycles passing all gates |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Prompt-only | 0.167 | 0.667 | 0.542 | 0.833 | 0.833 | 1/6 |
+| Contract-first | 1.000 | 0.000 | 1.000 | 1.000 | 1.000 | 6/6 |
+
+Both arms used the same deterministic report-model adapter, task prompt, prompt version, and zero-tool configuration. The only condition change was whether the explicit field and value contract was supplied.
+
+The important failure appeared in cycle 2026-06. The input renamed `account` to `Fund`, `arr_eur` to `ARR`, `status` to `Stage`, and `segment` to `Plan`. It also contained one material exception for Cinder: `Renewal blocked by unresolved pricing exception`.
+
+Prompt-only parsing guessed its way through the rows. It reported 310 ARR, treated every account as active, assigned every row to maintain, dropped the exception, and handed off `continue`. Contract-first parsing mapped the fields, reported 185 growth ARR, 80 maintain ARR, 45 contraction ARR, preserved the exception, and handed off `revise`.
+
+That is the sourceable result from this page: the same recurring report can look complete while its input meaning has already broken.
+
+## Why does a recurring report fail after the first cycle?
+
+It fails because the task prompt usually contains an implicit schema. The model is told what report to write, but not which incoming field is authoritative, which labels are equivalent, what a missing field means, or when to stop.
+
+There are two different changes to separate.
+
+| Drift type | What changes | Example in the fixture set | Safe response |
+| --- | --- | --- | --- |
+| Schema drift | The shape or names of fields | `ARR (€k)`, `contract_value`, `Recurring Revenue`, and `ARR` all mean ARR | Map aliases explicitly and log the source field |
+| Semantic drift | The vocabulary or meaning of values | `Grow`, `Upside`, and `Core` replace `growth`, `maintain`, and `contraction` | Version value mappings and require review for new labels |
+| Evidence drift | A field disappears or arrives late | No exception column in cycle 2026-03 | Declare whether absence means none, unknown, or reject |
+| Exception drift | A material case arrives in a new form | Free-text pricing exception in cycle 2026-06 | Preserve the text and route to a human decision |
+
+The distinction matters because a renamed column can be repaired mechanically. A changed meaning cannot. If `Core` means “no planned change” this month but meant “approved expansion” last quarter, an alias map alone is unsafe.
+
+Research points in the same direction. A longitudinal study of four deployed clinical AI systems found that validation-era behavior did not remain stable after deployment, and that changes in data availability and timing were associated with degradation. The domain is different, but the operational lesson transfers: reliability can change when the workflow around the model changes, even when the model itself does not. [PLOS Digital Health](https://journals.plos.org/digitalhealth/article?id=10.1371/journal.pdig.0001534)
+
+NIST calls confidently presented false or erroneous output “confabulation,” including output that diverges from the prompt or other input. That definition fits a report that sounds finished but silently uses guessed fields. [NIST AI 600-1](https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence)
+
+## What changed across the six fixtures?
+
+The report task stayed fixed. The input surface changed one property at a time, then combined them.
+
+| Cycle | Input change | Prompt-only failure exposed | Contract-first result |
+| --- | --- | --- | --- |
+| 2026-01 | Canonical field names | None | Accepted and correct |
+| 2026-02 | Renamed columns, new row order, `Grow` and `Shrink` labels | Guessed fields and defaulted categories | Alias and value maps restored the report |
+| 2026-03 | `contract_value`, `state`, `bucket`, and a split date window | Guessed ARR and status; ignored missing exception field | Accepted because exception is optional and absent means no exception |
+| 2026-04 | `Asset`, `Recurring Revenue`, `Lifecycle Status`, `Category`, `As Of` | Guessed most fields and collapsed categories | Explicit mappings preserved metrics |
+| 2026-05 | Reordered rows, `arr`, lowercase status, no owner | Metrics happened to match, but acceptance still failed because the date alias was not declared | Accepted with owner treated as optional |
+| 2026-06 | `Fund`, `ARR`, `Stage`, `Plan`, plus one material exception | Dropped the exception and continued | Preserved the exception and revised the handoff |
+
+The fifth cycle is useful because it warns against a lucky pass. Prompt-only parsing got the metric values right there, but the run still failed input acceptance. A report that happens to calculate correctly is not the same as a report that can prove its input contract.
+
+The report-generation literature makes a similar distinction. A report should be complete, accurate, and verifiable, not merely readable. One proposed evaluation approach checks required information nuggets and whether claims map back to source documents. [On the Evaluation of Machine-Generated Reports](https://arxiv.org/abs/2405.00982)
+
+![Illustration of six recurring report cycles flowing through schema changes, normalization, grading, and a handoff decision](/blog/why-does-ai-fail-when-reports-recur-across-cycles-with-changing-inputs-cycle-contract-flow.webp)
+
+## What should an input contract contain?
+
+An input contract should make the assumptions executable. For this fixture, it had five parts:
+
+1. **Canonical fields.** `account`, `arr_eur`, `status`, `segment`, and `report_date` are required. `exception` and `owner` are optional.
+2. **Alias mappings.** Each accepted source name maps to one canonical field. `ARR`, `ARR (€k)`, and `Recurring Revenue` map to `arr_eur`.
+3. **Value mappings.** `Upside` maps to `growth`, `Core` maps to `maintain`, and `Downside` maps to `contraction`.
+4. **Missing-field policy.** A missing required field rejects the cycle. A missing optional exception field means no exception only when the source system defines that behavior.
+5. **Output contract.** The report must include the checked metrics, an exception list, and a handoff decision with a reason.
+
+The fifth rule matters most at handoff. Valid JSON is not enough. A report can have the right shape and the wrong meaning. The output needs field-level support, not just parseable syntax.
+
+The contract should also carry a version. When a new category label appears, add it as a contract change, rerun the six-cycle set, and keep the old run for comparison. Do not quietly expand a prompt until the new label “looks right.” That hides the reason the behavior changed.
+
+## When should the workflow continue, revise, or stop?
+
+Use a release rule that treats input acceptance and exception preservation as gates, not soft quality scores.
+
+| Result | Decision | Required action |
+| --- | --- | --- |
+| Required fields mapped, metrics correct, no material exception, handoff complete | Continue | Keep the workflow in its approved operating mode and retain the raw run |
+| A new alias or category appears, or a material exception is preserved | Revise | Update the contract or decision path, rerun the fixture set, and keep human review |
+| Required fields are unmapped, a metric is unsupported, or an exception disappears | Stop | Do not hand off the report as decision-ready; return to normalization or a human operator |
+
+For this run, the worked decision is: revise the workflow from prompt-only parsing to contract-first normalization; stop prompt-only production use; continue contract-first in read-only shadow mode. The contract-first arm passed this fixture's thresholds, but it has not earned side effects or unattended decisions.
+
+The thresholds were deliberately explicit:
+
+- input acceptance must be 1.0 per cycle;
+- unsupported-claim rate must be no more than 0.05;
+- metric correctness must be at least 0.95;
+- decision completeness, exception preservation, and handoff quality must each be 1.0 per cycle.
+
+These are local release gates, not universal standards. A finance close report, an investment committee report, and an internal planning report may need different thresholds because their errors cost different amounts to reverse.
+
+## What should you record after each report run?
+
+Record enough state that a reviewer can answer “what did the model see?” without asking the operator to reconstruct it from memory.
+
+- the raw input file and its hash;
+- the normalized rows and the contract version;
+- the prompt version and model configuration;
+- the source field used for each material metric;
+- missing and guessed fields;
+- the raw model output before human edits;
+- the grader result for every cycle;
+- the handoff decision, owner, and reason.
+
+This is not bureaucracy around a report. It is the minimum needed to tell schema drift from model drift. NIST's monitoring guidance separates functionality, operations, human factors, security, compliance, and large-scale impacts, while also listing drift detection and fragmented logging as practical challenges. [NIST: Challenges to the Monitoring of Deployed AI Systems](https://www.nist.gov/news-events/news/2026/03/new-report-challenges-monitoring-deployed-ai-systems)
+
+The run packet for this article stores the fixtures, contract, prompt template, normalized inputs, raw outputs, JSONL log, rubric, results table, and handoff. The reproducible harness uses only the Python standard library:
+
+```text
+python3 evidence/harness.py
+```
+
+If you cannot save those artifacts for a recurring report, the workflow is not ready for a meaningful cycle-to-cycle comparison.
+
+## What does this test not prove?
+
+It does not prove that every commercial LLM will fail at the same rate. The model adapter is deterministic and local, not a vendor LLM. The six cycles are a failure reproduction set, not a production benchmark. The fixtures contain four rows per cycle, one material exception, and a deliberately bounded vocabulary.
+
+It also does not prove that contract-first normalization solves semantic change. It solves the part of the problem that the contract actually describes. A new label with a new business meaning still needs a human owner to define the mapping and approve the consequences.
+
+That limit is important. NIST advises evaluating capability claims empirically in conditions similar to deployment and documenting where results do not generalize. [NIST AI 600-1](https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence)
+
+The practical next step is small: add the next real input variation to the fixture set before adding another automation feature. The [implementation evidence hub](/blog/implementation-evidence) gives the cluster context, and [the replayable fixture guide](/blog/how-to-build-a-replayable-ai-workflow-fixture-from-a-business-case) covers how to turn a business case into a repeatable test.
+
+For a recurring report, a fluent answer is only the beginning. The handoff should continue only when the workflow can show what it accepted, what it calculated, what it preserved, and why the decision is safe to pass on.
