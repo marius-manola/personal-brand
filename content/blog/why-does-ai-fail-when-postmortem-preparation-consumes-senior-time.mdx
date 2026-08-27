@@ -1,0 +1,162 @@
+---
+title: 'Why Does AI Fail When Postmortem Preparation Consumes Senior Time?'
+date: '2026-08-27'
+updated: '2026-08-27'
+excerpt: 'A paired fixture shows why an accepted final state can still make AI incident evidence expensive to reconstruct and review.'
+answer: 'AI fails when it reaches the final state without preserving the evidence needed to explain the path. In a 30-run paired fixture, checkpointing left 0 external effects before detection and 1 recovery step, while irreversible commit left 2 effects and 5 steps, although all runs passed final verification. Read-only, fully replayable work is the main exception.'
+targetQuery: 'why does ai fail when postmortem preparation consumes senior time'
+queryAliases:
+  - 'AI postmortem preparation takes too much senior time'
+  - 'AI incident evidence reconstruction cost'
+  - 'why AI incident reviews are expensive'
+intent: 'diagnostic'
+funnel: 'consideration'
+cluster: 'opportunity'
+parent: '/blog/opportunity-evidence'
+contentType: 'failure-clinic'
+kind: 'satellite'
+sourceableAtom: 'Across 15 paired trials per mode in the dated deterministic fixture, the same downstream schema failure was detected at action 5 and left 0 external effects before detection with 1 recovery step behind a checkpoint, versus 2 external effects with 5 recovery steps after an irreversible commit; all 30 runs reached the accepted final state.'
+evidenceType: 'reproducible failure reproduction with paired traces, recovery-cost measurements, and a postmortem evidence-packet artifact'
+evidenceBasis: 'A dated 2026-08-24 run of the repository fixture in evidence/harness.py and evidence/analyze.py, producing 30 raw traces, summary.csv, and analysis_summary.json. The direct harness command exposed a rubric-field mismatch, so the documented run used an in-memory compatibility shim without changing the fixture logic. Human-minute values are rubric-assigned units, not stopwatch observations.'
+tags:
+  - 'AI reliability'
+  - 'AI observability'
+  - 'Postmortems'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-22'
+sources:
+  - 'https://sre.google/sre-book/postmortem-culture/'
+  - 'https://www.usenix.org/system/files/login/issues/login_spring17_issue.pdf'
+  - 'https://arxiv.org/abs/2606.14589'
+  - 'https://www.datadoghq.com/state-of-ai-engineering/'
+  - 'https://opentelemetry.io/docs/specs/otel/logs/'
+faq:
+  - q: 'Does checkpointing prevent AI failures?'
+    a: 'No. In the fixture, both modes received the same downstream schema failure. Checkpointing changed the effects released before detection and the work needed to recover; it did not make the failure disappear.'
+  - q: 'What should an AI postmortem trace include?'
+    a: 'Record the run and version, ordered actions, failure ID, status, external effects, retries, recovery steps, and a verified final-state check. Add owners and missing evidence before asking senior reviewers to close the incident.'
+  - q: 'Does this test prove that AI saves senior engineering hours?'
+    a: 'No. The fixture uses rubric-assigned human-minute values, not observed human time. It shows a recovery-cost difference inside a deterministic test and identifies the evidence needed to measure preparation time in a real workflow.'
+cover: '/blog/why-does-ai-fail-when-postmortem-preparation-consumes-senior-time-hero.webp'
+coverAlt: 'Illustration of paired AI execution traces diverging into checkpointed recovery and irreversible compensation'
+draft: false
+---
+
+I wanted to separate two complaints that often get merged: the AI failed, and the incident took senior engineers too long to explain.
+
+When I taught product managers to move from writing specs to building and shipping products, the recurring failure was usually an undefined “done,” not the model. Postmortem preparation has the same trap. A final state can look correct while the path to it is still expensive to reconcile.
+
+The fixture below makes that boundary visible.
+
+| Mode | Runs | Failure | Effects before detection | Recovery steps | Rubric minutes | Final state |
+| --- | ---: | --- | ---: | ---: | ---: | --- |
+| Checkpointed | 15 | F-01 at action 5, 40 ms | 0 | 1 | 3 | 15/15 accepted |
+| Irreversible commit | 15 | F-01 at action 5, 40 ms | 2 | 5 | 17 | 15/15 accepted |
+
+The injected failure and final acceptance were the same in both modes. The preparation decision was different: did the workflow release side effects before it knew the downstream call was valid?
+
+## What actually makes the postmortem expensive?
+
+The expensive case is not simply “the model made a mistake.” It is the case where the system reaches a plausible final state while the reviewer still has to reconstruct the order, effects, compensation, and verification.
+
+Google's SRE guidance treats a postmortem as a record of impact, actions, contributing causes, and follow-up. It names three goals: document the incident, understand the contributing causes, and put effective preventive actions in place. It also recognizes that postmortems carry a time or effort cost and describes senior-engineer review for data completeness, impact, root cause, action quality, and sharing ([Google's postmortem guidance](https://sre.google/sre-book/postmortem-culture/)).
+
+That gives us a useful distinction:
+
+- **Execution failure:** the downstream schema mismatch at action 5.
+- **Evidence failure:** the reviewer cannot tell what escaped before action 5 or how the system recovered.
+- **Preparation cost:** the senior reviewer must recreate those facts before deciding whether the action plan is complete.
+
+The fixture only injects the first failure. It measures the second boundary and the recovery burden that follows. It does not measure a real person's clock.
+
+The distinction matters because all 30 runs reached the accepted final state. If the team watched only the ending, the two modes would look equivalent. They weren't equivalent to the person preparing the incident record.
+
+## What did the paired traces show?
+
+The paired traces show that side effects move work into the recovery path even when verification eventually passes.
+
+The repository run produced `evidence/raw_traces.jsonl`, `evidence/summary.csv`, and `evidence/analysis_summary.json`. Each raw run records the case, mode, ordered actions, failure ID, effect list, recovery fields, state digest, and final acceptance. The C-02 trial-1 pair is the compact reproduction:
+
+```text
+case C-02, trial 1, failure F-01 at action 5
+
+reversible_checkpoint
+4 apply_patch         checkpointed         effects=[]
+5 downstream_call     failed               effects=[]
+6 recover             replayed              steps=1, retries=1
+7 verify_final_state  accepted              final_accepted_state=true
+
+irreversible_commit
+4 apply_patch         committed             effects=[ledger.commit, event.publish]
+5 downstream_call     failed               effects=[ledger.commit, event.publish]
+6 recover             compensated_and_replayed steps=5, retries=2
+7 verify_final_state  accepted              final_accepted_state=true
+```
+
+The mode summary adds two details that the trace excerpt hides. The checkpointed path has 1 total external effect after recovery, the final ledger commit. The irreversible path has 6 total effects after recovery: the original commit and publish, two compensating effects, and a re-commit and re-publish.
+
+![Illustration of two paired execution traces diverging at the same injected failure, with checkpointed replay on one side and irreversible compensation on the other](/blog/why-does-ai-fail-when-postmortem-preparation-consumes-senior-time-inline-1.webp)
+
+This is the sourceable result: the failure did not change, the final state did not change, but the evidence and recovery path did. A postmortem writer who receives only the final state has to discover the difference somewhere else.
+
+The 2026 longitudinal study supplied with this assignment describes a related production pattern in one LLM-agent runtime. Across 22 incidents with full postmortems, it reports a silent-failure meta-pattern at least 28 times and says about 70% of silent failures were caught by human user-view observation rather than tests or audits. That is evidence from one runtime, not a universal failure rate, but it supports the practical warning: a passing test or fluent final message does not prove that the incident was observable in an actionable form ([Wu, *When Errors Become Narratives*](https://arxiv.org/abs/2606.14589)).
+
+## Which evidence belongs in the postmortem packet?
+
+Give the reviewer a packet that separates what the run proves from what the team still needs to verify.
+
+| Claim | Execution fact | Verification fact | Owner | Missing evidence |
+| --- | --- | --- | --- | --- |
+| The failure boundary | F-01 is a downstream schema mismatch at action 5, after `apply_patch` at action 4. | The trace records `failure_id=F-01`, `action_index=5`, and `status=failed`. | Workflow owner | Contract versions, request ID, dependency logs |
+| What escaped first | Checkpointed mode released 0 effects before detection; irreversible mode released 2. | The action-5 effect list and mode summary agree. | Data or integration owner | Production receipt IDs, idempotency proof, user impact |
+| What recovery required | Checkpointed mode has 1 recovery step; irreversible mode has 5. | Action 6 records the recovery status and step list. | Incident commander | Real runbook timings and operator observations |
+| Whether the workflow finished | All 30 runs have `final_accepted_state=true` at action 7. | State digest and final acceptance are recorded in each raw trace. | Service owner | Independent system-of-record and event-delivery checks |
+| What should change | The irreversible mode releases effects before detection; the checkpointed mode does not. | The paired run holds the failure, planner, sequence, and acceptance test constant. | Platform owner | Integration test, rollback proof, side-effect policy |
+| Whether review can begin | The packet has a date, case, mode, action sequence, effects, recovery, retries, and final verification. | A reviewer can compare modes without reconstructing the trace from prose. | Postmortem author | User impact, contributing causes, action owners, commitments |
+
+The table is deliberately bounded. It is an evidence packet, not a complete incident report. It tells a senior reviewer which claims are execution facts, which checks support them, and which gaps still block a confident conclusion.
+
+Google's action-item guidance is useful here because it treats ownership as part of the postmortem rather than an afterthought. The USENIX article says reviews should happen soon, checks should cover action-item ownership and priorities, and every action item should have an owner. It also warns against sending work to another team without discussing the assignment with that team ([USENIX's postmortem action-item guidance](https://www.usenix.org/system/files/login/issues/login_spring17_issue.pdf)).
+
+That changes the preparation question from “Can a senior engineer summarize this trace?” to “Can the next reviewer verify each claim and see who owns the missing evidence?”
+
+## What should the workflow change before rollout?
+
+Put a checkpoint, preview, or equivalent verification boundary before the first irreversible effect when the workflow's failures will require human reconciliation.
+
+Use this repair sequence:
+
+1. **Record the run contract.** Store the run ID, case or task, runtime version, ordered actions, failure ID, and expected final state.
+2. **Separate proposed state from released effects.** Let the workflow validate the patch and downstream schema before committing a ledger write or publishing an event.
+3. **Inject the same failure on both sides of the boundary.** A checkpoint test is useful only if it faces the same downstream failure as the irreversible path.
+4. **Verify the environment, not only the response.** Check the final state, external-effect list, receipts, retries, and compensation events.
+5. **Package the evidence before senior review.** Give the reviewer the raw trace, recomputed summary, recovery steps, owners, and missing evidence in one place.
+
+OpenTelemetry's logging guidance explains why execution context matters: trace and span identifiers let logs from different components correlate to the same request or execution. You do not need to copy every prompt or tool payload into a postmortem. You do need stable identifiers and structured events that let a reviewer follow the path ([OpenTelemetry log correlation](https://opentelemetry.io/docs/specs/otel/logs/)).
+
+Datadog's first-party 2026 report gives the production context without proving this fixture's result. In telemetry from more than 1,000 customers, Datadog reports errors on 5% of LLM call spans in February 2026 and 2% in March, with rate-limit errors making up a large share. The report also notes that retries and concurrency spikes can compound capacity failures ([Datadog's State of AI Engineering](https://www.datadoghq.com/state-of-ai-engineering/)). For postmortem preparation, the implication is narrow: keep retry count, dependency status, and effect boundaries in the trace so the reviewer can distinguish one failed call from the recovery behavior it triggered.
+
+If the workflow is read-only, has no external effects, and can be replayed from a stable input, the checkpoint advantage may be small. The trace contract still matters, but the packet will usually need less compensation evidence.
+
+## When does this result not apply?
+
+This result does not show that every AI workflow should use a checkpoint, that every irreversible action is unsafe, or that AI causes a measured amount of senior time.
+
+The fixture is intentionally small and deterministic:
+
+- It uses a scripted planner, not an LLM, with temperature 0, seed 0, and a fixed seven-action sequence.
+- It has three authored subscription-record cases and 15 trials per mode.
+- Its external effects are simulated strings, not live ledger or event-bus calls.
+- Its human-minute values are assigned by `recovery_rubric.json`, not observed with a stopwatch.
+- Its final acceptance checks business-state equality and an effect-count condition. It does not model customer impact, operator confusion, downstream consumers, or a real postmortem meeting.
+- The first direct harness invocation exposed a schema mismatch: the script expects `detection_time_ms` inside each mode, while the rubric stores it at the root. The published run used an in-memory compatibility shim and records that limitation in the evidence packet.
+
+So the safe conclusion is not “checkpointing saves 14 senior hours.” The safe conclusion is: in this fixture, the irreversible path adds 2 external effects before detection, 4 recovery steps, 1 retry, and 14 rubric minutes while producing the same accepted final state.
+
+## What should a senior reviewer decide next?
+
+Ask one question before asking an AI system to write the postmortem: **Can we verify the failure path without reconstructing it from memory?**
+
+If the answer is no, keep the workflow in a bounded test or read-only mode. Add the missing execution fields, run the paired failure, and require the evidence packet before expanding side effects. If the answer is yes, use the packet to review the action plan, not to replace the review.
+
+For the surrounding implementation work, connect this failure clinic to [the AI agent observability contract](/blog/how-to-monitor-an-ai-agent-in-production), [the guide to building an evaluation dataset from production traces](/blog/how-to-build-an-evaluation-dataset-from-production-traces), and the [opportunity-evidence parent](/blog/opportunity-evidence). The next step is not a larger postmortem template. It is a smaller, verifiable failure boundary.
