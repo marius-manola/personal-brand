@@ -1,0 +1,208 @@
+---
+title: 'How to Map AI Workflow Exceptions Before Automation'
+date: '2026-08-28'
+updated: '2026-08-28'
+excerpt: 'Map normal inputs and exception paths, score their consequence and detectability, then choose the safest automation boundary before building.'
+answer: 'Map the normal path first, then list every input condition that changes the next action, owner, evidence, or consequence. Score each exception for consequence, assumed frequency, and difficulty of detection. Automate low-consequence, observable rules; use AI to classify or prepare evidence when judgment is needed; keep high-consequence or hard-to-detect exceptions behind a human gate.'
+targetQuery: 'how to map AI workflow exceptions before automation'
+queryAliases:
+  - 'AI workflow exception mapping'
+  - 'how to map workflow exceptions before automation'
+  - 'map business process exceptions before AI automation'
+intent: 'informational, practical decision tool'
+funnel: 'consideration'
+cluster: 'opportunity'
+parent: '/blog/how-to-prioritize-ai-use-cases-in-a-small-business'
+contentType: 'decision-tool'
+kind: 'satellite'
+sourceableAtom: 'A fully filled synthetic quote-intake exception matrix with ten exception rows and three counterfactual automation decisions shows where rules-first, supervised AI, and autonomous designs stop being equivalent.'
+evidenceType: 'decision-artifact'
+evidenceBasis: 'A transparent synthetic seven-person design-studio quote-intake fixture, six stated process rules, three normal input patterns, ten exception rows, a 1-to-3 consequence/frequency/detectability score, named human owners, one routing tree, and three worked design decisions. Frequencies and thresholds are assumptions, not production measurements.'
+tags:
+  - 'AI strategy'
+  - 'Small business AI'
+  - 'AI workflows'
+author: 'Marius Manolachi'
+nextReviewAt: '2027-02-23'
+sources:
+  - 'https://airc.nist.gov/airmf-resources/airmf/5-sec-core/'
+  - 'https://airc.nist.gov/airmf-resources/playbook/manage/'
+  - 'https://learn.microsoft.com/en-us/power-automate/process-mining-overview'
+  - 'https://www.gov.uk/government/publications/ethics-transparency-and-accountability-framework-for-automated-decision-making/ethics-transparency-and-accountability-framework-for-automated-decision-making'
+  - 'https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/'
+faq:
+  - q: 'How many workflow cases should I inspect before mapping exceptions?'
+    a: 'There is no universal sample size in this worksheet. Inspect enough normal, delayed, returned, escalated, and abandoned cases to expose different routes, then replace the synthetic frequency bands with your own evidence. Event data can help reveal variants that a policy document hides.'
+  - q: 'What if an exception is rare but costly?'
+    a: 'Keep it behind a human gate even if it is rare. Frequency can lower priority for cleanup, but it should not cancel a consequence veto when a wrong action could create a binding commitment, privacy issue, payment, or other hard-to-reverse result.'
+  - q: 'Can AI classify workflow exceptions?'
+    a: 'Yes, as an assistive step when the exception labels, owner, evidence requirements, and fallback are defined. Let AI prepare a route or missing-information draft first. Do not let classification silently authorize a high-consequence action.'
+cover: '/blog/how-to-map-ai-workflow-exceptions-before-automation-hero.webp'
+coverAlt: 'Illustration of a small company mapping normal workflow inputs and exception routes before AI automation'
+draft: false
+---
+
+An automation can handle every normal quote and still fail on the first conflicting deadline, missing attachment, or unusual discount request. The happy path is not where the boundary lives.
+
+The useful pre-build artifact is an exception matrix. It turns “edge cases” into named input conditions, consequences, owners, and routes. In the synthetic fixture below, that matrix supports a rules-first precheck and a supervised AI intake assistant, but rejects an autonomous agent that sends quotes.
+
+![Illustration of a workflow exception matrix connecting input conditions to owners and safe automation routes](/blog/how-to-map-ai-workflow-exceptions-before-automation-inline-1.webp)
+
+## The answer is an exception matrix, not a happy-path diagram
+
+Map the normal path, then enumerate each observable condition that changes the next action, required evidence, owner, or consequence. Score those exceptions before you choose whether the system should automate, assist, route, or stop.
+
+That sequence follows the useful part of NIST’s AI Risk Management Framework. Its map function establishes context, intended use, limitations, risk tolerance, costs, and human oversight before an initial go or no-go decision. Microsoft’s process-mining guidance makes the operational version of the same point: inspect event data to see how work actually runs, including bottlenecks, pending cases, and paths that differ from the intended process. ([NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/), [Microsoft’s process-mining overview](https://learn.microsoft.com/en-us/power-automate/process-mining-overview))
+
+Here is the worked result from the fixture:
+
+| Counterfactual design | Decision | Boundary that makes the decision |
+| --- | --- | --- |
+| Rules-first quote precheck | Build first | Validate fields, dates, duplicates, and rate-card rules. Draft only. |
+| AI-assisted intake router | Pilot with approval | Extract, classify, request missing information, and package evidence. A person approves every commitment. |
+| Autonomous quote agent | Reject or redesign | It would need to price, interpret conflicting inputs, and send binding commitments across high-consequence exceptions. |
+
+This is a synthetic decision artifact, not a benchmark. Replace its assumptions with your workflow evidence.
+
+## Start with one workflow and state its rules
+
+Use a small, bounded workflow. Do not map “sales” or “operations.” Map one input-to-outcome chain with a named owner.
+
+### Synthetic fixture and assumptions
+
+The fixture is a fictional seven-person design studio that receives quote requests by web form or email. A coordinator prepares a quote. A delivery lead checks capacity. The founder approves discounts and unusual commitments. No client, production system, or measured result is represented.
+
+The stated process rules are:
+
+| Rule | Fixture assumption |
+| --- | --- |
+| R1 | A request is complete when it has a contact, service requested, scope, and target date. |
+| R2 | The standard rate card covers copy refresh, landing-page design, and analytics setup. |
+| R3 | A standard quote assumes one deliverable and at least five business days before the target date. |
+| R4 | A coordinator may prepare a quote at the standard rate. The founder approves discounts above 10% or custom terms. |
+| R5 | Attachments may inform scope, but customer lists, credentials, or other sensitive data require a privacy-aware human review. |
+| R6 | Work begins only after the customer accepts the quote. Every quote expires after 14 days. |
+
+### Normal inputs
+
+These are normal only under the rules above:
+
+| Input | Observable condition | Expected route |
+| --- | --- | --- |
+| N1: standard form | Required fields present, one rate-card service, one deliverable, target date five or more business days away | Coordinator checks, drafts quote, delivery lead checks capacity |
+| N2: standard email | Same information is present in prose, with a readable scope attachment and no sensitive data | Coordinator records fields, then follows N1 |
+| N3: existing customer | Existing record matches the contact and there is no open quote for the same scope | Coordinator links the record and follows N1 |
+
+An exception is not simply an unusual sentence. It is an input condition that changes the route, the authority, the evidence, or the consequence.
+
+## Fill the exception matrix from the process rules
+
+Use observable triggers where possible. Use human judgment only where the business must interpret policy, authority, or consequence. The frequencies below are synthetic bands for the worksheet: low means fewer than 1 in 20 cases, medium means roughly 1 in 20 to 1 in 5, and high means more than 1 in 5. They are not observed rates.
+
+| ID | Observable exception condition | Consequence | Frequency | Detectability before wrong action | P=C×F×D | Human owner | Safe first treatment |
+| --- | --- | --- | --- | --- | ---: | --- | --- |
+| E1 | Target date is missing | 2, because rework and delay follow | 2, medium | 1, obvious at intake | 4 | Coordinator | Ask for the date; do not draft a commitment |
+| E2 | Requested service is outside the rate card | 2, because scope and pricing need interpretation | 1, low | 1, obvious by lookup | 2 | Founder | Route for a custom-scope decision |
+| E3 | Request bundles two or more deliverables | 2, because capacity and price may change | 2, medium | 2, needs scope reading | 8 | Delivery lead | Prepare a scope summary; human confirms the package |
+| E4 | Target date is fewer than five business days away | 3, because a promise may be missed | 1, low | 1, obvious by date comparison | 3 | Delivery lead | Check capacity and approve or decline manually |
+| E5 | Discount is above 10% or terms differ from the standard quote | 3, because margin or commitment changes | 1, low | 1, explicit in the request | 3 | Founder | Escalate before any price or term is sent |
+| E6 | Attachment contains a customer list, credential, or other sensitive data | 3, because disclosure or mishandling is possible | 1, low | 2, requires content inspection | 6 | Founder or privacy owner | Stop automated sharing; inspect and minimize data |
+| E7 | Same customer and scope already have an open quote | 2, because duplicate commitments can be created | 2, medium | 1, visible by record lookup | 4 | Coordinator | Link to the open quote and close or merge the duplicate |
+| E8 | Form, email, and attachment give conflicting scope or dates | 3, because the wrong commitment may be prepared | 1, low | 3, conflict may appear only in comparison | 9 | Coordinator, then founder if terms change | Hold the quote and resolve the conflict with the customer |
+| E9 | Attachment is unreadable, missing, or in an unsupported format | 1, because the request can wait for evidence | 2, medium | 1, obvious from intake checks | 2 | Coordinator | Request a usable file; do not infer the scope |
+| E10 | Customer asks the studio to start before quote acceptance | 3, because work would begin without the agreed authorization | 1, low | 1, explicit in the request | 3 | Founder | Hold the request until acceptance is recorded |
+
+The matrix changes the design conversation. “Handle quote intake” is too broad. E1 and E9 are safe places to automate a missing-information request. E4, E5, E6, and E8 are not safe places to let a system silently continue, even though they are assumed to be rare. A rare exception with a serious consequence is still a boundary condition.
+
+## Score exceptions with one visible rule
+
+Use three 1-to-3 scores. Keep the scales simple enough that an operator can challenge them.
+
+| Score | Consequence, C | Assumed frequency, F | Detectability difficulty, D |
+| ---: | --- | --- | --- |
+| 1 | Reversible inconvenience or small rework | Low | Obvious before action |
+| 2 | Meaningful rework, delay, or internal cost | Medium | Needs comparison or context |
+| 3 | Financial, privacy, customer, legal, or binding-commitment harm | High | Easy to miss until after the wrong action |
+
+Calculate an exception pressure score:
+
+> **P = C × F × D**
+
+Use the score as a routing aid, not a claim of mathematical risk precision:
+
+| Result | Default route |
+| --- | --- |
+| P 1-6 and C is 1 or 2 | Deterministic automation may validate or route it, with a visible fallback. |
+| P 7-14 and C is 1 or 2 | Use supervised automation or AI assistance. A human reviews the output before an external or binding action. |
+| Any C=3, or P 15-27 | Keep the decision human. Automation may collect evidence, flag the case, or draft a question, but it must not take the consequential action. |
+| New or unclassified condition | Stop the automated path, assign an owner, record the condition, and update the matrix before resuming. |
+
+The final veto matters more than the total. E6 scores only 6 under the synthetic assumptions because it is rare and usually detectable, but C=3 keeps data handling behind a human review. NIST similarly asks teams to examine impact, likelihood, costs, human oversight, and risk tolerance rather than treating a single score as a universal answer. ([NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/), [NIST AI RMF Manage](https://airc.nist.gov/airmf-resources/playbook/manage/))
+
+## Apply the tree to three automation designs
+
+Use this decision tree for each proposed design:
+
+```text
+Can the trigger, input, output, and owner be observed?  No -> map or repair first.
+                                                       Yes
+Can the exception be detected before a consequential action?  No -> human gate.
+                                                               Yes
+Does a wrong action have consequence 3?  Yes -> prepare or recommend only.
+                                            No
+Is the rule stable and deterministic?  Yes -> ordinary automation.
+                                      No -> AI-assisted classification or drafting,
+                                            with review and a manual fallback.
+```
+
+The tree produces different answers for three designs that may sound like the same project.
+
+### Design A: rules-first quote precheck
+
+The system receives a form or email, validates R1, compares the requested service with R2, checks the target date against R3, looks for the E7 duplicate, and checks the attachment format for E9. It creates a quote draft and a visible exception queue. It does not send the quote.
+
+**Decision: build this first.** The checks are observable and mostly deterministic. The delivery lead and founder still own capacity, custom scope, discounts, and commitments. This is ordinary automation with a human action boundary, not an AI agent.
+
+### Design B: AI-assisted intake router
+
+The system reads free-form email and attachments, extracts the fields, labels E1 through E10, drafts a missing-information request, and packages the relevant evidence for the coordinator or delivery lead. It cannot approve a discount, decide that conflicting dates are resolved, share sensitive attachments, or send a quote.
+
+**Decision: pilot only with approval.** AI adds value where the input is unstructured or the scope needs interpretation. OpenAI’s guidance makes a similar distinction: agents are most useful for complex decisions, exceptions, difficult rules, or unstructured data, while high-risk actions and exceeded failure thresholds should trigger human intervention. That is vendor guidance, not validation of this fixture. ([OpenAI’s practical guide to building agents](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/))
+
+Before expanding this design, collect real cases and measure field extraction, exception labels, missed conflicts, owner response, and false “normal” classifications. The fixture tells you what to test. It does not tell you the model will pass.
+
+### Design C: autonomous quote agent
+
+The agent reads the request, chooses a service and price, negotiates terms, checks capacity, and sends the quote without approval.
+
+**Decision: reject or redesign.** E4, E5, E6, E8, and E10 can create high-consequence outcomes. E8 is especially important because the conflict is hard to detect without comparing multiple inputs. E10 shows why the acceptance rule belongs in the matrix: an agent must not treat an eager request as authorization. The autonomous design fails at the action boundary, not because every normal case is impossible.
+
+Redesign it as Design B: let the system prepare the evidence and draft the quote, then require the accountable person to approve the price, terms, scope, capacity, and start authorization.
+
+## Keep the map alive when a new exception appears
+
+An exception map is useful only if a real case can change it. NIST treats mapping, measuring, and managing as iterative lifecycle work. The UK government framework also distinguishes assisted decisions from solely automated decisions and emphasizes responsibility, traceability, and routes for human intervention. ([NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/), [UK automated decision-making framework](https://www.gov.uk/government/publications/ethics-transparency-and-accountability-framework-for-automated-decision-making/ethics-transparency-and-accountability-framework-for-automated-decision-making))
+
+When the system meets a condition that is not in the matrix:
+
+1. Stop the automated action before it changes an external record, price, commitment, or sensitive-data route.
+2. Assign the case to the named owner or the documented backup.
+3. Record the observable trigger, the evidence the owner used, the decision, and the consequence that was avoided or accepted.
+4. Add the case to the matrix as a new row or revise an existing row.
+5. Re-score it and decide whether the automation boundary changes.
+
+Do not silently add a new prompt instruction and call the problem solved. The exception is part of the workflow contract now.
+
+## Use the blank worksheet on your own workflow
+
+Copy this table and replace the synthetic assumptions with cases from your business:
+
+| ID | Observable input condition | Normal or exception | Consequence 1-3 | Frequency evidence | Detectability 1-3 | Human owner | Required evidence | Safe route |
+| --- | --- | --- | ---: | --- | ---: | --- | --- | --- |
+|  |  |  |  |  |  |  |  |  |
+|  |  |  |  |  |  |  |  |  |
+|  |  |  |  |  |  |  |  |  |
+
+Start with the work itself, not a model or vendor. If you are still choosing among opportunities, use this exception map alongside [how to prioritize AI use cases in a small business](/blog/how-to-prioritize-ai-use-cases-in-a-small-business). If you need the broader readiness check, see [how to tell if a business process is ready for AI automation](/blog/how-to-tell-if-a-business-process-is-ready-for-ai-automation).
+
+The next useful action is small: take one week of real cases, mark every point where the normal path changed, and give each change an owner. You will know more about what to automate after that than you will from another agent demo.
