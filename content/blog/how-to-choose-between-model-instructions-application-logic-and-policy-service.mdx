@@ -1,0 +1,122 @@
+---
+title: "How to Choose: Model Instructions, Application Logic, or Policy Service"
+date: "2026-08-28"
+updated: "2026-08-28"
+excerpt: "A six-control matrix for deciding what belongs in model instructions, deterministic application logic, or a shared policy service."
+answer: "Put tone, task behavior, and other model judgments in model instructions. Put schemas, side-effect checks, tool execution, and local budgets in application logic. Add a policy service when authorization, irreversible actions, shared PII or content rules, auditability, or multi-application and multi-provider consistency must hold. Never make model instructions the only enforcement for those controls."
+targetQuery: "how to choose between model instructions, application logic, and a policy service"
+queryAliases:
+  - "model instructions vs application logic vs policy service"
+intent: "decision"
+funnel: "architecture evaluation"
+cluster: "architecture"
+parent: "/blog/ai-workflow-architecture"
+contentType: "decision-tool"
+kind: "satellite"
+sourceableAtom: "A six-control by three-scenario placement matrix with owners, enforcement points, failure consequences, reproducible checks, rollback needs, and explicit vetoes for permissions, irreversible actions, auditability, and shared policy."
+evidenceType: "reusable decision artifact"
+evidenceBasis: "Frozen 2026-08-24 synthesis of five primary sources, with three worked decisions. This is analysis, not a measured benchmark."
+tags: ["AI architecture", "governance", "AI workflows"]
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/"
+  - "https://learn.microsoft.com/en-us/azure/well-architected/ai/application-design"
+  - "https://docs.aws.amazon.com/prescriptive-guidance/latest/govern-architect-agentic-ai/model-access-layer.html"
+  - "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gensec02-bp01.html"
+  - "https://playbooks.aip.gov.sg/responsibleai/improving-ai-systems/guardrails/choosing-a-guardrail/"
+cover: "/blog/how-to-choose-between-model-instructions-application-logic-and-policy-service-hero-control-placement.webp"
+coverAlt: "Illustration of a control-placement matrix routing AI rules to instructions, application logic, or a policy service"
+draft: false
+---
+
+> **Quick answer:** Put tone, task behavior, and other model judgments in model instructions. Put schemas, side-effect checks, tool execution, and local budgets in application logic. Add a policy service when authorization, irreversible actions, shared PII or content rules, auditability, or multi-application and multi-provider consistency must hold. Never make model instructions the only enforcement for those controls.
+
+When a prototype is small, putting every rule in a prompt feels efficient. Then a model changes, a tool gains write access, or a second application needs the same restriction. The old prompt becomes a hidden policy engine with no clear owner.
+
+I have taught product managers who moved from writing specs to building and shipping products. The boundary that matters most is usually not the model. It is knowing which behavior must be judged and which behavior must be rejected.
+
+## Use the veto test before choosing a boundary
+
+Choose the boundary by asking what must happen when the rule is violated. If the system may answer differently but still safely continue, start with model instructions. If the system must reject an exact value, permission, tool call, or budget, enforce it in application logic. If the same decision must hold across applications, providers, tenants, or teams, put a versioned decision in a policy service and enforce it at the point of use.
+
+Use these four questions in order:
+
+1. Is this mainly a model judgment about tone, task decomposition, or how to explain an answer? Use instructions, with output checks where needed.
+2. Must it always be true, such as a schema, amount ceiling, identity match, retry limit, or tool contract? Use application logic.
+3. Must it be consistent across applications, providers, tenants, or organizational owners? Use a policy service or gateway, with local enforcement too.
+4. Would a mistake authorize a person, execute an irreversible action, leak sensitive data, defeat an audit trail, or consume shared budget? Model instructions fail the veto. Add deterministic enforcement and, where the rule is shared, a policy service.
+
+This is the article's analysis of the source material. OpenAI describes instructions as behavior guidance and guardrails as layered controls that must sit alongside authentication and authorization. Microsoft separates application layers and gives gateways cross-cutting duties such as authorization, quotas, filtering, and token caps. AWS describes the simplicity and latency advantages of direct access against the centralized governance advantages of a gateway. Singapore GovTech requires a named owner, representative examples, complete-system testing, and version and operations planning. [OpenAI](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/) [Microsoft](https://learn.microsoft.com/en-us/azure/well-architected/ai/application-design) [AWS model access](https://docs.aws.amazon.com/prescriptive-guidance/latest/govern-architect-agentic-ai/model-access-layer.html) [AWS guardrails](https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gensec02-bp01.html) [Singapore GovTech](https://playbooks.aip.gov.sg/responsibleai/improving-ai-systems/guardrails/choosing-a-guardrail/)
+
+## The control-placement matrix
+
+The matrix below is the reusable artifact. Each cell records the owner, enforcement point, failure consequence, reproducible check, change or rollback need, and why the other boundaries are insufficient. “Policy service” includes a shared policy decision point, gateway, or guardrail service. The matrix is analysis built from the cited guidance, not a claim that any vendor's component automatically satisfies the control.
+
+| Control | Single application prototype | Production application with irreversible tool actions | Multi-application or multi-provider environment |
+| --- | --- | --- | --- |
+| **Tone and task behavior** | **Owner:** feature builder. **Enforcement:** model instructions. **Failure:** off-task or off-tone answer. **Check:** replay in-scope, out-of-scope, ambiguous, and correction prompts. **Change:** commit prompt versions and revert the prompt commit. **Why not others:** code cannot express nuanced behavior cheaply; a shared service is unnecessary for one app. | **Owner:** product and domain owner. **Enforcement:** model instructions for behavior, with application logic stopping risky action. **Failure:** persuasive but wrong behavior reaches a write path. **Check:** replay ambiguous requests and assert no action occurs without a valid command. **Change:** version prompt and action contract together. **Why not others:** a policy can veto a class of action but cannot own nuanced conversation; instructions alone cannot protect the side effect. | **Owner:** each product owner for tone, platform owner for global safety rules. **Enforcement:** per-app instructions plus shared filter for global prohibitions. **Failure:** inconsistent behavior or provider drift. **Check:** same fixture through every app/provider adapter. **Change:** version prompts per app and shared filter. **Why not others:** app code cannot carry nuanced behavior across providers; policy should not decide ordinary tone. |
+| **Output schema** | **Owner:** feature builder. **Enforcement:** application validator after the model call; instructions describe the shape. **Failure:** parse errors, missing fields, or silently ignored fields. **Check:** valid, missing, extra, wrong-type, and boundary fixtures. **Change:** version schema and parser. **Why not others:** instructions cannot guarantee valid output; policy is not the domain contract. | **Owner:** workflow owner. **Enforcement:** typed command and validator immediately before execution. **Failure:** malformed or semantically unsafe payload commits a wrong action. **Check:** reject missing approval, stale version, extra fields, wrong units, and invalid target. **Change:** version command schema with migrations; roll back executor, not only prompt. **Why not others:** valid-looking JSON can violate transaction rules; a central policy cannot know every payload invariant. | **Owner:** platform contract owner with application owners. **Enforcement:** shared API or gateway schema plus provider adapters and local validators. **Failure:** provider response drift breaks a client or changes meaning. **Check:** contract-test every adapter against the same fixtures. **Change:** compatibility versions and adapter rollback. **Why not others:** prompt fixes duplicate across apps; local code alone cannot guarantee a common contract. |
+| **Authorization** | **Owner:** feature builder and data owner. **Enforcement:** application auth middleware and tool allowlist using user identity. **Failure:** prototype reads or writes another user's data. **Check:** user/resource/tool matrix with denied and tenant-crossing cases. **Change:** version local rules; disable the tool on rollback. **Why not others:** instructions are not an authorization boundary; a service adds cost before shared policy exists. | **Owner:** security and domain owner. **Enforcement:** policy decision point called by the executor immediately before the tool call. **Failure:** unauthorized irreversible action or stale approval. **Check:** deny matrix, expired approval, changed resource, replayed identity, fail-closed timeout. **Change:** pin policy versions, log inputs, roll back to prior policy or kill switch. **Why not others:** model instructions can be ignored; application-only rules become hard to audit and coordinate. | **Owner:** security/platform with each data owner. **Enforcement:** central policy service and gateway, plus checks in each tool/data service. **Failure:** one app or provider bypasses a common rule. **Check:** same identity/action/tenant cases through every entry point. **Change:** version and pin policy bundles. **Why not others:** prompts and local checks diverge; a gateway without downstream checks creates a bypass. |
+| **Tool eligibility** | **Owner:** feature builder. **Enforcement:** application tool registry and allowlist; instructions explain selection. **Failure:** wrong or overpowered tool is exposed. **Check:** request each task and assert the available tool set, including a disallowed write. **Change:** version tool manifest. **Why not others:** the model can request a tool not meant for the task; a service is disproportionate for one registry. | **Owner:** product and security owners. **Enforcement:** application tool broker and executor, with policy veto for high-risk tools. **Failure:** destructive, costly, or non-reversible call. **Check:** read-only, write, high-value, approval-required, stale-state, and retry cases. **Change:** version tool contracts and policy; keep a kill switch. **Why not others:** instructions cannot enforce exposure; application logic alone may miss organization-wide restrictions. | **Owner:** platform capability owner with product and security owners. **Enforcement:** shared capability catalog/gateway and downstream tool checks. **Failure:** a provider adapter exposes a capability another app forbids. **Check:** capability matrix across apps, tenants, providers, and tool versions. **Change:** version catalog and policy bundle; revoke one capability without every redeploy. **Why not others:** per-app manifests drift; prompts cannot express a cross-system deny. |
+| **PII and content filtering** | **Owner:** feature and data owner. **Enforcement:** application pre-filter and post-filter, using deterministic rules or provider controls where suitable. **Failure:** sensitive data is sent, repeated, or displayed. **Check:** synthetic PII, ordinary text, boundary, adversarial, and must-not-trigger cases. **Change:** version rules/config. **Why not others:** instructions are advisory; a shared service is extra machinery when no other app shares the risk. | **Owner:** privacy/security and application owner. **Enforcement:** filter before model/tool input and after output, with a hard stop before irreversible action. **Failure:** PII leakage or harmful content reaches a customer or external system. **Check:** complete flow with timeouts, false-positive review, and action suppression. **Change:** version detector, rules, and evaluation set; fail closed or route to review on outage. **Why not others:** model behavior is not a redaction guarantee; a filter after action is too late. | **Owner:** privacy/security platform team. **Enforcement:** shared gateway/policy filters plus local domain filters. **Failure:** inconsistent redaction or content handling by provider or app. **Check:** same corpus through the complete app/provider matrix, including timeout behavior. **Change:** version guardrail and evaluation set; roll back shared version. **Why not others:** local filters duplicate and drift; prompts cannot provide common data handling. |
+| **Rate and cost limits** | **Owner:** feature builder. **Enforcement:** application runner with max turns, tokens, retries, time, and small budget. **Failure:** runaway loop, surprise bill, or blocked request. **Check:** retry storm, max-turn exhaustion, oversized input, and budget boundary. **Change:** version config and stop switch. **Why not others:** the model cannot meter spend; a shared service is premature for one workload. | **Owner:** service owner and platform/FinOps owner. **Enforcement:** application and gateway limits before model calls and tool execution. **Failure:** one run exhausts shared capacity or repeats a side effect. **Check:** burst, concurrency, provider timeout, retry, and cross-request budget cases. **Change:** version quotas and timeouts; retain kill switch. **Why not others:** prompt limits are not enforcement; gateway-only limits miss workflow budgets. | **Owner:** platform/FinOps and security. **Enforcement:** shared gateway/policy quotas by tenant, user, app, and provider, with local workflow budgets. **Failure:** cross-app overspend, starvation, or uncontrolled fallback. **Check:** concurrent tenants, token caps, fallback routing, and chargeback reconciliation. **Change:** version quotas and routes; roll back policy or provider map. **Why not others:** local limits cannot guarantee shared budget; instructions cannot observe fleet demand. |
+
+The strongest source-backed point behind the matrix is layered ownership. OpenAI says guardrails should accompany authentication and authorization. Microsoft says each application layer should enforce its own policies and identities, and that gateways can enforce cross-cutting quotas, filtering, and authorization. That combination rules out both extremes: “put everything in the prompt” and “move every rule into a central service.”
+
+![Illustration of the veto test routing AI behavior, invariants, and shared policies to their enforcement boundaries](/blog/how-to-choose-between-model-instructions-application-logic-and-policy-service-inline-veto-test.webp)
+
+## Three worked decisions
+
+### 1. A single-app prototype
+
+For a document summarizer, put tone and task behavior in instructions. Put output validation, a max-token budget, and local PII filtering in application logic. Do not add a policy service yet.
+
+The owner is the feature builder. The failure consequence is bounded: a malformed or overlong summary wastes a run, but no external write occurs. Reproduce the choice with fixed fixtures covering empty input, long input, PII, off-topic requests, and malformed output. Add the service when another application, provider, tenant, or shared rule appears. This matches Microsoft's guidance that smaller proof-of-concepts often benefit from simplicity, while gateways become valuable for cross-cutting concerns and multi-provider scenarios. [Microsoft](https://learn.microsoft.com/en-us/azure/well-architected/ai/application-design) [AWS](https://docs.aws.amazon.com/prescriptive-guidance/latest/govern-architect-agentic-ai/model-access-layer.html)
+
+### 2. A production app with an irreversible tool
+
+For a refund assistant, let the model propose an explanation and a structured command. Let application logic validate the schema, amount, idempotency key, current state, and exact target. Ask a policy service whether this user may perform this refund now. Require human review for the highest-consequence cases.
+
+The owners are product, security, and payments. The failure consequence is an unauthorized or duplicate financial action. Reproduce the choice with approved, denied, expired, changed-amount, duplicate, timeout, and provider-error cases while the executor stays in dry-run mode. OpenAI's tool-safeguard guidance explicitly points to read versus write access, reversibility, permissions, and financial impact as risk inputs, while AWS notes that human review provides the greatest confidence for critical responses. [OpenAI](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/) [AWS](https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gensec02-bp01.html)
+
+### 3. Multiple apps and providers
+
+For three applications using two model providers, keep product-specific behavior in each app's instructions. Centralize authorization, PII and content filtering, rate and cost quotas, provider routing, and shared tool eligibility in a policy service or gateway. Keep downstream checks in every tool and data service.
+
+The owners are platform, security, privacy, and each data owner. The failure consequence is a bypass on one route or one tenant consuming another tenant's budget. Reproduce the choice by running one versioned corpus and concurrent quota test through every app/provider path, then replaying it against the previous policy bundle. Singapore GovTech's procedure requires representative ordinary, boundary, adversarial, and must-not-trigger examples, plus ownership of monitoring, versions, outages, latency, cost, and performance. [Singapore GovTech](https://playbooks.aip.gov.sg/responsibleai/improving-ai-systems/guardrails/choosing-a-guardrail/)
+
+## What to version and roll back
+
+Treat each control as a releaseable object, not an undocumented sentence in a prompt.
+
+- **Instructions:** prompt version, model/provider, evaluation fixtures, and rollout assignment.
+- **Application logic:** schema, validator, tool manifest, executor, timeout, retry, and budget versions.
+- **Policy service:** policy bundle, evaluation set, decision inputs, enforcement-point version, and audit record.
+
+On rollback, revert the smallest safe boundary. A prompt regression should not require rolling back authorization. A policy change should not silently reinterpret an old command. For an in-flight irreversible action, fail closed, re-check current authorization and state, and require a new approval if the policy version changed.
+
+This separation follows Microsoft's recommendation to externalize and version prompts and to use abstraction for model changes, while GovTech assigns the operating team responsibility for versioning, monitoring, and re-evaluation. [Microsoft](https://learn.microsoft.com/en-us/azure/well-architected/ai/application-design) [Singapore GovTech](https://playbooks.aip.gov.sg/responsibleai/improving-ai-systems/guardrails/choosing-a-guardrail/)
+
+## When a policy service is premature
+
+Do not create a shared policy service simply because the system uses an LLM. A single read-only prototype with one owner can keep its tool allowlist, output validator, PII filter, and budget in application code. The policy service becomes justified when the same decision must survive a second application, provider, tenant, or ownership boundary, or when an audit requires one versioned decision record.
+
+The exception is risk, not scale. Even a small app needs deterministic authorization and side-effect checks before an irreversible action. A central service is optional at that stage. A hard enforcement point is not.
+
+## A practical architecture review record
+
+For every rule, record six lines:
+
+1. Control and example: “Refund amount must not exceed the approved amount.”
+2. Owner: the person or team who changes and monitors it.
+3. Enforcement point: the exact request, response, gateway, or executor boundary.
+4. Failure consequence: what happens if the rule is bypassed or times out.
+5. Reproducible check: fixture, expected decision, and how to rerun it.
+6. Version and rollback: the artifact version, compatibility rule, and kill switch.
+
+Then ask the veto questions again. If the answer is authorization, an irreversible action, auditability, or a shared policy, remove model instructions as the sole owner. If the answer is nuanced behavior, keep the model involved, but surround it with the deterministic checks that make the rest of the system safe.
+
+For the wider architecture boundary, start with [AI workflow architecture](/blog/ai-workflow-architecture). If the question is specifically whether to add a separate policy layer, compare this matrix with [when an AI workflow should have a separate policy layer](/blog/when-should-an-ai-workflow-have-a-separate-policy-layer). If you want help turning the matrix into a team-owned release check, Marius Manolachi's [AI consulting and tutoring work](/learn-ai) is the relevant next step.
+
+This page is a decision artifact, not a benchmark. Re-run the fixtures when a model, provider, tool contract, policy bundle, or data-handling rule changes.
