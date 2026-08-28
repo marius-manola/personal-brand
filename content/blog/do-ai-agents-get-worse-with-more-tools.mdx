@@ -1,0 +1,182 @@
+---
+title: 'Do AI Agents Get Worse With More Tools?'
+date: '2026-08-28'
+updated: '2026-08-28'
+excerpt: 'A five-task deterministic audit shows when orthogonal tools stay harmless, when overlapping schemas create ambiguity, and how to test a real agent honestly.'
+answer: 'AI agents do not reliably get worse just because the catalog grows. In the bounded fixture below, orthogonal additions preserved clear selection, while overlapping names and schemas created ambiguity. Treat tool count as a trigger to audit collisions, descriptions, latency, and recovery. The exception is a real model benchmark: only matched runs can establish model-specific degradation.'
+targetQuery: 'do AI agents get worse with more tools'
+queryAliases:
+  - 'AI agent tool count'
+  - 'do more tools make AI agents worse'
+intent: 'benchmark research'
+funnel: 'evaluation'
+cluster: 'architecture'
+parent: '/blog/when-to-use-an-ai-agent'
+contentType: 'decision-tool'
+kind: 'satellite'
+sourceableAtom: 'Tool count is not a removal threshold: in a five-task deterministic catalog audit, four orthogonal additions kept all five expected routes clear, while two overlapping additions reduced clear routes to three and four overlapping additions reduced them to one. This is a schema-collision result, not a model-degradation result.'
+evidenceType: 'benchmark'
+evidenceBasis: 'A five-task deterministic tool-catalog audit was run locally on 2026-08-23 with Node.js v24.11.1. It compared a five-tool baseline, four orthogonal additions, two overlapping additions, and four overlapping additions using the same family-collision rule. The result is a reproducible fixture observation, not a model-backed or production benchmark; primary sources define the tool contract and the real-run measurements still required.'
+tags:
+  - 'AI agents'
+  - 'Tool calling'
+  - 'AI architecture'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-21'
+sources:
+  - 'https://arxiv.org/abs/2605.24660'
+  - 'https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools'
+  - 'https://developers.openai.com/api/docs/guides/function-calling'
+  - 'https://modelcontextprotocol.io/specification/2025-11-25/server/tools'
+  - 'https://arxiv.org/abs/2606.25819'
+faq:
+  - q: 'Should I remove tools when an agent makes a wrong call?'
+    a: 'First check whether two tools claim the same operation, whether their descriptions state clear boundaries, and whether the tool result is easy to distinguish. Remove or merge a duplicate only when the task still has a complete path. A wrong call can also come from permissions, stale context, or a missing final-state check.'
+  - q: 'When should tools be loaded dynamically?'
+    a: 'Use deferred or retrieved tool definitions when the full catalog is broad, changes often, or contains many unrelated capabilities. Retrieve a small, high-signal shortlist for the task, then measure retrieval misses and recovery. Dynamic loading reduces exposure, but it adds another failure boundary.'
+cover: '/blog/do-ai-agents-get-worse-with-more-tools-hero.webp'
+coverAlt: 'Illustration of an AI agent tool catalog compared across orthogonal and overlapping schemas'
+draft: false
+---
+
+Adding tools is not the same as adding capability. It also changes the set of names, descriptions, schemas, permissions, and failures that a model must navigate.
+
+The useful question is not whether a large number is universally bad. It is whether the next tool creates a competing interpretation, a new operating cost, or a recovery path the system cannot verify.
+
+## What did the local tool-catalog audit observe?
+
+The five-task fixture kept selection clear when four unrelated tools were added, but overlapping tools created ambiguity. The result is about catalog structure, not about an AI model becoming less intelligent.
+
+The audit used five bounded task families: exact customer-record lookup, customer search, quarterly-report retrieval, renewal-email drafting, and a no-tool control. A route was clear when exactly one tool owned the expected operation family. The no-tool control was clear when no tool was required. More than one owner made the case ambiguous.
+
+| Condition | Catalog size | Clear task routes | Ambiguous task routes | Observed result |
+| --- | ---: | ---: | ---: | --- |
+| Baseline, one owner per family | 5 | 5 of 5 | 0 of 5 | All routes clear |
+| Four orthogonal additions | 9 | 5 of 5 | 0 of 5 | No change in the fixture |
+| Two overlapping additions | 7 | 3 of 5 | 2 of 5 | Customer lookup and search became ambiguous |
+| Four overlapping additions | 9 | 1 of 5 | 4 of 5 | Every tool-backed family had competing owners |
+
+This is the sourceable result of the article: four extra tools did not change the audit when they were orthogonal, while two duplicate operation families changed two task decisions. The same catalog size produced different outcomes depending on overlap.
+
+![Illustration of an AI agent tool catalog compared across orthogonal and overlapping schemas](/blog/do-ai-agents-get-worse-with-more-tools-inline-01.webp)
+
+The fixture is deliberately small and deterministic. It contains no customer data, model response, production trace, or invented performance percentage. It is a design test that makes the next real experiment more precise.
+
+## Does adding orthogonal tools make an agent worse?
+
+Not by itself in this fixture. An unrelated tool can increase catalog size without competing for any of the five expected operation families, so the audit left all five routes clear.
+
+That finding is narrower than “more tools are safe.” The tool may still add prompt tokens, permission work, initialization time, or a new failure mode. An orthogonal tool can also become relevant to a future task, which means the current audit does not test the whole product.
+
+Anthropic's tool-use documentation treats names, descriptions, input schemas, examples, tool choice, and deferred loading as part of the model-facing contract. That is why a count-only test is incomplete. A catalog can grow while its contracts remain distinct, or stay small while two descriptions claim nearly the same job ([Anthropic's tool-definition guidance](https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools)).
+
+Use an orthogonal addition when it owns a capability that no visible tool currently claims. Record the new operation family, its permission boundary, its expected result shape, and the tasks that should never select it. Those negative cases matter because a tool is defined partly by when it must not be used.
+
+## Does schema overlap matter more than raw tool count?
+
+Yes, when overlap changes the number of plausible owners for one operation. In the fixture, the catalog with seven tools performed worse than the catalog with nine orthogonal tools because the two added tools competed with existing customer operations.
+
+The audit did not ask a model to choose between tools. It applied a visible rule to the catalog: one owner is clear, zero owners is a missing capability, and multiple owners are ambiguous. That rule makes a collision inspectable before a model call.
+
+MCP describes tools as model-invocable operations with names, descriptions, and input schemas, while the model's request remains distinct from the server's execution ([MCP tool specification](https://modelcontextprotocol.io/specification/2025-11-25/server/tools)). The practical consequence is simple: inspect the contract at the operation boundary. `lookup_customer`, `find_customer_record`, and `get_customer_by_email` may be separate implementations, but they can still compete for the same user intent.
+
+Split a tool when its operations have different permissions, confirmation requirements, or result contracts. Merge it when the user sees one operation and the separate tools only expose implementation detail. Keep both only when their boundary is meaningful and the description states the difference in the language of the task.
+
+## How should you audit a tool description before adding it?
+
+Write the new tool's positive boundary and its negative boundary, then test both against existing operation families. A description that says only what a tool can do is incomplete; it must also say when another tool owns the request.
+
+For each candidate, record:
+
+1. The user intent it owns, using the words a requester would use.
+2. The required inputs and the fields that must not be guessed.
+3. The state or evidence it returns after execution.
+4. The tools that are close enough to be confused with it.
+5. The requests for which the model must choose another tool or ask a question.
+
+Anthropic recommends detailed descriptions, explicit use boundaries, consolidation of related operations, meaningful namespacing, and high-signal tool responses ([Anthropic's tool-use documentation](https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools)). These are design recommendations, not a guarantee of correct selection.
+
+The audit can be a table before it becomes code:
+
+| Candidate tool | Owns | Must not own | Distinguishing result |
+| --- | --- | --- | --- |
+| `lookup_customer` | One exact customer record by stable identifier | Fuzzy discovery or bulk search | One canonical record and identifier |
+| `search_customers` | Several possible matches from name or email fragments | Exact record retrieval after an identifier is known | Ranked matches with match fields |
+| `get_quarterly_report` | A named reporting period | Customer lookup or live calculation | Report period and source version |
+| `draft_renewal_email` | A proposed message with supplied account facts | Sending or changing account state | Draft text plus cited inputs |
+
+The exception is a system where a single router owns the ambiguity by design. In that case, expose the router as the model-facing tool and keep the internal branches behind deterministic validation. Do not expose four near-duplicates and hope the model learns your private implementation map.
+
+## When should you retrieve tools instead of exposing the whole catalog?
+
+Retrieve or defer tools when the full catalog is broad, changes frequently, or contains many unrelated capabilities. Keep the initial shortlist small enough that every visible tool has a clear reason to be considered for the task.
+
+Deferred loading does not erase the problem. It moves the problem to retrieval. A system can select the right tool from a shortlist only if the retriever included that tool and excluded misleading neighbors. Measure both retrieval misses and downstream tool selection.
+
+The shortlist-depth paper in the research record treats the number of available tools as an evaluation variable in its tested conditions, not as a universal threshold for every agent ([the 2026 tool-shortlist study](https://arxiv.org/abs/2605.24660)). That distinction matters. Use published findings to choose what to test, then run the test under your own task, model, prompt, and tool definitions.
+
+Use full exposure when the catalog is small, stable, and easy to explain. Use deferred loading when catalog size or freshness makes the full contract expensive or noisy. Keep a fallback for retrieval misses, and log which tools were eligible before you interpret a wrong selection.
+
+## What should a real model benchmark measure?
+
+A real benchmark should hold the task, prompt, model version, tool definitions, executor, sampling settings, retry policy, and limits constant while changing only the catalog condition. It should record selection, invalid calls, recovery, latency, tokens, cost, and final state.
+
+OpenAI describes function calling as a model request that application code executes before returning a tool result. That boundary means a correct-looking call is not the same as a correct completed task ([OpenAI's function-calling guide](https://developers.openai.com/api/docs/guides/function-calling)).
+
+Use these fields for every trial:
+
+| Field | What it answers |
+| --- | --- |
+| Expected tool and allowed alternatives | Did the model choose an acceptable operation? |
+| Arguments and validation result | Was the call well-formed and safe to execute? |
+| Tool result and final-state check | Did execution produce the required state or evidence? |
+| Retry and recovery trace | Did the agent recover after an invalid or failed call? |
+| Elapsed time and turn count | Did the larger catalog change operating behavior? |
+| Input and output tokens and price formula | Did the condition change cost? |
+
+ToolBench-X makes a related point by evaluating tool-using agents across specification, invocation, execution, output, and cross-source hazards, rather than treating function-call accuracy as the whole task ([ToolBench-X](https://arxiv.org/abs/2606.25819)). The benchmark's measures are external evidence about its conditions. They are not rows in the local fixture above.
+
+The local audit intentionally reports `not measured` for model invalid-call rate, recovery rate, latency, token use, and cost. Filling those cells with zeros would turn an honest catalog test into a fake model result.
+
+## How can you run the comparison without confusing count and overlap?
+
+Run matched conditions that separate orthogonal growth from overlapping growth. If you add both at once, a change cannot tell you whether the cause was more tokens, more tools, or a collision.
+
+Use this sequence:
+
+1. Freeze one task fixture with an expected tool, allowed alternative, invalid-call rule, recovery path, and final-state check for each case.
+2. Run the smallest useful catalog as the baseline.
+3. Add unrelated tools one at a time and rerun the same cases.
+4. Add deliberately overlapping tools in a separate branch of the experiment.
+5. Preserve every model response, argument, validation result, tool result, retry, final outcome, elapsed time, token count, and cost calculation.
+6. Compare each condition with the baseline and report the first material change, not only the largest catalog.
+
+Keep the task text and tool descriptions versioned. A description edit is an experimental change even when the tool name stays the same. OpenAI's execution boundary and MCP's separation between request and execution both support keeping the application trace alongside the model output ([OpenAI's function-calling guide](https://developers.openai.com/api/docs/guides/function-calling), [MCP tool specification](https://modelcontextprotocol.io/specification/2025-11-25/server/tools)).
+
+For the local fixture, the sample is five synthetic task families and the selector rule is deterministic. For a real agent, that sample is only a starting contract. Expand it with normal requests, ambiguous requests, known failures, permission boundaries, and no-tool cases from the workflow you actually plan to operate.
+
+## What does this result still not tell you?
+
+It does not tell you whether any particular model will choose the wrong tool more often after the catalog grows. It does not establish a safe maximum tool count, a latency increase, a token increase, a cost increase, or a recovery rate.
+
+The sample is synthetic and small. The audit treats operation-family ownership as the only source of ambiguity, so it does not model prompt wording, model priors, descriptions with different lengths, schema complexity, tool-result quality, permissions, retrieval errors, or concurrent calls. It also treats a no-tool decision as clear without measuring whether the final answer was correct.
+
+The primary sources have their own task sets, models, and evaluation conditions. The shortlist paper and ToolBench-X provide useful method context, but their findings cannot be transferred to this fixture or to your production agent without a matched run. Tool definitions, model behavior, API pricing, and retrieval systems change, so rerun the benchmark after a material change and record the date.
+
+The honest conclusion is bounded: tool count is a reason to inspect the catalog, not a reason by itself to remove a tool. The local evidence says schema overlap deserves a separate test because it changed the fixture's selection boundary.
+
+## What should you do with the next tool?
+
+Add the tool when it owns a missing operation, has a distinct permission and result contract, and passes the orthogonal-growth check. Split or merge when multiple visible tools claim the same user intent. Retrieve it when the full catalog is too broad, then measure retrieval misses. Remove it only after a matched run shows that the tool adds cost or failure without a necessary capability.
+
+The decision rule is:
+
+| Observation | Next action |
+| --- | --- |
+| New tool has one clear operation family and no collision | Add it and rerun orthogonal cases |
+| Two tools share an operation family | Rewrite boundaries, merge, or expose one router |
+| Catalog is broad but families are distinct | Defer or retrieve tools and measure misses |
+| Invalid calls or failed recovery rise in matched trials | Narrow the catalog, repair schemas, or add a recovery gate |
+| Cost or latency rises without a required outcome improving | Remove, defer, or redesign the tool |
+
+Keep the [when to use an AI agent parent guide](/blog/when-to-use-an-ai-agent) as the broader architecture context. For a wrong-call diagnosis, use [why an AI agent chooses the wrong tool](/blog/why-does-my-ai-agent-choose-the-wrong-tool). For the release decision after the catalog is shaped, use [how to evaluate an AI agent](/blog/how-to-evaluate-an-ai-agent). The local audit gives you a starting boundary; your matched model run must supply the operational result.
