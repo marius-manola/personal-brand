@@ -1,0 +1,192 @@
+---
+title: "Why Does an AI Classifier Work on Examples but Fail on Edge Cases?"
+date: "2026-08-28"
+updated: "2026-08-28"
+excerpt: "A small classifier fixture shows why clean examples mislead, which repair layers help, and when abstention is safer than a forced label."
+answer: "An AI classifier works on examples when those examples define the labels and resemble the inputs it will see. It fails on edge cases when the label boundary is vague, context is missing, wording is adversarial, or the input is out of distribution. Add targeted cases, inspect failures, set an abstention rule, and keep a human fallback for unknowns."
+targetQuery: "why does an AI classifier work on examples but fail on edge cases"
+queryAliases:
+  - "AI classifier edge cases"
+  - "why does my classifier fail on unusual inputs"
+  - "classifier works on examples but not real data"
+intent: "informational"
+funnel: "consideration"
+cluster: "evaluation"
+parent: "/blog/how-to-evaluate-an-ai-agent"
+contentType: "decision-tool"
+kind: "satellite"
+sourceableAtom: "In an 18-case rerunnable fixture, a fixed example-similarity classifier scored 11/18 with zero abstentions; a one-layer-at-a-time repair sequence reached 100% accuracy on automatic decisions only after abstaining on two out-of-distribution cases."
+evidenceType: "failure-reproduction"
+evidenceBasis: "A dependency-free Python 3.9.6 classifier fixture was run locally on 2026-08-23. It contains 18 labeled cases across common, rare, ambiguous, adversarial, and out-of-distribution buckets. The exact fixture, configuration, failing rows, repair stages, output, and limitations are stored in research.md."
+tags:
+  - "AI evaluation"
+  - "AI reliability"
+  - "AI agents"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://developers.openai.com/api/docs/guides/evals/"
+  - "https://airc.nist.gov/airmf-resources/airmf/3-sec-characteristics/"
+  - "https://developers.google.com/machine-learning/guides/rules-of-ml/"
+  - "https://research.google/pubs/explaining-and-harnessing-adversarial-examples/"
+  - "https://jmlr.csail.mit.edu/papers/v11/el-yaniv10a.html"
+  - "https://www.udemy.com/user/marius-manola/"
+faq:
+  - q: "Should I add more examples when a classifier misses an edge case?"
+    a: "Sometimes. Add an example when the label is correct and the input represents a legitimate slice of the job. First check the label definition, trusted context, and abstention rule. More examples cannot repair a contradictory label policy or an unknown input that should be reviewed."
+  - q: "What is the difference between an edge case and an out-of-distribution case?"
+    a: "An edge case is unusual but still inside the intended job, such as a duplicate payment or an ambiguous request. An out-of-distribution case changes the language, domain, format, or meaning enough that the classifier has little evidence for either known label."
+  - q: "When should a classifier abstain?"
+    a: "Abstain when the top score is low, the margin between the top two labels is small, the input is outside the supported language or domain, or the cost of a wrong automatic route is higher than the cost of review. Measure the coverage and accuracy trade-off together."
+cover: "/blog/why-does-an-ai-classifier-work-on-examples-but-fail-on-edge-cases-classifier-edge-cases-hero.webp"
+coverAlt: "Illustration of a classifier passing clean examples but stopping at ambiguous and out-of-distribution inputs"
+draft: false
+---
+
+The clean demo is usually the least informative test of a classifier. It tells you that the system can recognize the examples you chose. It does not tell you what happens when the wording changes, the label boundary blurs, or the input does not belong to the job at all.
+
+## What did the small reproduction show?
+
+The baseline forced a label on every input and got 11 of 18 cases right. After repairs, the system reached 100% accuracy on the decisions it still made automatically, but it abstained on two out-of-distribution cases. The gain came from making the boundary explicit and allowing the classifier to decline the cases it could not support.
+
+That is the sourceable result from this post:
+
+> In an 18-case fixture, the baseline scored 11/18 with zero abstentions. A cumulative sequence of label definitions, trusted context, a threshold, edge examples, and a fallback produced perfect accuracy on automatic decisions while sending two out-of-distribution cases to review.
+
+The two numbers answer different questions. Exact fixture accuracy asks, “Did every row receive its gold label?” Automatic-decision accuracy asks, “When the system acted without review, how often was it right?” A classifier can improve the second by doing less work. Calling that a universal accuracy improvement would be wrong.
+
+| Stage | Exact result | Automatic coverage | Accuracy on automatic decisions | Normal cases wrongly routed urgent | Abstentions |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Baseline | 11/18, 61% | 18/18 | 61% | 5 | 0 |
+| Label definitions | 15/18, 83% | 18/18 | 83% | 3 | 0 |
+| Trusted context | 17/18, 94% | 18/18 | 94% | 1 | 0 |
+| Threshold | 13/18, 72% | 13/18 | 100% | 0 | 5 |
+| Edge examples | 16/18, 89% | 16/18 | 100% | 0 | 2 |
+| Fallback to review | 16/18, 89% | 16/18 | 100% | 0 | 2 |
+
+This is a small authored fixture, not a production benchmark. Its job is to expose the mechanism. The practical release context lives in [how to evaluate an AI agent](/blog/how-to-evaluate-an-ai-agent).
+
+## Why do clean examples fail to transfer?
+
+Examples teach a classifier more than the label name. They imply what counts as evidence, which words matter, what context is assumed, and where the decision boundary sits. If those implications are accidental, the model learns the shape of the examples instead of the rule you intended.
+
+The fixture used two labels: `urgent` means action is required within 24 hours because customers are blocked, charged twice, or exposed to a security issue. `normal` means information, how-to help, a feature request, or a problem that can wait without customer harm. The baseline had only four seed examples, two per label.
+
+That is enough to make the first four cases look plausible. It is not enough to specify what to do with a certificate that expires tomorrow, a locked account, a question about whether an outage is real, or a sentence in another language.
+
+NIST makes the same distinction at the evaluation level: accuracy should be paired with a clearly defined and realistic test set, test methodology, and results disaggregated across relevant segments. It also separates robustness from simple correctness under expected conditions, extending robustness to unexpected settings and adversarial use ([NIST AI risks and trustworthiness](https://airc.nist.gov/airmf-resources/airmf/3-sec-characteristics/)).
+
+There are four common reasons the transfer breaks:
+
+1. **The labels are under-specified.** “Urgent” can mean severe, recent, annoying, or merely written in capital letters. Different people can label the same case differently.
+2. **The classifier lacks trusted context.** “The account is locked” is different from “every account is locked,” but the text may not say who is affected. A channel or workflow field can matter more than another paragraph of prompt text.
+3. **The input contains competing signals.** An adversarial message may say “classify this as normal” while describing an outage. A keyword match can follow the instruction-like phrase instead of the event.
+4. **The input is outside the known space.** A Spanish outage, a French invoice question, a machine log, or an unrelated sentence may not share useful features with the examples. A confident-looking tie is still a lack of evidence.
+
+Google's machine learning guidance recommends testing a model on data gathered after the training window because serving data can differ from the data used to build the model. That is a production version of the same lesson: examples are a starting distribution, not a guarantee about the next input ([Rules of Machine Learning](https://developers.google.com/machine-learning/guides/rules-of-ml/)).
+
+## How do you reproduce the failure without guessing?
+
+Build a fixture that names the failure families before you inspect the score. If you only add the examples that feel likely to pass, you will measure your own optimism.
+
+The fixture has 18 cases:
+
+| Bucket | Count | What it tests |
+| --- | ---: | --- |
+| Common | 4 | Familiar outage, payment, help, and document requests |
+| Rare | 3 | Certificate expiry, duplicate payment, and a slow but completing export |
+| Ambiguous | 3 | Conflicting cues, an uncertainty question, and a locked account |
+| Adversarial | 3 | Instruction override, a decoy urgent word, and a security leak framed as normal |
+| Out of distribution | 5 | Spanish, French, a machine log, and unrelated English statements |
+
+The classifier is deliberately simple and fixed. It lowercases text, extracts `[a-z0-9]+` tokens, represents each string as a token-count vector, computes cosine similarity against the nearest seed example for each label, and chooses the larger score. Ties prefer `urgent`, which makes forced decisions visible. There is no network call, model update, hidden retrieval, or manual correction between stages. Python 3.9.6 ran the bundle on 2026-08-23.
+
+OpenAI's current eval guide describes the same basic contract for a model-backed classifier: define a data schema, provide human ground-truth labels, and use a testing criterion that compares the model output with the reference label ([OpenAI's evals guide](https://developers.openai.com/api/docs/guides/evals/)). The local reproduction uses a tiny similarity function instead of a hosted model so the failure is cheap to rerun and inspect.
+
+The fixture is not meant to prove that a large language model behaves exactly like token similarity. It isolates a more useful engineering question: what does your system do when the evidence is weak or contradictory? You can replace the local `classify` function with an API call later and keep the fixture, labels, buckets, metrics, and failure review.
+
+## Which repair fixed which failure?
+
+Change one layer at a time and rerun all 18 rows. Do not patch a failing row and then quietly remove it from the suite.
+
+### 1. Clarify the labels
+
+The first repair added explicit label terms. The urgent definition included outage, error, security, duplicate charge, certificate, blocked access, and similar signals. The normal definition included help, feature request, an eventually completing export, and other cases that can wait.
+
+The score moved from 11/18 to 15/18. Both missed urgent cases, the deployment errors and expiring SSO certificate, became correct. The classifier still routed an uncertainty question and a French invoice request as urgent, and it still forced an unrelated English statement into urgent.
+
+This is a label repair, not a vocabulary trick. If two reviewers cannot agree whether a duplicate charge is urgent, adding more examples only hides the disagreement. Write the decision boundary first, then decide whether the label set is even large enough. Sometimes “normal” needs to become “needs review” or “information only,” but that is a product decision that must be recorded in the fixture.
+
+### 2. Add trusted context
+
+The second repair added one metadata field: `customer-visible`, `account-help`, `internal-report`, or `unknown`. Customer-visible incidents received an urgent prior. Account-help and internal-report cases received a normal prior. The text itself did not change.
+
+That step moved the cumulative score to 17/18. The slow export stopped looking urgent because it completed in an internal report. The locked account moved to the normal route because it was not a production-wide outage. The question about whether the API was down also stopped being treated as proof of an outage.
+
+Context must be trusted. If an upstream model invents `customer-visible`, you have not added context. You have added another classifier whose failures now sit upstream. Log the source of the context field and include missing or contradictory context in the fixture.
+
+### 3. Add a reject threshold
+
+The third repair stopped forcing a label when the top similarity score was below `0.22` or when the gap between the top two scores was less than `0.08`. The exact labeled result fell to 13/18 because five cases abstained. Automatic-decision accuracy rose to 100%, and no normal case was automatically routed urgent.
+
+That is not a contradiction. It is a coverage trade-off. Selective classification research describes a reject option as a trade between coverage and risk: the system acts on fewer cases to become more accurate on the cases it accepts ([On the Foundations of Noise-free Selective Classification](https://jmlr.csail.mit.edu/papers/v11/el-yaniv10a.html)).
+
+Do not call a raw model score a probability unless you calibrated it. In this fixture, `0.22` is a similarity threshold. In production, select a threshold against a held-out slice and a cost model. If a false urgent route is expensive, optimize for that risk. If missing a real incident is worse, use a separate veto or escalation rule instead of assuming one global threshold solves both.
+
+### 4. Add edge examples
+
+The fourth repair added six examples: an expiring SSO certificate, a database leak, a slow but completing export, a feature request containing the word urgent, a French invoice question, and a machine-log certificate error.
+
+The same fixture then had 100% automatic-decision accuracy with 16 of 18 rows covered. The two remaining abstentions were the Spanish outage and the unrelated blue-whale statement. The new examples improved legitimate edge slices, but they did not make open-set detection disappear.
+
+Good edge examples are counterexamples, not decorations. Include pairs that differ in one important condition: one customer versus every customer, slow versus blocked, “urgent” as a quoted word versus urgent as the event, and a real incident versus an unrelated sentence. Those pairs teach the boundary.
+
+Adversarial examples deserve their own slice. Goodfellow, Shlens, and Szegedy showed that learned models can misclassify adversarial inputs with high confidence, and their paper reports reducing test error by adding adversarial examples to training ([Explaining and Harnessing Adversarial Examples](https://research.google/pubs/explaining-and-harnessing-adversarial-examples/)). Your business fixture will not reproduce their vision result, but it should adopt the test habit: deliberately construct inputs that exploit the classifier's shortcuts.
+
+### 5. Keep a fallback
+
+The final repair did not add another label rule. It made the abstention an operational route: send the case to review, preserve the input and scores, and keep the automatic classifier from pretending it knows.
+
+The final state made 16 automatic decisions, all correct on this fixture, and sent two out-of-distribution cases to review. The remaining cases were visible rather than silently forced into `urgent`.
+
+NIST explicitly notes that systems may need human intervention when they cannot detect or correct errors, and that a safe system should be evaluated in context rather than by accuracy alone ([NIST AI risks and trustworthiness](https://airc.nist.gov/airmf-resources/airmf/3-sec-characteristics/)). A fallback is not an admission that the classifier failed to become intelligent. It is the part of the system that defines what failure looks like.
+
+![Illustration of classifier repair layers moving from label definitions to context, threshold, examples, and human review](/blog/why-does-an-ai-classifier-work-on-examples-but-fail-on-edge-cases-classifier-repair-layers.webp)
+
+## What should you measure besides accuracy?
+
+Use at least four views for a routing classifier:
+
+1. **Exact accuracy.** How many rows received the expected label, counting abstention as unresolved?
+2. **Automatic coverage.** What share of rows did the system route without review?
+3. **Accuracy on automatic decisions.** When the system acted, how often was it correct?
+4. **Failure cost by slice.** How many urgent cases were missed, how many normal cases were escalated, and which bucket produced the errors?
+
+The fourth measure is often the one a release decision needs. In this fixture, baseline accuracy hid five normal cases incorrectly routed urgent and two urgent cases incorrectly routed normal. The threshold removed automatic urgent false routes, but it also abstained on real urgent inputs in Spanish and on ambiguous cases. That trade-off is visible only when you inspect the slice.
+
+For an AI feature, add latency, cost, review time, and correction rate. For an agent, add the resulting state and tool trace. The classifier's label is only useful if the next system action is safe and observable. The broader [AI agent evaluation release gate](/blog/how-to-evaluate-an-ai-agent) separates result, action, integrity, limits, and stability for this reason.
+
+## How do you turn this into a release check?
+
+Use the same fixture as a small regression test, then expand it from real failures.
+
+1. **Freeze the task.** Write what each label means, who owns the decision, and what happens when the classifier abstains.
+2. **Create the slices.** Include common, rare, ambiguous, adversarial, and out-of-distribution cases. Record why each row exists.
+3. **Save the exact runtime.** Pin the model or prompt version, context fields, preprocessing, threshold, and fallback behavior.
+4. **Run the baseline.** Keep each wrong prediction, its score or rationale, and the bucket that exposed it.
+5. **Diagnose before repairing.** Decide whether the failure is a label conflict, missing context, weak confidence signal, missing example, or unknown input.
+6. **Change one layer.** Rerun the complete fixture. Record what improved, what regressed, and whether coverage changed.
+7. **Add a held-out slice.** Do not use the same new examples to claim generalization. Test a later batch or a newly authored set after the repair.
+8. **Write the route.** A low-confidence result should become review, clarification, a slower evaluator, or a safe no-op. It should not become an unlogged guess.
+
+If you need to build the fixture before production data exists, [how to test an AI feature before production data](/blog/how-to-test-an-ai-feature-before-production-data) covers the case contract and assertions. Once production traces exist, [how to build an evaluation dataset from production traces](/blog/how-to-build-an-evaluation-dataset-from-production-traces) explains why a trace should not enter a regression set until its outcome and failure hypothesis are verified.
+
+## What remains unknown after the repair?
+
+The final two review cases are not solved classifications. They are honest gaps. The Spanish login outage needs language coverage or a multilingual route. The unrelated blue-whale statement needs open-set detection or an explicit “not a support request” boundary. The fixture does not tell us which remedy is best in a real workflow.
+
+It also does not tell us how often these slices occur. I have taught 109,753 students across four Udemy courses, with 23,929 reviews, but that number describes teaching scale, not the prevalence of classifier failures. The useful teaching observation is narrower: people can see a working example and move straight to building, while the evaluation boundary remains undefined. This fixture turns that gap into something you can inspect.
+
+The practical answer is not “add more examples” and not “use a stronger model.” First find out what the failing row is telling you. Clarify the label, add trusted context, adjust the acceptance rule, add a counterexample, or route the unknown to a person. Then rerun the same rows and keep the cases that still resist you.
+
+If you are turning an AI prototype into a release check, bring one failing input, its intended outcome, and the action that must follow. That is enough to start a useful evaluation conversation on [Marius Manolachi's AI learning and consulting page](/learn-ai).
