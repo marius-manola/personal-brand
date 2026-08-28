@@ -1,0 +1,234 @@
+---
+title: "How to Build a Dry-Run Mode for an AI Agent"
+date: "2026-08-28"
+updated: "2026-08-28"
+excerpt: "Build a dry-run path for an AI agent that previews intent and diffs, binds approval to an exact proposal, and proves execution matched the change."
+answer: "Build dry-run mode as an application-controlled branch that resolves the agent's intended tool call into a canonical proposal and predicted diff, then stops before the side-effect adapter. Use the same proposal for human approval and execution, bind approval to its hash and current state, and verify the applied diff afterward. The exception is read-only work, which can execute directly."
+targetQuery: "how to build a dry-run mode for an AI agent"
+queryAliases:
+  - "AI agent dry run mode"
+  - "preview AI agent actions"
+  - "AI agent proposal and approval"
+intent: "implementation"
+funnel: "consideration"
+cluster: "implementation"
+parent: "/blog/how-to-scope-an-ai-agent-proof-of-concept"
+contentType: "decision-tool"
+kind: "satellite"
+sourceableAtom: "Running the dependency-free fixture produced a stable dry-run proposal with zero side-effect adapter calls, rejected a changed approval before execution, verified the applied reversible write, and caught an irreversible-write adapter that claimed success without changing state."
+evidenceType: "build-measurement"
+evidenceBasis: "A dependency-free Node fixture was executed on 2026-08-23 with one read tool, one reversible write, one irreversible write, structured proposals, proposal hashes, approval binding, an adapter-call counter, execution logs, and a deliberately faulty adapter. Dry runs left state unchanged with 0 adapter calls; the valid write verified true; the faulty delete verified false."
+tags:
+  - "AI implementation"
+  - "AI agents"
+  - "Agent safety"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://modelcontextprotocol.io/specification/2025-11-25/server/tools"
+  - "https://developers.openai.com/api/docs/guides/function-calling"
+  - "https://developers.openai.com/api/docs/guides/agents"
+  - "https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools"
+  - "https://www.anthropic.com/engineering/building-effective-agents"
+  - "https://tryuncle.com"
+faq:
+  - q: "Does dry-run mode replace human approval?"
+    a: "No. Dry-run makes an intended action inspectable. Approval still decides whether a consequential proposal may execute, and the executor must re-check that the approved proposal is unchanged and still authorized."
+  - q: "How do you preview an irreversible tool?"
+    a: "Give the tool a pure preview function that calculates the intended effect from a snapshot, then show the exact target, before and after state, risk, and reversibility. Do not simulate by calling the real adapter."
+cover: "/blog/how-to-build-a-dry-run-mode-for-an-ai-agent-dry-run-hero.webp"
+coverAlt: "Illustration of an AI agent turning a tool call into a reviewable proposal before execution"
+draft: false
+---
+
+The dangerous moment is not when an agent explains what it wants to do. It is the boundary where a tool call becomes a real side effect.
+
+I use the screen-watching constraint in [TryUncle](https://tryuncle.com) as a bounded design motivation. I’m building an AI agent that watches the screen and annotates it live, so latency and human control are product constraints. The same discipline applies to an agent that can change a record, send a message, or delete something.
+
+That motivates the boundary here: the agent can propose an effect, but a human approval step decides whether the effect reaches the adapter.
+
+## The result: a dry-run can be a testable contract
+
+The useful result is not a `dryRun: true` flag. It is a proposal another person can inspect, approve, reject, and later compare with the applied change.
+
+In my dependency-free fixture, a dry run returned a structured intent and diff without calling a side-effecting adapter. The exact approval mismatch was rejected before execution. A valid reversible write produced a verified execution log. A deliberately faulty irreversible adapter was caught because the observed state did not match the predicted diff.
+
+| Check | Result |
+| --- | --- |
+| Dry-run side effect check | State unchanged; adapter calls `0` |
+| Repeated preview | Stable serialized proposal for the same state and arguments |
+| Changed approval | Rejected with `proposal_changed`; adapter calls stayed `0` |
+| Valid execution | `normal` priority became `high`; log `verified: true` |
+| Failed verification | Delete expected `true`, observed `false`; log `verified: false` |
+
+That table is the sourceable artifact from this post. It is a small fixture, not a claim about every agent or model.
+
+![Illustration of a structured AI agent proposal with intent, exact arguments, before and after diff, risk, and proposal hash](/blog/how-to-build-a-dry-run-mode-for-an-ai-agent-proposal-diff.webp)
+
+## What should a dry-run return?
+
+A dry run should return a proposal, not a prose explanation and not a boolean. The proposal needs enough information for a reviewer to answer one question: “Is this exact effect acceptable in this exact state?”
+
+```json
+{
+  "tool": "set_priority",
+  "args": { "ticketId": "T-17", "priority": "high" },
+  "risk": "write",
+  "reversible": true,
+  "intent": "Set ticket T-17 priority to high",
+  "diff": {
+    "before": { "priority": "normal" },
+    "after": { "priority": "high" }
+  },
+  "baseStateHash": "4a92f0a6e0529535",
+  "proposalId": "220396113e4e51cc"
+}
+```
+
+The important fields are the target, exact arguments, risk, reversibility, human-readable intent, predicted effect, and a fingerprint of the state used to make the prediction. The hash makes the proposal addressable. It does not make the proposal trustworthy by itself.
+
+Tool schemas should stay strict and explicit. MCP tool definitions use JSON Schema and can include output schemas, while MCP warns that tool annotations are hints rather than a security boundary. [The MCP tools specification](https://modelcontextprotocol.io/specification/2025-11-25/server/tools) also recommends showing tool inputs and asking for confirmation on sensitive operations. OpenAI recommends strict function schemas with required fields and `additionalProperties: false`. [OpenAI's function-calling documentation](https://developers.openai.com/api/docs/guides/function-calling) is a useful provider-specific reference, but the proposal contract belongs in your application.
+
+## Where does the no-side-effect boundary belong?
+
+Put the boundary in application code between pure preview functions and side-effecting adapters. Prompt instructions can tell a model to preview first. They cannot prove that a hidden adapter was never called.
+
+| Tool | Risk | Preview path | Execution policy |
+| --- | --- | --- | --- |
+| `read_ticket` | read | Read a snapshot | Execute directly if authorization allows |
+| `set_priority` | reversible write | Calculate the old and new priority | Preview, approve by policy, then execute |
+| `delete_ticket` | irreversible write | Calculate the deletion effect from a snapshot | Preview, require approval, then execute only after revalidation |
+
+The preview function must be pure. It can read a snapshot passed to it. It must not call the database writer, send an HTTP request, enqueue a job, emit a notification, or invoke a browser or screen adapter.
+
+If you use MCP, treat `readOnlyHint`, `destructiveHint`, and `idempotentHint` as risk vocabulary, not as permission. The specification says clients must treat annotations from untrusted servers as untrusted. Your policy should classify the tool independently, then use annotations to improve the review surface.
+
+For model-controlled loops, keep execution narrower than discovery. OpenAI's function-calling documentation supports allowed tools and disabling parallel tool calls. For this fixture, a single proposal is easier to review than a batch of effects, so the execution path would use `parallel_tool_calls: false` or an equivalent application-level limit. [Anthropic's tool-use documentation](https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools) makes the same broader point from another provider: tool definitions and input schemas shape the loop, but the application still handles the result.
+
+## How do you bind approval to the exact proposal?
+
+Store the proposal with the approval and compare its ID with a fresh preview immediately before execution. Include the base-state fingerprint so a proposal cannot silently apply to a different version of the target.
+
+```js
+function approve(proposal, approvedBy) {
+  return {
+    proposalId: proposal.proposalId,
+    proposal,
+    approvedBy
+  };
+}
+
+function execute(approval) {
+  const current = preview(approval.proposal.tool, approval.proposal.args);
+
+  if (current.proposalId !== approval.proposalId) {
+    return { status: "rejected", reason: "proposal_changed" };
+  }
+
+  return sideEffectingAdapter(current, approval.approvedBy);
+}
+```
+
+Do not let the executor accept fresh arguments alongside an approval. That creates two sources of truth. The executor should receive an approval token or record, rehydrate the proposal, re-preview it against current state, and reject if the proposal ID changes.
+
+This is the part a human approval button often misses. The person may have approved “set T-17 to high,” while the agent later submits “set T-17 to low,” or the record may have changed between review and execution. [OpenAI's Agents SDK documentation](https://developers.openai.com/api/docs/guides/agents) describes resumable flows that pause for approval. The provider can manage the pause. Your application must define what the approval covers.
+
+## How should execution be verified?
+
+Log the predicted diff, the observed before and after state, the proposal ID, the approver, the adapter result, and the verification outcome. Then verify the outside state, not the model's claim that it succeeded.
+
+```js
+function verifyLog(log) {
+  return JSON.stringify(log.expectedDiff) === JSON.stringify(log.observedDiff)
+    && log.adapterChanged === true;
+}
+```
+
+For a real system, the verifier should query the authoritative destination after execution. If the adapter returns “accepted” but the destination remains unchanged, the run is not verified. It should enter a reconciliation or failure state.
+
+[Anthropic's agent guidance](https://www.anthropic.com/engineering/building-effective-agents) calls out the need for ground truth from the environment, human checkpoints, and stopping conditions. That maps directly to this design: the proposal is the checkpoint, the postcondition is ground truth, and a failed verification stops the run.
+
+## The complete fixture
+
+This is the small runnable core behind the result table. It uses no provider SDK so the safety boundary is visible. Copy it to `dry-run.mjs` and run it with Node.
+
+```js
+import { createHash } from "node:crypto";
+
+const clone = value => structuredClone(value);
+const stable = value => {
+  if (Array.isArray(value)) return value.map(stable);
+  if (value && typeof value === "object")
+    return Object.fromEntries(Object.keys(value).sort().map(k => [k, stable(value[k])]));
+  return value;
+};
+const digest = value => createHash("sha256")
+  .update(JSON.stringify(stable(value))).digest("hex").slice(0, 16);
+
+let state = { tickets: {
+  "T-17": { id: "T-17", title: "Refund duplicate charge", priority: "normal", deleted: false }
+} };
+let adapterCalls = 0;
+
+const schemas = {
+  read_ticket: { risk: "read", reversible: true, input: { type: "object", properties: { ticketId: { type: "string" } }, required: ["ticketId"], additionalProperties: false } },
+  set_priority: { risk: "write", reversible: true, input: { type: "object", properties: { ticketId: { type: "string" }, priority: { type: "string", enum: ["low", "normal", "high"] } }, required: ["ticketId", "priority"], additionalProperties: false } },
+  delete_ticket: { risk: "write", reversible: false, input: { type: "object", properties: { ticketId: { type: "string" } }, required: ["ticketId"], additionalProperties: false } }
+};
+
+const ticket = id => state.tickets[id] ?? (() => { throw Error("unknown ticket"); })();
+const readTicket = ({ ticketId }) => clone(ticket(ticketId));
+
+function preview(tool, args) {
+  const t = ticket(args.ticketId);
+  const body = tool === "set_priority"
+    ? { tool, args: clone(args), risk: "write", reversible: true, intent: `Set ticket ${args.ticketId} priority to ${args.priority}`, diff: { before: { priority: t.priority }, after: { priority: args.priority } } }
+    : { tool, args: clone(args), risk: "write", reversible: false, intent: `Delete ticket ${args.ticketId}`, diff: { before: { deleted: t.deleted }, after: { deleted: true } } };
+  return { ...body, baseStateHash: digest(t), proposalId: digest(body) };
+}
+
+const approve = (proposal, approvedBy) => ({ proposalId: proposal.proposalId, proposal: clone(proposal), approvedBy });
+
+function execute(approval, faulty = false) {
+  const current = preview(approval.proposal.tool, approval.proposal.args);
+  if (current.proposalId !== approval.proposalId)
+    return { status: "rejected", reason: "proposal_changed", adapterCalls };
+  const before = clone(state);
+  adapterCalls++;
+  if (!faulty && current.tool === "set_priority") ticket(current.args.ticketId).priority = current.args.priority;
+  if (!faulty && current.tool === "delete_ticket") ticket(current.args.ticketId).deleted = true;
+  const after = clone(state);
+  const key = current.tool === "set_priority" ? "priority" : "deleted";
+  const observedDiff = { before: { [key]: before.tickets[current.args.ticketId][key] }, after: { [key]: after.tickets[current.args.ticketId][key] } };
+  const log = { status: "executed", proposalId: current.proposalId, tool: current.tool, approvedBy: approval.approvedBy, expectedDiff: current.diff, observedDiff, adapterCalls, adapterChanged: !faulty };
+  return { ...log, verified: JSON.stringify(log.expectedDiff) === JSON.stringify(observedDiff) && log.adapterChanged };
+}
+
+const before = clone(state), calls = adapterCalls;
+const read = readTicket({ ticketId: "T-17" });
+const p1 = preview("set_priority", { ticketId: "T-17", priority: "high" });
+const p2 = preview("set_priority", { ticketId: "T-17", priority: "high" });
+const pDelete = preview("delete_ticket", { ticketId: "T-17" });
+if (JSON.stringify(p1) !== JSON.stringify(p2)) throw Error("unstable preview");
+if (JSON.stringify(before) !== JSON.stringify(state) || calls !== adapterCalls) throw Error("dry run side effect");
+const changed = { ...approve(p1, "reviewer-1"), proposalId: preview("set_priority", { ticketId: "T-17", priority: "low" }).proposalId };
+const rejected = execute(changed);
+if (rejected.status !== "rejected" || adapterCalls !== calls) throw Error("approval binding failure");
+const executed = execute(approve(p1, "reviewer-1"));
+if (!executed.verified) throw Error("execution verification failure");
+const failed = execute(approve(pDelete, "reviewer-1"), true);
+if (failed.verified) throw Error("failed verification not detected");
+console.log(JSON.stringify({ read, schemas, proposals: [p1, pDelete], rejected, executed, failed }, null, 2));
+```
+
+The code deliberately keeps `preview` separate from `execute`. That separation is the safety property to test, not a naming convention. A future refactor that calls the adapter from `preview` should make the side-effect test fail.
+
+## When is dry-run not enough?
+
+Dry-run is strongest when the intended effect can be calculated from a stable snapshot. It becomes incomplete when the preview depends on a price that changes at execution time, a third-party API with no read equivalent, a browser state that can move, or a multi-step transaction whose later effects depend on earlier writes.
+
+In those cases, keep the proposal, but add a stale-state check, a transaction or compensation strategy, an idempotency key, and a reconciliation job. For a consequential action, require approval even when the preview looks exact. Read-only tools are the principal exception, but a “read” that sends telemetry, triggers a search with billing, or returns untrusted instructions still needs a policy review.
+
+This is why I would place this page after [How Do I Scope an AI Agent Proof of Concept?](/blog/how-to-scope-an-ai-agent-proof-of-concept) and alongside [Human-in-the-Loop AI Agents](/blog/human-in-the-loop-ai-agents), [How to Design Idempotent Tools for AI Agents](/blog/how-to-design-idempotent-tools-for-ai-agents), and [How to Add an Audit Trail to an AI Workflow](/blog/how-to-add-an-audit-trail-to-an-ai-workflow). Scope chooses the boundary. Dry-run makes the intended effect reviewable. Idempotency handles retries. The audit trail explains what happened.
+
+If you are building a proof of concept, start with one write tool and make the proposal visible before you add autonomy. If the team cannot review the exact change, the agent is not ready for that side effect. [Marius Manolachi helps people and small teams learn to build AI products on their own work](/learn-ai).
