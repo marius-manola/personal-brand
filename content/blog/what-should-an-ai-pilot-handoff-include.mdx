@@ -1,0 +1,199 @@
+---
+title: 'What Should an AI Pilot Handoff Include?'
+date: '2026-08-28'
+updated: '2026-08-28'
+excerpt: 'Use a buyer-side AI pilot handoff packet with eight artifacts, named owners, acceptance tests, a transfer exercise, and a written next decision.'
+answer: 'An AI pilot handoff should include a repository and configuration manifest, data lineage and access map, evaluation fixture and result log, incident runbook, ownership and escalation map, training exercise, change-control rule, and continue, repair, or exit decision record. Accept it only when an internal owner can run, evaluate, change, and stop the pilot. High-impact work needs specialist review before transfer.'
+targetQuery: 'what should an AI pilot handoff include'
+queryAliases:
+  - 'what should an AI pilot handoff contain'
+  - 'AI pilot handoff checklist'
+  - 'AI pilot transition checklist'
+  - 'what should an AI pilot deliver to the internal team'
+intent: 'commercial decision'
+funnel: 'consideration'
+cluster: 'commercial'
+parent: '/blog/choose-between-ai-consultant-agency-internal-team'
+contentType: 'decision-tool'
+kind: 'satellite'
+sourceableAtom: 'A buyer-side AI pilot handoff is not complete until eight artifacts, named owners, verification methods, acceptance tests, a transfer exercise, and a continue, repair, or exit record exist in one reviewable packet.'
+evidenceType: 'commercial-model'
+evidenceBasis: 'Original vendor-neutral sample handoff packet with eight artifact definitions, role assignments, acceptance tests, a synthetic evaluation fixture, a transfer exercise, a change-control rule, and an explicit repair-before-transfer decision, cross-checked against NIST, UK government procurement and delivery guidance, AWS PoC guidance, and Microsoft evaluation guidance.'
+tags:
+  - 'AI consulting'
+  - 'AI pilots'
+  - 'Buying AI services'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-21'
+sources:
+  - 'https://airc.nist.gov/airmf-resources/airmf/5-sec-core/'
+  - 'https://www.gov.uk/government/publications/the-digital-data-and-technology-playbook/the-digital-data-and-technology-playbook'
+  - 'https://www.gov.uk/government/publications/guidelines-for-ai-procurement/guidelines-for-ai-procurement'
+  - 'https://docs.aws.amazon.com/prescriptive-guidance/latest/gen-ai-lifecycle-operational-excellence/dev-architecting.html'
+  - 'https://learn.microsoft.com/en-us/agents/agent-evaluation/evaluation-checklist'
+faq:
+  - q: 'Who should own an AI pilot handoff?'
+    a: 'The buyer should name an internal operations owner for the workflow, a technical owner for the system, a data owner for lineage and access, a risk owner for incidents and boundaries, and a sponsor for acceptance and the next commercial decision. “The team” is not an operating owner.'
+  - q: 'Should an AI pilot handoff include the source code?'
+    a: 'Usually yes when the buyer is expected to operate or modify the pilot, but source code alone is not enough. The handoff also needs pinned dependencies, configuration, prompts, schemas, data lineage, evaluation cases, traces, runbook steps, and a tested rollback path. Secrets should transfer through the buyer’s secret-management process.'
+  - q: 'What if the vendor has not run the evaluation set?'
+    a: 'Do not accept the handoff as complete. Accept the packet structure provisionally, keep the decision at repair, and require case-level results, boundary checks, and an owner transfer exercise before continuing or expanding the pilot.'
+  - q: 'What is the difference between a pilot handoff and an agent handoff?'
+    a: 'An agent handoff passes context between runtime workers. A pilot handoff transfers an operating capability from a builder to a buyer. It must cover ownership, access, evidence, training, change control, incidents, and exit, not only the next task.'
+cover: '/blog/what-should-an-ai-pilot-handoff-include-ai-pilot-handoff-hero.webp'
+coverAlt: 'Illustration of an internal owner receiving an AI pilot handoff packet with evidence, controls, and a decision record'
+draft: false
+---
+
+An AI pilot can look finished when the demo works and the invoice is paid. The harder question comes next: can someone inside the company operate it without the person who built it?
+
+The packet below is a buyer-side sample. It is not a client delivery, and it contains no claimed model result. Its job is to make handoff acceptance concrete.
+
+## The handoff is complete only when the internal owner can operate the pilot
+
+Accept the handoff only when an internal owner can run the approved version, inspect an output, reproduce an evaluation, make a controlled change, respond to a failure, and stop the workflow. A repository link or a walkthrough is evidence of transfer activity, not proof of transferred capability.
+
+This is consistent with the public criteria around AI pilots. AWS describes a useful proof of concept as a way to validate business value, data readiness, technical feasibility, and risk mitigation. The UK Digital, Data and Technology Playbook calls for knowledge transfer, current documentation, acceptance criteria, evaluation reports, training guidance, and breakpoints for assessing whether a pilot should continue or expand. [AWS’s PoC guidance](https://docs.aws.amazon.com/prescriptive-guidance/latest/gen-ai-lifecycle-operational-excellence/dev-architecting.html) and the [UK DDaT Playbook](https://www.gov.uk/government/publications/the-digital-data-and-technology-playbook/the-digital-data-and-technology-playbook) support a handoff that preserves decision-making capacity, not only files.
+
+The sourceable artifact in this article is the following minimum packet:
+
+| Artifact | What it makes possible | Buyer-side owner | Verification |
+| --- | --- | --- | --- |
+| Repository and configuration manifest | Recreate the approved version | Technical Owner | Fresh-environment dry run |
+| Data lineage and access map | Trace inputs, permissions, and transformations | Data Steward | Trace one fixture end to end |
+| Evaluation fixture and result log | Judge quality and detect regressions | Operations Owner | Run every case and retain verdicts |
+| Incident and runbook notes | Pause, diagnose, recover, and escalate | Technical Owner | Simulate one failed run |
+| Ownership and escalation map | Know who decides and who responds | Commercial Sponsor | Interview each role and backup |
+| Training exercise | Prove the new owner can operate it | Operations Owner | Complete a transfer exercise without the builder |
+| Change-control rule | Change the system without losing evidence | Technical Owner | Review a proposed prompt or model change |
+| Continue, repair, or exit record | Turn evidence into a commercial decision | Commercial Sponsor | Link the decision to results and risks |
+
+Every row needs a real person behind the role before a real handoff. The sample uses role names so it stays vendor-neutral. Replace them with actual people, backups, and dates in the buying process.
+
+![Illustration of the AI pilot handoff acceptance path from packet review to a continue, repair, or exit decision](/blog/what-should-an-ai-pilot-handoff-include-ai-pilot-handoff-decision-tree.webp)
+
+## What should the repository and configuration manifest contain?
+
+The manifest should let the technical owner identify the exact version, dependencies, external services, configuration, and rollback path without asking the builder to remember them. It should name secrets by secret-manager reference, not copy secret values into the packet.
+
+Use this minimum record:
+
+```yaml
+packet_id: SAMPLE-AI-PILOT-HANDOFF-001
+workflow: source-linked internal response draft
+approved_commit: sample-transfer-001
+runtime: Python 3.12 in the approved pilot container
+model_or_endpoint: approved-model-reference-2026-08-23
+prompts: repo/prompts/response-draft-v3
+schemas_and_tools: repo/contracts/source-linked-draft-v2
+external_dependencies: approved model endpoint, source index, buyer secret manager
+secret_references: secret-manager://pilot/provider-api-key
+deploy_command: runbook/pilot-deploy-approved-version
+rollback_command: runbook/pilot-rollback-approved-version
+known_limits: no external sending, no record changes, no unsupported or permission-blocked sources
+```
+
+The manifest is not a demand for one technology stack. It is an inventory. If a vendor-managed builder, retrieval index, trace store, or connector is essential, name it as a dependency and state how the buyer exports, replaces, or deliberately accepts it. The UK procurement guidance recommends supplier or technology-agnostic requirements where possible, while NIST calls for third-party risk controls and contingency processes. ([UK AI procurement guidance](https://www.gov.uk/government/publications/guidelines-for-ai-procurement/guidelines-for-ai-procurement), [NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/))
+
+## How should the handoff prove what data the pilot used?
+
+The data map should show where each input came from, what happened to it, who could access it, and how it can be removed. A data-source list without lineage is not enough because the next owner cannot explain why an output contains a particular fact or whether a permission boundary was crossed.
+
+For each source, record:
+
+- source system and owner;
+- fields or documents used;
+- transformation, filtering, chunking, or enrichment step;
+- refresh date and version;
+- allowed users and excluded users;
+- retention and deletion path;
+- model, tool, or vendor exposure;
+- open questions and approval status.
+
+AWS’s guidance explicitly connects PoC readiness with data inventory, access, lineage, ground-truth data, and business-context coverage. UK procurement guidance also asks for end-to-end auditability across modelling, testing, verification, and implementation. Those are the reasons the data map belongs in the handoff, not in a private builder notebook.
+
+## What should the evaluation fixture and result log contain?
+
+The evaluation artifact should make a case-level judgment possible. Record the scenario, input reference, expected response or assertion, acceptance criteria, test method, system version, result, reviewer, and next action. Do not hand over only a dashboard score.
+
+Microsoft’s evaluation checklist uses the same basic shape: a test case has a scenario, prompt, expected response or assertion, acceptance criteria, and test method. It also recommends recording a baseline and version, rerunning important cases, and triggering evaluation after model, knowledge, tool, or incident changes. [Microsoft’s checklist](https://learn.microsoft.com/en-us/agents/agent-evaluation/evaluation-checklist) is vendor-specific in its examples, but the record shape transfers to any pilot.
+
+Here is a small, synthetic fixture for the sample workflow:
+
+| Case | Expected behavior | Hard boundary |
+| --- | --- | --- |
+| Two approved sources answer a routine question | Draft includes the answer and both source IDs | Human reviews before use |
+| Approved sources disagree | Surface the conflict | Do not silently choose a source |
+| A required source is missing | Say evidence is missing | Do not invent a citation |
+| User asks for an external commitment | Produce no external action | Route to a person |
+| User lacks source permission | Do not retrieve the source | Record the access denial |
+
+Result-log fields: `case_id`, `run_id`, `artifact_version`, `input_reference`, `observed_output`, `source_ids_seen`, `acceptance_verdict`, `boundary_verdict`, `reviewer`, `run_date`, `failure_note`, and `next_action`.
+
+No case was run through an AI system for this article. That limitation is part of the evidence. The fixture and log are complete handoff artifacts, not a fabricated benchmark.
+
+## How do you test whether the buyer can take over?
+
+Run a transfer exercise with the new owner using only the packet and the approved environment. The UK AI procurement guidance says knowledge transfer and training should be part of the requirement, and operational staff need enough knowledge to use the system and act on its outputs. ([UK AI procurement guidance](https://www.gov.uk/government/publications/guidelines-for-ai-procurement/guidelines-for-ai-procurement))
+
+The sample exercise is:
+
+1. Locate the pinned repository version and configuration manifest.
+2. Run the normal fixture and save the trace reference.
+3. Run the missing-source case and show the escalation record.
+4. Change one prompt value in a branch, then rerun the affected case without releasing it.
+5. Explain who approves the change and which regression tests are required.
+6. Restore the accepted version and identify the pause action for a failed run.
+
+The exercise passes only when the owner completes all six actions, names the next decision maker, and can reproduce rollback. If the builder has to take the keyboard, the handoff is still a guided demo.
+
+## What change-control rule should transfer with the pilot?
+
+The buyer needs a rule for changing prompts, models, schemas, tools, source data, permissions, and runtime dependencies. Each change class should have an approver, required checks, version record, rollback path, and release condition.
+
+| Change | Minimum check before release | Approval |
+| --- | --- | --- |
+| Prompt or instruction | Run affected fixture cases and inspect boundary cases | Technical Owner and Operations Owner |
+| Model or endpoint | Run the full core set, compare cost and latency, review new limits | Technical Owner and Sponsor |
+| Source or retrieval change | Recheck lineage, permissions, freshness, and citation cases | Data Steward and Operations Owner |
+| Tool or connector | Test authorization, failure path, and forbidden actions | Technical Owner and Risk Owner |
+| Permission or action scope | Reassess risk and require an explicit approval gate | Risk Owner and Sponsor |
+
+NIST includes ongoing monitoring, documented responsibilities, incident response, recovery, decommissioning, and change management in its lifecycle outcomes. A handoff that omits change control transfers a frozen demo, not an operable capability.
+
+## What should the continue, repair, or exit decision record say?
+
+The decision record should state what evidence was reviewed, what remains unknown, who owns the decision, and what happens next. It must support a stop or repair decision as readily as a continuation decision.
+
+Use this sample record:
+
+| Field | Sample value |
+| --- | --- |
+| Decision | Repair before transfer acceptance |
+| Evidence reviewed | Packet structure, five synthetic cases, owners, verification methods, training exercise, and change rule |
+| Missing evidence | No executed AI-system result log, real incident trace, or environment-specific access confirmation |
+| Reason | The packet is structurally usable, but continuation cannot be justified without case-level results and a buyer-environment transfer exercise. |
+| Owner | Commercial Sponsor, with Operations Owner responsible for the next evidence review |
+| Continue condition | Hard-boundary cases pass, the new owner completes transfer, and residual risk is accepted in writing |
+| Exit condition | Evidence cannot be produced safely, the owner cannot operate the system, or a simpler non-AI process is the better fit |
+
+The UK DDaT Playbook recommends defined criteria, responsibilities, dependencies, asset transfers, and early exit planning. NIST likewise includes decisions to proceed, risk treatment, recovery, and safe disengagement. These sources do not prescribe the words “continue, repair, or exit.” That three-way record is the commercial decision device used in this article.
+
+## When should a buyer refuse the handoff?
+
+Refuse acceptance, or keep the pilot in repair, when any of these conditions is true:
+
+- no internal operations owner can judge the workflow;
+- the exact version or external dependencies cannot be identified;
+- source permissions or data lineage are unclear;
+- evaluation cases omit the ordinary failures and forbidden actions;
+- no one can pause, diagnose, or roll back the workflow;
+- the buyer cannot make a controlled change without the builder;
+- the decision record has no evidence, owner, or next checkpoint;
+- the pilot creates a high-impact decision without specialist review and an appropriate approval path.
+
+The principal exception is a high-impact or regulated workflow. A normal pilot handoff packet is not enough. Add legal, security, domain, and risk review before transfer, and keep consequential actions with an approved human process until those controls are in place.
+
+If you are still deciding whether to hire a consultant, agency, or internal team, start with the [AI consultant, agency, or internal team decision guide](/blog/choose-between-ai-consultant-agency-internal-team). If the pilot is already being bought, compare it with the [AI pilot platform lock-in checklist](/blog/how-to-buy-an-ai-pilot-without-platform-lock-in), then use this packet as the handoff acceptance condition.
+
+When the buyer needs help turning a vague pilot deliverable into a capability the internal team can judge and continue, [Marius Manolachi’s AI consulting and tutoring work](/learn-ai) is the relevant next step. The article is complete without that step. The packet is what makes the commercial decision concrete.
