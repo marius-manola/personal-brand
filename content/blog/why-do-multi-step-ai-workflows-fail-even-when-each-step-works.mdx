@@ -1,0 +1,146 @@
+---
+title: 'Why Do Multi-Step AI Workflows Fail Even When Each Step Works?'
+date: '2026-08-29'
+updated: '2026-08-29'
+excerpt: 'A four-defect retrieve-filter-structure-report fixture shows why passing step tests can still produce a wrong final artifact, and how boundary assertions repair it.'
+answer: 'Multi-step AI workflows fail even when each step works because isolated tests check local validity, while composition introduces missing evidence, semantic drift, order assumptions, and confidence errors. Test the full trace and assert every handoff against the required artifact. The principal exception is a truly independent pipeline whose boundaries are deterministic, typed, and semantically verified.'
+targetQuery: 'why do multi-step AI workflows fail even when each step works'
+queryAliases:
+  - 'why do multi step AI workflows fail'
+  - 'AI workflow works step by step but fails end to end'
+  - 'why does an AI pipeline fail when components pass'
+intent: 'diagnostic'
+funnel: 'consideration'
+cluster: 'evaluation'
+parent: '/blog/how-to-evaluate-an-ai-agent'
+contentType: 'decision-tool'
+kind: 'satellite'
+sourceableAtom: 'In a deterministic four-defect retrieve-filter-structure-report fixture, every isolated step check and final report-shape check passed for each seeded defect, while boundary assertions caught all four after intermediate assertions were added. This is one small fixture, not a production failure rate.'
+evidenceType: 'failure-reproduction'
+evidenceBasis: 'A provider-free Node.js v20.11.0 fixture run on 2026-08-23 with three fixed records, four isolated defects, exact stage prompts and configuration, raw trace excerpts, boundary assertions, repair results, and documented blind spots in research.md.'
+tags:
+  - 'AI evaluation'
+  - 'AI reliability'
+  - 'AI workflows'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-21'
+sources:
+  - 'https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents'
+  - 'https://www.anthropic.com/engineering/building-effective-agents'
+  - 'https://developers.openai.com/api/docs/guides/latest-model'
+  - 'https://json-schema.org/UnderstandingJSONSchema.pdf'
+  - 'https://www.nist.gov/itl/ai-risk-management-framework'
+  - 'https://mariusmanolachi.com/learn-ai'
+faq:
+  - q: 'Can JSON Schema catch a wrong value in an AI workflow?'
+    a: 'Only when the schema states the relevant constraint. A field can be the correct type and still carry the wrong business value, source, or meaning. Add semantic checks against a trusted reference and evidence ID.'
+  - q: 'Should every workflow assert exact step order?'
+    a: 'Assert order when later steps interpret position, when side effects must be sequenced, or when policy requires it. Otherwise, key facts by field and assert completeness, provenance, and final outcome instead of rejecting valid parallel execution.'
+  - q: 'Are isolated step tests still useful?'
+    a: 'Yes. They are cheap sensors for local defects. They are not release evidence by themselves because they do not prove that the next step preserves the previous step’s meaning.'
+cover: '/blog/why-do-multi-step-ai-workflows-fail-even-when-each-step-works-workflow-boundary-hero.webp'
+coverAlt: 'Illustration of four AI workflow stages passing local checks while a boundary assertion stops a wrong final report'
+draft: false
+---
+
+When I taught product managers to move from writing specs to building and shipping, the recurring failure was usually an undefined “done,” not the model ([Marius Manolachi's AI learning page](https://mariusmanolachi.com/learn-ai)). A multi-step workflow has the same trap. Every node can look reasonable while the handoff quietly changes what the next node believes.
+
+I built a small retrieve-filter-structure-report fixture to make that failure visible.
+
+**Observed result:** all isolated step checks and the final report-shape check passed for four seeded defects. Boundary assertions caught all four. This is a small deterministic reproduction, not a production failure rate.
+
+| Seeded defect | What the final report did | What caught it |
+| --- | --- | --- |
+| Incomplete intermediate result | Reported `retention_days` as `"video lead"` and left `export_approval` null | Required-field and evidence assertions |
+| Schema-compatible wrong value | Reported 365 days instead of the fixture's 30 | Exact value plus evidence-ID assertion |
+| Ordering mismatch | Swapped the retention and approval values | Evidence-order assertion, or field-keyed joins |
+| Accumulated confidence error | Averaged 0.92 and 0.58 to 0.75 and labeled the result high | Critical-fact confidence veto |
+
+![Illustration of a retrieve, filter, structure, and report workflow with green local checks and red boundary assertions](/blog/why-do-multi-step-ai-workflows-fail-even-when-each-step-works-workflow-trace-inline-1.webp)
+
+## Why do isolated tests miss composition failures?
+
+Isolated tests ask whether a step accepts and returns a locally valid value. A composed workflow must also preserve completeness, meaning, identity, order, provenance, and confidence across the handoff.
+
+Anthropic separates a trace, which includes outputs, tool calls, and intermediate results, from an outcome, which is the final state in the environment ([Anthropic's agent-evaluation guidance](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)). That distinction explains the fixture's result. The local test saw a valid fact object. The boundary test saw that the fact set was incomplete, semantically wrong, out of order, or too weak to justify a high-confidence report.
+
+The same pattern appears outside agent loops. A retrieval node can return a valid document object that does not contain the answer-bearing sentence. A structure node can emit valid JSON with the wrong value. A report node can render a clean table from the wrong slot. No exception is required.
+
+When I teach people to ship, “done” has to describe the accepted work, not just the artifact shape. The workflow needs the same contract at each boundary: what must be present, what it must mean, what evidence supports it, and what happens when it is not safe to continue.
+
+## What did the fixed workflow reproduce?
+
+The fixture asked: “What is the retention period for draft files and who approves exports?” The trusted answer was 30 days for drafts and the video lead for export approval.
+
+The three records were a refund policy, an export policy, and a retention policy. The workflow retrieved the retention and export records, filtered them, structured two facts, then produced a final report. Each stage used a simple contract. The report also contained a deliberately fragile positional view so an order mismatch could change the final values without changing the structured facts.
+
+The baseline isolated checks all passed on the clean fixture: retrieval IDs were correct, filtering preserved the expected IDs, structured facts had the required field types, and the report had both expected keys. Then I introduced one defect at a time.
+
+The incomplete trace looked like this:
+
+```text
+retrieved: ["retention", "export"]
+filtered: ["export"]
+final.fields: {"retention_days":"video lead","export_approval":null}
+schema_valid: true
+```
+
+That output is obviously wrong once you know the task. It still passed the isolated filter check because the returned record was real, the structure check because the fact object was well formed, and the report-shape check because both keys existed. A shape check is not a completeness check.
+
+The wrong-value trace was quieter:
+
+```text
+structured.retention_days: {"value":365,"evidence_id":"retention","confidence":0.92}
+final.fields: {"retention_days":365,"export_approval":"video lead"}
+schema_valid: true
+```
+
+JSON Schema can constrain a field to a number, and it can constrain ranges when the schema declares them. It does not know that 365 is the published-file value while 30 is the draft-file value unless you encode that business rule or compare the value with a trusted reference. That is an inference from the schema contract, not a limitation claimed by the JSON Schema project ([Understanding JSON Schema](https://json-schema.org/UnderstandingJSONSchema.pdf)).
+
+## Which boundary assertion catches each defect?
+
+Use one assertion for each way a handoff can lose meaning. Do not ask a single schema check or final score to cover all of them.
+
+| Boundary | Assertion | Defect caught in this fixture | Why the local check missed it |
+| --- | --- | --- | --- |
+| Completeness | The set of emitted fields equals the required set | Incomplete filter result | The one remaining record was valid |
+| Semantics | Each material value matches the trusted reference and source ID | 365 instead of 30 | 365 was still a number with a valid evidence ID |
+| Ordering and identity | Evidence order matches where position has meaning, or downstream joins use field names | Export before retention | Each structured fact was correct by itself |
+| Confidence | Every critical fact clears the threshold, or one weak fact vetoes “high” | 0.92 plus 0.58 averaged to 0.75 | The average hid the weak critical fact |
+| Final outcome | The report contains the required values, evidence, and status | Any defect that survives earlier checks | A report can render cleanly from bad inputs |
+
+Anthropic's workflow guidance recommends adding programmatic checks on intermediate steps in a prompt chain ([Building effective agents](https://www.anthropic.com/engineering/building-effective-agents)). OpenAI's current model guidance makes a related distinction between program output and the final assistant message, noting that both need separate tests for correctness, completeness, and required evidence ([OpenAI model guidance](https://developers.openai.com/api/docs/guides/latest-model)). The fixture applies that idea to a smaller data handoff.
+
+The ordering case is the important exception to a simplistic rule. If your downstream step consumes a set of named facts, exact order may not matter. If it consumes an array by position, order is part of the contract. Either key the join by field or assert the order explicitly. Do not let the implementation decide by accident.
+
+## How should you repair a workflow that passes locally but fails end to end?
+
+Repair the boundary contract first, then repair the stage that violated it. Keep the original failing trace so the new check proves something.
+
+1. **Freeze the input and configuration.** Store the fixture, query, prompts, model or provider settings, tool results, and expected artifact. A moving test case cannot tell you whether the repair worked.
+2. **Name the first invalid artifact.** In the incomplete case it was the filtered record set. In the wrong-value case it was the structured fact. In the ordering case the structured facts were valid but the positional report mapping was not. In the confidence case the aggregation rule was invalid for a critical fact.
+3. **Add the cheapest check that proves the contract.** Use exact field-set checks for completeness, reference comparisons for material values, field-keyed joins for identity, and veto logic for critical confidence.
+4. **Stop instead of guessing.** A missing required field should produce a structured failure or escalation. It should not become a null, a default, or a plausible value that the report can carry forward.
+5. **Verify the repaired workflow with a full rerun.** Intermediate assertions should reject the seeded defects and accept the clean case. The verification evidence is the paired result: each seeded defect was rejected by its named boundary check, while the clean case was accepted. The observed rerun was:
+
+```text
+incomplete  accepted=false  failed=[required_fields_present, field_values_match, evidence_order_match]
+wrong_value accepted=false  failed=[field_values_match]
+ordering    accepted=false  failed=[evidence_order_match]
+confidence  accepted=false  failed=[confidence_rule_holds]
+clean       accepted=true   failed=[]
+```
+
+6. **Promote the trace to regression coverage.** Keep the bad intermediate artifact, the final symptom, the diagnosis, and the repaired result together. The next prompt, model, parser, or schema change should have to earn its way past the same case.
+
+## When are step tests enough?
+
+Step tests are enough when the stages are genuinely independent, the handoff is deterministic, and the receiving step has no semantic assumptions beyond the validated contract. A pure formatter that receives a complete, typed, named object may not need an additional order assertion.
+
+They are not enough when one step selects evidence for another, when values have business meaning, when arrays are interpreted positionally, when confidence controls release or action, or when the final artifact changes state outside the workflow. In those cases, the full trace and the final outcome are separate evidence layers.
+
+NIST frames evaluation as part of the design, development, use, and evaluation of AI systems, not as a single model score ([NIST AI Risk Management Framework](https://www.nist.gov/itl/ai-risk-management-framework)). That is the right scope for this result. The component can be correct relative to its local contract while the system is wrong relative to the user's task.
+
+This fixture still has sharp limits. It uses three authored records, one query, four deterministic defects, and no external model or production data. Its confidence values are not calibrated probabilities. It does not measure failure frequency, latency, cost, retries, user corrections, access control, prompt injection, or downstream side effects. A real release suite needs representative cases and repeated trials, not this fixture alone.
+
+For the broader release decision, use [How to Evaluate an AI Agent: A Practical Release Gate](/blog/how-to-evaluate-an-ai-agent). For a retrieval-specific split, use [How to Tell Whether a RAG Failure Is Retrieval or Generation](/blog/how-to-tell-whether-a-rag-failure-is-retrieval-or-generation). The practical next step is small: choose one handoff in your workflow, write its required artifact, and make the next step prove it before it continues.
