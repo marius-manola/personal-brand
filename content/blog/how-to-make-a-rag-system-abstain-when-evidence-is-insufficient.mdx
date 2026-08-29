@@ -1,0 +1,187 @@
+---
+title: 'How to Make a RAG System Abstain When Evidence Is Insufficient'
+date: '2026-08-29'
+updated: '2026-08-29'
+excerpt: 'Build a RAG evidence gate that answers only when claims are covered by allowed, current, non-conflicting context, then test every refusal path.'
+answer: 'Make abstention a separate, machine-checked decision after retrieval: answer only when the retrieved context covers every required claim, comes from an allowed and sufficiently current source, and contains no unresolved conflict. Otherwise return a structured abstain state with missing evidence and a next step. A similarity score alone is not enough because topical passages can still omit the decisive fact.'
+targetQuery: 'how to make a RAG system abstain when evidence is insufficient'
+queryAliases:
+  - 'RAG abstention when context is missing'
+  - 'how to stop RAG from answering without evidence'
+  - 'RAG no-answer policy'
+intent: 'implementation'
+funnel: 'consideration'
+cluster: 'implementation'
+parent: '/blog/how-to-scope-an-ai-agent-proof-of-concept'
+contentType: 'decision-tool'
+kind: 'satellite'
+sourceableAtom: 'A deterministic six-fixture policy test answered only the fully supported case and abstained for no-answer, partial, conflicting, stale, and disallowed evidence, returning a machine-readable reason for every refusal.'
+evidenceType: 'reproducible-artifact'
+evidenceBasis: 'Dependency-free Python 3 evidence-gate test double run on 2026-08-23. Six fixtures produced six expected decisions: one answer and five abstentions with reason codes. This is a policy reproduction, not an LLM benchmark or threshold calibration.'
+tags:
+  - 'RAG'
+  - 'AI reliability'
+  - 'AI implementation'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-21'
+sources:
+  - 'https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/rag/rag-prompt-engineering'
+  - 'https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/rag/rag-information-retrieval'
+  - 'https://cloud.google.com/blog/products/ai-machine-learning/optimizing-rag-retrieval?hl=en'
+  - 'https://arxiv.org/abs/2605.03534'
+  - 'https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence'
+faq:
+  - q: 'Should a RAG system return a partial answer or abstain?'
+    a: 'Use a labeled partial answer only when the missing part is explicit and the workflow can tolerate it. For consequential decisions, make missing required evidence a hard abstention and return the gap instead of an incomplete conclusion.'
+  - q: 'Is a vector similarity score enough to trigger a RAG answer?'
+    a: 'No. Similarity is a retrieval signal. Add claim coverage, source permissions, freshness, and conflict checks, then validate the generated claims against the retrieved passages.'
+  - q: 'How do you test RAG abstention?'
+    a: 'Create supported, no-answer, partial, conflicting, stale, and unauthorized cases. Assert both that supported cases answer and that each insufficient case abstains with a reason that the application can log.'
+cover: '/blog/how-to-make-a-rag-system-abstain-when-evidence-is-insufficient-hero.webp'
+coverAlt: 'Illustration of a RAG system separating evidence verification from answer generation'
+draft: false
+---
+
+RAG systems often have a retrieval score and a prompt that says “use the context.” That still leaves the main product decision inside the model: answer or guess.
+
+I prefer to make that decision explicit. The generator can write the answer, but a separate evidence gate should decide whether an answer is allowed to leave the system.
+
+**Observed result:** I ran a dependency-free Python 3 policy test on 2026-08-23. It answered one fully supported fixture and abstained on five boundary fixtures: no answer-bearing evidence, partial evidence, conflicting evidence, stale evidence, and a disallowed source. All six expected decisions passed, and every abstention returned a reason code. The fixture is an implementation artifact, not an LLM benchmark.
+
+![Illustration of a RAG pipeline passing retrieved claims through an evidence gate before generation](/blog/how-to-make-a-rag-system-abstain-when-evidence-is-insufficient-inline-1.webp)
+
+## What should a RAG system check before it answers?
+
+A RAG system should answer only when every required claim is covered by evidence that is allowed, current enough for the task, and not unresolved by a source conflict.
+
+Treat these as separate predicates, not as one blended confidence number:
+
+| Check | Pass condition | Hard failure |
+| --- | --- | --- |
+| Answer-bearing evidence | At least one retrieved passage contains evidence for the requested fact | No passage can support the answer |
+| Claim coverage | Every required part of the question has support | One required part is missing |
+| Support strength | The verifier meets a threshold calibrated for this workflow | Support is weak or uncertain |
+| Source policy | Every supporting source is permitted for this user and task | Evidence crosses a permission or trust boundary |
+| Freshness | The evidence is within the task's allowed age | The source is stale or superseded |
+| Agreement | No unresolved contradiction remains | Sources conflict and the system cannot resolve it |
+
+The output should be a state, not a special sentence that downstream code has to guess about:
+
+```json
+{
+  "status": "answer | abstain",
+  "answer": "",
+  "supporting_passage_ids": [],
+  "missing_claims": [],
+  "reason_codes": [],
+  "next_step": ""
+}
+```
+
+Microsoft's current RAG guidance makes the same operational point from the prompt side: specify grounding, fallback behavior, citations, and what to do with conflicting information. It also recommends explicit handling for no relevant context and partial context ([Microsoft's RAG prompt guidance](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/rag/rag-prompt-engineering)). The application still needs to enforce the returned state after generation.
+
+## Why is a similarity threshold not enough?
+
+A similarity score tells you that a passage resembles the query. It does not prove that the passage contains every fact needed for the answer.
+
+That distinction becomes obvious with multi-part questions. A passage can mention the right product and policy but omit the exception the user asked about. Two retrieved passages can each look supportive while disagreeing on the current rule. A high score can also belong to a source the user is not allowed to read.
+
+Microsoft separates retrieval quality into measures such as precision@K, recall@K, and mean reciprocal rank, and recommends testing positive and negative examples. Those measures describe search behavior, not whether a generated answer is fully supported ([Microsoft's retrieval evaluation guidance](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/rag/rag-information-retrieval)). Google likewise separates retrieval accuracy from generated-response measures such as groundedness and completeness ([Google Cloud's RAG evaluation guidance](https://cloud.google.com/blog/products/ai-machine-learning/optimizing-rag-retrieval?hl=en)).
+
+Recent selective-RAG research makes the sharper version of the point: evidence sufficiency is a set-level property. Missing hops and unresolved conflicts can disappear when you score passages independently, so a gate needs answer-level coverage and disagreement signals, not just the best chunk score ([SURE-RAG](https://arxiv.org/abs/2605.03534)).
+
+Use similarity to retrieve candidates. Use evidence checks to authorize an answer.
+
+## How do you add an abstention gate to the RAG path?
+
+Put the gate between retrieval and final answer delivery. The model may still help extract claims or identify missing pieces, but application code owns the final status.
+
+1. **Define required claims before retrieval.** Convert the question into the facts the answer must establish. For a two-part question, coverage must have two parts.
+2. **Preserve evidence identity.** Keep passage IDs, document title, source owner, effective date, permissions, and the raw text that reached the model. A citation without a resolvable passage is decoration.
+3. **Run an evidence verifier.** For each required claim, label the relationship as supported, refuted, or insufficient. Aggregate those labels at the answer level. Do not let one strong passage hide a missing required claim.
+4. **Apply hard vetoes.** Unresolved conflict, unauthorized evidence, stale evidence, and missing coverage should force `abstain` for a consequential workflow even if the blended score is high.
+5. **Generate only after authorization.** If the gate passes, instruct the model to answer from the supplied context and cite passage IDs. If the gate fails, generate a short explanation of the gap or return it directly from code.
+6. **Log the decision inputs.** Store the query, required claims, retrieved passage IDs, verifier result, policy version, status, and reason codes. This turns a refusal into a testable event.
+
+The small core can be plain Python:
+
+```python
+POLICY = {"min_support": 0.75, "min_coverage": 1.0, "max_contradictions": 0}
+
+def decide(evidence):
+    reasons = []
+    if evidence["evidence_count"] == 0:
+        reasons.append("no_answer_bearing_evidence")
+    if evidence["support_score"] < POLICY["min_support"]:
+        reasons.append("support_below_threshold")
+    if evidence["claim_coverage"] < POLICY["min_coverage"]:
+        reasons.append("required_claim_not_covered")
+    if evidence["contradictions"] > POLICY["max_contradictions"]:
+        reasons.append("conflicting_evidence")
+    if not evidence["source_allowed"]:
+        reasons.append("source_not_allowed")
+    if not evidence["fresh"]:
+        reasons.append("evidence_stale")
+    return {"status": "answer" if not reasons else "abstain", "reasons": reasons}
+```
+
+The important design choice is not the Python syntax. It is that abstention is a typed result with reasons. A prompt saying “be accurate” cannot enforce a permission veto or stop a later service from treating a fluent string as an approved answer.
+
+## What should the system return when evidence is partial or conflicting?
+
+For high-consequence workflows, abstain whenever a required claim is missing or sources conflict. For low-risk informational use, you can return a clearly labeled partial answer, but only if the missing claim is visible and the product does not let the result trigger an action.
+
+| Evidence state | Safe default | What the user should see |
+| --- | --- | --- |
+| Complete and consistent | Answer | Answer with passage citations |
+| No answer-bearing passage | Abstain | “I could not find evidence for this in the allowed sources” plus a retrieval or source-owner next step |
+| Partial coverage | Abstain for consequential work; labeled partial answer for low-risk help | Which part is supported and which part is missing |
+| Conflicting sources | Abstain unless a documented precedence rule resolves it | The conflicting source IDs and the unresolved decision |
+| Stale source | Abstain or ask for a current source | Which freshness rule failed |
+| Unauthorized source | Abstain | Do not reveal restricted content or its details |
+
+Do not turn absence into a fact. “The documents do not mention a refund” does not prove “there is no refund.” The honest result is that the allowed evidence did not answer the question.
+
+NIST's AI RMF Generative AI Profile identifies confabulation as a risk in generative AI systems. An explicit abstain state is one control for reducing that failure, not a guarantee that the generator or verifier is correct ([NIST AI 600-1](https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence)).
+
+## How do you test whether the gate works?
+
+Test the boundary before tuning the prompt. Include at least one positive case and one case for each refusal reason that could change the product decision.
+
+The six-fixture run used this matrix:
+
+| Fixture | Expected status | Observed reason |
+| --- | --- | --- |
+| Supported evidence, full coverage | `answer` | none |
+| No answer-bearing evidence | `abstain` | no evidence, low support, missing coverage |
+| Partial evidence | `abstain` | required claim not covered |
+| Conflicting evidence | `abstain` | conflicting evidence |
+| Stale evidence | `abstain` | evidence stale |
+| Disallowed evidence | `abstain` | source not allowed |
+
+The observed result was `passed=6/6`. That tells us the policy implementation followed its specification on the fixture. It does not tell us that the verifier finds support correctly in production.
+
+Add two controlled regression checks when you connect this to a real retriever:
+
+- Remove the decisive passage. A supported case should change to `abstain` or a clearly labeled partial result.
+- Add an answer-bearing passage without changing the question. A no-answer case should become eligible to answer, subject to permissions, freshness, and conflict checks.
+
+Keep retrieval and answer-quality measurements separate. A good retriever can feed a bad generator, and a good generator cannot recover evidence that never entered the context. This is why the [RAG failure diagnosis guide](/blog/how-to-tell-whether-a-rag-failure-is-retrieval-or-generation) uses a paired-context test, while this article focuses on the earlier authorization decision.
+
+## How do you prevent abstention from becoming over-refusal?
+
+Measure both sides of the boundary: unsupported answers on cases that should abstain, and refusals on cases that contain sufficient evidence.
+
+Use a release table like this:
+
+| Metric | Test set | Release question |
+| --- | --- | --- |
+| Unsupported-answer rate | No-answer, partial, conflict, stale, and unauthorized cases | Did any case produce an answer when the policy required abstention? |
+| Supported-answer rate | Complete, allowed, current, consistent cases | Did the gate allow answers when evidence was sufficient? |
+| Reason-code accuracy | All abstentions | Can a reviewer explain and repair the refusal? |
+| Citation validity | Answered cases | Does every cited passage ID exist in the context packet and support the claim? |
+| Drift | Repeated fixture set after retrieval or prompt changes | Did a change move either boundary? |
+
+When I taught product managers who moved from specs to shipping, I kept seeing the same practical gap: nobody could say what “done” meant for the user. A RAG feature has the same problem if “grounded” is only a feeling. Define done as a set of observable evidence conditions, then keep the refusal path in the release gate.
+
+If this gate is part of a wider pilot, the [AI agent proof-of-concept scope checklist](/blog/how-to-scope-an-ai-agent-proof-of-concept) can help you define the workflow owner, data boundary, proof set, and exit rule around it. The RAG system is then one bounded component inside a decision you can actually evaluate.
