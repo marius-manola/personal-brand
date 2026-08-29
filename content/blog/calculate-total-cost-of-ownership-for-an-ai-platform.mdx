@@ -1,0 +1,200 @@
+---
+title: "How to Calculate Total Cost of Ownership for an AI Platform"
+date: "2026-08-29"
+updated: "2026-08-29"
+excerpt: "Calculate AI platform TCO with a reproducible model for usage, people, controls, support, and exit across platform, internal, and consultant builds."
+answer: "Calculate AI platform TCO as one-time costs plus 12 months of recurring costs. Include licenses, model and API usage, implementation, integrations, data preparation, evaluation, monitoring, human review, training, support, security, and migration or exit. Use your own volume and labor inputs. A platform often wins the first year, but internal ownership can win later if its recurring cost is lower."
+targetQuery: "how to calculate total cost of ownership for an AI platform"
+queryAliases:
+  - "ai platform tco formula"
+  - "how much does an ai platform really cost"
+  - "ai platform total cost of ownership calculator"
+intent: "commercial decision"
+funnel: "consideration"
+cluster: "commercial"
+parent: "/blog/choose-between-ai-consultant-agency-internal-team"
+contentType: "decision-tool"
+kind: "satellite"
+sourceableAtom: "A reproducible 12-month small-team AI platform TCO calculator that yields $35,944 platform, $46,344 internal, and $42,344 consultant-guided cost under declared base-case inputs, with review labor at $1,000/month versus $37/month API usage."
+evidenceType: "commercial-model"
+evidenceBasis: "A 12-month three-scenario calculator using the public GPT-5.6 Terra token price accessed 2026-08-23 and clearly labeled assumptions for labor, volume, review, platform fee, infrastructure, controls, and exit work. No client, production, or vendor quote is implied."
+tags:
+  - "AI strategy"
+  - "AI buying"
+  - "AI consulting"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://developers.openai.com/api/docs/models/gpt-5.6-terra"
+  - "https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-messages-management"
+  - "https://learn.microsoft.com/en-us/microsoft-copilot-studio/billing-licensing"
+  - "https://www.finops.org/framework/capabilities/planning-estimating/"
+  - "https://www.finops.org/framework/capabilities/allocation/"
+  - "https://airc.nist.gov/docs/AI_RMF_Playbook.pdf"
+faq:
+  - q: "Should API usage be included in AI platform TCO?"
+    a: "Yes. Calculate model and API usage from your expected volume, input tokens, output tokens, tool calls, and retries. The API bill is one recurring line, not the total cost of owning the workflow."
+  - q: "What if an AI platform does not publish a comparable license price?"
+    a: "Put the quote or a clearly labeled planning assumption in the license row, then run a sensitivity case. Do not turn a vendor estimate into a public price or compare a custom quote with an internal build that omits ownership labor."
+  - q: "When can an internal build be cheaper than a platform?"
+    a: "An internal build can win when its setup cost is recovered over a long horizon and its recurring platform fee, support, or usage costs are lower. It still needs an owner and budget for evaluation, monitoring, security, maintenance, and exit."
+cover: "/blog/calculate-total-cost-of-ownership-for-an-ai-platform-hero.webp"
+coverAlt: "Illustration of an AI platform total cost model comparing platform, internal, and consultant-guided ownership"
+draft: false
+---
+
+I’ve taught product managers who went from writing specs to building and shipping the product. The hard part was often not the model. It was agreeing what “done” meant. [That teaching work](/learn-ai) is why I treat an AI platform purchase as an ownership decision, not a subscription comparison.
+
+The calculator below makes the hidden work visible. It is a worked model, not a claim about what every company or vendor will pay. For the wider buying decision, start with the [AI consultant, agency, or internal team decision guide](/blog/choose-between-ai-consultant-agency-internal-team).
+
+## The shortest honest TCO formula
+
+Calculate AI platform TCO as one-time cost plus recurring cost over a stated horizon.
+
+```text
+Year-one TCO = one-time costs + 12 × recurring monthly costs
+```
+
+One-time costs cover implementation, integrations, data preparation, evaluation setup, security work, training, and migration or exit. Recurring costs cover licenses, model and API usage, infrastructure, evaluation, monitoring, human review, and support.
+
+That structure follows the useful part of FinOps planning guidance: define the scope, model parameters, pricing, shared costs, support costs, and multiple scenarios before committing to a forecast. ([FinOps planning and estimating](https://www.finops.org/framework/capabilities/planning-estimating/))
+
+Do not confuse TCO with ROI. [AI-agent ROI](/blog/how-to-calculate-roi-for-an-ai-agent) asks whether the value justifies the cost. TCO asks what the cost actually is.
+
+## Use this input register before comparing platforms
+
+Start with one workflow and one unit of completed work. Then fill the model with public prices where they exist and assumptions everywhere else.
+
+| Input | Base case | Basis |
+| --- | ---: | --- |
+| Decision horizon | 12 months | Assumption |
+| Completed items | 500/month | Assumption |
+| Input tokens | 25,000/item | Assumption |
+| Output tokens | 2,000/item | Assumption |
+| Input price | $2 per 1M tokens | Public GPT-5.6 Terra price |
+| Output price | $12 per 1M tokens | Public GPT-5.6 Terra price |
+| Review rate | 20% of items | Assumption |
+| Review time | 12 minutes/item | Assumption |
+| Reviewer loaded rate | $50/hour | Assumption |
+| General labor rate | $100/hour | Assumption |
+| Consultant rate | $175/hour | Assumption |
+| Data and training rates | $75/hour and $50/hour | Assumptions |
+| Platform fee | $200/month | Planning assumption, not a vendor quote |
+
+OpenAI’s current model page lists GPT-5.6 Terra at $2 per million input tokens and $12 per million output tokens. ([OpenAI GPT-5.6 Terra pricing](https://developers.openai.com/api/docs/models/gpt-5.6-terra)) With the base inputs, API usage is:
+
+```text
+500 × ((25,000 / 1,000,000 × $2)
+      + (2,000 / 1,000,000 × $12))
+= $37/month
+```
+
+The review line is larger:
+
+```text
+500 × 20% × (12 / 60) × $50 = $1,000/month
+```
+
+That is the sourceable finding in this model: review labor is about 27 times API usage. It is not an industry statistic. Change the review rate or minutes and the result changes with it.
+
+Platform billing also needs a usage input. Microsoft Copilot Studio, for example, measures agent consumption in Copilot Credits, and says usage depends on agent design, interactions, and features. ([Microsoft Copilot Studio billing rates](https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-messages-management)) A pooled capacity or seat line does not tell you how much completed work your workflow can produce.
+
+## The 12-month calculator
+
+Use these formulas in a spreadsheet:
+
+```text
+API usage/month
+= volume × ((input_tokens / 1,000,000 × input_price)
+           + (output_tokens / 1,000,000 × output_price))
+
+Human review/month
+= volume × review_rate × (review_minutes / 60) × reviewer_rate
+
+Recurring/month
+= license + API usage + infrastructure + monitoring
+ + recurring evaluation + human review + support
+
+Year-one TCO
+= implementation + integrations + data preparation
+ + evaluation setup + security + training + migration/exit
+ + 12 × recurring/month
+```
+
+The three scenarios below use the same workload, review requirement, model price, infrastructure, evaluation cadence, monitoring, and support. Only the ownership path changes.
+
+### One-time costs
+
+| Cost line | Managed platform | Focused internal build | Consultant-guided build |
+| --- | ---: | ---: | ---: |
+| Implementation labor | $1,600 | $6,400 | $8,800 |
+| Integrations | $1,600 | $4,800 | $2,400 |
+| Data preparation | $1,800 | $3,000 | $1,800 |
+| Evaluation setup | $800 | $2,400 | $1,600 |
+| Security work | $800 | $1,600 | $800 |
+| Training | $400 | $800 | $400 |
+| Migration or exit work | $2,400 | $3,200 | $2,400 |
+| **One-time total** | **$9,400** | **$22,200** | **$18,200** |
+
+The consultant-guided implementation includes 32 consultant hours at $175/hour and 32 internal owner hours at $100/hour. It does not remove the need for an internal owner.
+
+### Recurring costs
+
+| Cost line | Managed platform | Focused internal build | Consultant-guided build |
+| --- | ---: | ---: | ---: |
+| Platform or license fee | $200/month | $0/month | $0/month |
+| Model and API usage | $37/month | $37/month | $37/month |
+| Infrastructure | $100/month | $100/month | $100/month |
+| Monitoring | $75/month | $75/month | $75/month |
+| Recurring evaluation | $400/month | $400/month | $400/month |
+| Human review | $1,000/month | $1,000/month | $1,000/month |
+| Support | $400/month | $400/month | $400/month |
+| **Recurring total** | **$2,212/month** | **$2,012/month** | **$2,012/month** |
+
+The evaluation, monitoring, security, and support lines are not decorative. NIST’s AI RMF Playbook asks organizations to define who is responsible for assessment, monitoring, maintenance, re-verification, updates, and documentation. ([NIST AI RMF Playbook](https://airc.nist.gov/docs/AI_RMF_Playbook.pdf)) If nobody owns those jobs, the model is undercounting ownership.
+
+### Three worked outcomes
+
+| Scenario | One-time cost | 12 months recurring | **Year-one TCO** |
+| --- | ---: | ---: | ---: |
+| Managed platform | $9,400 | $26,544 | **$35,944** |
+| Focused internal build | $22,200 | $24,144 | **$46,344** |
+| Consultant-guided build | $18,200 | $24,144 | **$42,344** |
+
+Under these declared assumptions, the managed platform wins year one by $6,400 against consultant-guided ownership and by $10,400 against the internal build. That is a calculator result, not a platform recommendation.
+
+![Illustration of the cost layers in an AI platform TCO model](/blog/calculate-total-cost-of-ownership-for-an-ai-platform-tco-layers.webp)
+
+The model also exposes the long-horizon exception. The internal build costs $12,800 more to set up but saves $200/month in recurring platform fees:
+
+```text
+($22,200 - $9,400) / ($2,212 - $2,012) = 64 months
+```
+
+If every other assumption stayed fixed, internal ownership would catch the platform after 64 months. In a real purchase, re-run this with actual maintenance, license changes, model changes, and the cost of keeping the internal team capable.
+
+FinOps allocation guidance makes the same practical point from another angle: shared costs need an explicit allocation strategy so people can see and own the technology usage assigned to them. ([FinOps allocation](https://www.finops.org/framework/capabilities/allocation/))
+
+## Test volume and review rate before you decide
+
+This sensitivity table changes only volume and review rate for the managed-platform case. Fixed recurring costs remain $1,175/month, API usage uses the public GPT-5.6 Terra rates, and one-time cost remains $9,400.
+
+| Volume/month | Review rate | API/month | Review/month | Platform run rate/month | Year-one TCO |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 250 | 10% | $18.50 | $250 | $1,443.50 | $26,722 |
+| 500 | 20% | $37 | $1,000 | $2,212 | $35,944 |
+| 1,500 | 35% | $111 | $5,250 | $6,536 | $87,832 |
+
+The high case is not expensive because of tokens. It is expensive because 525 review items consume 105 hours of human time each month. If your review rate is uncertain, measure it on a representative pilot and use the observed range instead of hiding it in a reserve.
+
+## Choose the ownership path with a break-even rule
+
+Use the managed platform when it reduces setup work, your team lacks spare implementation capacity, and the vendor can prove the exports, permissions, evaluation data, and support path you need. The platform should win on a complete first-year comparison, not on the license line alone.
+
+Use an internal build when the workflow will run long enough to recover the extra setup cost, the business needs control over the integration or data path, and someone is explicitly accountable for the recurring work. “We have engineers” is not an operating plan.
+
+Use consultant-guided implementation when the main gap is decision quality, capability transfer, or a bounded pilot. The consultant can shorten the path to a working model, but the buyer still owns review, monitoring, support, security, and exit. [Marius Manolachi’s AI consulting and tutoring work](/learn-ai) is designed around making existing people capable of building on their own work, not replacing that ownership with an agency handoff.
+
+The principal exception is a platform with a material control or compliance advantage that the internal path cannot reproduce at a reasonable risk. Put that value and its conditions into the decision record. If you cannot export the data, prompts, schemas, evaluation set, traces, and workflow state, add a migration reserve or stop the purchase. [The platform lock-in guide](/blog/how-to-buy-an-ai-pilot-without-platform-lock-in) covers that exit test in more detail.
+
+Before you sign, ask one question: **what would it cost to leave this platform with the data and evaluations intact?** Put the answer into the same TCO sheet. If the answer is unknown, the model is not ready for approval.
