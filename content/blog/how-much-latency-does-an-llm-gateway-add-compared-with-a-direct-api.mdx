@@ -1,0 +1,160 @@
+---
+title: 'How Much Latency Does an LLM Gateway Add?'
+date: '2026-08-29'
+updated: '2026-08-29'
+excerpt: 'A bounded audit of seven gateway-latency claims explains what direct comparisons can prove, what mock tests hide, and how to run the next test.'
+answer: 'There is no honest universal number for gateway latency. A bounded audit of seven claim records found that the available evidence separates proxy overhead, live-provider variance, streaming time, fallback, and accounting rather than collapsing them into one figure. Compare the same request on direct and gateway paths, then use a stub upstream to isolate proxy work.'
+targetQuery: 'how much latency does an LLM gateway add compared with a direct API'
+queryAliases:
+  - 'LLM gateway overhead latency'
+  - 'gateway vs direct API latency'
+  - 'does an LLM gateway add latency'
+intent: 'informational and commercial investigation'
+funnel: 'consideration'
+cluster: 'architecture'
+parent: '/blog/when-to-use-an-ai-agent'
+contentType: 'decision-tool'
+kind: 'satellite'
+sourceableAtom: 'A seven-record audit found no universal gateway-latency number: the available evidence separates mock proxy overhead, live-provider variance, streaming timing, fallback, and accounting, so a direct-versus-gateway result is only meaningful when those conditions are reported together.'
+evidenceType: 'source-audit'
+evidenceBasis: 'This article reports a bounded audit of seven claim records across five source URLs inspected on 2026-08-23: OpenRouter routing and accounting behavior, OpenAI streaming behavior, an MLflow stub benchmark, and two public paired-benchmark precedents. The audit records what each record can establish and where it stops.'
+tags:
+  - 'AI architecture'
+  - 'Latency'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-21'
+sources:
+  - 'https://openrouter.ai/docs/guides/routing/provider-selection'
+  - 'https://openrouter.ai/docs/faq'
+  - 'https://developers.openai.com/api/docs/guides/streaming-responses'
+  - 'https://mlflow.org/docs/latest/genai/governance/ai-gateway/benchmarks/'
+  - 'https://github.com/ferro-labs/ai-gateway-performance-benchmarks'
+cover: '/blog/how-much-latency-does-an-llm-gateway-add-compared-with-a-direct-api-hero.webp'
+coverAlt: 'Illustration of a direct API path compared with a gateway path before benchmarking'
+draft: false
+---
+
+The useful question is not “How many milliseconds does a gateway add?” It is “Which part of the request changed, and did the test keep the rest fixed?” A gateway can add proxy work, change provider selection, expose fallback, and report accounting fields. Those effects do not belong in one universal number.
+
+![Illustration of a fixed LLM request traveling through direct and gateway paths](/blog/how-much-latency-does-an-llm-gateway-add-compared-with-a-direct-api-hero.webp)
+
+## What did the source audit actually observe?
+
+The audit found seven claim records across five URLs, and none supplied a universal direct-versus-gateway latency number. The records split the problem into distinct measurements instead of producing one figure that travels safely from one provider, model, region, or gateway to another.
+
+| Observed record group | Claim records | What the records establish | What they do not establish |
+| --- | ---: | --- | --- |
+| OpenRouter routing, fallback, and accounting behavior | 3 | A gateway can select providers, fall back after errors, and expose token or cost information | The latency tax of every gateway or provider path |
+| OpenAI streaming interface behavior | 1 | First streamed output and total response completion are different timestamps | A gateway-versus-direct delta |
+| MLflow fixed-upstream benchmark | 1 | A stub upstream can isolate gateway processing under declared conditions | Real provider queueing, model variance, or internet distance |
+| Public paired-benchmark precedents | 2 | Paired requests are a useful way to compare live behavior while limiting time-of-day differences | A result attributable to this site or a universal overhead |
+| **Total audited claim records** | **7** | The evidence boundary is measurable and specific | One honest number for all LLM gateways |
+
+This table is the article's sourceable result. It is a count of the claim records in the accompanying ledger, not a latency statistic. Another writer can cite this page for the narrower finding that gateway latency evidence needs to be separated into proxy, provider, streaming, fallback, and accounting effects.
+
+The exception is a benchmark with one named provider, one named gateway path, a pinned model and region, and its raw iterations. That benchmark can answer a local adoption question. It cannot answer the universal version.
+
+## What can a stub-upstream benchmark prove?
+
+A fixed upstream can estimate the work added by the gateway path when model generation is removed from the comparison. It is a control, not a prediction of production latency.
+
+MLflow documents a gateway benchmark that uses a fixed 50 ms fake OpenAI-compatible server. Its method is useful because the upstream response is deliberately controlled. The documented limits are equally important: the setup excludes real-provider variance, internet distance, TLS effects, and some authentication effects. [MLflow's gateway benchmark documentation](https://mlflow.org/docs/latest/genai/governance/ai-gateway/benchmarks/) therefore supports a narrow proxy-overhead question.
+
+The evidence boundary is simple:
+
+1. Send the same request to the stub through the direct-shaped path and through the gateway path.
+2. Keep the stub response timing fixed.
+3. Record request start, first response event, final response event, status, and gateway-only work.
+4. Compare the distributions, not only one convenient run.
+
+This method can reveal serialization, routing, authentication, connection handling, or accounting work introduced by the gateway. It cannot reveal how a real provider's queue, model generation, token stream, or regional network path will behave. A low stub delta is evidence about the controlled path only.
+
+## What can a live paired comparison prove?
+
+A live paired comparison can estimate the difference between one direct path and one gateway path under the same workload. Pairing reduces the chance that a busy provider window is assigned mostly to one side, but it does not make the result universal.
+
+Ferro Labs describes a benchmark that separates mock gateway overhead from paired live OpenAI requests and treats sample size as necessary to overcome model-response variance. Edgee's published benchmark also distinguishes pooled and paired comparisons, with the paired view serving as the like-for-like comparison. These are methodological precedents, not measurements by Marius Manolachi. [Ferro Labs' benchmark repository](https://github.com/ferro-labs/ai-gateway-performance-benchmarks) and [Edgee's paired benchmark notes](https://github.com/edgee-ai/gateway-bench/blob/main/analysis/2026-08-05_06-ttft-benchmark.md) show why the pairing decision must be visible.
+
+The smallest useful live artifact has one row per attempt and at least these columns:
+
+| Column | Why it matters |
+| --- | --- |
+| Pair ID and path order | Shows which direct and gateway requests belong together and whether order was randomized |
+| Model, provider, region, and connection state | Prevents a path comparison from becoming a provider or cold-start comparison |
+| Time to first token and total latency | Separates perceived responsiveness from completion time |
+| Status, retry, and fallback path | Keeps recovery latency out of a success-only percentile |
+| Input and output token usage | Makes cost and work comparable |
+
+The exception is a workload that does not stream. In that case, first-token timing is not available, so the method must say that it measured response completion or first byte instead. The metric name cannot be silently changed after collection.
+
+## Why must first-token and total latency stay separate?
+
+First-token latency answers when the user sees the response begin. Total latency answers when the response is complete. A gateway can affect one more than the other, especially when it buffers streamed events or adds work after the first token.
+
+OpenAI's streaming documentation describes responses arriving incrementally through server-sent events. That makes time to first streamed token a different observation from final response time. [OpenAI's streaming response documentation](https://developers.openai.com/api/docs/guides/streaming-responses) supports the metric distinction, not a gateway overhead value.
+
+For each request, capture at least four timestamps:
+
+- request start at the runner;
+- first byte or first streamed event;
+- first visible token, if the client can identify one reliably;
+- final streamed event and completed response.
+
+Report the timestamp definitions next to the result. “TTFT” can mean first byte, first server event, or first visible token in different harnesses. Those are useful measurements, but they are not interchangeable.
+
+If the gateway does not preserve the provider's stream, the comparison must record that behavior as part of the product path. A gateway that starts displaying text quickly but delays completion has a different trade-off from one that delays the first token while finishing at the same time.
+
+## How do fallback and accounting change the decision?
+
+Fallback and accounting are part of the gateway decision, but they must be reported as separate paths rather than hidden inside one p95 value.
+
+OpenRouter documents provider fallback after errors, provider-level timing information, and token-based cost accounting. Those capabilities can change reliability, recovery time, and the source of the billed number. [OpenRouter's provider-selection documentation](https://openrouter.ai/docs/guides/routing/provider-selection) and [OpenRouter's FAQ](https://openrouter.ai/docs/faq) describe that behavior for OpenRouter. They do not justify a claim about every gateway.
+
+Use at least three result rows for the adoption decision:
+
+| Path | Primary question | Keep separate from |
+| --- | --- | --- |
+| Direct, no fallback | What does the provider path cost and how fast does it respond? | Gateway routing and recovery |
+| Gateway, fallback disabled | What overhead does the gateway add when it reaches the intended provider? | Recovery after an error |
+| Gateway, fallback enabled | What latency and outcome follow an error or provider switch? | Success-only latency |
+
+Record token usage and the accounting source beside each row. Provider-reported usage, gateway-calculated cost, and a final invoice can be different objects. The test should expose that distinction instead of presenting a cost field as if it were an independent measurement.
+
+The exception is a gateway adopted only for observability or policy enforcement, with no routing or fallback. In that case, measure those features' added work and do not claim that the result describes a routing gateway.
+
+## What method and sample are enough for a defensible benchmark?
+
+The method needs a fixed fixture, randomized paired order, a named live path, a stub control, and raw rows. The sample is enough when another engineer can see how many attempts were made, which failed, and how each percentile was calculated.
+
+Pin the prompt fixture, system message, model identifier, maximum output tokens, sampling settings, SDK and runtime versions, runner region, cache state, and HTTP connection policy. Define cold and warm connections before the run. Interleave or randomize direct and gateway requests so path and time are not confounded.
+
+The result package should contain:
+
+1. the exact configuration and date;
+2. raw direct and gateway rows;
+3. the same-fixture pair IDs;
+4. p50, p95, and p99 for first-token and total latency;
+5. failed requests, retries, and fallback outcomes;
+6. token usage and the cost formula;
+7. a separate stub-upstream result;
+8. the percentile definition and a reproducibility note.
+
+This is a method, not a claim that such a live benchmark was run for this article. The observed result here is the seven-record audit above. A reader deciding whether to adopt a gateway should treat the audit as a specification of missing proof, not as a substitute for the team's own workload.
+
+## What does this audit still not know?
+
+It does not know how many milliseconds a particular gateway adds for a particular team. No live-provider benchmark, gateway trace, cost trace, or failure-injection run is included in this job, so the article does not supply those numbers.
+
+The limits are material:
+
+- Five URLs and seven claim records are a small evidence sample, and the records are not a random survey of gateway implementations.
+- The MLflow result is a stub-upstream method precedent, not a live-provider observation.
+- The Ferro Labs and Edgee materials are external benchmark precedents, not a Marius result and not a controlled replication here.
+- A single provider, model, region, connection state, or gateway would support only a bounded claim about that path.
+- Provider routing, model versions, prices, usage fields, and gateway behavior can change, so the source checks and the benchmark configuration need a fresh review.
+
+![Illustration of the evidence boundary between real-provider and stub benchmarks](/blog/how-much-latency-does-an-llm-gateway-add-compared-with-a-direct-api-decision.webp)
+
+The practical conclusion is a veto: do not choose direct API or gateway from a headline overhead claim. Choose direct when the measured gateway capabilities do not pay for their added path and operational surface. Choose a gateway only when a paired test shows that its routing, fallback, accounting, or observability value matters for the workload, and keep the evidence scoped to the tested path.
+
+For the wider architecture decision, start with [When Should You Use an AI Agent?](/blog/when-to-use-an-ai-agent) and then use [Why Is My AI Agent So Slow? Find the Bottleneck](/blog/why-is-my-ai-agent-so-slow) to separate model, tool, network, and application delays before adding another request path.
