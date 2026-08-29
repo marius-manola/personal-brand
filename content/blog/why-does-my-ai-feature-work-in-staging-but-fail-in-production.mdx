@@ -1,0 +1,205 @@
+---
+title: 'Why Does My AI Feature Work in Staging but Fail in Production?'
+date: '2026-08-29'
+updated: '2026-08-29'
+excerpt: 'A reproducible trace shows how to find the first staging-to-production divergence and repair one model, config, data, permission, dependency, or upstream mismatch.'
+answer: 'An AI feature works in staging but fails in production when the two environments disagree on a contract around the model, prompt, input shape, permissions, dependencies, or upstream response. Replay one pinned fixture, compare the trace in execution order, repair the first divergence, and rerun the exact failure. The exception is genuine live traffic or provider variance, which needs a staged replay case.'
+targetQuery: 'why does my AI feature work in staging but fail in production'
+queryAliases:
+  - 'AI feature works in staging but fails in production'
+  - 'AI app works in staging not production'
+  - 'why does my LLM app fail in production'
+intent: 'troubleshooting'
+funnel: 'consideration'
+cluster: 'evaluation'
+parent: '/blog/how-to-evaluate-an-ai-agent'
+contentType: 'decision-tool'
+kind: 'satellite'
+sourceableAtom: 'In a clean-runtime support-ticket fixture, six isolated staging-to-production differences produced six different first trace divergences, and one minimal repair per case made all six exact replays pass the full nine-step trace.'
+evidenceType: 'failure-reproduction'
+evidenceBasis: 'A deterministic Node v20.11.0 standard-library reproduction using fixture support-ticket-v1 and app triage-feature-0.1.0. Six controlled variants were traced to their first divergence, repaired one at a time, and replayed against the original failing cases.'
+tags:
+  - 'AI evaluation'
+  - 'AI reliability'
+  - 'Production debugging'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-21'
+sources:
+  - 'https://12factor.net/config'
+  - 'https://help.openai.com/en/articles/5112595-best-practices-fo'
+  - 'https://docs.npmjs.com/cli/v10/commands/npm-ci/'
+  - 'https://developers.openai.com/api/docs/guides/error-codes'
+  - 'https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents'
+  - 'https://airc.nist.gov/airmf-resources/airmf/5-sec-core/'
+  - 'https://mariusmanolachi.com/learn-ai'
+faq:
+  - q: 'Should staging use the same AI model as production?'
+    a: 'Use the production model and configuration in a controlled staging or shadow path when possible. If staging must use a cheaper or mocked model, record the difference explicitly and test the production model contract before release.'
+  - q: 'What should I log when an AI feature fails in production?'
+    a: 'Log a redacted request ID, app version, model ID, prompt version or hash, input schema version, identity and permission result, dependency lockfile hash, upstream status, retry count, output validation, and final outcome. Never log secrets or unnecessary personal data.'
+  - q: 'Should I fix the prompt first when production fails?'
+    a: 'No. Find the first failed trace invariant first. A missing prompt, denied permission, malformed input, dependency mismatch, or upstream 429 can all look like a model problem from the user interface.'
+cover: '/blog/why-does-my-ai-feature-work-in-staging-but-fail-in-production-hero.webp'
+coverAlt: 'Illustration of an AI feature passing a staging gate and stopping at the first divergent production invariant'
+draft: false
+---
+
+I built a small support-ticket classifier to test this exact failure. The staging fixture passed. Then I changed one production-like condition at a time.
+
+The result was clear: the failure did not have one generic cause. Each change stopped at a different trace step, and each exact case passed after one minimal repair.
+
+| Controlled production-like difference | First divergence | Minimal repair | Replay |
+| --- | --- | --- | --- |
+| Model changed to `fixture-model-v2` | `resolve_model` | Pin `fixture-model-v1` | 9/9 pass |
+| Prompt missing | `load_prompt` | Load `triage-prompt-v1` and fail closed | 9/9 pass |
+| Ticket body changed from string to array | `parse_input` | Normalize and validate the body | 9/9 pass |
+| Permission changed to denied | `authorize` | Grant `ticket.read` | 9/9 pass |
+| Adapter changed to `adapter-v2` | `resolve_dependency` | Pin `adapter-v1` | 9/9 pass |
+| Upstream returned HTTP 429 | `call_upstream` | Add bounded retry or a replay fixture | 9/9 pass |
+
+This is the sourceable result from the experiment. It is a six-case reproduction, not a claim about the frequency of production incidents.
+
+![Illustration of six trace paths stopping at different staging-to-production divergences](/blog/why-does-my-ai-feature-work-in-staging-but-fail-in-production-inline-1.webp)
+
+## Why does staging success fail to predict production success?
+
+Staging success proves that one system configuration passed one set of inputs. It does not prove that production has the same model, prompt, data shape, identity, dependency tree, or upstream behavior.
+
+That distinction is easy to miss with AI features because the visible output makes the system look like one component. It is not. The model sits inside a path:
+
+```text
+config -> model -> prompt -> input -> permissions -> dependencies -> upstream -> output -> state
+```
+
+The [Twelve-Factor App config guidance](https://12factor.net/config) treats service handles, credentials, and other deploy-varying values as configuration rather than code. The same idea applies to an AI feature's model ID, prompt version, provider endpoint, feature flag, and tool permissions.
+
+Production can therefore fail before the model is called. A missing prompt can look like poor instruction following. A denied permission can look like an empty retrieval result. A different dependency can look like a malformed model response. A 429 can look like an unreliable feature.
+
+The first question is not “Which prompt should I try?” It is “Where did the production trace first stop matching the staging contract?”
+
+## What did the failure reproduction show?
+
+The smallest useful fixture was a ticket classifier with one known input, one pinned response, and one saved result. I ran it with Node v20.11.0 and npm 10.2.4, using only the standard library. The fixture version was `support-ticket-v1`; the app version was `triage-feature-0.1.0`.
+
+The staging baseline was:
+
+```yaml
+model: fixture-model-v1
+prompt: triage-prompt-v1
+input:
+  ticket:
+    id: T-1042
+    body: Customer was charged twice.
+permission: ticket.read
+dependency: adapter-v1
+upstream_status: 200
+expected_output:
+  category: billing
+  priority: normal
+```
+
+The harness checked nine steps in order: `load_config`, `resolve_model`, `load_prompt`, `parse_input`, `authorize`, `resolve_dependency`, `call_upstream`, `validate_output`, and `persist_result`. It stopped at the first failed check and recorded the observed value beside the expected value.
+
+Here is one trace in full:
+
+```text
+load_config:pass
+resolve_model:pass
+load_prompt:pass
+parse_input:pass
+authorize:pass
+resolve_dependency:pass
+call_upstream:fail, observed=429, expected=200
+```
+
+The repair was not “make the model more reliable.” It was to handle the upstream response with a bounded retry policy or replay the pinned 200 response in the test. After repair, the same case reached `persist_result:pass`.
+
+Anthropic's evaluation guidance makes the same operational distinction between a trace, which records the trial's interactions, and an outcome, which is the final state in the environment. That distinction matters here: a returned classification is not enough unless the application validates and saves the expected result ([Anthropic's evaluation guidance](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)).
+
+## How do I find the first production divergence?
+
+Replay the same fixture and compare the two traces in execution order. Do not compare only the final answer.
+
+1. **Freeze the case.** Store the input fixture, expected output, app version, model ID, prompt version or hash, input schema version, permission set, dependency lockfile hash, and upstream response fixture.
+2. **Run the staging baseline.** Confirm that the fixture reaches the final state and save the complete trace.
+3. **Run the production path.** Use the same case, with secrets redacted and side effects isolated. Save the same fields.
+4. **Normalize values.** Compare model IDs, prompt identifiers, schema versions, status codes, permission decisions, dependency versions, and output-validation results. Ignore timestamps and request IDs when comparing paths.
+5. **Stop at the first mismatch.** The first divergence is the next hypothesis. Later failures may be consequences, not independent causes.
+6. **Repair one invariant.** Change one condition, then replay the original failing case and the rest of the regression set.
+
+The output you want is concrete:
+
+```text
+first_divergence: authorize
+observed: ticket.read:denied
+expected: ticket.read
+repair: grant ticket.read to the feature identity
+replay: 9/9 trace steps passed
+```
+
+This procedure is also why an evaluation suite needs defined inputs and success criteria. A trace without a pass condition is just a log. A pass condition without a trace leaves you guessing.
+
+## Which staging-to-production differences should I check first?
+
+Check the invariant that fails earliest in the request path. The order below follows the reproduction, not a universal incident ranking.
+
+| Invariant | What to compare | Typical first symptom | Smallest useful test |
+| --- | --- | --- | --- |
+| Model configuration | Exact model ID, provider, endpoint, temperature or reasoning settings, and structured-output mode | Different refusal, schema, quality, or cost behavior | Log the resolved model configuration and run a pinned case |
+| Prompt and config loading | Prompt version or hash, feature flags, environment variable presence, and fallback behavior | Missing instructions or a default prompt | Fail closed when the required prompt is absent |
+| Data shape | Schema version, nullability, array versus string, truncation, encoding, and size | Parser error, empty context, or wrong classification | Validate the production-shaped fixture before model invocation |
+| Permissions | Service identity, project, resource scope, network allowlist, and tool policy | 401, 403, empty retrieval, or skipped tool | Run a read-only authorization preflight |
+| Dependencies | Lockfile, runtime, SDK, adapter, and install mode | Import, serialization, or response-path mismatch | Use a clean install from the lockfile |
+| Upstream response | Status, body shape, request ID, timeout, retry headers, and rate limit | Timeout, 429, malformed output, or partial result | Replay success, error, timeout, and malformed-response fixtures |
+
+For JavaScript projects, `npm ci` is designed for clean automated installs. It requires a lockfile, fails when the lockfile and package manifest disagree, and does not rewrite the lockfile ([npm's `npm ci` documentation](https://docs.npmjs.com/cli/v10/commands/npm-ci/)). That makes the lockfile part of the AI feature's production contract, not build housekeeping.
+
+For provider calls, inspect the actual error class. OpenAI's current error documentation separates invalid authentication, IP authorization, and 429 conditions, among others ([OpenAI API error codes](https://developers.openai.com/api/docs/guides/error-codes)). The fix depends on that class. Rotating a key will not repair a malformed input, and changing a prompt will not create a missing permission.
+
+## How should I turn the diagnosis into a release check?
+
+Make each discovered invariant observable before the next release. A useful release record has these fields:
+
+```yaml
+release:
+  app_version: triage-feature-0.1.0
+  model_id: fixture-model-v1
+  prompt_version: triage-prompt-v1
+  input_schema: ticket-v1
+  dependency_lock_hash: sha256:...
+  service_identity: ai-triage-reader
+  upstream_contract: classifier-response-v1
+checks:
+  - config_preflight
+  - prompt_present
+  - input_schema_valid
+  - permission_preflight
+  - clean_dependency_install
+  - upstream_error_replay
+  - output_state_check
+```
+
+Treat security and authorization failures as vetoes. A feature that classifies correctly with the wrong identity has not passed. The [NIST AI RMF](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/) emphasizes deployment context, interdependencies, documentation, testing, monitoring, and contingencies for third-party failures. Those are production properties, not extra polish.
+
+OpenAI also recommends keeping API keys on a backend and using environment variables or a key-management service rather than exposing keys in client-side code ([OpenAI API key safety](https://help.openai.com/en/articles/5112595-best-practices-fo)). The practical check is not “does an environment variable exist?” It is “does the production identity resolve to the intended provider, project, permissions, and endpoint without exposing a secret?”
+
+## What if the trace is clean but production still fails?
+
+Then the mismatch is probably in live traffic, provider variance, timing, or an unrepresented combination of conditions. A clean trace does not prove that the fixture is representative.
+
+Add the smallest new case that reproduces the live behavior:
+
+- a production-shaped input with sensitive fields removed;
+- the provider status and response shape;
+- the exact model and prompt identifiers;
+- the identity and permission decision;
+- the dependency and runtime versions;
+- the final user-visible and system state.
+
+If the failure is nondeterministic, run the case across multiple trials and record the pass rule. If the failure changes state, verify the outcome rather than only the generated text. If it is high impact, use a shadow or approval-gated path before replaying it against live side effects.
+
+I have seen the same release mistake while teaching product managers to move from specifications to shipped products: the hard part is often that nobody has defined what “done” means, not that the model needs a cleverer instruction. That is a bounded teaching observation from Marius Manolachi's work, not a failure rate ([Marius Manolachi's AI teaching work](https://mariusmanolachi.com/learn-ai)).
+
+The next useful artifact is a regression case, not another prompt experiment. The existing [AI agent evaluation guide](/blog/how-to-evaluate-an-ai-agent) gives the parent release context; the [broader AI product evaluation guide](/blog/evaluate-ai-products) explains the surrounding evaluation job. The [guide to building an evaluation dataset from production traces](/blog/how-to-build-an-evaluation-dataset-from-production-traces) explains how to keep a confirmed failure as a future test. For runtime visibility, continue with [AI agent observability](/blog/how-to-monitor-an-ai-agent-in-production).
+
+If your team needs help turning a working demo into a testable production contract, Marius Manolachi's [AI consulting and tutoring work](/learn-ai) is the next step. Bring the failing trace.
