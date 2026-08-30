@@ -1,0 +1,146 @@
+---
+title: 'How to Audit an AI Reviewer Before Trusting Its Pass Rate'
+date: '2026-08-31'
+updated: '2026-08-31'
+excerpt: 'A small adversarial fixture reveals whether an AI reviewer measures task success or merely rewards polished fields, with a repair and held-out audit.'
+answer: 'Audit an AI reviewer with a small fixture containing good, known-bad, ambiguous, and rubric-gaming outputs before trusting its pass rate. Require checkable evidence, a supported final state, vetoes for contradictions and unsafe actions, and an ESCALATE path, then compare blinded and unblinded reference runs with manual labels. For deterministic conditions, code should remain the authority.'
+targetQuery: 'how to audit an AI reviewer before trusting its pass rate'
+queryAliases:
+  - 'audit an AI reviewer before trusting its pass rate'
+  - 'AI reviewer audit fixture'
+  - 'how to check an AI reviewer before release'
+intent: 'evaluation audit'
+funnel: 'consideration'
+cluster: 'evaluation'
+parent: '/blog/how-to-evaluate-an-ai-agent'
+contentType: 'decision-tool'
+kind: 'satellite'
+sourceableAtom: 'In a 12-case deterministic reviewer fixture, two pre-repair rubrics approved 12/12 cases and falsely approved 9, while a repaired outcome rubric made 4/4 correct decisions on held-out cases with zero false approvals.'
+evidenceType: 'failure-reproduction'
+evidenceBasis: 'A 12-case adversarial fixture was run locally on 2026-08-23 with Node.js v24.11.1. It compared surface, criteria, and outcome rubrics in blinded and unblinded reference modes, recorded reasons and manual adjudication labels, and reran four held-out cases. The reviewer was fixture-judge/0.1.0 before repair and fixture-judge/0.2.0 after repair, not a vendor model.'
+tags:
+  - 'AI evaluation'
+  - 'AI reliability'
+  - 'AI products'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-21'
+sources:
+  - 'https://openai.com/index/evals-drive-next-chapter-of-ai/'
+  - 'https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents'
+  - 'https://developers.openai.com/api/reference/resources/graders'
+  - 'https://airc.nist.gov/airmf-resources/airmf/5-sec-core/'
+  - 'https://arxiv.org/abs/2607.12885'
+  - 'https://openai.com/index/trustworthy-third-party-evaluations-foundations/'
+  - 'https://learn.microsoft.com/en-us/azure/foundry/concepts/evaluation-evaluators/rubric-evaluators'
+faq:
+  - q: 'Should I hide the reference answer from an AI reviewer?'
+    a: 'Test both modes. A reference can improve factual calibration, but it can also become a lexical target or a single point of failure. Compare blinded and unblinded runs on the same cases, and keep the mode that agrees with manual adjudication for your task.'
+  - q: 'What is a false approval in an AI evaluation?'
+    a: 'A false approval is an APPROVE decision for an output that fails the task’s acceptance condition. Count known-bad, ambiguous, and rubric-gaming cases separately so a high approval rate cannot hide unsafe or unresolved work.'
+  - q: 'Can an AI reviewer be a release gate?'
+    a: 'Only after it has passed a fixture containing known failures, agrees with manual adjudication on a sample, and has a safe escalation path. Keep deterministic checks for objective conditions and reserve model judgment for the parts that need interpretation.'
+cover: '/blog/audit-ai-reviewer-before-trusting-pass-rate-ai-reviewer-rubric-leak-hero.webp'
+coverAlt: 'Illustration of an AI reviewer approving polished output while a hidden task failure remains'
+draft: false
+---
+
+I built a small reviewer fixture to audit an approval rate before trusting it. The first run made the metric look worse. Outputs that copied the rubric's language passed until the reviewer had to prove that the evidence supported the final decision.
+
+The useful result is small enough to inspect line by line.
+
+| Reviewer | Reference | Approval rate | False approvals | Accuracy |
+| --- | --- | ---: | ---: | ---: |
+| Surface rubric v1 | Blinded | 12/12 | 9 | 3/12 |
+| Criteria rubric v2 | Unblinded | 12/12 | 9 | 3/12 |
+| Outcome rubric v3 | Blinded | 3/12 | 0 | 11/12 |
+| Outcome rubric v3 | Held-out, blinded | 1/4 | 0 | 4/4 |
+
+The fixture is not a benchmark of a live model. It is a fast way to answer a more useful question first: is the gate measuring task success, or is it rewarding the appearance of success?
+
+![Illustration of an AI reviewer approving polished output while a hidden task failure remains](/blog/audit-ai-reviewer-before-trusting-pass-rate-ai-reviewer-adversarial-fixture.webp)
+
+## What should an AI reviewer prove before you trust its pass rate?
+
+It should prove that the output satisfies the task's acceptance condition, not merely that it contains the fields named by the rubric. A trustworthy pass rate comes from specific evidence, a supported final state, explicit vetoes, and a visible path for unresolved ambiguity.
+
+In the fixture, the weak reviewer made surface compliance easier to prove than task success. Required labels, confident wording, and a plausible explanation substituted for evidence, contradiction checks, and an honest “I cannot decide.”
+
+In the fixture, every output had `Status`, `Evidence`, `Decision`, and `Next step`. The first reviewer treated those labels as proof. It did not ask whether the cited evidence supported the decision. That was enough to approve all 12 cases, including three known-bad outputs, three ambiguous outputs, and three outputs written to game the rubric.
+
+This is the same design risk OpenAI describes when it warns that rubrics can over-emphasize superficial items at the expense of the overall goal. OpenAI also recommends real-world examples and rare but costly edge cases, then says domain experts should audit LLM graders and system logs ([OpenAI's evaluation guidance](https://openai.com/index/evals-drive-next-chapter-of-ai/)).
+
+The approval rate was not measuring quality. It was measuring how often an output looked like it knew how to pass.
+
+## What did the failure reproduction show?
+
+The first two rubrics approved 12/12 cases and falsely approved 9. The repaired rubric approved only the three good cases, rejected the known-bad and rubric-gaming cases, and escalated two of three ambiguous cases.
+
+The 12-case fixture contained four classes:
+
+| Class | Cases | What the cases tested |
+| --- | --- | --- |
+| Good | 3 | Specific evidence supports a valid final state |
+| Known-bad | 3 | Missing evidence, contradicted value, unsafe action |
+| Ambiguous | 3 | Conflicting sources, incomplete context, non-authoritative owners |
+| Rubric-gaming | 3 | Repeated criteria language without task proof |
+
+The pre-repair reviewer returned reasons such as “surface fields and positive language present” and “fields and evidence phrase present.” Those reasons explain the failure. They refer to the response's shape, not the task's acceptance condition.
+
+Anthropic describes a similar separation in its evaluation guidance: use unit tests for correctness and an LLM rubric for broader quality, adding other graders only when needed ([Anthropic's eval guidance](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)). A reviewer that owns every kind of judgment will quietly turn a missing deterministic check into a flattering paragraph.
+
+## Did the reference answer cause the false approvals?
+
+Not in this fixture. Blinded and unblinded runs produced the same approval rates because the weak rubrics already approved every output from visible labels and positive wording. Reference visibility was not the first cause.
+
+That does not make references irrelevant. A recent study of LLM judges reports that tested judges over-credited incorrect answers without a reference and that adding reference information flipped decisions by as much as 85% in some settings ([the reference-sensitivity study](https://arxiv.org/abs/2607.12885)). The practical decision is to test reference visibility as a variable, not to treat a reference as automatic ground truth.
+
+Use an unblinded reference when it contains authoritative facts the reviewer cannot safely reconstruct. Still test a blinded run when the output might copy the reference's wording, when the reference can be stale, or when the reviewer is supposed to verify evidence rather than recognize a preferred answer. Compare both against manual adjudication on the same cases.
+
+OpenAI's grader documentation makes the same architectural point from another angle. A grading system can combine label, score, string, similarity, and multiple graders, with a specified model and sampling configuration for model-based graders ([OpenAI's grader reference](https://developers.openai.com/api/reference/resources/graders)). A reference-matching check is one instrument. It is not the whole gate.
+
+## How do you repair the audit finding?
+
+Repair the first missing decision boundary, then rerun the old cases. In this fixture, the missing boundary was evidence-to-outcome support.
+
+1. Write the task's acceptance condition as a final state. “Looks complete” is not a condition. “The source supports the chosen value and no required approval is missing” is.
+2. Add a checkable evidence requirement. The reviewer must point to the source or test result that supports the decision. The word `Evidence` does not count.
+3. Add vetoes for known failure modes. Contradictions, missing values, unsafe actions, unsupported citations, and rubric-only claims must block approval.
+4. Add `ESCALATE`. Conflicting sources and unresolved ownership are not clean passes or clean failures. Make uncertainty visible.
+5. Keep the fixture adversarial. Every repair should be rerun against known-bad and rubric-gaming outputs, not only the cases that originally looked good.
+6. Hold out cases before tuning. A repair that only fixes the examples used to write it has not earned a higher approval rate.
+
+NIST's AI RMF calls for objective, repeatable, documented testing and evaluation, evaluation in conditions similar to deployment, and documented limits on generalizability ([NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/)). That is the standard to use for a reviewer gate. Keep the prompt, cases, reviewer version, adjudication labels, and held-out output together.
+
+## What should the repaired reviewer return?
+
+Use three outcomes with explicit reasons:
+
+| Decision | Minimum condition | Typical reason |
+| --- | --- | --- |
+| APPROVE | Evidence is specific, the final state follows from it, and no veto condition is present | “Source-7 supports the stated value; all required conditions are satisfied.” |
+| REJECT | A known failure, contradiction, unsafe action, unsupported citation, or missing required condition is present | “The output states $1,000, but policy-12 states $100.” |
+| ESCALATE | The available evidence supports more than one reasonable interpretation | “Sources A and B disagree; an authority must resolve the date.” |
+
+Do not let the reviewer invent a fourth meaning for approval such as “probably fine.” If the work is not safe to release and not clearly invalid, it belongs in escalation.
+
+Microsoft's rubric-evaluator documentation describes per-dimension scores, reasons, and a weighted overall result, while warning that reliability can vary for very short responses ([Microsoft's rubric evaluator guidance](https://learn.microsoft.com/en-us/azure/foundry/concepts/evaluation-evaluators/rubric-evaluators)). Store the reason and the evidence span, not only the final score. A score without its failed condition is hard to debug.
+
+## How do you know the repair worked?
+
+The repaired fixture approved 3/12 tuning cases, with zero false approvals, and made 11/12 correct decisions. Its one tuning disagreement was an ambiguous case that the simple detector rejected instead of escalating. That is a visible limitation, not a reason to hide the row.
+
+The real check was held out. Four new cases contained one good output, one known-bad output, one ambiguous output, and one rubric-gaming output. The repaired reviewer made 4/4 correct decisions in both blinded and unblinded modes: one approval, one escalation, and two rejections, with zero false approvals.
+
+OpenAI's evaluation research describes reward hacking as exploiting the task, scorer, prompt, or harness to receive credit without demonstrating the intended behavior ([OpenAI's evaluation playbook](https://openai.com/index/trustworthy-third-party-evaluations-foundations/)). A rubric-gaming case is therefore not an exotic extra. It is a direct test of whether the score can be earned without the work.
+
+The next run should use the exact production model endpoint, dated model identifier, sampling settings, real task traces, and independent human labels. Until then, this fixture supports a narrow decision: do not treat a near-perfect approval rate as quality evidence when the reviewer has not faced adversarial failures.
+
+## When is a high approval rate actually good news?
+
+A high approval rate is useful only after the reviewer has demonstrated that it can reject known-bad work, escalate ambiguity, and agree with manual adjudication on held-out cases. A purely objective check, such as exact schema validation or a deterministic range check, is the principal exception because code can verify the condition directly.
+
+If your current reviewer approves everything, pause the release gate. Add four cases today: one correct output, one polished failure, one ambiguous output, and one rubric-gaming output. Then inspect the first reason the reviewer gives for each decision. If the reasons point to labels, tone, or similarity instead of the task state, repair the rubric before changing the model.
+
+For a broader release-gate design, see [how to evaluate an AI agent](/blog/how-to-evaluate-an-ai-agent). For the grading mechanics, see [how to grade an AI output against a rubric](/blog/how-to-grade-an-ai-output-against-a-rubric). This article belongs under the [AI product evaluation cluster](/blog/evaluate-ai-products).
+
+If you want a second pair of eyes on the fixture, bring the failing cases, reviewer trace, and adjudication labels to [Marius Manolachi's AI learning and consulting work](/learn-ai). The useful input is the evidence, not a screenshot of the approval dashboard.
