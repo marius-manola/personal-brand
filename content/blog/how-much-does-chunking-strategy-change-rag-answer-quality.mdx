@@ -1,0 +1,160 @@
+---
+title: 'How Much Does Chunking Strategy Change RAG Answer Quality?'
+date: '2026-08-30'
+updated: '2026-08-30'
+excerpt: 'A controlled 26-question benchmark shows when chunking changes RAG answers, when overlap adds cost, and why the winner depends on document structure.'
+answer: 'In my 26-question benchmark, chunking changed answer correctness by 16.6 to 16.7 percentage points across the tested grid. Structure-preserving or sentence-preserving chunks around 80 tokens with no overlap performed best in the tested cohorts, but the winner depended on document structure. The exception is your own corpus: a fixed retriever and generator can make a different setting win.'
+targetQuery: 'how much does chunking strategy change RAG answer quality'
+queryAliases:
+  - 'RAG chunking strategy answer quality'
+  - 'does chunk size affect RAG accuracy'
+  - 'how much does chunk overlap improve RAG'
+intent: 'evaluation'
+funnel: 'consideration'
+cluster: 'evaluation'
+parent: '/blog/how-to-evaluate-an-ai-agent'
+contentType: 'decision-tool'
+kind: 'satellite'
+sourceableAtom: 'In a 26-question, two-cohort controlled benchmark, answer correctness moved from 66.7% to 83.3% on structured documents and from 75.0% to 91.7% on narrative documents across the tested chunking grid, with no consistent benefit from 20% overlap.'
+evidenceType: 'benchmark'
+evidenceBasis: 'Run on 2026-08-23 with eight public-source excerpts, 24 hand-checked answerable questions, two no-answer controls, 18 chunking configurations, a fixed 2,048-dimension hashed lexical embedding, cosine top-3 retrieval, and a deterministic extractive generator. The corpus manifest, question set, code core, raw output examples, manual adjudication, cost proxy, and limitations are in research.md.'
+tags:
+  - 'AI evaluation'
+  - 'RAG'
+  - 'AI reliability'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-21'
+sources:
+  - 'https://arxiv.org/abs/2601.14123'
+  - 'https://proceedings.neurips.cc/paper_files/paper/2024/file/7c06759d1a8567f087b02e8589454917-Paper-Datasets_and_Benchmarks_Track.pdf'
+  - 'https://aclanthology.org/2026.acl-long.1372.pdf'
+  - 'https://www.rfc-editor.org/rfc/rfc9110'
+  - 'https://peps.python.org/pep-0008/'
+  - 'https://docs.python.org/3/library/asyncio.html'
+  - 'https://docs.python.org/3/reference/datamodel.html'
+  - 'https://docs.python.org/3/library/venv.html'
+faq:
+  - q: 'Should I use overlap in a RAG index?'
+    a: 'Use overlap only when your benchmark shows a boundary-recall benefit. In this fixture, 20% overlap added index tokens without a consistent correctness gain and reduced quality in one sentence-preserving narrative configuration.'
+  - q: 'What chunk size should I start with for RAG?'
+    a: 'Start with a small grid around the document unit, not a universal number. In this benchmark, 80 tokens with no overlap was a strong starting point, but the correct default changed with structure and generator behavior.'
+  - q: 'Should I change the embedding model before chunking?'
+    a: 'Hold the embedding model constant while you test chunking. If chunking changes answer-bearing retrieval or supported correctness, you have learned something about the index before adding a second moving variable.'
+cover: '/blog/how-much-does-chunking-strategy-change-rag-answer-quality-hero.webp'
+coverAlt: 'Illustration of a controlled RAG benchmark comparing chunk boundaries, document cohorts, and answer quality'
+draft: false
+---
+
+Chunking advice often arrives as a number:  chunk to 400 tokens, add 10% overlap, try semantic splitting. Those defaults may be useful starting points. They are not evidence about your corpus.
+
+I build with Claude Code, Codex, ChatGPT, and related tools on actual work every day. That makes the practical question less interesting than the controlled one: if I keep the retriever and generator fixed, how much can the chunking choice move the answer?
+
+Here is the result I could reproduce.
+
+![Illustration of a RAG experiment holding the retriever and generator constant while chunking variables change](/blog/how-much-does-chunking-strategy-change-rag-answer-quality-inline-1.webp)
+
+## What did the benchmark measure?
+
+The benchmark compared three chunking methods, three target sizes, and two overlap settings against the same corpus, retriever, and answerer. It used 24 answerable questions and two no-answer controls across two document cohorts: structured standards and narrative documentation.
+
+The sourceable result is a 16.6 to 16.7 percentage-point spread in answer correctness between the worst and best configurations in the tested grid. The best observed configuration reached 83.3% correctness on structured documents and 91.7% on narrative documents.
+
+That is a real change in this fixture. It is not a claim that chunking always changes RAG quality by 17 points. With 12 answerable questions per cohort, one question moves the percentage by 8.3 points. Treat the result as a benchmark design and a bounded signal, not as a universal constant.
+
+The experiment follows the basic RAG sequence described in the UDA benchmark: parse and segment documents, build an index, retrieve relevant chunks, assemble context, and generate an answer ([UDA benchmark](https://proceedings.neurips.cc/paper_files/paper/2024/file/7c06759d1a8567f087b02e8589454917-Paper-Datasets_and_Benchmarks_Track.pdf)). A recent chunking study makes a similar case for isolating method, size, overlap, and context instead of tuning them together ([systematic chunking study](https://arxiv.org/abs/2601.14123)).
+
+## How much did answer quality change?
+
+In this benchmark, chunking changed answer correctness by 16.6 points for structured documents and 16.7 points for narrative documents across the tested grid.
+
+| Cohort | Worst observed correctness | Best observed correctness | Spread | Best observed setting |
+| --- | ---: | ---: | ---: | --- |
+| Structured standards and style guides | 66.7% | 83.3% | 16.6 points | Fixed 160 tokens, or structure-preserving 80 tokens, both with 0% overlap |
+| Narrative documentation | 75.0% | 91.7% | 16.7 points | Sentence-preserving 40 or 80 tokens with 0% overlap |
+
+Answer correctness was not the only measure. I also checked whether the top three retrieved chunks contained the known answer span and whether the selected answer was supported by that span.
+
+| Method | Size | Overlap | Structured answer-bearing | Structured correct | Narrative answer-bearing | Narrative correct | Stored index tokens |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Fixed window | 40 | 0% | 75.0% | 66.7% | 66.7% | 75.0% | 843 |
+| Fixed window | 80 | 20% | 91.7% | 83.3% | 91.7% | 83.3% | 976 |
+| Structure-preserving | 80 | 0% | 91.7% | 83.3% | 91.7% | 83.3% | 843 |
+| Sentence-preserving | 40 | 0% | 91.7% | 75.0% | 100.0% | 91.7% | 843 |
+| Sentence-preserving | 80 | 0% | 91.7% | 83.3% | 100.0% | 91.7% | 843 |
+| Sentence-preserving | 80 | 20% | 91.7% | 83.3% | 91.7% | 75.0% | 955 |
+
+The table contains the useful distinction. The answer-bearing span can be retrieved while the final answer is still wrong. In the fixed 40-token narrative run, the asyncio.run answer was not in the top three, so the generator selected a nearby sentence. In another case, the answer-bearing chunk arrived, but the chunk also contained neighboring content and the extractive selector returned a bad-shaped fragment.
+
+The benchmark is therefore measuring more than retrieval recall. It is measuring whether a chunk gives a fixed answerer enough focused evidence to select the right sentence.
+
+## Which chunking method won?
+
+There was no single winner. Structure-preserving chunks were a strong choice for the headed documents, while sentence-preserving chunks performed best for the paragraph-heavy documents.
+
+The structured cohort contained RFC sections and PEP sections. The narrative cohort contained paragraph-heavy Python documentation. The source documents were public pages from the [RFC Editor](https://www.rfc-editor.org/rfc/rfc9111), [PEP 8](https://peps.python.org/pep-0008/), [asyncio documentation](https://docs.python.org/3/library/asyncio.html), the [Python data model](https://docs.python.org/3/reference/datamodel.html), and [venv documentation](https://docs.python.org/3/library/venv.html).
+
+For the structured cohort, structure-preserving 80-token chunks with no overlap matched the best observed correctness at 83.3% while storing 843 index tokens. Fixed 80-token windows with 20% overlap also reached 83.3%, but stored 976 index tokens. In this fixture, the extra duplicated text did not buy a better answer rate.
+
+For the narrative cohort, sentence-preserving 40- or 80-token chunks with no overlap reached 91.7% correctness and 100% answer-bearing retrieval. A structure-preserving 80-token configuration reached 83.3%. That eight-point difference came from one question, so it is a useful lead for a larger test, not a universal narrative-document law.
+
+This is why I would not copy a chunking default from a generic RAG guide. The current research points in a similar direction. One 2026 study found sentence and semantic chunking close in its text-centric setup, while warning that its result was tied to its model, corpus, and context budget ([systematic chunking study](https://arxiv.org/abs/2601.14123)). The right conclusion is not “sentence chunking always wins.” It is “the document unit belongs in the experiment.”
+
+## Does overlap improve RAG answer quality?
+
+Not consistently in this benchmark. A 20% overlap increased stored index tokens from 843 to 955 or 976 in the representative 80-token rows, but it did not produce a stable correctness improvement.
+
+The clearest comparison is sentence-preserving 80-token chunks:
+
+- Structured correctness stayed at 83.3% with and without 20% overlap.
+- Narrative correctness fell from 91.7% to 75.0% with 20% overlap.
+- Narrative answer-bearing retrieval fell from 100.0% to 91.7%.
+- Index token units rose from 843 to 955.
+
+The failure mechanism was duplication. Overlap put neighboring sentences into more than one candidate chunk. The top three results then contained more repeated context and fewer distinct pieces of evidence. The fixed generator had more text to score, not more independent evidence.
+
+This is not proof that overlap is useless. It can help when the answer routinely crosses a boundary, when a parser loses headings, or when a retriever needs redundancy to recall a short span. The decision rule is narrower:
+
+> Use overlap only when a paired benchmark shows that boundary recall improves more than duplicate context increases cost or answer confusion.
+
+A recent end-to-end chunking study reached a similar bounded conclusion in its own Natural Questions setup: adding overlap did not produce measurable gains while increasing chunk count and index cost ([systematic chunking study](https://arxiv.org/abs/2601.14123)). My result is not a replication of that paper. It is a small second observation with different corpus, retriever, generator, and metrics.
+
+## How were retrieval and answer quality separated?
+
+Each question had a hand-checked source document, expected answer phrase, and exact answer-bearing sentence. That lets the benchmark ask four separate questions:
+
+1. Did one of the top three chunks contain the answer span?
+2. Did the fixed generator return the expected answer phrase?
+3. Did the selected answer remain supported by the expected source span?
+4. Did the generator abstain on a no-answer control?
+
+The no-answer controls mattered. The structured control asked for an HTTP request timeout that did not exist in the corpus. One representative configuration returned an unrelated idempotence sentence instead of NONE. The narrative control asked how asyncio accelerates GPU matrix multiplication. The same configuration abstained.
+
+That difference is small but operationally important. A chunking change can improve answer-bearing retrieval while making an answerer more willing to produce a plausible unsupported sentence. Track abstention and citation support beside correctness.
+
+If a RAG answer is already failing in production, first classify the layer with the paired-context method in [How to Tell Whether a RAG Failure Is Retrieval or Generation](/blog/how-to-tell-whether-a-rag-failure-is-retrieval-or-generation). This benchmark focuses on the retrieval and context-selection side of that split. It does not replace an end-to-end evaluation.
+
+## What should you test on your own corpus?
+
+Run a small matrix before changing your embedding model, retriever, reranker, or generator. The point is to change one family of variables while keeping the rest fixed.
+
+1. **Split the corpus into cohorts.** At minimum, separate documents with explicit headings, lists, tables, or code from paragraph-heavy narrative documents. Add a code cohort if code retrieval matters.
+2. **Hand-check the questions.** Start with 20 to 50 real questions if you have them. Record the answer phrase, source document, and exact answer span. Include a few questions whose answer is absent so abstention is testable.
+3. **Freeze the pipeline.** Record the embedding model, retriever, top-k, reranker, prompt, generator, and answer-evaluation rule. A chunking test that changes the prompt at the same time is not a chunking test.
+4. **Vary size and boundary rules.** Test at least one fixed baseline, one structure-aware method, and one sentence-preserving method. Use a small size grid around the units your documents naturally contain.
+5. **Test overlap as a hypothesis.** Include zero overlap. Add 10% or 20% only as a comparison, then measure duplicate index tokens and repeated top-k content.
+6. **Inspect failures manually.** For every bad answer, label whether the answer span was absent, present but buried, retrieved with a distractor, or selected incorrectly by the generator.
+7. **Choose by cohort and cost.** Keep the configuration that meets the quality threshold with the least retrieval and index cost. Do not declare a corpus-wide winner when cohorts disagree.
+
+The parent guide, [How to Evaluate an AI Agent](/blog/how-to-evaluate-an-ai-agent), covers the wider release gate. If you need to turn real traces into a stable question set, use [How to Build an Evaluation Dataset From Production Traces](/blog/how-to-build-an-evaluation-dataset-from-production-traces).
+
+## What does this benchmark not prove?
+
+It does not prove that structure-aware chunking beats dense embeddings, that sentence chunking is the best production default, or that overlap should never be used.
+
+The benchmark uses a small public-source corpus, a hashed lexical embedding, cosine retrieval, top-k of three, and a deterministic extractive generator. It does not test dense embeddings, rerankers, parent-document retrieval, tables, code, multi-hop questions, long-form synthesis, or a stochastic LLM. The source excerpts were chosen to make document structure explicit. A production corpus may have scans, duplicated policy versions, access controls, or tables that change the result.
+
+The external evidence also warns against overgeneralizing. The UDA benchmark shows that real-world documents can be lengthy and structurally varied, and HiChunk argues for evidence-dense questions with annotated sources when testing chunking ([UDA benchmark](https://proceedings.neurips.cc/paper_files/paper/2024/file/7c06759d1a8567f087b02e8589454917-Paper_Datasets_and_Benchmarks_Track.pdf), [HiChunk](https://aclanthology.org/2026.acl-long.1372.pdf)). Those are reasons to expand the fixture, not reasons to skip the controlled comparison.
+
+The practical answer is simple. Chunking can move RAG answer quality by a meaningful amount, even when the rest of the pipeline stays fixed. The amount and the winning strategy depend on the documents and the answerer. Measure your own cohorts before you spend the next week changing models.
+
+If you want help turning that benchmark into a release gate for a real workflow, the next step is [Marius Manolachi's AI learning and consulting work](/learn-ai).
