@@ -1,0 +1,280 @@
+---
+title: "How to Attach Source Evidence to AI Workflow Outputs"
+date: "2026-08-30"
+updated: "2026-08-30"
+excerpt: "Build a field-level evidence packet for AI workflow outputs, with source spans, page references, freshness checks, reviewer status, and replayable tests."
+answer: "Attach evidence to each output field, not only to the final response. Store an opaque source ID, page or span selector, source version, freshness and authorization status, validation results, and unresolved questions beside the value. The principal exception is sensitive source content: keep a hash or governed reference instead of copying raw text into the output packet."
+targetQuery: "how to attach source evidence to AI workflow outputs"
+queryAliases:
+  - "AI output source citations"
+  - "field-level evidence for document extraction"
+  - "how to cite AI extraction results"
+intent: "implementation"
+funnel: "consideration"
+cluster: "implementation"
+parent: "/blog/how-to-scope-an-ai-agent-proof-of-concept"
+contentType: "decision-tool"
+kind: "satellite"
+sourceableAtom: "A dependency-free Python 3.9 fixture emits a field-level evidence packet and passes six tests for reconstruction, missing evidence, stale evidence, contradictory evidence, unauthorized evidence, and replayable export."
+evidenceType: "build-measurement"
+evidenceBasis: "Executed on 2026-08-23 with Python 3.9.6 and the standard library only. The fixture emitted a deterministic evidence.packet.v1 export, rendered three reviewer rows, and passed six tests covering the happy path plus missing, stale, contradictory, unauthorized, and replay cases."
+tags:
+  - "AI implementation"
+  - "AI evaluation"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://www.w3.org/TR/prov-primer/"
+  - "https://www.w3.org/TR/annotation-model/"
+  - "https://json-schema.org/learn/getting-started-step-by-step"
+  - "https://cloud.google.com/vertex-ai/generative-ai/docs/reference/rest/v1/GenerateContentResponse"
+  - "https://cloud.google.com/generative-ai-app-builder/docs/check-grounding"
+  - "https://docs.anthropic.com/en/docs/build-with-claude/citations"
+faq:
+  - q: "Should every AI output field have its own evidence?"
+    a: "Every field that a reviewer may rely on should have its own evidence map or an explicit status such as missing, not applicable, or derived. A single document citation is too coarse to show which source supports which value."
+  - q: "What should happen when two sources disagree?"
+    a: "Mark the field contradicted, preserve both source bindings, record the unresolved question, and route it to review. Do not average the values or let a global confidence score hide the disagreement."
+  - q: "Should the packet include the full source text?"
+    a: "Usually no. Keep a source ID, version, content hash, and resolvable page or span reference. Store raw text in a separately governed source store only when retention and access rules allow it."
+cover: "/blog/how-to-attach-source-evidence-to-ai-workflow-outputs-source-evidence-packet-hero.webp"
+coverAlt: "Illustration of an AI workflow output connected field by field to source evidence and review checks"
+draft: false
+---
+
+I am building TryUncle, an AI agent that watches the screen and annotates it live. That makes one design question hard to ignore: when a workflow produces a value, can a reviewer see why that value is there without opening a trace dashboard?
+
+The useful unit is not a citation at the end of an answer. It is a field-level evidence packet that travels with the output.
+
+Here is the artifact result first. I ran the dependency-free Python 3.9 fixture included below on 2026-08-23.
+
+| Test | Observed result |
+| --- | --- |
+| Happy-path reconstruction | pass |
+| Missing evidence | pass |
+| Stale evidence | pass |
+| Contradictory evidence | pass |
+| Unauthorized evidence | pass |
+| Replayable export | pass |
+
+![Illustration of a field-level AI output packet with source IDs, page references, validation results, and reviewer status](/blog/how-to-attach-source-evidence-to-ai-workflow-outputs-source-evidence-review-packet.webp)
+
+## The smallest useful evidence packet
+
+Put the value and its proof in the same record. A reviewer should not have to join an output table to a second citation table by guessing which row belongs to which field.
+
+The packet needs five layers:
+
+| Layer | Minimum fields | Reviewer question |
+| --- | --- | --- |
+| Run | `run_id`, `created_at`, `schema_version` | Which execution produced this packet? |
+| Source | `source_id`, URI or governed reference, `version`, `fetched_at`, `allowed`, `content_hash` | Which source representation was available, and may this workflow use it? |
+| Output field | `value`, `status`, `evidence[]` | What did the workflow return, and is it supported? |
+| Evidence link | `source_id`, `page` or `start` and `end`, `observed_value` | Where exactly did this value come from? |
+| Review state | validation results, unresolved questions, reviewer status | What still needs a human decision? |
+
+This shape follows a useful distinction in the W3C provenance model: an output is an entity produced by an activity that used other entities. The names in your application can differ, but the chain should remain explicit ([W3C PROV Primer](https://www.w3.org/TR/prov-primer/)).
+
+Here is a complete sample packet with two extracted fields:
+
+```json
+{
+  "schema_version": "evidence.packet.v1",
+  "run_id": "run-001",
+  "created_at": "2026-08-23T12:00:00Z",
+  "workflow": {"name": "invoice-extract", "version": "1.4.0"},
+  "sources": [
+    {
+      "source_id": "doc-17",
+      "uri": "s3://governed/invoice-17.pdf",
+      "version": "2026-08-20",
+      "fetched_at": "2026-08-22",
+      "allowed": true,
+      "pages": [1, 2],
+      "content_hash": "sha256:fixture"
+    }
+  ],
+  "output": {
+    "vendor": {
+      "value": "Northwind",
+      "status": "supported",
+      "evidence": [{"source_id": "doc-17", "page": 1, "start": 0, "end": 18, "observed_value": "Northwind"}]
+    },
+    "total": {
+      "value": 1250.0,
+      "status": "supported",
+      "evidence": [{"source_id": "doc-17", "page": 2, "start": 40, "end": 57, "observed_value": 1250.0}]
+    }
+  },
+  "validation": [
+    {"check": "currency", "result": "pass"},
+    {"check": "line_items_sum", "result": "pass"}
+  ],
+  "unresolved_questions": [],
+  "review": {"status": "pending", "required": true}
+}
+```
+
+Use JSON Schema to make the required shape machine-checkable. JSON Schema is designed to describe JSON instances and apply constraints such as required properties and data types ([JSON Schema getting started guide](https://json-schema.org/learn/getting-started-step-by-step)). Keep semantic checks, such as whether the evidence actually supports the value, in a separate validator. A schema can require `evidence`; it cannot decide whether a page quote entails a number.
+
+## Why evidence belongs beside each field
+
+Document-level citations are useful for navigation. They are weak evidence for extraction because one document can contain ten prices, several dates, and a correction in a footnote.
+
+Attach evidence to the narrowest unit a reviewer may accept or reject. For an invoice, that usually means a field. For a classification, it may mean the label and the span that triggered it. For a summary, it may mean a sentence or claim.
+
+The source ID should be opaque. Let the model select `doc-17`, not invent a URL or a page number. Your resolver maps `doc-17` to the governed source record and checks the location. This turns a made-up citation into a detectable validation error.
+
+Use the selector that matches the source:
+
+| Source | Evidence location |
+| --- | --- |
+| PDF | 1-indexed page plus optional text span or quote |
+| Plain text | Character start and exclusive end, plus an optional exact quote |
+| HTML | Stable element or fragment plus a text quote and source version |
+| Image or scan | Page plus bounding box, OCR text, and extraction version |
+| Database row | Table or record ID, column, and snapshot version |
+
+The W3C Web Annotation model defines text quote selectors with exact text, prefix, and suffix, and position selectors with inclusive start and exclusive end positions. It also warns that position selectors are brittle when the resource changes, which is why the packet stores `version` and `content_hash` too ([Web Annotation Data Model](https://www.w3.org/TR/annotation-model/)). Provider APIs make similar distinctions. Anthropic documents PDF page ranges, plain-text character ranges, and custom-content block ranges for citations ([Claude citations documentation](https://docs.anthropic.com/en/docs/build-with-claude/citations)).
+
+## Make freshness and authorization part of validation
+
+Do not treat a resolvable source as an admissible source. A source can exist, be easy to fetch, and still be too old or outside the workflow's permission boundary.
+
+At minimum, validate these conditions before a packet reaches a reviewer:
+
+1. Every `source_id` resolves to exactly one source record.
+2. Every source record is authorized for this workflow and tenant.
+3. Every page, span, row, or bounding box is valid for the recorded source version.
+4. Every supported field has at least one evidence link.
+5. Evidence links for the same field do not report conflicting observed values.
+6. The source is inside the freshness window, or the field is explicitly marked `stale`.
+7. Failed validation checks and unresolved questions remain in the export.
+
+Google's grounding response model connects response segments to grounding chunks, source URIs, byte offsets, and, in some versions, confidence scores. Its grounding check also distinguishes cited chunks from claim-to-citation links and treats partially entailed claims as ungrounded ([Google GenerateContentResponse](https://cloud.google.com/vertex-ai/generative-ai/docs/reference/rest/v1/GenerateContentResponse), [Google grounding check](https://cloud.google.com/generative-ai-app-builder/docs/check-grounding)). That is the right mental model: a confidence number can support triage, but it cannot replace a resolvable source binding.
+
+If a field has no admissible evidence, do not silently return the value as supported. Return a value with `status: "missing"` or `status: "blocked"`, keep the unresolved question, and stop the downstream action when the field is required.
+
+## Give the reviewer a compact decision view
+
+The reviewer does not need every parser event first. They need the output, status, source location, and next decision in one row.
+
+The fixture renders this view from the sample packet:
+
+```text
+vendor | Northwind | supported | doc-17 p.1
+total | 1250.0 | supported | doc-17 p.2
+unresolved_questions | none
+```
+
+For a real packet, add the validation summary and an action column:
+
+| Field | Value | Status | Evidence | Next action |
+| --- | --- | --- | --- | --- |
+| `vendor` | Northwind | supported | doc-17 p.1 | accept |
+| `total` | 1250.0 | contradicted | doc-17 p.2, doc-18 p.2 | resolve source conflict |
+| `due_date` | null | missing | none | request document or escalate |
+
+Use status as a controlled vocabulary. `supported` means evidence exists and checks pass. `stale` means evidence resolves but is outside policy. `contradicted` means admissible evidence disagrees. `blocked` means the source is not authorized. `missing` means no usable evidence was attached. These states should drive workflow routing, not just badge colors.
+
+## Run source-binding tests before release
+
+The following Python 3.9 script uses only the standard library. It builds the sample packet, mutates one failure at a time, validates the packet, renders the reviewer rows, and checks that the exported JSON can be replayed.
+
+```python
+from copy import deepcopy
+from datetime import date
+import json
+
+TODAY = date(2026, 8, 23)
+STALE_AFTER_DAYS = 30
+
+def packet():
+    return {
+        "schema_version": "evidence.packet.v1", "run_id": "run-001",
+        "created_at": "2026-08-23T12:00:00Z",
+        "workflow": {"name": "invoice-extract", "version": "1.4.0"},
+        "sources": [{
+            "source_id": "doc-17", "uri": "s3://redacted/invoice-17.pdf",
+            "version": "2026-08-20", "fetched_at": "2026-08-22",
+            "allowed": True, "pages": [1, 2], "content_hash": "sha256:fixture"
+        }],
+        "output": {
+            "vendor": {"value": "Northwind", "status": "supported", "evidence": [
+                {"source_id": "doc-17", "page": 1, "start": 0, "end": 18, "observed_value": "Northwind"}
+            ]},
+            "total": {"value": 1250.0, "status": "supported", "evidence": [
+                {"source_id": "doc-17", "page": 2, "start": 40, "end": 57, "observed_value": 1250.0}
+            ]}
+        },
+        "validation": [{"check": "currency", "result": "pass"}],
+        "unresolved_questions": [], "review": {"status": "pending", "required": True}
+    }
+
+def validate(p):
+    errors, sources = [], {s["source_id"]: s for s in p["sources"]}
+    for field, item in p["output"].items():
+        evidence = item.get("evidence", [])
+        if not evidence:
+            errors.append(f"{field}: missing evidence")
+            continue
+        if len({json.dumps(e.get("observed_value"), sort_keys=True) for e in evidence}) > 1:
+            errors.append(f"{field}: contradictory evidence")
+        for e in evidence:
+            source = sources.get(e.get("source_id"))
+            if not source:
+                errors.append(f"{field}: unknown source")
+                continue
+            if not source["allowed"]:
+                errors.append(f"{field}: unauthorized source {source['source_id']}")
+            age = TODAY - date.fromisoformat(source["fetched_at"])
+            if age.days > STALE_AFTER_DAYS:
+                errors.append(f"{field}: stale source {source['source_id']}")
+            if e.get("page") not in source.get("pages", []):
+                errors.append(f"{field}: invalid page reference")
+    if any(v["result"] != "pass" for v in p["validation"]):
+        errors.append("validation: failed check")
+    return errors
+
+def reviewer_view(p):
+    rows = []
+    for field, item in p["output"].items():
+        refs = ", ".join(f"{e['source_id']} p.{e['page']}" for e in item.get("evidence", [])) or "none"
+        rows.append(f"{field} | {item['value']} | {item['status']} | {refs}")
+    rows.append("unresolved_questions | " + ("; ".join(p["unresolved_questions"]) or "none"))
+    return rows
+
+checks = {}
+happy = packet()
+checks["happy_path"] = not validate(happy) and len(reviewer_view(happy)) == 3
+missing = deepcopy(happy)
+missing["output"]["total"]["evidence"] = []
+checks["missing_evidence"] = "total: missing evidence" in validate(missing)
+stale = deepcopy(happy)
+stale["sources"][0]["fetched_at"] = "2026-06-01"
+checks["stale_source"] = "total: stale source doc-17" in validate(stale)
+contradictory = deepcopy(happy)
+contradictory["sources"].append({**contradictory["sources"][0], "source_id": "doc-18"})
+contradictory["output"]["total"]["evidence"].append(
+    {"source_id": "doc-18", "page": 2, "start": 40, "end": 57, "observed_value": 1300.0})
+checks["contradictory_evidence"] = "total: contradictory evidence" in validate(contradictory)
+unauthorized = deepcopy(happy)
+unauthorized["sources"][0]["allowed"] = False
+checks["unauthorized_source"] = "vendor: unauthorized source doc-17" in validate(unauthorized)
+exported = json.dumps(happy, sort_keys=True, indent=2)
+checks["replayable_export"] = json.loads(exported) == happy
+assert all(checks.values()), checks
+print(json.dumps({"tests": {k: "pass" for k in checks},
+                  "reviewer_view": reviewer_view(happy),
+                  "export_round_trip": "pass"}, indent=2))
+```
+
+The script checks source binding, not truth in the abstract. Add domain checks for totals, dates, units, required fields, and semantic entailment. Keep those results in the packet so a reviewer can tell the difference between “the model returned a value,” “the value matched a source span,” and “the value passed a business rule.”
+
+This is also where provider adapters belong. Some APIs return citations as interleaved response blocks and do not allow them inside strict structured output. Keep the provider response as an input to your resolver, then emit your own packet contract. Your workflow should not make the reviewer learn six provider-specific citation formats.
+
+Before you ship, replay the export with the source resolver unavailable. If the packet still identifies the source version, location, validation outcome, and unresolved questions, the reviewer has a durable record. If it only contains a URL and a confidence score, it is a pointer, not evidence.
+
+For the broader run-level record, see [How to Add an Audit Trail to an AI Workflow](/blog/how-to-add-an-audit-trail-to-an-ai-workflow). For the scope decision that precedes this implementation, start with [How Do I Scope an AI Agent Proof of Concept?](/blog/how-to-scope-an-ai-agent-proof-of-concept), then use [How to Evaluate an AI Agent](/blog/how-to-evaluate-an-ai-agent) when this evidence gate becomes part of a release decision.
+
+If your team is deciding what to build first, Marius Manolachi's [AI product coaching and consulting](/learn-ai) is the next step. The useful handoff is the packet, the tests, and the unresolved questions, not a polished screenshot.
