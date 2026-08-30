@@ -1,0 +1,248 @@
+---
+title: 'Why Does Valid JSON Still Break My AI Workflow?'
+date: '2026-08-30'
+updated: '2026-08-30'
+excerpt: 'Valid JSON can still contain wrong, unsupported, or unsafe values. Reproduce the first failing invariant and validate before side effects.'
+answer: 'Valid JSON only proves that a parser can read the text. Your AI workflow still needs JSON Schema checks, cross-field semantic validation, evidence or provenance checks, and business-rule validation before execution. Parsing may be enough for read-only display when nothing downstream makes decisions or causes side effects. Otherwise treat the object as an untrusted proposal.'
+targetQuery: 'why does valid JSON still break my AI workflow'
+queryAliases:
+  - 'valid JSON breaks AI workflow'
+  - 'schema-valid JSON still fails'
+  - 'why does JSON pass parsing but fail workflow logic'
+  - 'JSON Schema valid but business logic fails'
+intent: 'failure diagnosis and implementation'
+funnel: 'consideration'
+cluster: 'implementation'
+parent: '/blog/how-to-scope-an-ai-agent-proof-of-concept'
+contentType: 'decision-tool'
+kind: 'satellite'
+sourceableAtom: 'In a seven-case extraction fixture, six initial cases stopped at their first failing invariant after parsing, schema, semantic, provenance, or business validation; a repaired case passed on replay, and only that replay reached the recorded side-effect boundary.'
+evidenceType: 'failure-reproduction'
+evidenceBasis: 'A provider-neutral Node.js v24.11.1 fixture using the local Ajv dependency was run on 2026-08-23 against seven synthetic refund-extraction outputs. It captured raw strings, first-failing validator stages, a before-and-after repair replay, business-rule results, and a negative side-effect test.'
+tags:
+  - 'AI implementation'
+  - 'AI reliability'
+  - 'JSON Schema'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-21'
+sources:
+  - 'https://www.rfc-editor.org/rfc/rfc8259'
+  - 'https://json-schema.org/draft/2020-12/json-schema-validation'
+  - 'https://developers.openai.com/api/docs/guides/structured-outputs'
+  - 'https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html'
+  - 'https://cheatsheetseries.owasp.org/cheatsheets/Business_Logic_Security_Cheat_Sheet.html'
+faq:
+  - q: 'Do Structured Outputs solve valid JSON workflow failures?'
+    a: 'They solve more than JSON mode by enforcing the supplied response schema on supported paths, but they do not verify that an ID exists, two fields agree, evidence supports a claim, or a requested action is allowed. Keep application validation after the model response.'
+  - q: 'Should I retry when JSON validation fails?'
+    a: 'Retry only when the failure is plausibly transient and the retry has a bounded budget. Preserve the original output and failure stage, then validate the replacement from the beginning. Never retry around a deterministic business-rule failure and then execute the same invalid value.'
+  - q: 'Where should the side-effect check happen?'
+    a: 'At the application boundary that owns the write or external action. Pass it a normalized, fully validated proposal plus authorization and idempotency context. A parser, model SDK, or schema validator should not be the final permission to execute.'
+cover: '/blog/why-does-valid-json-still-break-my-ai-workflow-valid-json-workflow-hero.webp'
+coverAlt: 'Illustration of valid JSON moving through semantic and business validators before an AI workflow side effect'
+draft: false
+---
+
+The response can parse cleanly and still refund the wrong order, cite a claim the source never made, or ask for an amount the business cannot allow.
+
+When I teach product managers who move from writing specs to building and shipping products, the missing piece is often a concrete definition of done. The same thing happens here. “It returned JSON” describes a format, not a completed workflow. [My AI learning work](https://mariusmanolachi.com/learn-ai) treats that boundary as part of the product.
+
+A small, provider-neutral fixture makes the gap visible. It contains seven extractor outputs, including malformed JSON, a schema failure, schema-valid semantic errors, an unsupported claim, and a business-rule violation.
+
+| Fixture | First failing invariant | Reached side effect? |
+| --- | --- | --- |
+| `syntax-invalid` | `json_parse` | No |
+| `schema-invalid` | `schema_conformance` | No |
+| `schema-valid-unknown-order` | `order_exists` | No |
+| `schema-valid-contradiction` | `action_matches_eligibility` | No |
+| `schema-valid-unsupported-claim` | `claim_supported_by_source` | No |
+| `schema-valid-business-rule` | `refund_within_remaining_balance` | No |
+| `needs-repair`, replayed after correction | All checks passed | Yes, once |
+
+That table is the useful result. The first two failures are format problems. The next four are workflow problems that a parser cannot see.
+
+![Illustration of an AI extraction result moving through syntax, schema, semantic, provenance, and business validators before a side effect](/blog/why-does-valid-json-still-break-my-ai-workflow-valid-json-validator-trace.webp)
+
+## Parsing answers only one question
+
+Parsing answers: “Can this string be interpreted as JSON?” It does not answer: “Should my application trust the values?”
+
+[RFC 8259](https://www.rfc-editor.org/rfc/rfc8259) defines JSON as a text format with a small grammar for structured data. A parser checks that grammar. It catches a trailing comma, an unclosed string, or an invalid literal.
+
+That is useful. It is also a low bar.
+
+This fixture failed its syntax case on a trailing comma:
+
+```json
+{"action":"refund","orderId":"ord-1001","refundEligible":true,"refundAmount":20,"currency":"EUR","evidence":[],}
+```
+
+Node reported `Expected double-quoted property name in JSON at position 111`. The workflow stopped before any other interpretation took place.
+
+Keep the raw string and the parser error. If you overwrite the response with a cleaned object, you lose the evidence needed to diagnose whether the extractor, transport, or repair step introduced the defect.
+
+There is another syntax edge case worth logging: duplicate object keys. RFC 8259 says object names should be unique and warns that implementations can disagree about duplicate names. One parser may keep the last value. Another may reject the object. If a field controls an action, reject duplicates or canonicalize them before the workflow sees the object.
+
+## JSON Schema answers whether the shape fits
+
+JSON Schema catches a different class of errors: required fields, types, enums, bounds, and allowed properties. It still does not establish that the values describe the right real-world state.
+
+The [JSON Schema validation specification](https://json-schema.org/draft/2020-12/json-schema-validation) defines validation keywords as requirements for an instance and notes that structural validation alone may be insufficient for an application to use values correctly. That is the seam where most “valid JSON broke my workflow” incidents begin.
+
+The fixture's schema required `currency`. This object parses, but it fails the contract:
+
+```json
+{
+  "action": "refund",
+  "orderId": "ord-1001",
+  "refundEligible": true,
+  "refundAmount": 20,
+  "evidence": []
+}
+```
+
+The validator returned `schema_conformance` and did not run semantic or business checks. That first-failure record matters. If a later validator also reports “missing currency,” you want one owner and one repair path, not a pile of duplicate symptoms.
+
+[OpenAI's Structured Outputs documentation](https://developers.openai.com/api/docs/guides/structured-outputs) makes a similar distinction between JSON mode and schema-constrained output: both can produce valid JSON, while Structured Outputs also target adherence to the supplied schema. That is a better contract for typed model responses. It is not a business authorization system.
+
+## The first workflow invariant lives outside the schema
+
+The first semantic invariant is usually a relationship among fields or between the output and authoritative application state.
+
+In the fixture, this object is valid JSON and conforms to the schema:
+
+```json
+{
+  "action": "refund",
+  "orderId": "ord-9999",
+  "refundEligible": true,
+  "refundAmount": 20,
+  "currency": "EUR",
+  "evidence": [{"sourceId":"ticket-7","claimId":"duplicate_charge_confirmed"}]
+}
+```
+
+But `ord-9999` is not in the order store. The first failing invariant is `order_exists`.
+
+A second output names a real order but contradicts itself:
+
+```json
+{
+  "action": "refund",
+  "orderId": "ord-1001",
+  "refundEligible": false,
+  "refundAmount": 20,
+  "currency": "EUR",
+  "evidence": [{"sourceId":"ticket-7","claimId":"duplicate_charge_confirmed"}]
+}
+```
+
+The first failure is `action_matches_eligibility`. The object is not missing a field. It is saying two incompatible things.
+
+[OWASP's input-validation guidance](https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html) recommends syntactic and semantic validation. Its examples include relationships such as a start date preceding an end date and a price staying within a meaningful range. For an AI workflow, the same rule applies to IDs, dates, statuses, amounts, permissions, and references.
+
+Treat these checks as code, not prompt instructions. A prompt can ask for an existing order ID. Only your application can check the order store.
+
+## Evidence claims need their own validator
+
+A value can have the right type and still claim more than the source supports.
+
+The fixture allowed an evidence item with a `sourceId` and `claimId`. The source record `ticket-7` supports `duplicate_charge_confirmed`. It does not support `customer_promised_refund`.
+
+```json
+{
+  "action": "refund",
+  "orderId": "ord-1001",
+  "refundEligible": true,
+  "refundAmount": 20,
+  "currency": "EUR",
+  "evidence": [{"sourceId":"ticket-7","claimId":"customer_promised_refund"}]
+}
+```
+
+The first failure is `claim_supported_by_source`, not JSON syntax, schema conformance, or refund balance.
+
+This is why a field called `confidence`, `reason`, or `evidence` should not be treated as proof by its presence. Define the allowed claim identifiers, verify them against the source record, and keep the source version or hash when the workflow needs auditability. Free-form explanations can help a reviewer, but they should not silently authorize an action.
+
+## Put validators in a fail-closed sequence
+
+The application should admit a result only after each layer passes. A compact version looks like this:
+
+```js
+function admit(raw, context) {
+  const value = parseJson(raw);                       // syntax
+  validateSchema(value);                              // shape
+  requireOrder(value.orderId, context.orders);       // reference
+  requireConsistentFields(value);                    // semantics
+  requireSupportedEvidence(value, context.sources);  // provenance
+  requireBusinessRules(value, context.orders);       // policy
+
+  return { decision: 'allow', normalized: value };
+}
+
+function executeRefund(proposal) {
+  // This function is unreachable for a rejected proposal.
+  return refunds.create(proposal.orderId, proposal.refundAmount);
+}
+```
+
+In production, each function should return a stable error code, stage, detail, and rule version. The important design choice is the boundary: `executeRefund` accepts a normalized proposal, not raw model text.
+
+Do not let a generic “validation failed” response hide the first invariant. The first failure points to the smallest repairable unit and makes retries safer. A syntax repair might be a bounded parser retry. An unknown order is a data or reference problem. An unsupported claim needs new evidence or a reviewer. A business-rule violation needs a business decision.
+
+## Business rules decide whether a valid proposal may act
+
+Business validation asks whether the requested operation is allowed in the current state. It is not a stricter spelling of JSON Schema.
+
+The fixture uses two rules that the schema cannot express:
+
+| Rule | Authoritative data | Rejection example |
+| --- | --- | --- |
+| Currency must match the order | Order record | Output says `USD`, order says `EUR` |
+| Refund must not exceed remaining balance | Order total minus previous refunds | Output requests `90`, remaining balance is `80` |
+
+The second case passed JSON parsing, schema validation, reference checks, and evidence checks. It stopped at `refund_within_remaining_balance`.
+
+[OWASP's business-logic guidance](https://cheatsheetseries.owasp.org/cheatsheets/Business_Logic_Security_Cheat_Sheet.html) describes a business-logic flaw as code that follows its local instructions while failing to match what the business needs. It recommends explicit invariants and tests for the rules, not only tests of individual functions. That is the right mental model for AI outputs: the model proposes a state transition; the application decides whether that transition is legal.
+
+Never “repair” a financial or permission value by making it smaller until the validator passes. A repair is safe only when it is deterministic and lossless, or when an authorized person explicitly changes the proposal. Otherwise reject or hold it.
+
+## Replay repaired output from the beginning
+
+The fixture's `needs-repair` case requested `90` from an `80` remaining balance. Before repair:
+
+```text
+decision: reject
+stage: business
+invariant: refund_within_remaining_balance
+detail: requested 90, remaining 80
+sideEffect: not_called
+```
+
+The test setup corrected the amount to `80`, then replayed the complete validator sequence. The replay passed and recorded one effect:
+
+```text
+decision: allow
+sideEffect: refund(ord-1002, 80)
+```
+
+Replaying from the beginning matters. If you resume after the failed business check, a repaired value can bypass a changed schema, stale evidence, or a revoked permission. A replay also gives you a clean before-and-after trace.
+
+The negative test was simple: every initial invalid case had `sideEffect: not_called`. The only effect was `refund(ord-1002, 80)` after the corrected value passed every layer. That proves the fixture's boundary. It does not prove your production boundary. Copy the test and run it against your own executor.
+
+```text
+negativeTest: invalid_semantics_cannot_reach_side_effect_boundary
+passed: true
+```
+
+## When parsing really is enough
+
+Parsing may be sufficient for a low-risk read path that only displays text, has no cross-field decisions, uses no protected references, and cannot trigger a write, message, payment, or tool call. Even then, handle provider refusals and incomplete responses explicitly. OpenAI documents both states in its structured-output guidance.
+
+The exception disappears as soon as another component makes a decision. A classification result that chooses a queue needs allowed labels and routing rules. An extracted customer ID needs an existence and ownership check. A draft email needs recipient, content, and approval checks before sending.
+
+If you are unsure which layer owns a failure, save the raw output and answer one question: **what was the first invariant this value violated?** That is the next validator you need.
+
+For a broader choice between typed responses and executable tools, read [when to use Structured Outputs vs Function Calling](/blog/when-should-i-use-structured-outputs-vs-function-calling). For validation before a workflow begins, see [how to validate AI agent inputs before a run](/blog/how-to-validate-ai-agent-inputs-before-a-run). If you are deciding whether this workflow deserves an agent pilot, start with [How Do I Scope an AI Agent Proof of Concept?](/blog/how-to-scope-an-ai-agent-proof-of-concept).
+
+If your team can already name one failing invariant, the next step is small: turn that failure into a fixture, put the validator before the side-effect boundary, and make the repaired replay part of the test suite.
