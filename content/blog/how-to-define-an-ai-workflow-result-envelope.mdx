@@ -1,0 +1,245 @@
+---
+title: 'How to Define an AI Workflow Result Envelope'
+date: '2026-08-30'
+updated: '2026-08-30'
+excerpt: 'Define and validate a provider-neutral AI workflow result envelope with typed output, acceptance checks, side-effect policy, and explicit failure routing.'
+answer: 'Define an AI workflow result envelope as a versioned object that carries the task identity, contract version, status, typed output, failure code, and acceptance checks. Validate it immediately after the model or tool returns, then check policy before handoff or any side effect. The exception is high-impact work, which still needs human approval when the envelope passes.'
+targetQuery: 'how to define an AI workflow result envelope'
+queryAliases:
+  - 'AI workflow result envelope'
+  - 'typed AI workflow result'
+  - 'AI workflow result validation'
+intent: 'informational, practical implementation'
+funnel: 'consideration'
+cluster: 'implementation'
+parent: '/blog/how-to-scope-an-ai-agent-proof-of-concept'
+contentType: 'decision-tool'
+kind: 'satellite'
+sourceableAtom: 'A copy-paste task contract and boundary test that joins identity, input/output schemas, execution policy, acceptance checks, and failure routing. The local run accepted a valid result, rejected an output missing dueDate, and rejected an unknown result status.'
+evidenceType: 'reproducible-artifact + bounded-local-observation'
+evidenceBasis: 'Node.js v24.11.1 and Ajv 6.12.6 ran the contract fixture on 2026-08-23. The observed result is validator behavior, not a model benchmark or production outcome.'
+tags:
+  - 'AI workflows'
+  - 'Implementation'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-21'
+sources:
+  - 'https://json-schema.org/specification'
+  - 'https://json-schema.org/learn/getting-started-step-by-step'
+  - 'https://developers.openai.com/api/docs/guides/structured-outputs'
+  - 'https://developers.openai.com/api/docs/guides/function-calling'
+  - 'https://modelcontextprotocol.io/specification/2025-06-18/server/tools'
+  - 'https://airc.nist.gov/airmf-resources/airmf/5-sec-core/'
+faq:
+  - q: 'Is a typed task contract the same as structured output?'
+    a: 'No. Structured output controls the shape of one model response. A task contract also records the task identity, version, allowed actions, acceptance checks, and failure route that govern what happens before and after that response.'
+  - q: 'Where should an AI workflow validate its task contract?'
+    a: 'Validate the request at the step boundary, the model or tool result immediately after it returns, and the accepted result again before an external side effect. A passing schema never replaces an approval rule for a consequential action.'
+  - q: 'What should happen when the AI output is invalid?'
+    a: 'Return a typed failure or needs_review result. You may allow one bounded repair attempt for a formatting error, but route repeated invalid output, timeouts, and tool failures to a human or deterministic fallback.'
+cover: '/blog/how-to-define-an-ai-workflow-result-envelope-typed-task-contract-hero.webp'
+coverAlt: 'Illustration of an AI workflow result envelope connecting typed output, acceptance checks, and a review gate'
+draft: false
+---
+
+An AI workflow can pass a string from one step to the next and still have no agreement about what that string means. The failure usually appears later, when a missing field reaches a tool, a draft is treated as a decision, or nobody knows whether a retry is safe.
+
+When I taught product managers who moved from writing specifications to building and shipping products, the recurring obstacle was often an undefined definition of done. That is the locked `F-pms` observation in Marius Manolachi's entity facts, not a measured study. A typed task contract makes that definition concrete before the model runs.
+
+The artifact in this post is a small contract for a meeting follow-up step. Its local validator produced this result:
+
+| Fixture | Result | What crossed the boundary |
+| --- | --- | --- |
+| Complete contract and result | `ACCEPTED` | The result had the required fields and a known status. |
+| Action missing `dueDate` | `OUTPUT_SCHEMA_INVALID` | The nested output schema rejected the result. |
+| Result status `done` | `RESULT_SHAPE_INVALID` | The result envelope rejected an unknown lifecycle value. |
+
+That table is the sourceable artifact here. It is not a model benchmark. The method and limits are below.
+
+## What should a typed task contract own?
+
+A task contract should own everything the next workflow step needs to decide whether it may continue: identity, data shape, authority, acceptance, and failure behavior.
+
+JSON Schema gives you the runtime vocabulary for types and constraints. Its current specification is 2020-12, and its validation guide describes how `type`, `properties`, and `required` constrain JSON instances ([JSON Schema specification](https://json-schema.org/specification), [JSON Schema getting-started guide](https://json-schema.org/learn/getting-started-step-by-step)). Use that vocabulary for the data crossing the boundary, then add the operating rules around it.
+
+| Contract section | Question it answers | Example |
+| --- | --- | --- |
+| Identity | Which task and contract version is this? | `meeting_follow_up`, `1.0` |
+| Input schema | What may this step receive? | An approved transcript string |
+| Output schema | What must the result contain? | Summary, action description, owner, due date |
+| Execution policy | What may it read or change? | Read `transcript.read`; proposal only; two attempts |
+| Acceptance checks | What makes the result usable? | Required fields exist; review is required before a write |
+| Failure policy | What happens when it cannot comply? | Reject, retry once, then route to review |
+
+Do not put only the prompt in the contract. A prompt explains intent to a model. The contract gives the workflow a machine-checkable boundary.
+
+The shape also maps cleanly to existing tool protocols. Model Context Protocol tool definitions include `inputSchema` and an optional `outputSchema`, and its specification says clients should validate structured results when an output schema exists ([MCP tools specification](https://modelcontextprotocol.io/specification/2025-06-18/server/tools)). OpenAI's Structured Outputs documentation makes a similar distinction for model responses: the response can be constrained by a supplied JSON Schema ([OpenAI Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs)). Those features solve schema enforcement. Your task contract still needs policy and failure fields.
+
+## How do you type the contract?
+
+Start with generic input and output types, then keep the runtime schemas beside them. Static types help the code you compile. Runtime schemas protect the boundary from model text, network responses, old workers, and other data that did not pass through your compiler.
+
+```ts
+type JsonSchema = Record<string, unknown>;
+type SideEffectMode = "none" | "proposal" | "approved";
+type TaskStatus = "succeeded" | "needs_review" | "failed";
+
+type TaskContract<I, O> = {
+  contractVersion: string;
+  taskType: string;
+  purpose: string;
+  inputSchema: JsonSchema;
+  outputSchema: JsonSchema;
+  policy: {
+    allowedTools: readonly string[];
+    sideEffectMode: SideEffectMode;
+    maxAttempts: number;
+    timeoutMs: number;
+  };
+  acceptance: readonly {
+    id: string;
+    severity: "block" | "warn";
+    check: string;
+  }[];
+  failure: {
+    invalidInput: "reject";
+    invalidOutput: "repair_once_then_review";
+    toolError: "retry_once_then_review";
+    timeout: "needs_review";
+  };
+};
+
+type TaskResult<O> = {
+  taskId: string;
+  runId: string;
+  contractVersion: string;
+  status: TaskStatus;
+  output: O | null;
+  failureCode: string | null;
+  checks: readonly string[];
+};
+```
+
+`JsonSchema` above is intentionally an interface in the example. In a real TypeScript project, import the schema type from the validator or provider library you use, and make the schema the runtime source of truth. OpenAI specifically recommends native Zod or Pydantic support, or a check that prevents types and schemas from drifting ([OpenAI's schema guidance](https://developers.openai.com/api/docs/guides/structured-outputs)).
+
+For a first workflow step, keep the contract data boring and explicit:
+
+```json
+{
+  "contractVersion": "1.0",
+  "taskType": "meeting_follow_up",
+  "purpose": "Turn an approved transcript into a reviewable action list.",
+  "inputSchema": {
+    "type": "object",
+    "required": ["transcript"],
+    "properties": { "transcript": { "type": "string" } },
+    "additionalProperties": false
+  },
+  "outputSchema": {
+    "type": "object",
+    "required": ["summary", "actions", "reviewRequired"],
+    "properties": {
+      "summary": { "type": "string", "minLength": 1 },
+      "actions": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["description", "owner", "dueDate"],
+          "properties": {
+            "description": { "type": "string", "minLength": 1 },
+            "owner": { "type": ["string", "null"] },
+            "dueDate": { "type": ["string", "null"] }
+          },
+          "additionalProperties": false
+        }
+      },
+      "reviewRequired": { "type": "boolean" }
+    },
+    "additionalProperties": false
+  },
+  "policy": {
+    "allowedTools": ["transcript.read"],
+    "sideEffectMode": "proposal",
+    "maxAttempts": 2,
+    "timeoutMs": 30000
+  },
+  "acceptance": [
+    { "id": "required_fields", "severity": "block", "check": "Every action has description, owner, and dueDate." },
+    { "id": "human_review", "severity": "block", "check": "reviewRequired is true before any external write." }
+  ],
+  "failure": {
+    "invalidInput": "reject",
+    "invalidOutput": "repair_once_then_review",
+    "toolError": "retry_once_then_review",
+    "timeout": "needs_review"
+  }
+}
+```
+
+If you use OpenAI strict function calling, its current guidance requires `additionalProperties: false` for each object and requires every property to be marked required. Optional values are represented with a nullable type ([OpenAI function calling](https://developers.openai.com/api/docs/guides/function-calling)). That is a provider rule, not a universal rule for every validator, so keep provider adapters separate from the core contract.
+
+## Where should validation happen?
+
+Validate three times: before execution, immediately after the model or tool returns, and again before an external side effect.
+
+1. **Before the run:** validate the task envelope, contract version, input schema, data boundary, and allowed tool set. Reject an unknown contract version instead of guessing how to interpret it.
+2. **After the model or tool returns:** validate the result envelope, then the output schema. A JSON object with the wrong fields is still a failed result.
+3. **Before the side effect:** run acceptance checks, confirm the required human role, and verify that `sideEffectMode` permits the action. A result can be structurally valid and still require review.
+
+The last gate matters most when the workflow writes to a CRM, sends a message, changes a record, or makes a consequential recommendation. NIST's AI Risk Management Framework treats governance, context, measurement, and management as lifecycle work. It calls for documented roles and human oversight, and says AI systems should be tested before deployment and regularly while operating ([NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/)). A schema is one control inside that process, not the process itself.
+
+The practical runner can stay small:
+
+```ts
+const request = validateInput(envelope.input);
+if (!request.ok) return fail("INVALID_INPUT");
+
+const raw = await runModelOrTool(envelope, contract.policy);
+const result = validateResultEnvelope(raw);
+if (!result.ok) return fail("RESULT_SHAPE_INVALID");
+
+if (result.status === "succeeded" && !validateOutput(result.output)) {
+  return needsReview("OUTPUT_SCHEMA_INVALID");
+}
+
+if (!runAcceptanceChecks(result, contract.acceptance)) {
+  return needsReview("ACCEPTANCE_CHECK_FAILED");
+}
+
+if (contract.policy.sideEffectMode !== "approved") {
+  return needsReview("APPROVAL_REQUIRED");
+}
+
+return result;
+```
+
+That order prevents a successful parse from being mistaken for permission to act.
+
+![Illustration of an AI workflow stopping at input validation, output validation, acceptance checks, and approval](/blog/how-to-define-an-ai-workflow-result-envelope-typed-task-contract-gates.webp)
+
+## How should the contract route failures?
+
+Use a small, closed set of result statuses and failure codes. A free-text error message is useful for a person, but it is a poor routing interface for the next step.
+
+| Failure | Return | Safe default |
+| --- | --- | --- |
+| Input does not match the contract | `failed` with `INVALID_INPUT` | Do not call the model or tools. |
+| Output misses a required field | `needs_review` with `OUTPUT_SCHEMA_INVALID` | Allow one bounded repair only if the task is reversible. |
+| Tool call fails | `needs_review` with `TOOL_ERROR` after the retry limit | Retry only when the tool operation is safe to repeat. |
+| Deadline expires | `needs_review` with `TIMEOUT` | Do not assume the model finished. |
+| Acceptance rule fails | `needs_review` with `ACCEPTANCE_CHECK_FAILED` | Preserve the output for review; do not pass it downstream. |
+| Approval is required | `needs_review` with `APPROVAL_REQUIRED` | Keep the result as a proposal. |
+
+The principal exception is high-impact work. Even a result that passes the schema and acceptance checks should stop for human approval when a wrong action could create a material legal, financial, safety, employment, or customer consequence. Put that exception in the policy and acceptance data, not in a paragraph that the worker may never read.
+
+This is also where the contract connects to the implementation plan. Before you build one, use [how to scope an AI agent proof of concept](/blog/how-to-scope-an-ai-agent-proof-of-concept) to make sure the workflow has an owner, a checkable outcome, and a safe action boundary. For the narrower question of what “done” means, see [how to write acceptance criteria for an AI feature](/blog/how-to-write-acceptance-criteria-for-an-ai-feature).
+
+## What did the local test actually show?
+
+The validator run showed that the contract can distinguish a usable result from two different boundary failures: a nested output omission and an unknown lifecycle state.
+
+The method was deliberately small. I used Node.js v24.11.1 and Ajv 6.12.6 on 2026-08-23. The fixture validated a meeting follow-up contract, then ran one complete success, one action without `dueDate`, and one result with status `done`. The exact output is recorded in the research artifact for this post.
+
+The test did not call a model. It says nothing about whether a model identifies the right action, assigns the right owner, or handles an ambiguous transcript. It also does not enforce authentication, tool permissions, data retention, or approval UI. Those controls belong around the contract.
+
+Start with one workflow step. Version the contract. Validate at the boundary. Keep side effects in proposal mode until the owner can explain the acceptance checks and the failure path. If your team wants help learning to build and evaluate this kind of workflow on its own work, [learn more about working with Marius Manolachi](/learn-ai). The contract remains yours to run and maintain.
