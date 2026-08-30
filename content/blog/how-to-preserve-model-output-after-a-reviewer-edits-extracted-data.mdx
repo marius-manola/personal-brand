@@ -1,0 +1,221 @@
+---
+title: 'How to Preserve Model Output After a Reviewer Edits Extracted Data'
+date: '2026-08-31'
+updated: '2026-08-31'
+excerpt: 'Build a human correction queue that preserves AI output, captures edits and reasons, rejects stale reviews, and blocks downstream writes until approval.'
+answer: 'Build the workflow around a durable review record with a unique submission key, an immutable original output, a separate edited result, reason codes, and an optimistic review version. Let reviewers approve, reject, or correct that record. The principal exception is a low-risk read-only workflow where no external state changes, because a write gate is still required for anything consequential.'
+targetQuery: 'how to preserve model output after a reviewer edits extracted data'
+queryAliases:
+  - 'how to preserve original AI extraction after manual edits'
+  - 'how to store model output and human corrections separately'
+  - 'how to make corrected AI extraction replayable'
+  - 'how to version human edits to extracted data'
+intent: 'implementation'
+funnel: 'consideration'
+cluster: 'implementation'
+parent: '/blog/how-to-scope-an-ai-agent-proof-of-concept'
+contentType: 'decision-tool'
+kind: 'satellite'
+sourceableAtom: 'A dependency-free SQLite correction queue run on 2026-08-23 passed six tests: duplicate submission reused one item ID, a stale reviewer was rejected, original and edited outputs coexisted, disagreement became an event, rejection blocked the downstream write, and exactly one side effect appeared after approval.'
+evidenceType: 'build-measurement'
+evidenceBasis: 'A standard-library Python and SQLite demo was run in a clean environment on 2026-08-23 with a deterministic invoice extractor, sample review actions, replay export, and six tests for duplicate, stale, corrected, rejected, disagreement, and final-write behavior.'
+tags:
+  - 'AI implementation'
+  - 'AI workflows'
+  - 'Human review'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-21'
+sources:
+  - 'https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status/202'
+  - 'https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html'
+  - 'https://www.postgresql.org/docs/current/sql-select.html'
+  - 'https://openai.github.io/openai-agents-python/human_in_the_loop/'
+  - 'https://developers.openai.com/api/docs/guides/structured-outputs'
+  - 'https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence'
+faq:
+  - q: 'Should the corrected output replace the model output?'
+    a: 'No. Keep the model output immutable and store the corrected result beside it. That preserves what the system produced, what the reviewer changed, and which reason code explains the change.'
+  - q: 'Can a high-confidence extraction skip the correction queue?'
+    a: 'Only when the action is read-only or a separate evaluation has shown that the risk is acceptable. Confidence should route work; it should not silently grant permission to write external state.'
+cover: '/blog/how-to-preserve-model-output-after-a-reviewer-edits-extracted-data-hero.webp'
+coverAlt: 'Illustration of an AI extraction workflow moving from automatic output through correction review to a protected downstream write'
+draft: false
+---
+
+An approval checkbox tells you what a reviewer decided. It does not tell you what the model got wrong or what the reviewer changed.
+
+I built a small invoice-extraction workflow to make that distinction concrete. The model returns `102.0`; the source says `120.00`; the reviewer corrects it, records `wrong_total`, and the workflow still writes nothing until a separate approval action.
+
+When I taught product managers who moved from writing specifications to building and shipping products, the recurring gap was not a clever prompt. It was being able to say what done meant. ([My AI consulting work](/learn-ai) is built around that shift.)
+
+## What did the correction queue prove?
+
+The provider-free run passed six tests in a clean environment with zero dependencies. It preserved the original extraction, captured the correction, rejected a stale review, recorded disagreement, blocked a rejected item, and produced exactly one downstream side effect after final approval.
+
+| Check | Observed result |
+| --- | --- |
+| Duplicate submission | The repeated idempotency key returned the original item ID |
+| Stale review | `expected version 0, found 1`; no mutation and no side effect |
+| Correction | Original `total: 102.0` stayed intact beside edited `total: 120.0` |
+| Reviewer disagreement | An immutable event stored `reviewer_disagreement` |
+| Rejection | State became `rejected`; the write gate raised `NotApproved` |
+| Final approval | Receipt `record-001`; side-effect count was `0` before approval and `1` after |
+
+![Illustration of a correction queue preserving original and edited extraction values across explicit review states](/blog/how-to-preserve-model-output-after-a-reviewer-edits-extracted-data-inline-1.webp)
+
+The result is small, but it answers the important implementation question: a correction queue is not a place to park work. It is a stateful record of what the workflow produced, what a person changed, why they changed it, and whether the corrected result is allowed to leave the system.
+
+## Which correction pattern fits your workflow?
+
+Use the smallest design that protects the consequence. If the workflow can change external state, keep approval separate from correction. If duplicate delivery or concurrent review is possible, add the corresponding identity and version controls.
+
+| Your condition | Minimum design | Why it is enough | Add the full queue when |
+| --- | --- | --- | --- |
+| Read-only result, no external write | Original output plus edited output | There is no side effect to protect | You need corrections as evaluation or replay data |
+| One reviewer, consequential write | Versioned review record plus explicit approval | Correction and permission stay separate | Retries or duplicate submissions can occur |
+| Multiple reviewers or browser tabs | The previous design plus expected-version checks | A stale action cannot overwrite a newer decision | Reviewer disagreement must be retained |
+| Retries, queue redelivery, or external APIs | The previous design plus a unique submission key and idempotent write | One source event cannot create repeated work or receipts | You need a reusable replay export |
+
+The decision rule is therefore: require an approval state for every consequential write, require a dedupe key whenever delivery can repeat, require an expected version whenever two actors can review the same item, and retain ordered events whenever a correction may teach or explain the workflow later. A low-risk read-only path can stop at the first row. Do not add approval ceremony to it just to imitate a higher-risk workflow.
+
+## What should the queue record?
+
+Store the source and both versions of the output in one review record. Add a unique submission key and a review version so retries and concurrent reviewers cannot create an untraceable write.
+
+```text
+items
+  id                  stable review item ID
+  dedupe_key          unique source or event key
+  source_text         input reference or protected input
+  original_output     immutable model result
+  edited_output       nullable reviewer result
+  state               automatic | review | corrected | rejected | approved
+  version             optimistic concurrency number
+  reason_codes        machine-readable correction or rejection reasons
+  downstream_ref      null until the protected write succeeds
+
+events
+  seq, item_id, action, actor
+  from_state, to_state, expected_version, new_version, payload
+```
+
+The `original_output` field must never be updated by a reviewer action. The `edited_output` field may be written once per correction revision, while the event log explains each action. If a reviewer needs to change a previous correction, create another event and another edited revision rather than erasing history.
+
+This gives the queue a useful state vocabulary:
+
+| State | Meaning | Can it write downstream? |
+| --- | --- | --- |
+| `automatic` | Extraction exists, but no human decision has been recorded | No |
+| `review` | A reviewer can inspect the source and model result | No |
+| `corrected` | A reviewer supplied an edited result and reasons | No |
+| `rejected` | A reviewer stopped the item with a reason | No |
+| `approved` | A reviewer approved the original or corrected result | Yes, once |
+
+The unique `dedupe_key` matters because a queue can receive the same source twice. Amazon SQS documents both visibility timeouts and at-least-once delivery, so a consumer must tolerate duplicate delivery even when the queue tries to hide an in-flight message. ([Amazon SQS visibility timeout](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html))
+
+For an HTTP trigger, return a job reference rather than pretending the extraction is complete. `202 Accepted` means the request was accepted while processing may not have completed or started, and MDN shows the response carrying a monitor URL. ([MDN on `202 Accepted`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status/202))
+
+That makes the first half of the workflow explicit:
+
+1. Validate the source and calculate the submission key.
+2. Insert the item with `state: automatic` and `version: 0`.
+3. Return the existing item when the same key arrives again.
+4. Move the item to `review` after the automatic result is stored.
+
+Do not use a growing prompt transcript as the queue record. The reviewer needs a compact, versioned decision surface.
+
+## How should a reviewer correct an item safely?
+
+Send the item ID, the version shown in the UI, the action, the edited result if needed, and reason codes. The server accepts the action only if the submitted version still matches the stored version.
+
+```python
+UPDATE items
+SET edited_output = :edited,
+    reason_codes = :reasons,
+    state = 'corrected',
+    version = version + 1
+WHERE id = :item_id
+  AND state = 'review'
+  AND version = :expected_version;
+```
+
+If the update affects zero rows, return a stale-review error. The reviewer must reload the item and see the newer decision before acting again. That is safer than allowing the second tab to overwrite the first correction.
+
+The demo uses these actions:
+
+| Action | State change | Durable data |
+| --- | --- | --- |
+| `queue_for_review` | `automatic` to `review` | `needs_review` |
+| `correct` | `review` to `corrected` | edited output and reason codes |
+| `disagree` | stays `corrected` | reviewer identity and disagreement reason |
+| `reject` | `review` or `corrected` to `rejected` | rejection reason |
+| `approve` | `review` or `corrected` to `approved` | approving reviewer and version |
+
+The `disagree` action is deliberately not a silent overwrite. In the run, reviewer A changed the total to `120.0`, reviewer B disagreed and added `verify_against_source`, and a lead reviewer approved version 3. The original output remained `102.0` throughout.
+
+OpenAI's Agents SDK describes the same pause-and-resume shape for tool approvals: execution pauses, the decision is stored, and the original run resumes. Its durable state can be serialized for approvals that last longer than a request. ([OpenAI human-in-the-loop guide](https://openai.github.io/openai-agents-python/human_in_the_loop/)) The queue here applies that idea to a record that can be corrected, not only approved or rejected.
+
+If you use structured model output, keep this boundary. A JSON Schema can make the model response match the shape you request for supported models, but it does not decide whether the value is correct for the source or whether a business system may be changed. ([OpenAI structured model outputs](https://developers.openai.com/api/docs/guides/structured-outputs))
+
+## Why must final approval be separate from correction?
+
+Correction and permission are different decisions. A reviewer can improve an extraction without authorizing a payment, CRM update, email, or database write.
+
+The downstream worker should therefore have one narrow rule:
+
+```python
+if item.state != 'approved':
+    raise NotApproved('downstream write blocked')
+write_once(item.edited_output or item.original_output, item.id)
+```
+
+In the test run, `write_downstream` raised `NotApproved` for both the corrected and rejected paths. After final approval it returned `record-001`. Calling it again returned the same receipt and left the side-effect count at one.
+
+This boundary protects against two separate problems:
+
+- A reviewer corrects a value but has not finished checking the source.
+- A queue redelivers a message after a timeout and the worker repeats an external action.
+
+Use a unique idempotency key or an outbox when the downstream system is real. Queue visibility is not a transaction across your database and the external API. If the queue lives in PostgreSQL, `FOR UPDATE SKIP LOCKED` can help consumers avoid waiting on locked rows, but PostgreSQL warns that the resulting view is inconsistent and is meant for queue-like work, not general-purpose consistency. ([PostgreSQL `SELECT` documentation](https://www.postgresql.org/docs/current/sql-select.html))
+
+The practical rule is simple: let the reviewer edit freely inside the queue, and make the external write boring, conditional, and idempotent.
+
+## What should a replay export contain?
+
+A replay export should let another worker or reviewer understand one item without opening the original UI. Include the schema version, item snapshot, original output, edited output, reason codes, downstream receipt, and ordered events.
+
+The run exported this shape:
+
+```json
+{
+  "schema_version": "correction-queue@1",
+  "item": {
+    "id": "invoice-001",
+    "original_output": {"total": 102.0, "tax": 20.0, "currency": "EUR"},
+    "edited_output": {"total": 120.0, "tax": 20.0, "currency": "EUR"},
+    "reason_codes": ["needs_review", "wrong_total", "reviewer_disagreement"],
+    "state": "approved",
+    "downstream_ref": "record-001"
+  },
+  "events": [
+    "automatic_extract", "queue_for_review", "correct",
+    "disagree", "approve", "downstream_write"
+  ]
+}
+```
+
+That export is useful for three jobs:
+
+1. Replaying a corrected item against a new extractor without changing the historical original.
+2. Building an evaluation case from a real correction and its reason code.
+3. Explaining a downstream record when someone asks which version was approved.
+
+NIST's Generative AI Profile calls for reviewing outputs for validity and safety, monitoring systems that can recover and repair errors, and maintaining traceable histories for generated or modified content. ([NIST Generative AI Profile](https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence)) The replay export is a small implementation of that traceability requirement, not a claim of regulatory compliance.
+
+## What does this test prove, and what does it not prove?
+
+It proves the state contract and the write gate on a deterministic local sample. It does not prove extraction quality, throughput, reviewer capacity, multi-process locking, auth, privacy controls, or recovery after a crash between an approved database row and an external API call.
+
+Before production, add authenticated reviewer identities, field-level authorization, protected input references, redaction and retention rules, atomic persistence in the chosen database, an outbox or downstream idempotency contract, and tests against representative documents. Keep the fake extractor test because it gives the queue a stable way to test stale, duplicate, rejected, corrected, disagreement, and write-protection behavior without paying for model calls.
+
+If you are building this on a real workflow, start with one extracted object and one consequential write. The artifact is complete when a reviewer can explain every state transition and the system can show zero external side effects before approval. If your team needs help becoming capable of building that system on its own work, [see how I work with teams and product builders](/learn-ai). For the wider implementation path, continue to [scope an AI agent proof of concept](/blog/how-to-scope-an-ai-agent-proof-of-concept) and compare this correction layer with the [queue-backed AI workflow pattern](/blog/how-to-build-a-queue-backed-ai-workflow).
