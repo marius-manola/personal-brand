@@ -1,0 +1,169 @@
+---
+title: 'How to Review AI-Generated Code Before Merging'
+date: '2026-08-31'
+updated: '2026-08-31'
+excerpt: 'Use a review receipt, independent tests, security checks, and human approval to decide whether AI-generated code is ready to merge.'
+answer: 'Review AI-generated code as an untrusted change: first confirm the intended behavior and changed-file scope, then run independent tests, linting, dependency and security checks, and inspect the full diff. Merge only when those checks pass and a human approves the latest diff. For authentication, payments, migrations, or other high-consequence changes, require specialist review and stronger evidence.'
+targetQuery: 'how to review AI-generated code before merging'
+queryAliases:
+  - 'review AI-generated code'
+  - 'validate AI code before merge'
+  - 'AI code review checklist before merging'
+intent: 'implementation'
+funnel: 'consideration'
+cluster: 'implementation'
+parent: '/blog/how-to-scope-an-ai-agent-proof-of-concept'
+contentType: 'decision-tool'
+kind: 'satellite'
+sourceableAtom: 'A tested review receipt and zero-dependency validator that returned HOLD with four blockers for a flawed fixture and MERGE with zero blockers for a corrected fixture.'
+evidenceType: 'implementation-lab'
+evidenceBasis: 'Node.js validator tested on one flawed and one corrected JSON receipt fixture on 2026-08-23; outputs and limitations are documented in research.md.'
+tags:
+  - 'AI coding'
+  - 'Code review'
+  - 'AI implementation'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-21'
+sources:
+  - 'https://docs.github.com/en/copilot/tutorials/review-ai-generated-code'
+  - 'https://cheatsheetseries.owasp.org/cheatsheets/Secure_Coding_with_AI_Cheat_Sheet.html'
+  - 'https://csrc.nist.gov/Projects/ssdf/publications'
+  - 'https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches'
+  - 'https://docs.github.com/en/code-security/concepts/code-scanning/code-scanning-alerts'
+cover: '/blog/how-to-review-ai-generated-code-before-merging-review-receipt-hero.webp'
+coverAlt: 'Illustration of an AI-generated pull request passing through scope, test, security, and human review gates'
+draft: false
+---
+
+When I review AI-generated code, I start with the merge decision, not the code's explanation. A plausible diff can hide an untested assumption, an unrelated file, a weakened test, or a package that does not belong.
+
+Before I read every line, I make the change produce a small review receipt. It turns “looks fine” into evidence someone else can check.
+
+## The merge artifact: a review receipt
+
+The artifact below is deliberately small. It records the five facts that must be true before a normal, low-consequence change can merge.
+
+| Field | Question it answers | Minimum evidence |
+| --- | --- | --- |
+| `intent` | What behavior was this change meant to add or repair? | A requirement and an observable acceptance condition |
+| `scope` | Did the pull request touch only expected files? | The changed-file list and any unexpected-file findings |
+| `behavior` | Does the change work beyond the generated happy path? | Passing checks plus at least one independent case |
+| `security` | Did the relevant security and dependency checks pass? | Named checks and their status |
+| `human` | Who accepted the latest reviewable diff? | A human verdict after the checks and full diff review |
+
+I tested a zero-dependency validator against two JSON fixtures. The flawed receipt returned `HOLD` with four blockers. The corrected receipt returned `MERGE` with zero blockers. The validator does not prove that code is safe. It makes missing proof visible before the merge button becomes the next step.
+
+![Illustration of a review receipt with intent, scope, behavior, security, and human approval fields](/blog/how-to-review-ai-generated-code-before-merging-review-receipt-fields.webp)
+
+In my Udemy teaching, I have seen people confuse a working demo with a release gate. That is the mistake this receipt is designed to interrupt. A demo shows that one path ran. A merge decision needs evidence about the change's purpose, boundary, behavior, and risk.
+
+## What should you inspect before reading every line?
+
+Start with the problem and the boundary, not the generated explanation. A clean summary can be correct about the diff and still be wrong about the work.
+
+1. **Write the expected behavior.** State what should change and how you will observe it. “Add rate limiting” is incomplete. “Return a 429 after the configured limit and preserve the existing success response below it” is testable.
+2. **Compare the requested scope with the changed files.** Check source files, tests, lockfiles, CI workflows, deployment files, instruction files, and generated artifacts. An unrelated workflow or rules-file edit deserves its own decision.
+3. **Run the repository's normal checks.** Compile or type-check, lint, run unit and integration tests, and run the dependency and security checks that fit the stack. GitHub's guidance puts functional checks and static analysis at the start of its review sequence. ([GitHub's review guidance](https://docs.github.com/en/copilot/tutorials/review-ai-generated-code))
+4. **Add an independent behavior case.** Do not let the same generation pass be the only author of both the change and its proof. Use a boundary, invalid input, permission failure, or regression case that follows the requirement rather than the implementation.
+5. **Read the full diff.** Review every changed file, not only the pull request summary or the lines a bot highlighted. OWASP specifically calls out unexpected file changes, lockfiles, CI configuration, and test modifications in agent-generated pull requests. ([OWASP's Secure Coding with AI guidance](https://cheatsheetseries.owasp.org/cheatsheets/Secure_Coding_with_AI_Cheat_Sheet.html))
+
+This order saves attention. Automation can reject obvious failures first. The human then spends time on intent, architecture, business rules, and consequences.
+
+## What should the review receipt contain?
+
+Use a plain JSON object or an equivalent pull request comment. The format matters less than making each decision explicit.
+
+```json
+{
+  "intent": {
+    "expected": "Add rate-limit handling to the webhook parser",
+    "acceptance": ["returns 429 after the configured limit"]
+  },
+  "scope": {
+    "changedFiles": ["src/webhook.js", "test/webhook.test.js"],
+    "unexpectedFiles": []
+  },
+  "behavior": {
+    "testsPassed": true,
+    "independentCases": 2,
+    "checks": ["typecheck", "unit", "integration"]
+  },
+  "security": {
+    "status": "pass",
+    "checks": ["dependency audit", "secret scan", "static analysis"]
+  },
+  "human": {
+    "verdict": "approve",
+    "reviewedLatestDiff": true
+  }
+}
+```
+
+The useful part is not the JSON syntax. It is the refusal to treat one green test command as a complete review. NIST's generative-AI secure software profile extends secure development practices across the lifecycle, while the underlying SSDF includes code review, code analysis, testing, recording issues, and triaging remediations. ([NIST SSDF publications](https://csrc.nist.gov/Projects/ssdf/publications))
+
+The validator from the lab is intentionally transparent:
+
+```js
+const r = JSON.parse(process.argv[2]);
+const e = [];
+if (!r.intent?.expected) e.push("missing intent");
+if (r.scope?.unexpectedFiles?.length) e.push(`unexpected files: ${r.scope.unexpectedFiles.join(", ")}`);
+if (r.behavior?.testsPassed !== true) e.push("tests not passing");
+if ((r.behavior?.independentCases ?? 0) < 1) e.push("no independent test case");
+if (r.security?.status !== "pass") e.push("security checks not passed");
+if (r.human?.verdict !== "approve") e.push("human verdict is not approve");
+console.log(JSON.stringify({ decision: e.length ? "HOLD" : "MERGE", blockers: e }, null, 2));
+```
+
+Run it in CI or locally with the receipt as the argument. Keep the output beside the pull request so a later reviewer can see what was checked and what was not.
+
+## How do you verify behavior without trusting the generated tests?
+
+Treat generated tests as useful candidates, not independent proof. OWASP warns about deleted tests, weakened assertions, mocks that replace the dependency under test, and tests that merely assert the generated behavior. ([OWASP's test-fabrication guidance](https://cheatsheetseries.owasp.org/cheatsheets/Secure_Coding_with_AI_Cheat_Sheet.html))
+
+For a small change, ask for these four pieces:
+
+- one normal case that proves the intended path;
+- one boundary or invalid-input case;
+- one regression case for the old behavior that must remain true;
+- one check of the actual state or response, not just the model's explanation.
+
+The lab receipt uses `independentCases: 2` in its passing fixture. That number is a demonstration input, not a universal quality threshold. For authentication, authorization, payments, migrations, data deletion, or infrastructure changes, add stronger tests, more cases, and the relevant specialist review. If the consequence of a false positive is high, a passing receipt should still produce a hold until the stronger evidence exists.
+
+## Which security and dependency checks belong before merge?
+
+The exact commands depend on the repository, but the review questions are stable:
+
+| Change signal | Check before approval |
+| --- | --- |
+| New or updated package | Verify the package exists, its version, license, maintenance, and known advisories. Run the ecosystem's dependency audit. |
+| User-controlled input | Trace validation, encoding, query construction, and error handling to the sink. |
+| Authentication or authorization | Test denied access, cross-user access, expired credentials, and the default path. |
+| Secrets or sensitive data | Run secret scanning and inspect logs, error messages, fixtures, and model context boundaries. |
+| CI, deployment, or agent rules file | Require an explicit review by the owner of that boundary. |
+| External call or write | Check timeouts, retries, permissions, idempotency, and failure behavior. |
+
+GitHub's guidance calls out hallucinated or suspicious packages and recommends verifying suggested dependencies. It also recommends CI checks for linting, security, code quality, and coverage. ([GitHub's AI code review guide](https://docs.github.com/en/copilot/tutorials/review-ai-generated-code)) GitHub code scanning can surface pull-request alerts and data-flow paths, but a scanner is an input to review, not a substitute for it. ([GitHub's code scanning documentation](https://docs.github.com/en/code-security/concepts/code-scanning/code-scanning-alerts))
+
+Review instruction files with the same care as CI changes. A `CLAUDE.md`, `AGENTS.md`, `.github/copilot-instructions.md`, or similar file can steer later generations. OWASP recommends explicitly reviewing changes to these files and flagging unexpected modifications. ([OWASP's rules-file guidance](https://cheatsheetseries.owasp.org/cheatsheets/Secure_Coding_with_AI_Cheat_Sheet.html))
+
+## When is AI-generated code ready to merge?
+
+Use the receipt as a decision rule, not a score. Merge only when all normal checks pass, the full diff stays inside the agreed scope, an independent behavior case supports the requirement, security checks are explicitly passed, and a human approves the latest diff.
+
+| Receipt state | Decision |
+| --- | --- |
+| Any unexpected file, missing independent case, failed security check, or missing human approval | Hold the merge and name the missing proof. |
+| Checks pass but the reviewer cannot explain the code's behavior or permissions | Rework or narrow the change. A green pipeline is not understanding. |
+| The change affects authentication, authorization, payments, migrations, deletion, infrastructure, or regulated data | Use specialist review and a stronger evidence set. Do not apply the small-lab threshold by default. |
+| All required evidence exists and the latest diff has been reviewed and approved | Merge, subject to the repository's branch rules. |
+
+GitHub protected branches can require pull request reviews and status checks, dismiss stale approvals when new commits change the diff, require code-owner approval, and require approval of the latest reviewable push. Configure those controls so an approval cannot silently outlive the code it covered. ([GitHub's protected branch documentation](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches))
+
+The reviewer still owns the judgment. The receipt makes the judgment legible.
+
+## Where does this fit in an AI implementation?
+
+Code review is one gate inside a bounded implementation, not proof that the whole AI system is production-ready. If you are still defining the workflow, scope, tools, and exit rule, start with [how to scope an AI agent proof of concept](/blog/how-to-scope-an-ai-agent-proof-of-concept). If the system needs a broader release decision across outcomes, actions, integrity, limits, and stability, use [how to evaluate an AI agent](/blog/how-to-evaluate-an-ai-agent) after this code-level gate.
+
+The practical next step is small: add the receipt to one pull request, run it against a deliberately incomplete fixture, and see whether the result names a blocker you would otherwise have missed. If your team is learning to build these systems on its own work, [Marius Manolachi's AI learning path](https://mariusmanolachi.com/learn-ai) is the relevant next step.
