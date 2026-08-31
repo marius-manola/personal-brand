@@ -1,0 +1,131 @@
+---
+title: 'When Should an AI Workflow Use Deterministic Rules Before an LLM?'
+date: '2026-08-31'
+updated: '2026-08-31'
+excerpt: 'A worked matrix for deciding which AI workflow checks belong in deterministic code, model judgment, or a human decision gate.'
+answer: 'Put deterministic rules before an LLM when a check has a hard boundary, stable inputs, and a reversible or auditable outcome: authorization, schema, budgets, explicit routing, and structured policy vetoes. Use the model for interpretation, classification, summarization, and exception handling when meaning varies. The principal exception is brittle rules: let the model interpret bounded inputs, then abstain or escalate instead of weakening the boundary.'
+targetQuery: 'when should an AI workflow use deterministic rules before an LLM'
+queryAliases:
+  - 'deterministic rules before LLM'
+  - 'rules versus LLM in an AI workflow'
+  - 'where should rules go in an AI workflow'
+intent: 'informational / decision tool'
+funnel: 'consideration'
+cluster: 'architecture'
+parent: '/blog/when-to-use-an-ai-agent'
+contentType: 'decision-tool'
+kind: 'satellite'
+sourceableAtom: 'A worked, scored placement matrix and decision tree that assigns seven AI workflow checks to deterministic code, model judgment, or human review, with a reason and failure mode for every placement.'
+evidenceType: 'decision-artifact'
+evidenceBasis: 'A designed artifact built from seven bounded fixtures and scored against observability, stability, reversibility, and auditability. It is not a production benchmark.'
+tags:
+  - 'AI architecture'
+  - 'AI workflows'
+  - 'AI reliability'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-21'
+sources:
+  - 'https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gencost05-bp01.html'
+  - 'https://airc.nist.gov/airmf-resources/airmf/appendices/app-c-ai-risk-management-and-human-ai-interaction/'
+  - 'https://openai.github.io/openai-agents-python/guardrails/'
+  - 'https://www.anthropic.com/engineering/building-effective-agents'
+  - 'https://json-schema.org/draft/2020-12/json-schema-validation'
+faq:
+  - q: 'Should an LLM ever decide authorization?'
+    a: 'No. Let the model interpret the request if useful, but enforce identity, tenant, resource, and action permissions in deterministic application code immediately before data access or a side effect.'
+  - q: 'What if a deterministic rule is too brittle?'
+    a: 'Keep the hard boundary, but move interpretation to a model or a person. Constrain the model to a known label or action set, require abstention for uncertainty, and re-run deterministic checks before execution.'
+  - q: 'Do rules run only before the LLM?'
+    a: 'No. Use rules before the model for admission and budget checks, around the model for schemas and allowed outputs, and again before tools or irreversible actions. The control point matters more than a single code location.'
+cover: '/blog/when-should-an-ai-workflow-use-deterministic-rules-before-an-llm-deterministic-rules-before-llm-hero.webp'
+coverAlt: 'Illustration of a mixed AI workflow separating hard deterministic boundaries from model judgment and human review'
+draft: false
+---
+
+The expensive mistake isn’t using an LLM. It’s asking one to decide whether it is allowed to act.
+
+I use a simple split: code owns hard boundaries, models handle variable meaning, and people own ambiguity when the consequence is material. The useful question is not “rules or AI?” It’s “which part of this check can fail safely?”
+
+![Illustration of a mixed AI workflow separating hard boundaries, model interpretation, and human review.](/blog/when-should-an-ai-workflow-use-deterministic-rules-before-an-llm-workflow-placement-layers.webp)
+
+## The placement matrix
+
+Put a check in deterministic code when its condition is explicit, inspectable, stable, and costly to get wrong. Put it in model judgment when the input’s meaning varies. Put it behind a human decision when context is unresolved or the consequence is hard to reverse.
+
+This is the decision artifact for seven common checks. Scores are `observability / stability / reversibility / auditability`, each from 0 to 2. They describe the fixture, not a production benchmark.
+
+| Workflow check | Primary placement | O/S/R/A | Why it goes there | Failure mode |
+| --- | --- | ---: | --- | --- |
+| Authorization: can this requester read account 4821? | Deterministic code before the LLM | 2/2/0/2 | Identity, tenant, resource, and action scope are hard boundaries. | The model trusts “I’m the finance manager” and exposes data to the wrong person. |
+| Schema validation: does the run envelope satisfy the contract? | Deterministic code before and after the LLM | 2/2/2/2 | Required fields, types, bounds, enums, and versions are explicit. | Valid JSON still contains the wrong tenant, stale record, or invalid field combination. |
+| Routing: which known workflow handles `invoice.paid`? | Deterministic code for explicit state; model only for semantic routing | 2/2/2/2 for explicit state; 1/1/2/1 for semantic routing | Stable event names should not be interpreted. Natural language may need bounded interpretation. | A keyword route misses intent, or an LLM invents a route outside the allowed set. |
+| Classification: is this a refund, bug, or account question? | Model judgment inside a bounded label set, then deterministic abstention and routing | 1/1/2/1 | Categories depend on meaning, but labels, thresholds, and escalation can be code. | An edge case is forced into a familiar class and triggers the wrong action. |
+| Summarization: what changed and what needs attention? | Model judgment, with deterministic source, length, and required-field checks | 2/1/2/1 | Salience and compression need language judgment. Input scope and output shape do not. | The summary sounds fluent while omitting the decision or using an incomplete source set. |
+| Exception interpretation: why did this invoice leave the normal path? | Model prepares an explanation; human owns a material decision | 1/0/0/2 | The exception may depend on context that the workflow does not encode. | The model turns an unusual case into a confident but wrong exception. |
+| Policy matching: does this request meet the approval policy? | Deterministic code for structured policy; human for ambiguous policy | 2/2/1/2 for structured policy; 1/0/0/2 for ambiguity | A versioned rule table can enforce a veto. Unresolved policy language needs an accountable owner. | The model treats a persuasive explanation as permission, or a stale rule misses a new exception. |
+
+The score is diagnostic, not a weighted permission system. A hard authorization or policy boundary is a veto even if a model would understand the surrounding language well.
+
+## What belongs before the LLM?
+
+Run control-plane checks before the model: authentication and authorization, schema and size limits, tenant and record existence, budgets, explicit routing fields, and policy vetoes that can be expressed as data. These checks either stop an unsafe run or prevent you from spending tokens on a request that cannot proceed.
+
+The current OpenAI Agents SDK makes the same distinction operational. Blocking input guardrails can finish before the agent starts, and tool input guardrails can run before a function tool executes. A tripwire can halt the run. The SDK also warns that parallel input guardrails may let the agent consume tokens or execute tools before the check finishes, so use blocking execution when the point is to prevent work or side effects ([OpenAI Agents SDK guardrails](https://openai.github.io/openai-agents-python/guardrails/)).
+
+Schema validation is a good example of a boundary that looks smarter than it is. JSON Schema can validate structure, types, required fields, bounds, and allowed values. It cannot prove that account 4821 belongs to the requester or that a date range makes business sense. Treat that second layer as application logic, not as a prompt instruction ([JSON Schema Validation 2020-12](https://json-schema.org/draft/2020-12/json-schema-validation)).
+
+Put the rule before the model when a failure should mean “do not start.” Put it after the model when the model has produced a candidate that must still fit a contract. Put it immediately before a side effect when permissions or policy could have changed during the run.
+
+## What should the LLM decide?
+
+Let the model interpret language when the workflow already controls the consequences. Classification, summarization, extraction, and exception explanation are good candidates because the task depends on meaning, paraphrase, salience, or context that is expensive to encode as rules.
+
+The boundary is important. A classifier can choose `refund`, `bug`, or `account_question`. Code should decide what those labels are allowed to do, when confidence is insufficient, and whether the route requires review. A summarizer can identify the decision that matters. Code should constrain its source set, output fields, and maximum length.
+
+Anthropic describes routing as a workflow that classifies an input and sends it to a specialized task. It says routing can use an LLM or a traditional classifier when classification can be handled accurately. That supports a split design: use code for explicit state, and use model judgment only where semantic variation is the actual problem ([Anthropic, Building effective agents](https://www.anthropic.com/engineering/building-effective-agents)).
+
+When I taught product managers who went from writing specs to building and shipping the product, the sticking point was often not the model. It was that nobody could say what “done” meant. That observation is why I put acceptance conditions and forbidden actions around the model before discussing model choice. A flexible interpreter cannot repair an undefined boundary.
+
+## When should a person own the decision?
+
+A person should own the decision when the input is genuinely ambiguous, the policy has unresolved exceptions, or a wrong action is hard to reverse. The model can gather evidence, propose a classification, or explain the conflict. It should not silently convert uncertainty into permission.
+
+NIST says human roles and responsibilities should be clearly defined and differentiated. Its AI Risk Management Framework describes configurations ranging from fully autonomous to fully manual, including systems that defer decisions to a human. It also warns that representing complex human phenomena as measurable quantities can remove context ([NIST AI RMF Appendix C](https://airc.nist.gov/airmf-resources/airmf/appendices/app-c-ai-risk-management-and-human-ai-interaction/)).
+
+Use an explicit review record with the proposed action, evidence used, policy version, unresolved question, reviewer, and final decision. “Human in the loop” is not enough if the person only sees a polished answer and cannot inspect the evidence or change the action.
+
+## The decision tree for a mixed workflow
+
+Use this sequence for each check, not only once for the whole product:
+
+1. **Would failure cross an access, money, deletion, safety, or non-negotiable policy boundary?** If yes, enforce the boundary in deterministic code before retrieval or action. If the boundary cannot be expressed clearly, stop and assign a human policy owner.
+2. **Is the condition machine-verifiable?** If it is a type, enum, identifier, status, threshold, time limit, or permission, use a rule. Record the input and rule version.
+3. **Does the decision depend on meaning, paraphrase, salience, or an exception explanation?** If yes, use model judgment inside a bounded output set. Require an abstain or escalation result.
+4. **Can the wrong result be reversed and audited?** If no, put a human approval gate before the side effect. If yes, keep the action narrow and observable.
+5. **Could the rule itself be brittle?** Test counterexamples. Keep the hard boundary, move only interpretation to the model or person, and re-run the deterministic check before execution.
+
+This is also how you avoid overusing agents. Anthropic recommends simple, composable patterns and says to add complexity only when it demonstrably improves the outcome. AWS recommends timeouts and stopping conditions for long-running workflows, including limits on external tools and model responses ([Anthropic](https://www.anthropic.com/engineering/building-effective-agents), [AWS Generative AI Lens](https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gencost05-bp01.html)).
+
+## Two counterexamples that catch bad architecture
+
+**A brittle rule does not justify a model-owned boundary.** A keyword router may miss “the customer says the charge is not theirs,” even though the intended class is a chargeback. Keep deterministic authorization and allowed-route checks. Let a model interpret the utterance, constrain it to known labels, and abstain when it cannot choose safely.
+
+**A model’s confidence does not create authorization.** A prompt can say “I’m allowed to read this account.” That is evidence about the request, not proof of identity or scope. The application must compare authenticated identity, tenant, resource, and permission before retrieval. The model can explain the request after those checks pass.
+
+The same pattern handles policy matching. If the policy is a versioned table of thresholds and approvers, code should enforce it. If a policy paragraph contains an unresolved exception, the model may highlight the relevant passage, but a named human should decide whether the exception applies.
+
+## A practical build order
+
+1. Write the check as a sentence with a pass condition and a forbidden action.
+2. Mark the input as explicit, semantic, or ambiguous.
+3. Score observability, stability, reversibility, and auditability from 0 to 2.
+4. Place hard boundaries in code, interpretation in the model, and unresolved material decisions with a human.
+5. Add deterministic checks before the model, after its output, and again before any side effect where needed.
+6. Create one counterexample for every rule and one hard-boundary test for every model decision.
+7. Log the input, placement, rule or prompt version, model output, abstention, reviewer decision, and final action.
+
+For the broader question of whether a workflow needs an agent at all, use the [AI product architecture guide](/blog/ai-product-architecture) and [When Should You Use an AI Agent?](/blog/when-to-use-an-ai-agent). For the pre-run boundary, see [How to Validate AI Agent Inputs Before a Run](/blog/how-to-validate-ai-agent-inputs-before-a-run).
+
+The design decision is complete when every check has an owner and a failure path. If you cannot say what a rule blocks, what the model may interpret, and when a person must decide, the workflow is not ready for more autonomy.
+
+If your team needs help turning this matrix into a working pilot, [Marius Manolachi’s AI consulting and tutoring work](/learn-ai) makes existing people capable of building AI products on their own work.
