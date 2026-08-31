@@ -281,10 +281,10 @@ export default async function BlogPostPage({ params }: PageProps) {
         </article>
 
         <aside className="m-blog-call mobile-experience" aria-label="Work with Marius">
-          <p className="m-blog-call-label">AI Workflow Sprint</p>
-          <h2>Turn one repeated task into a working AI system.</h2>
-          <p>One week of mapping, implementation, team training, and documentation.</p>
-          <Link href="/learn-ai">See how it works <span aria-hidden="true">→</span></Link>
+          <p className="m-blog-call-label">AI services for companies</p>
+          <h2>From AI idea to working system.</h2>
+          <p>Training, workflow implementation, and custom AI solutions shaped around your company.</p>
+          <Link href="/learn-ai">Explore services <span aria-hidden="true">→</span></Link>
         </aside>
 
         {(newerPost || olderPost) && (

@@ -14,7 +14,7 @@ export interface QualifyFormProps {
   heading: string;
   intro: string;
   spotsNote?: string;
-  fields: Record<AnswerKey, string> & { detailHint: string };
+  fields: Record<AnswerKey, string> & { detailHint: string; detailPlaceholder: string };
   projectChoices: Choice[];
   teamSizeChoices: Choice[];
   usageChoices: Choice[];
@@ -230,7 +230,7 @@ export default function QualifyForm({
                 onChange={(event) => setAnswer(step.id, event.target.value)}
                 rows={6}
                 maxLength={2000}
-                placeholder="For example: a client sends us notes, two people research the account, then someone spends two hours turning it into a proposal…"
+                placeholder={fields.detailPlaceholder}
                 aria-label={step.question}
                 aria-describedby={detailHintId}
               />

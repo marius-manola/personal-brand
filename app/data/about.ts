@@ -5,7 +5,7 @@ export const about = {
   subtitle: 'AI consultant',
   leadPrefix: "I'm ",
   leadSuffix:
-    ' years old, born and raised in Moldova. I help people become capable of building AI products on their own work. I do not build it for them as an agency.',
+    ' years old, born and raised in Moldova. I help companies move from AI interest to useful capability: training teams, implementing workflows, and building custom AI solutions when the work calls for it.',
 };
 
 export const facts: Array<{ text: string; href?: string; label?: string }> = [
@@ -62,10 +62,10 @@ export const personJsonLd = {
   image: `${SITE_URL}/marius.jpg`,
   jobTitle: 'AI consultant',
   description:
-    'AI consultant and tutor who helps people become capable of building AI products on their own work.',
+    'AI consultant and builder who trains teams, implements AI workflows, and creates custom AI solutions for companies.',
   sameAs,
-  knowsAbout: ['AI consulting', 'AI tutoring', 'AI agents', 'AI product building'],
+  knowsAbout: ['AI consulting', 'AI training', 'AI workflow implementation', 'AI agents', 'AI product building'],
 };
 
 export const description =
-  'Marius Manolachi is an AI consultant and tutor. He has taught 109,753 students on Udemy, spoken at the OECD on AI and education, shipped NotClass, and is building TryUncle.';
+  'Marius Manolachi is an AI consultant and builder who provides company training, workflow implementation, and custom AI solutions. He has taught 109,753 students on Udemy, spoken at the OECD on AI and education, shipped NotClass, and is building TryUncle.';

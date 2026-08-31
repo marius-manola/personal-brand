@@ -1,4 +1,4 @@
-// Copy and qualification options for the single /learn-ai offer.
+// Copy and qualification options for the /learn-ai services page.
 // Keep the calendar URL server-side: the intake API returns it only after a
 // visitor finishes the questions.
 
@@ -6,38 +6,64 @@ export const calendarUrl = 'https://cal.com/mariusmanola/30min';
 export const contactEmail = process.env.LEAD_CONTACT_EMAIL || 'mariusmanola@gmail.com';
 
 export const spotsOpen = 2;
-export const spotsNote = spotsOpen > 0 ? `Only ${spotsOpen} spots left this month` : '';
+export const spotsNote = spotsOpen > 0 ? `Now booking ${spotsOpen} new company engagements` : '';
 
 export const profileLink = {
   label: 'LinkedIn',
   href: 'https://www.linkedin.com/in/marius-manolachi/',
 };
 
-export const sprint = {
-  eyebrow: 'AI implementation for teams of 5 to 50',
+export const offer = {
+  eyebrow: 'AI training, implementation & custom solutions',
   lead:
-    'Bring one repeated task that wastes your team’s time. In seven days, we choose the right AI opportunity, build it in your current stack, and teach your team to run it without me.',
-  ctaLabel: 'Check Your Workflow',
-  price: 'US$1,000',
-  duration: '7 days',
-  scope: '1 working workflow',
+    'Whether your team needs practical training, one workflow implemented, or a custom AI product built, I help you move from an unclear opportunity to something useful, tested, and owned by your company.',
+  ctaLabel: 'Discuss your AI need',
+  start: 'Training or discovery',
+  build: 'Workflows & products',
+  finish: 'Your team owns it',
 };
 
-export const sprintProcess = [
+export const serviceTracks = [
   {
     number: '01',
-    title: 'Map the work',
-    text: 'Choose the repeated task with the clearest return.',
+    title: 'Train the team',
+    text: 'Practical workshops and capability programmes built around the work your people actually do—not generic prompt lessons.',
+    result: 'People who can use AI independently',
   },
   {
     number: '02',
-    title: 'Build the workflow',
-    text: 'Build it in your current stack and test it on real inputs.',
+    title: 'Implement a workflow',
+    text: 'Turn a repeated, expensive process into a reliable AI-assisted workflow inside the tools and constraints you already have.',
+    result: 'A working process with clear controls',
   },
   {
     number: '03',
-    title: 'Make it yours',
-    text: 'Train the team and leave with a process they can run alone.',
+    title: 'Build a custom solution',
+    text: 'Design and build an internal tool, integration, or AI product when an off-the-shelf workflow is not enough.',
+    result: 'A solution made for your business',
+  },
+];
+
+export const engagementProcess = [
+  {
+    number: '01',
+    title: 'Understand the work',
+    text: 'Start with the people, decisions, data, and friction—not a predetermined AI tool.',
+  },
+  {
+    number: '02',
+    title: 'Choose the intervention',
+    text: 'Decide whether the right next step is training, a workflow, or a custom build. If AI is unnecessary, say so early.',
+  },
+  {
+    number: '03',
+    title: 'Build and test',
+    text: 'Work in small, reviewable releases and test the result against real cases before expanding it.',
+  },
+  {
+    number: '04',
+    title: 'Transfer ownership',
+    text: 'Leave your team with the working system, documentation, and capability to operate and improve it.',
   },
 ];
 
@@ -54,9 +80,9 @@ export const studentProof = {
 
 export const orangeCase = {
   badge: 'Orange Telecom · Corporate AI workshop',
-  title: 'Practical AI, inside a real team.',
+  title: 'Training that changes the work.',
   body:
-    'I taught Orange employees how to apply AI to their day-to-day work using real examples, clearer instructions, and repeatable workflows they could keep using after the workshop.',
+    'At Orange, I taught employees how to apply AI to their day-to-day work using real examples, clearer instructions, and repeatable workflows they could keep using after the workshop. The same principle carries into every engagement: the capability stays with the team.',
   src: '/proof/testimonial-natalia.jpg',
   width: 664,
   height: 820,
@@ -70,11 +96,11 @@ export interface Choice {
 }
 
 export const projectChoices: Choice[] = [
-  { value: 'proposals', label: 'Proposals, reports, or client deliverables' },
-  { value: 'research', label: 'Research, analysis, or internal knowledge' },
-  { value: 'content', label: 'Content and marketing production' },
-  { value: 'sales', label: 'Sales, recruiting, or customer operations' },
-  { value: 'other', label: 'Another repetitive knowledge-work process' },
+  { value: 'training', label: 'Train our team to use AI well' },
+  { value: 'workflow', label: 'Implement or improve an AI workflow' },
+  { value: 'custom', label: 'Build a custom AI tool or product' },
+  { value: 'strategy', label: 'Decide where AI can create value' },
+  { value: 'unsure', label: 'We are not sure yet' },
 ];
 
 export const teamSizeChoices: Choice[] = [
@@ -105,15 +131,16 @@ export const signals = {
 };
 
 export const qualifier = {
-  heading: 'Tell me about the workflow',
-  intro: 'Seven short questions, one at a time. Your calendar unlocks at the end.',
+  heading: 'Tell me what you want to change',
+  intro: 'Seven short questions, one at a time. I will read every answer before we speak.',
   fields: {
-    project: 'What kind of workflow should we improve?',
-    teamSize: 'How many people would use the workflow?',
+    project: 'What kind of help are you looking for?',
+    teamSize: 'How many people would this involve?',
     usage: 'How does the team use AI today?',
-    timeline: 'When would you want to run the sprint?',
-    detail: 'Walk me through the workflow as it works today.',
-    detailHint: 'What goes in, what comes out, who touches it, and where does it slow down?',
+    timeline: 'When would you like to start?',
+    detail: 'What do you want to change, improve, or build?',
+    detailHint: 'Describe the current situation, the people involved, what is getting in the way, and what a useful result would look like.',
+    detailPlaceholder: 'For example: our operations team handles the same requests across email and spreadsheets. We want to know whether to train the team, improve the process, or build an internal tool…',
     name: 'What should I call you?',
     email: 'Where should I send the call details?',
   },
@@ -122,8 +149,8 @@ export const qualifier = {
   submitLabel: 'Unlock my calendar',
   submitting: 'Preparing your calendar…',
   booked: {
-    heading: 'Your sprint call is ready.',
-    body: 'Choose a time that works. I will read your workflow notes before we meet.',
+    heading: 'Your AI services call is ready.',
+    body: 'Choose a time that works. I will read your notes before we meet.',
     ctaLabel: 'Choose a time',
     undelivered: 'Your answers may not have reached me. Please bring them to the call.',
   },

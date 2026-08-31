@@ -4,7 +4,7 @@ import { spotsNote } from '@/app/data/learn-ai';
 
 export default function BlogCallCard() {
   return (
-    <aside className="blog-call-rail" aria-label="AI Workflow Sprint">
+    <aside className="blog-call-rail" aria-label="AI services for companies">
       <Image
         src="/marius.jpg"
         alt="Marius Manolachi"
@@ -13,13 +13,13 @@ export default function BlogCallCard() {
         className="blog-call-photo"
       />
       <p className="blog-call-name">Marius Manolachi</p>
-      <h2>AI Workflow Sprint</h2>
+      <h2>Make AI useful in your company</h2>
       <p>
-        In seven days, we find your highest-leverage AI opportunity, build one
-        working workflow, and train your team to run it without me.
+        From practical team training to workflow implementation and custom AI
+        solutions, get the right help to move from idea to a system you own.
       </p>
       {spotsNote ? <p className="blog-call-spots">{spotsNote}.</p> : null}
-      <Link href="/learn-ai" className="blog-call-cta">See the $1,000 sprint</Link>
+      <Link href="/learn-ai" className="blog-call-cta">Explore AI services</Link>
     </aside>
   );
 }

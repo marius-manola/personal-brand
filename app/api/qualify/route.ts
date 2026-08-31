@@ -71,7 +71,7 @@ function composeMessage(lead: Lead, strong: boolean): string {
   const rows: Array<[string, string]> = [
     ['Name', lead.name],
     ['Email', lead.email],
-    ['Workflow', labelFor(projectChoices, lead.project)],
+    ['Need', labelFor(projectChoices, lead.project)],
     ['Team size', labelFor(teamSizeChoices, lead.teamSize)],
     ['Current AI use', labelFor(usageChoices, lead.usage)],
     ['Timeline', labelFor(timelineChoices, lead.timeline)],
@@ -82,7 +82,7 @@ function composeMessage(lead: Lead, strong: boolean): string {
     '',
     ...rows.map(([key, value]) => `<b>${key}:</b> ${escapeHtml(value)}`),
     '',
-    '<b>Stuck on</b>',
+    '<b>What they want to change or build</b>',
     escapeHtml(lead.detail),
   ].join('\n');
 

@@ -12,7 +12,7 @@ const navItems = [
   { path: '/projects', label: 'projects' },
   { path: '/books', label: 'books' },
   { path: '/about', label: 'about' },
-  { path: '/learn-ai', label: 'consulting' },
+  { path: '/learn-ai', label: 'AI services' },
 ];
 
 // Shared NavLinks component

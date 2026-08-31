@@ -5,13 +5,14 @@ import Copyright from '@/app/components/Copyright';
 import QualifyForm from '@/app/components/QualifyForm';
 import {
   contactEmail,
+  engagementProcess,
   orangeCase,
+  offer,
   projectChoices,
   qualifier,
   quietLinks,
+  serviceTracks,
   spotsNote,
-  sprint,
-  sprintProcess,
   studentProof,
   teamSizeChoices,
   timelineChoices,
@@ -21,32 +22,32 @@ import styles from './learn-ai.module.css';
 import { SITE_URL } from '@/lib/site';
 
 export const metadata: Metadata = {
-  title: 'AI Implementation for Teams — Marius Manolachi',
+  title: 'AI Services for Companies — Marius Manolachi',
   description:
-    'A hands-on seven-day AI workflow sprint for teams. Choose a high-value process, implement it in your current stack, and train the team to keep improving it.',
+    'Practical AI training, workflow implementation, and custom AI solutions for companies—from the first opportunity to a working system your team can own.',
   alternates: { canonical: '/learn-ai' },
   openGraph: {
-    title: 'Make AI Useful at Work',
-    description: 'One week. One working AI workflow. A team that knows how to run it.',
+    title: 'From AI Idea to Working System',
+    description: 'Training, workflow implementation, and custom AI solutions for companies.',
     url: `${SITE_URL}/learn-ai`,
     siteName: 'Marius Manolachi',
     locale: 'en_US',
     type: 'website',
     images: [
       {
-        url: '/og-learn-ai.png',
+        url: '/og-ai-services.png',
         width: 1200,
-        height: 631,
-        alt: 'Make AI useful at work — 7 days, 1 working workflow',
+        height: 630,
+        alt: 'From AI idea to working system — training, workflow implementation, and custom AI solutions',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Make AI Useful at Work',
-    description: 'One week. One working AI workflow. A team that knows how to run it.',
+    title: 'From AI Idea to Working System',
+    description: 'Training, workflow implementation, and custom AI solutions for companies.',
     creator: '@mariusmanolachi',
-    images: ['/og-learn-ai.png'],
+    images: ['/og-ai-services.png'],
   },
 };
 
@@ -66,8 +67,8 @@ export default function LearnAI() {
         <Link href="/" className={styles.wordmark} aria-label="Marius Manolachi home">
           MM
         </Link>
-        <span className={styles.navLabel}>Learn AI</span>
-        <a href="#apply" className={styles.navCta}>Check Your Workflow</a>
+        <span className={styles.navLabel}>AI services</span>
+        <a href="#apply" className={styles.navCta}>Tell me what you need</a>
       </nav>
 
       <main id="main">
@@ -81,31 +82,31 @@ export default function LearnAI() {
               </p>
             </div>
 
-            <p className={styles.eyebrow}>{sprint.eyebrow}</p>
+            <p className={styles.eyebrow}>{offer.eyebrow}</p>
             <h1 className={styles.desktopHeroTitle}>
-              <span>Make AI useful</span>
-              <span>at work.</span>
+              <span>From AI idea</span>
+              <span>to working system.</span>
             </h1>
             <h1 className={styles.mobileHeroTitle}>
-              <span>One AI workflow.</span>
-              <span>Working.</span>
+              <span>Make AI</span>
+              <span>work for you.</span>
             </h1>
-            <p className={`${styles.lead} ${styles.desktopLead}`}>{sprint.lead}</p>
+            <p className={`${styles.lead} ${styles.desktopLead}`}>{offer.lead}</p>
             <p className={`${styles.lead} ${styles.mobileLead}`}>
-              In 7 days, turn one repeated task into a workflow your team can run.
+              From practical training to custom AI products, get the right help to move from idea to a system your company can own.
             </p>
 
             <div className={styles.heroActions}>
               <a href="#apply" className={styles.primaryCta}>
-                {sprint.ctaLabel} <span aria-hidden="true">↘</span>
+                {offer.ctaLabel} <span aria-hidden="true">↘</span>
               </a>
               <span className={styles.availability}>{spotsNote || 'Now booking'}</span>
             </div>
 
-            <dl className={styles.facts} aria-label="AI workflow sprint summary">
-              <div><dt>Time</dt><dd>{sprint.duration}</dd></div>
-              <div><dt>Result</dt><dd>{sprint.scope}</dd></div>
-              <div><dt>Investment</dt><dd>{sprint.price}</dd></div>
+            <dl className={styles.facts} aria-label="AI services summary">
+              <div><dt>Start</dt><dd>{offer.start}</dd></div>
+              <div><dt>Build</dt><dd>{offer.build}</dd></div>
+              <div><dt>Finish</dt><dd>{offer.finish}</dd></div>
             </dl>
           </div>
 
@@ -130,12 +131,32 @@ export default function LearnAI() {
         </header>
 
         <section className={styles.trustBar} aria-label="Teaching track record">
-          <p>Trusted to make technical ideas clear</p>
+          <p>Trusted to make technical ideas useful</p>
           <a href={studentProof.href} target="_blank" rel="noopener noreferrer">
             <strong>{studentCount}</strong>
             <span>students taught on Udemy</span>
             <small>{reviewCount} verified reviews · View profile ↗</small>
           </a>
+        </section>
+
+        <section className={styles.services} aria-labelledby="services-heading">
+          <div className={styles.servicesHeading}>
+            <p>Ways to work together</p>
+            <h2 id="services-heading">The right help depends on where your company is stuck.</h2>
+            <p>
+              Training is useful when capability is the constraint. Implementation is useful when the opportunity is clear. A custom build is useful when the workflow is specific to your business.
+            </p>
+          </div>
+          <ol className={styles.serviceGrid}>
+            {serviceTracks.map((service) => (
+              <li key={service.number}>
+                <span>{service.number}</span>
+                <h3>{service.title}</h3>
+                <p>{service.text}</p>
+                <strong>{service.result}</strong>
+              </li>
+            ))}
+          </ol>
         </section>
 
         <section className={styles.orangeCase} aria-labelledby="orange-heading">
@@ -162,11 +183,11 @@ export default function LearnAI() {
 
         <section className={styles.process} aria-labelledby="process-heading">
           <div className={styles.sectionHeadingDark}>
-            <p>What changes in 7 days</p>
-            <h2 id="process-heading">One repeated task becomes a working AI workflow.</h2>
+            <p>How the work happens</p>
+            <h2 id="process-heading">Fit the engagement to the problem, not the other way around.</h2>
           </div>
           <ol>
-            {sprintProcess.map((step) => (
+            {engagementProcess.map((step) => (
               <li key={step.number}>
                 <span>{step.number}</span>
                 <h3>{step.title}</h3>
@@ -176,7 +197,7 @@ export default function LearnAI() {
           </ol>
         </section>
 
-        <section id="apply" className={styles.apply} aria-label="Workflow sprint intake">
+        <section id="apply" className={styles.apply} aria-label="AI services intake">
           <QualifyForm
             heading={qualifier.heading}
             intro={qualifier.intro}

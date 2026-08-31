@@ -53,30 +53,30 @@ export default function MobileConsultingPopup() {
   return (
     <aside
       className={`mobile-consult-pop${visible ? ' mobile-consult-pop-visible' : ''}`}
-      aria-label="AI Workflow Sprint"
+      aria-label="AI services for companies"
       aria-hidden={!visible}
     >
       <button
         type="button"
         className="mobile-consult-close"
         onClick={dismiss}
-        aria-label="Dismiss workflow sprint offer"
+        aria-label="Dismiss AI services offer"
         tabIndex={visible ? 0 : -1}
       >
         <span aria-hidden="true">×</span>
       </button>
       <div className="mobile-consult-mark" aria-hidden="true">1:1</div>
       <div className="mobile-consult-copy">
-        <p>AI Workflow Sprint</p>
-        <h2>Turn one repeated task into a working AI system.</h2>
-        <span>Seven days. Built with your team. US$1,000.</span>
+        <p>AI services for companies</p>
+        <h2>From AI idea to working system.</h2>
+        <span>Training, implementation, and custom solutions.</span>
       </div>
       <Link
         href="/learn-ai"
         className="mobile-consult-link"
         tabIndex={visible ? 0 : -1}
       >
-        See how it works <span aria-hidden="true">→</span>
+        Explore services <span aria-hidden="true">→</span>
       </Link>
     </aside>
   );

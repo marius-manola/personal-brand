@@ -66,11 +66,11 @@ export default function About() {
                 </ul>
 
                 <p className="page-body">
-                  If you want to work together, start at{' '}
+                  If your company needs help with AI, start with{' '}
                   <Link href="/learn-ai" className="inline-link">
-                    consulting
+                    AI services
                   </Link>
-                  . Bring one real workflow.
+                  . Bring the problem, the workflow, or the idea.
                 </p>
               </section>
 
