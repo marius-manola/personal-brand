@@ -1,0 +1,195 @@
+---
+title: "Why Does My LLM Judge Give Inconsistent Scores?"
+date: "2026-09-01"
+updated: "2026-09-01"
+excerpt: "Diagnose inconsistent LLM-judge scores by separating run variance, order bias, prompt sensitivity, and model disagreement, then verify the repair."
+answer: "Your LLM judge gives inconsistent scores because the judgment is sensitive to sampling, candidate order, rubric wording, or the judge model itself. Repeat identical pointwise calls, swap pairwise order, test an equivalent rubric, and compare models against human labels. Aggregate only after measuring variance. The exception is an objective condition that code can verify directly."
+targetQuery: "why does my LLM judge give inconsistent scores"
+queryAliases:
+  - "LLM judge inconsistent scores"
+  - "why are my LLM judge scores different"
+  - "how to make LLM judge scores consistent"
+intent: "failure diagnosis"
+funnel: "consideration"
+cluster: "evaluation"
+parent: "/blog/how-to-evaluate-an-ai-agent"
+contentType: "decision-tool"
+kind: "satellite"
+sourceableAtom: "A reusable judge-diagnostic record maps run variance, candidate-order flips, prompt sensitivity, and cross-model disagreement to separate tests and repairs, with a held-out verification rule."
+evidenceType: "failure-reproduction"
+evidenceBasis: "Verified primary experiments accessed 2026-08-23: Haldar and Hockenmaier (2025) repeated three runs across open-weight judges; Yagubyan (2026) ran 50 pointwise and 50 pairwise trials across GPT-4o-mini and GPT-4.1-mini with temperature and prompt ablations. This article adds a labeled five-class fixture and a repair protocol. No fresh live API benchmark is claimed because the local authenticated judge runtime was unavailable."
+tags:
+  - "AI evaluation"
+  - "AI reliability"
+  - "LLM judges"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://aclanthology.org/2025.findings-emnlp.1361/"
+  - "https://arxiv.org/abs/2603.04417"
+  - "https://arxiv.org/abs/2606.13685"
+  - "https://developers.openai.com/api/docs/guides/evals"
+  - "https://airc.nist.gov/airmf-resources/airmf/5-sec-core/"
+faq:
+  - q: "Should I always set the judge temperature to zero?"
+    a: "No. Test it. Lowering sampling can reduce variance, but a published study found that removing sampling also reduced agreement with human labels for some judges. Measure stability and task agreement together instead of optimizing either one alone."
+  - q: "How many repeats should an LLM judge use?"
+    a: "There is no universal number. Use a pilot to estimate variance, then choose a cost you can defend. One published study needed 11 trials on average to recover its 50-trial reference verdict with 95% probability, while high-variance cases needed 15."
+  - q: "Is pairwise judging more reliable than a score?"
+    a: "Not automatically. Pairwise judging can force a winner even when pointwise score gaps are small. Randomize candidate order, allow ties, and report rank flips before treating a pairwise win as a durable preference."
+cover: "/blog/why-does-my-llm-judge-give-inconsistent-scores-image-1.webp"
+coverAlt: "Illustration of an LLM judge score splitting into four diagnostic paths"
+draft: false
+---
+
+The worst judge result is not a low score. It is a score that changes while the evaluated output stays the same.
+
+When I taught product managers who moved from writing specs to shipping, the hard part was defining what “done” meant. LLM judges have the same problem in a more statistical form: if the acceptance condition is vague, a changed number is impossible to diagnose. ([Marius Manolachi's teaching work](/learn-ai))
+
+## Reproduce the failure and capture a trace
+
+Reproduce the inconsistency with one borderline fixture row, frozen inputs, repeated calls, and a log that keeps raw responses beside parsed decisions.
+
+The source-backed trace below is a bounded reference, not a fresh benchmark from Marius's account:
+
+| Reproduction | Fixed conditions | Trace to record or compare |
+| --- | --- | --- |
+| Repeated pointwise judgment | Same content and rubric across three runs | Self-reliability differed by judge: 0.3263 for Llama 3.1, 0.6278 for DeepSeek-R1, and 0.7883 for Qwen 3 on SummaC ([ACL Anthology](https://aclanthology.org/2025.findings-emnlp.1361/)) |
+| Repeated pairwise judgment | Same candidates, 50 trials, randomized order | Mean flip rate was 13.6%; 28% of questions exceeded 20%, and one reached 56% ([the study's HTML](https://arxiv.org/html/2606.13685v1)) |
+| Equivalent rubric prompts | Same cases, model, and temperature | Majority outcomes changed in 25% of tested cases ([arXiv](https://arxiv.org/abs/2606.13685)) |
+
+To run the same diagnostic in your harness, label the fixture first, pin the model identifier and date, then log the candidate order, rubric version, temperature, raw response, parsed outcome, latency, token counts, cost, and timestamp. The trace tells you which test to run next. It does not prove that your judge has the same failure rate as either paper.
+
+## Diagnose the failure signature
+
+An inconsistent score is a symptom, not a diagnosis. Start by separating the sources of movement.
+
+| What changes? | Test it with | What the published evidence shows |
+| --- | --- | --- |
+| Same output, same prompt | Repeated pointwise calls | A 2025 study found low self-reliability across repeated runs, including Krippendorff's alpha of 0.3263 for Llama 3.1 on one benchmark and 0.7883 for Qwen 3 ([ACL Anthology](https://aclanthology.org/2025.findings-emnlp.1361/)) |
+| Candidate order | Present A/B and B/A | GPT-4o-mini produced a first-position majority for A in 72% of questions in a 2026 repeated-trial study ([the study's HTML](https://arxiv.org/html/2606.13685v1)) |
+| Rubric wording | Use semantically equivalent prompts | The same 2026 study reports that prompt-template changes altered majority outcomes in 25% of tested cases ([arXiv](https://arxiv.org/abs/2606.13685)) |
+| Judge model | Run the same cases on two pinned models | The study reports 76% cross-judge agreement, with Cohen's kappa of 0.51 ([arXiv](https://arxiv.org/abs/2606.13685)) |
+
+Those are four different repairs. A lower temperature can address only part of the first row. It cannot fix a rubric that changes the decision, a candidate-order effect, or two models applying different standards.
+
+![Illustration of an LLM judge score splitting into four diagnostic paths](/blog/why-does-my-llm-judge-give-inconsistent-scores-image-2.webp)
+
+## Why repeated scalar scores move
+
+Pointwise scoring asks the judge to map one output to a number. That number contains at least two things: the output's quality and the judge's uncertainty about the boundary between adjacent scores.
+
+The 2025 study tested repeated ratings on the same content with the same settings. Its SummaC results varied by judge: self-reliability was 0.3263 for Llama 3.1, 0.6278 for DeepSeek-R1, and 0.7883 for Qwen 3, measured with Krippendorff's alpha across three runs ([ACL Anthology](https://aclanthology.org/2025.findings-emnlp.1361.pdf)). This does not mean every task is equally unstable. It means one score cannot tell you whether your task is stable until you repeat it.
+
+The paper also reports a useful exception to the common “set temperature to zero” advice. Majority voting improved balanced accuracy for the judges in that experiment, while no-sampling results were lower than the majority result. Stability and agreement with human labels were not the same objective.
+
+Use this minimal pointwise test:
+
+1. Freeze one output, one rubric, one model identifier, one temperature, and one date.
+2. Run the same call at least five times for a cheap pilot. Use more if the decision is high-stakes.
+3. Record every raw score, not just the mean.
+4. Calculate the mean, standard deviation, minimum, maximum, and number of threshold crossings.
+5. Compare the spread with the distance to your release threshold.
+
+If the mean is 7.1 and the scores range from 5 to 9, the mean does not justify a 7.1-style decision. It hides a boundary problem.
+
+## Pairwise wins can be order effects
+
+Pairwise judging answers a different question: which of two candidates is better? It can be useful for ranking, but it forces a choice even when the candidates are nearly tied.
+
+The 2026 study ran 50 pairwise trials per question with randomized presentation order. Its average pairwise flip rate was 13.6%. Twenty-eight percent of questions exceeded a 20% flip rate, and one reached 56%. The same study found mean pointwise gaps of only 0.19 to 0.36 on a 10-point scale. A pairwise winner could therefore look decisive while the scalar evidence remained weak ([the study's HTML](https://arxiv.org/html/2606.13685v1)).
+
+Run the reordered-candidate test before trusting a win:
+
+| Trial set | Candidate order | Keep |
+| --- | --- | --- |
+| Set A | A then B | winner, tie, reason, raw response |
+| Set B | B then A | winner, tie, reason, raw response |
+| Comparison | Same candidates, swapped positions | flip rate and position effect |
+
+Treat an A/B disagreement as uncertainty, not as two independent votes for whichever result arrived last. Keep `TIE` as a valid output. If your judge has no tie or abstain state, it is being asked to express more certainty than the task supports.
+
+## Rubric wording can be the moving part
+
+Two prompts can describe the same criteria and still produce different majorities. That is prompt sensitivity, not run-to-run randomness.
+
+Write two rubric versions that differ in structure but not in intended criteria. For example, move from a paragraph instruction to a numbered list while keeping the same definitions of correctness, completeness, and risk. Run both versions on the same fixture, with the same model and temperature. Count cases where the majority label changes.
+
+The 2026 study reports a 25% majority-outcome change under semantically equivalent prompt templates. That result is a warning against “fixing” a judge by rewriting the rubric once and assuming the new wording is better. Version the rubric, keep the old prompt as a baseline, and compare both to human labels.
+
+OpenAI's eval guidance makes the same measurement move at the dataset level: define representative test data, keep human-provided ground-truth labels where they exist, and define explicit testing criteria ([OpenAI's evals guide](https://developers.openai.com/api/docs/guides/evals)). A rubric is a measurement instrument. Treat changes to it like changes to code.
+
+## A five-case fixture catches the common false comfort
+
+Use a small fixture before expanding your dataset. Label the cases before the judge sees them.
+
+| Case | Human label | What the output looks like | Failure it tests |
+| --- | --- | --- | --- |
+| Good | APPROVE | Concise, specific, and supported by the source | Can the judge pass a clear success? |
+| Bad | REJECT | Polished, but contradicts a source or required condition | Does fluency hide an error? |
+| Borderline | ESCALATE | Two reasonable readings or conflicting evidence | Can the judge admit uncertainty? |
+| Short | REJECT | Correct tone, but missing a required field or condition | Does brevity look like clarity? |
+| Verbose | REJECT | Long, well formatted, and unsupported | Does length or rubric language earn points? |
+
+Record the human label, the fixture version, and the reason. The label is not “this sounds good.” It is the decision a qualified reviewer would make against the task's source of truth and acceptance condition.
+
+NIST's AI RMF says measurement should be documented, use appropriate quantitative or qualitative methods, include uncertainty and comparisons, and describe limits on generalization ([NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/)). That is exactly what this small fixture is for: making the uncertainty visible before a judge becomes a release gate.
+
+## The repair is a protocol, not a magic temperature
+
+Use this order when the score is unstable:
+
+1. Freeze the input, human label, output, rubric version, model version, temperature, and date.
+2. Run pointwise repeats and store the raw distribution.
+3. Run pairwise repeats in both candidate orders, with an explicit tie.
+4. Run a semantically equivalent rubric and count changed majorities.
+5. Run a second pinned model only after measuring the first model's spread.
+6. Choose the cheapest repair that addresses the observed signature.
+7. Test that repair on new held-out outputs labelled before the rerun.
+
+The repair menu is simple:
+
+| Failure signature | Repair | What can still go wrong |
+| --- | --- | --- |
+| Wide repeated score spread | Aggregate repeated calls and report the interval | Cost rises, and averaging can hide a multimodal split |
+| Candidate-order flips | Randomize order, run both directions, allow ties | A stable order test does not prove human agreement |
+| Prompt-template changes | Freeze a versioned rubric and calibrate it | A stable prompt can still encode the wrong construct |
+| Cross-model disagreement | Pick the model that wins on held-out human labels, or report a panel disagreement | Agreement between models is not truth |
+
+The external repair evidence is bounded. In the 2025 paper's SummaC table, majority voting increased balanced accuracy from 59.1 to 61.4 for Llama 3.1, 69.8 to 72.3 for DeepSeek-R1, and 79.4 to 80.6 for Qwen 3. The authors also report lower no-sampling results. In the 2026 study, 11 trials recovered the 50-trial reference verdict with 95% probability on average, while high-variance questions needed 15 ([ACL Anthology](https://aclanthology.org/2025.findings-emnlp.1361.pdf), [arXiv](https://arxiv.org/abs/2606.13685)). Use those numbers as starting points for a pilot, not as a production default.
+
+The written repair artifact passed a small protocol-level held-out check: five new records were labeled before applying the decision table, and the expected outputs were APPROVE, REJECT, ESCALATE, REJECT, and REJECT for good, bad, borderline, short, and verbose cases. That checks the boundary in the artifact. It does not claim that a live LLM made those decisions.
+
+## What to record before changing the judge
+
+Your evaluation log should make a score explainable six weeks later:
+
+```yaml
+case_id: support-answer-017
+human_label: borderline
+judge_model: pinned-model-id
+judge_version_date: 2026-08-23
+rubric_version: rubric-04
+temperature: 0.2
+reference_mode: visible
+candidate_order: A_then_B
+repeat_count: 11
+pointwise_scores: []
+pairwise_winners: []
+prompt_variant: numbered-rubric
+human_adjudication_reason: "Two policy sources conflict"
+cost_usd: 0
+decision: escalate
+```
+
+The example uses zero only to show the field shape. In a real run, write the billed amount from the provider's current pricing record. Keep the raw outputs beside this record so a later reviewer can tell whether the score moved because the model changed its answer, the parser changed, or the rubric changed.
+
+## Verify the repair on held-out cases
+
+Call the repair verified only after applying it to new cases that were labeled before the rerun. Compare the old and repaired protocols on agreement with those labels, abstentions, order flips, score spread, and cost.
+
+The written decision table passed a bounded protocol-level check: five new records were labeled first, then produced the expected sequence `APPROVE`, `REJECT`, `ESCALATE`, `REJECT`, and `REJECT` for good, bad, borderline, short, and verbose cases. This verifies that the fixture's boundary and decision path are internally consistent. It is not a live-model accuracy result. A production repair still needs its own held-out run, and it fails if the apparent improvement comes from hiding ties, changing the labels after the rerun, or widening the acceptance rule.
+
+For the broader release gate, use [how to evaluate an AI agent](/blog/how-to-evaluate-an-ai-agent). For the mechanics of building a rubric, see [how to grade an AI output against a rubric](/blog/how-to-grade-an-ai-output-against-a-rubric).
+
+If you need help turning a live judge trace into a decision, [Marius Manolachi's AI learning and consulting work](/learn-ai) is the natural next step. Bring the fixture, raw runs, human labels, and cost record. A single average score is not enough to diagnose the system.
