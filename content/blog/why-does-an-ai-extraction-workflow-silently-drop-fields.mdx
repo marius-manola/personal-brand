@@ -1,0 +1,198 @@
+---
+title: "Why Does an AI Extraction Workflow Silently Drop Fields?"
+date: "2026-09-01"
+updated: "2026-09-01"
+excerpt: "A reproducible trace shows how OCR, model output, normalization, and persistence can all report success while a business field disappears."
+answer: "An AI extraction workflow silently drops fields when each stage validates shape or write success instead of comparing source coverage with the stored record. Optional fields can be omitted legally, repeated fields can be truncated, and contradictory values can be flattened into one answer. The exception is a truly source-missing field, which should stay absent but be recorded as such."
+targetQuery: "why does an AI extraction workflow silently drop fields"
+queryAliases:
+  - "AI extraction silently drops fields"
+  - "document extraction missing fields without errors"
+  - "schema valid JSON missing extracted fields"
+intent: "implementation"
+funnel: "consideration"
+cluster: "implementation"
+parent: "/blog/how-to-scope-an-ai-agent-proof-of-concept"
+contentType: "decision-tool"
+kind: "satellite"
+sourceableAtom: "In a pinned synthetic trace, schema-valid JSON lost a repeated line item and a visually difficult due date; a source inventory and provenance gate detected both, classified the contradictory total, and passed two held-out fixtures after repair."
+evidenceType: "failure-reproduction"
+evidenceBasis: "A Node.js v20.11.0 provider-neutral fixture was run with pinned artifact versions. The raw traces, valid-but-incomplete output, diagnosis, repaired assertions, and two held-out verifications are recorded in research.md."
+tags:
+  - "AI implementation"
+  - "Document AI"
+  - "Workflow reliability"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-20"
+sources:
+  - "https://docs.aws.amazon.com/textract/latest/dg/what-is.html"
+  - "https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/overview"
+  - "https://cloud.google.com/document-ai/docs/overview"
+  - "https://www.reddit.com/r/LangChain/comments/1r3l91j/the_unsolved_problem_with_doc_extraction_knowing/"
+  - "https://json-schema.org/understanding-json-schema/reference/object"
+  - "https://developers.openai.com/api/docs/guides/structured-outputs"
+  - "https://mariusmanolachi.com/learn-ai"
+cover: "/blog/why-does-an-ai-extraction-workflow-silently-drop-fields-field-loss-hero.webp"
+coverAlt: "Illustration of an AI document extraction workflow losing fields between model output and persistence"
+draft: false
+---
+
+I teach product managers to move from writing specs to building and shipping products, and to automate work around them. That makes “done” concrete here: an extraction run isn’t done because the JSON parses. It’s done when every source field is accounted for.
+
+Here’s the reproduction I ran. It is synthetic, deterministic, and not a model benchmark. Its value is that you can see the failure move through the pipeline.
+
+| Stage | What happened | Did the stage report success? |
+| --- | --- | --- |
+| OCR | Found two line items, two total candidates, and a low-contrast due date | Yes |
+| Model output | Returned one line item, the first total, and no due date | Yes |
+| Parsing | Parsed the incomplete JSON without changing it | Yes |
+| Normalization | Kept only the first repeated item | Yes |
+| Persistence | Stored the incomplete normalized record | Yes |
+| Completeness repair | Detected the omissions and conflict | No, correctly routed to review |
+
+The complete fixture, traces, versions, assertions, and held-out results are in [the research record](./research.md).
+
+## What does silently dropping a field look like?
+
+It looks like a valid record that has passed several local definitions of success while nobody has checked whether the record still represents the source document.
+
+Document services commonly expose separate capabilities for text, forms, tables, queries, layout, typed values, normalization, and classification. Amazon Textract documents text, forms, tables, and query-based extraction. Azure Document Intelligence documents read, layout, prebuilt, and custom models, including typed field values and normalization. Google Document AI describes OCR, layout, key-value pairs, classification, and processors for digitizing and extracting documents. These are useful building blocks, but the product still owns the end-to-end completeness decision. ([Amazon Textract](https://docs.aws.amazon.com/textract/latest/dg/what-is.html), [Azure Document Intelligence](https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/overview), [Google Document AI](https://cloud.google.com/document-ai/docs/overview))
+
+The silent failure appears when each boundary asks a narrower question:
+
+- Did OCR return text?
+- Did the model return JSON?
+- Did the parser accept JSON?
+- Did normalization produce the application type?
+- Did the database accept the write?
+
+Those checks don’t answer the business question: did every field found in the document survive with enough evidence to use it?
+
+## Why can schema validation miss an extracted field?
+
+Because a schema validates the contract you wrote, not the information that existed in the document.
+
+JSON Schema’s properties keyword defines the shape of named properties. Those properties are not required by default. The required keyword must name the properties that must be present. That means a response can be valid while omitting a field that your document contained, especially when the field is optional in the schema or a repeated array has no minimum count. ([JSON Schema object reference](https://json-schema.org/understanding-json-schema/reference/object))
+
+The same gap appears with contradictions. A schema can confirm that total is a number. It cannot know that the source contained both Total 8120.55 and Balance due 8210.55, or that the second value should force a review. That is a semantic and provenance check.
+
+A public Reddit report describes this exact symptom: clean JSON, high confidence, no thrown error, and missing fields found later. Treat it as a practitioner anecdote, not a prevalence estimate. ([Reddit report on silent document-extraction omissions](https://www.reddit.com/r/LangChain/comments/1r3l91j/the_unsolved_problem_with_doc_extraction_knowing/))
+
+## Where did the reproduced pipeline lose fields?
+
+The first loss happened at model output. The second became permanent during normalization. Persistence only made the incomplete result durable.
+
+The fixture contained:
+
+| Case | Source evidence | Faulty result |
+| --- | --- | --- |
+| Optional, source-missing | No purchase-order block | Correctly absent |
+| Repeated | Line items at page 1, block b4, and page 2, block b7 | Only b4 survived |
+| Contradictory | Total at b5 and balance due at b8 | First number marked supported |
+| Visually difficult | Due date at b6, low contrast, OCR confidence 0.62 | Omitted from model output |
+
+The faulty model output still contained the required scalar keys: vendor, invoice number, currency, and total. An AJV 6.12.6 draft-07-compatible schema check returned schemaValid: true. Structured-output tooling can enforce this kind of response shape, but source coverage remains an application check. ([OpenAI Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs))
+
+That result is the sourceable part of this page. The stored record was valid in the narrow technical sense and incomplete in the business sense. The trace identifies the loss rather than blaming OCR, the model, or the database in general.
+
+The diagnosis was:
+
+1. OCR retained all eight source blocks, including the difficult due date.
+2. The extractor omitted dueDate, returned one of two line items, and ignored the second total candidate.
+3. JSON parsing lost nothing. It accepted the already-incomplete response.
+4. Normalization selected lineItems[0], with no expected-count check.
+5. Persistence wrote the normalized object because no gate compared it with the source inventory.
+
+This is why a successful write metric can stay green while the business record is wrong.
+
+## How do you repair the extraction workflow?
+
+Keep a source inventory beside the extracted result, carry field-level status and evidence through every stage, and block persistence when the two disagree.
+
+The repaired contract needs four states for a field:
+
+| State | Meaning | Stored value |
+| --- | --- | --- |
+| supported | A source block supports the value | Value plus page and block evidence |
+| missing | The field is expected or requested, but no source block supports it | null plus the search or source coverage record |
+| conflict | Multiple source candidates disagree | null plus evidence for every candidate |
+| source_absent | An optional field has no candidate in this document | Omitted or null, according to the application contract |
+
+The important distinction is source_absent versus missing. A purchase order that isn’t on the invoice is not the same as a due date found by OCR and lost by extraction.
+
+The repair procedure is:
+
+1. Build a source inventory from OCR or layout blocks. Keep page, block ID, field candidate, and repeated-field identity.
+2. Ask the extractor for field status and evidence, not just values. Every non-null value needs at least one source reference.
+3. Compare source candidate counts with output counts. Do not let an array silently shrink.
+4. Turn multiple disagreeing candidates into conflict. Don’t choose the first value because it is convenient.
+5. Re-run the same checks after normalization. Normalizers are part of the data path, not harmless plumbing.
+6. Write only when the final payload passes completeness, provenance, type, and business-rule checks. Otherwise persist a review task with the trace.
+
+This is compatible with managed document services. Their OCR, layout, and typed-field features can supply the blocks and candidates. Your application still decides whether the evidence is complete enough to create a business record.
+
+## Which assertions catch silent field loss?
+
+The assertions need to test coverage, cardinality, contradiction, and provenance together.
+
+~~~text
+for each field in source_inventory:
+  if source_count == 0:
+    allow absence only for an optional field
+  if field is repeated:
+    require output_count == source_count
+  if candidates disagree:
+    require output.status == "conflict"
+    require evidence includes every candidate
+  if source_count > 0 and output is absent:
+    report workflow_lost
+
+for each supported output value:
+  require evidence points to a valid page and block
+
+before persistence:
+  block the write if any issue remains
+~~~
+
+On the original fixture, these checks returned three issues:
+
+~~~text
+lineItems: expected 2, got 1
+total: multiple source candidates require conflict status
+dueDate: source candidate absent from model output
+~~~
+
+The repaired output contained both line items with their block references, marked total as conflict with a null value, and restored dueDate with evidence for page 1, block b6. The assertion list was empty.
+
+/blog/why-does-an-ai-extraction-workflow-silently-drop-fields-field-loss-repair-trace.webp
+
+The image belongs here because the useful mental model is a trace, not a single model call: source inventory enters the workflow, each stage carries field evidence, and persistence is the final gate rather than the first proof of success.
+
+## Does the repair work on a new document?
+
+A repair is useful only if its rules survive a document variation without being rewritten for the demo case.
+
+I ran the unchanged gate on two held-out fixtures:
+
+| Fixture | Variation | Result |
+| --- | --- | --- |
+| invoice-018 | Two line items, one total, due date present, optional purchase order absent | Pass, zero issues |
+| invoice-019 | One line item, two contradictory totals, due date absent, optional purchase order absent | Pass, zero issues |
+
+This is a small verification, not a reliability benchmark. It shows that the repaired checks handle the four fixture conditions when their source inventory changes. It does not show how well a real OCR system finds unseen regions, nor how often a production model omits a field.
+
+For that reason, keep a second test family for source coverage. If OCR never produces a block for a faint stamp or a page outside the selected range, a downstream completeness check cannot discover what was never represented. Add page-quality checks, layout checks, targeted searches, or human review for those cases.
+
+## Which missing fields should be allowed?
+
+Allow a field to be absent only when the source and the workflow contract both say absence is acceptable.
+
+An optional purchase-order field with no source candidate can pass as source_absent. A due date that appears in OCR but vanishes from the model cannot pass silently. A repeated line-item field cannot pass with one item when the source inventory has two. A contradictory total should not become a number merely because one candidate looks more convenient.
+
+This rule is deliberately stricter than “the model had high confidence.” Confidence can describe a token without proving that the token is the right field, that another candidate does not exist, or that a repeated group is complete.
+
+If you’re building the broader product boundary around messy documents, start with [the implementation guide for AI features handling messy business documents](/blog/how-to-build-an-ai-feature-for-messy-business-documents). If you’re deciding how to scope this kind of bounded pilot, use the assigned parent, [how to scope an AI agent proof of concept](/blog/how-to-scope-an-ai-agent-proof-of-concept), as the next architectural step.
+
+If your team has a real trace but can’t decide which boundary owns the check, bring that trace to [Marius Manolachi’s AI consulting and tutoring work](https://mariusmanolachi.com/learn-ai).
+
+The practical release rule is simple: don’t promote a document record from “parsed” to “ready” until the source inventory, field status, provenance, and persistence payload agree. That one boundary catches the failure that clean JSON hides.
