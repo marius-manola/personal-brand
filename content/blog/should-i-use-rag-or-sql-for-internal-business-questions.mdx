@@ -1,0 +1,214 @@
+---
+title: "Should I Use RAG or SQL for Internal Business Questions?"
+date: "2026-09-01"
+updated: "2026-09-01"
+excerpt: "A reproducible route benchmark on synthetic business questions shows where SQL, RAG, and a hybrid router each answer, cite, or abstain."
+answer: "Use SQL for current metrics, aggregates, and record lookups because the answer must be computed from governed rows. Use RAG for policies and explanatory documents. Route mixed questions to both, then join the results. The exception is an ambiguous or unavailable question: ask a clarifying question or abstain instead of making either system guess."
+targetQuery: "should I use RAG or SQL for internal business questions"
+queryAliases:
+  - "rag or sql for internal business questions"
+  - "should internal analytics use rag or sql"
+intent: "informational architecture decision"
+funnel: "architecture"
+cluster: "architecture"
+parent: "/blog/when-to-use-an-ai-agent"
+contentType: "decision-tool"
+kind: "satellite"
+sourceableAtom: "A 12-question synthetic business fixture measured deterministic RAG-only, SQL-only, and hybrid routes, with the hybrid router scoring 12/12, RAG-only 9/12, and SQL-only 7/12."
+evidenceType: "benchmark"
+evidenceBasis: "Bounded deterministic route-boundary benchmark; fixture, gold answers, pinned route contracts, raw-output matrix, scoring rule, error taxonomy, hash, rerun, and limitations are documented in research.md."
+tags:
+  - "RAG"
+  - "SQL"
+  - "AI architecture"
+  - "internal analytics"
+  - "benchmark"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://cloud.google.com/blog/products/databases/techniques-for-improving-text-to-sql"
+  - "https://arxiv.org/abs/2602.07086"
+  - "https://www.postgresql.org/docs/current/ddl-priv.html"
+  - "https://www.postgresql.org/docs/current/ddl-rowsecurity.html"
+  - "https://www.anthropic.com/engineering/building-effective-agents"
+faq:
+  - q: "Can SQL answer questions about company policies?"
+    a: "Only if the policy has been modelled into governed tables. If the authoritative text lives in documents, retrieve the document and cite it instead of pretending a table query answered the question."
+  - q: "Should a mixed question use RAG or SQL?"
+    a: "Use both when one part requires a current database value and another part requires policy or explanatory text. Join the results only after each part passes its own evidence and permission checks."
+  - q: "What should an internal assistant do when a question is ambiguous?"
+    a: "Ask a clarifying question when the business definition is missing, and abstain when the requested period or field is absent from the allowed sources."
+cover: "/blog/should-i-use-rag-or-sql-for-internal-business-questions-img-01.webp"
+coverAlt: "Illustration of a governed internal business assistant routing questions between SQL, RAG, and clarification"
+draft: false
+---
+
+When I taught product managers to move from writing specs to shipping, the hard part was rarely choosing a model. It was deciding what “done” meant. The same problem appears here: teams choose RAG or SQL before they define what counts as a correct business answer.
+
+This benchmark starts with the question fixture instead. It asks which source each question needs, what the route returned, and whether the answer can show its work.
+
+## The result: use SQL for metrics, RAG for policies, and both for mixed questions
+
+The strongest route in the fixture was an explicit hybrid router. It sent metrics and record lookups to SQL, policies to RAG, mixed questions to both, and ambiguous or unavailable questions to clarification or abstention.
+
+| Route | Correct answers | Execution correctness | Citation coverage | Abstentions |
+| --- | ---: | ---: | ---: | ---: |
+| RAG-only | 9/12, 75.0% | 12/12, 100% | 5/12, 41.7% | 0 |
+| SQL-only | 7/12, 58.3% | 12/12, 100% | 7/12, 58.3% | 7 |
+| Hybrid router | 12/12, 100% | 12/12, 100% | 12/12, 100% | 2 |
+
+This is a deterministic route-boundary benchmark, not a claim about the accuracy of a particular LLM. The fixture, gold answers, route contracts, raw outputs, scoring rule, and rerun are recorded in the accompanying research artifact.
+
+Three held-out questions tested whether the route rule transferred to a new account, a differently worded policy question, and a new mixed combination. The hybrid route scored 3/3; RAG-only and SQL-only each scored 1/3. The held-out set is deliberately small, so it is a rerun check, not a generalization estimate.
+
+![Illustration of a synthetic business benchmark fixture combining Postgres-shaped tables and policy documents](/blog/should-i-use-rag-or-sql-for-internal-business-questions-img-02.webp)
+
+The practical choice is simple:
+
+- Use SQL when the answer must be calculated from current rows, such as revenue, renewal rate, seats, or account fields.
+- Use RAG when the answer is authoritative text, such as approval policy, retention rules, or an SLA.
+- Use both when the question combines a current value with a document rule.
+- Clarify or abstain when the definition or data is missing.
+
+That boundary follows the evidence in the fixture and the engineering constraints in the underlying systems. Google Cloud’s text-to-SQL guidance identifies business context and user-intent ambiguity as central problems, while the recent mixed SQL and API study shows that retrieval strategy changes structured-generation performance. ([Google Cloud](https://cloud.google.com/blog/products/databases/techniques-for-improving-text-to-sql), [arXiv:2602.07086](https://arxiv.org/abs/2602.07086))
+
+## What the benchmark tested
+
+The fixture contains 12 questions across five classes: metrics, record lookups, policies, mixed questions, and unsafe-to-guess questions.
+
+| Class | Example | Authoritative source |
+| --- | --- | --- |
+| Metric | “What was total revenue in Q1 2026?” | SQL tables |
+| Record lookup | “What is Acme’s contract renewal date?” | SQL table |
+| Policy | “Who must approve a discount above 20%?” | Document |
+| Mixed | “What is Acme’s Q2 ARR, and what response time applies to Sev-1?” | SQL plus document |
+| Ambiguous or unavailable | “Who is our best customer?” or “What was Q3 revenue?” | Clarification or abstention |
+
+The data is synthetic. Four accounts, invoice totals, daily paid seats, and segment renewal rates live on the SQL side. Nine short documents cover discount approval, PII handling, an incident SLA, export retention, account records, and KPI snapshots.
+
+The fixture includes a deliberate trap. Ordinary Finance exports are retained for 30 days. Cancelled-account exports are retained for 90 days. A system that retrieves the right paragraph but ignores the question’s “cancelled-account” condition fails Q07.
+
+The route contracts were pinned as follows:
+
+1. RAG-only could retrieve from the document allowlist but could not query the database.
+2. SQL-only could query curated read-only views but could not retrieve documents.
+3. The hybrid router classified each question, called one or both read-only surfaces, and joined references only after both sides returned.
+
+The harness used deterministic adapters because this runtime had no callable model or Postgres server. That makes the test repeatable, but it also limits what the result can prove. It measures route design, source discipline, and abstention behavior. It does not measure LLM generation quality.
+
+## When SQL is the right default
+
+Choose SQL when the answer depends on a calculation, a filter, a current record, or a permissioned view of structured data.
+
+“What was Q1 revenue?” is not a document-retrieval problem if the database is the system of record. The answer should be computed from rows, with the query and data source available for inspection. That is why SQL-only answered Q01, Q02, Q03, Q08, and Q09 correctly in the fixture.
+
+SQL is also the better enforcement surface for access. PostgreSQL distinguishes `SELECT` from write permissions such as `INSERT`, `UPDATE`, and `DELETE`. A production assistant should receive a role that can read only approved views, not a general-purpose connection. ([PostgreSQL privileges](https://www.postgresql.org/docs/current/ddl-priv.html))
+
+Row-level security matters when the same database holds records for multiple teams or tenants. PostgreSQL policies can restrict which rows a role sees, and an enabled table with no applicable policy defaults to deny. Routing decides where a question goes. The database still decides what rows the caller may see. ([PostgreSQL row security policies](https://www.postgresql.org/docs/current/ddl-rowsecurity.html))
+
+Use SQL for:
+
+- totals, averages, rates, rankings, and time windows;
+- account, order, invoice, or user record lookups;
+- joins where the relationship is encoded in the schema;
+- answers that must reflect the latest committed data;
+- access-controlled views where row or column scope is part of correctness.
+
+Do not confuse “the model generated valid SQL” with “the answer is correct.” Google Cloud’s text-to-SQL guidance calls out schema meaning, business context, ambiguous intent, dialect differences, and validation. Your release check should compare the result with a gold answer or a trusted query, not only parse the SQL. ([Google Cloud](https://cloud.google.com/blog/products/databases/techniques-for-improving-text-to-sql))
+
+## When RAG is the right default
+
+Choose RAG when the answer lives in prose that changes independently of database rows: a policy, exception, handbook, contract clause, or explanation.
+
+Q04 asked who approves a discount above 20%. Q05 asked whether Support can export customer PII. Q12 asked how long Finance may retain exported account files. Each answer came from a document, and the document ID was the useful citation.
+
+RAG is not a shortcut around governance. Retrieval should be restricted by the user’s permissions, document version, effective date, and source authority. A retrieved paragraph that is out of date is not evidence just because it is semantically similar.
+
+RAG also needs an abstention policy. In the fixture, RAG-only answered the missing Q3 revenue question with the available Q1 snapshot. That was a plausible sentence and a wrong answer. The correct behavior was: “I cannot answer from the permitted fixture.”
+
+This is the principal exception to the simple “RAG for documents” rule: if a policy has been normalized into a governed table and the table is authoritative, SQL may be the right source. The format is not the decision. The authority and the operation are.
+
+## Why mixed questions need an explicit router
+
+A mixed question should be split only when its parts have different authoritative sources. Then each part needs its own trace.
+
+Q06 combined Acme’s current Q2 ARR with the response time for a Sev-1 incident. SQL-only returned the ARR but had no policy source. RAG-only returned both values from documents, but its references did not cover the governed database source. The hybrid route returned `DB:accounts` and `DOC:sla.md`, so the answer was both correct and fully covered.
+
+Q07 exposed a second failure. It asked for the account with the highest churned ARR and the retention period for cancelled-account exports. RAG-only returned 30 days, the ordinary export rule. SQL-only found Beacon but had no document rule. The hybrid route returned Beacon and 90 days.
+
+Use a route table this small before you reach for an autonomous agent:
+
+| Question signal | Route | Required evidence |
+| --- | --- | --- |
+| “how many”, “rate”, “total”, “which account”, date filter | SQL | Query, permitted view, result |
+| “can we”, “who approves”, “how long may”, “what does policy say” | RAG | Document ID, version or effective date |
+| “what is the value and what policy applies” | SQL plus RAG | Both references, joined after independent checks |
+| “best”, “important”, “healthy” without a definition | Clarify | The missing business definition |
+| A period or field absent from allowed sources | Abstain | Explicit coverage failure |
+
+Anthropic describes routing as a way to classify an input and direct it to a specialized follow-up task. It also recommends starting with the simplest sufficient pattern. For this job, the router is a small policy function, not a free-running agent. ([Anthropic](https://www.anthropic.com/engineering/building-effective-agents))
+
+## How to keep routing from becoming a security boundary
+
+The router can choose a source. It must not grant access to that source.
+
+Give the SQL path a dedicated read-only role. Expose curated views instead of every table. Apply row-level security where users or tenants need different visibility. Give the RAG path a document allowlist filtered by the same identity and effective date. Reject a mixed answer if either side lacks permission or evidence.
+
+PostgreSQL’s privilege system lets you grant `SELECT` without granting write operations. Row-level security adds per-user row restrictions. Both controls belong below the model and below the route classifier. ([PostgreSQL privileges](https://www.postgresql.org/docs/current/ddl-priv.html), [PostgreSQL row security policies](https://www.postgresql.org/docs/current/ddl-rowsecurity.html))
+
+The minimum trace for every answer should include:
+
+1. the normalized question and detected class;
+2. the identity and permission snapshot;
+3. the SQL view and query result, if SQL ran;
+4. the document IDs and effective dates, if retrieval ran;
+5. the final action: answer, clarify, or abstain;
+6. the evidence references shown to the user.
+
+If the system cannot produce the trace, treat that as an execution failure even if the prose sounds right.
+
+## What failed in the fixture
+
+The failure distribution is more useful than the winner alone.
+
+| Failure | Route | Questions | Repair |
+| --- | --- | --- | --- |
+| Document answer used where a governed row was required | RAG-only | Q01, Q02, Q03, Q06, Q08, Q09 citation gaps | Route current metrics and records to SQL |
+| Mixed question answered only halfway | RAG-only and SQL-only | Q06, Q07 | Split, run both, require both evidence sets |
+| Undefined ranking answered as if it were objective | RAG-only | Q10 | Clarify the definition before selecting a row |
+| Missing period filled with an older period | RAG-only | Q11 | Check source coverage and abstain |
+| Policy blindness | SQL-only | Q04, Q05, Q06, Q07, Q12 | Add document retrieval or route policies away from SQL |
+
+The pattern matters. RAG-only’s main problem was not inability to read prose. It was authority and coverage. SQL-only’s main problem was not query execution. It was that policies were outside its source surface. A hybrid router fixed both by making the source decision explicit.
+
+## Method, limits, and what this does not tell you
+
+The observed result is strong enough to choose a route boundary for this fixture, but not to claim production LLM accuracy: the sample was n = 12 synthetic questions, run through deterministic adapters in one local harness.
+
+The method was deliberately inspectable. I created Postgres-shaped tables and nine short documents, wrote a gold action, value, and evidence reference for each question, then ran RAG-only, SQL-only, and hybrid routes with fixed permissions and output contracts. Correctness required the exact action and value. Execution correctness required a valid trace. Citation coverage required every gold reference. The same fixture was run again in a fresh process, and three held-out questions were used as a small transfer check.
+
+The limits are material. There was no live Postgres server and no callable language model, so the result measures source routing, evidence discipline, and abstention behavior, not retrieval ranking, SQL generation, model quality, prompt-injection resistance, or production latency and cost. The fixture is small, synthetic, and curated. I still do not know how the route boundary changes with messy schemas, conflicting document versions, larger question sets, or model variance.
+
+## How to run the benchmark on your own fixture
+
+Use your own business-shaped questions. Do not begin with a generic benchmark that has no relationship to the decisions your assistant will make.
+
+1. Create 12 to 30 questions across metrics, record lookups, policies, mixed questions, ambiguity, and unavailable data.
+2. Write a gold answer, required evidence references, and expected action for every question.
+3. Create two source inventories: governed SQL views and versioned documents. Mark the authority for each gold claim.
+4. Run RAG-only, SQL-only, and a simple hybrid router under identical user permissions.
+5. Record correctness, execution correctness, citation coverage, abstentions, latency, and cost separately.
+6. Classify each failure as wrong source, wrong value, missing evidence, ambiguity collapse, permission failure, or missing-data hallucination.
+7. Hold out new questions and rerun from a clean environment after changing a prompt, schema, model, retriever, or permission.
+
+The benchmark does not need to be large to expose the architecture boundary. It needs to contain the uncomfortable cases. A fixture with only “What is revenue?” will make every route look better than it is.
+
+## The decision
+
+Start with SQL if most questions ask for current numbers or records. Start with RAG if most questions ask about policies or explanatory text. Add a router when both kinds appear in the same product. Add a mixed route only when the question genuinely needs both sources.
+
+The exception is more important than the default. If the question is ambiguous, ask. If the data is missing, abstain. If the user cannot see the row or document, do not answer from it.
+
+For the broader architecture, see [when to use an AI agent](/blog/when-to-use-an-ai-agent). If your RAG system needs a stricter no-evidence path, read [how to make a RAG system abstain when evidence is insufficient](/blog/how-to-make-a-rag-system-abstain-when-evidence-is-insufficient). If the SQL tool will sit inside an agent, pair the route with [least-privilege tool access](/blog/give-ai-agent-least-privilege-tool-access).
+
+The cleanest first version is usually three explicit paths and a trace: SQL, RAG, or clarification. The benchmark says why. Your fixture should tell you whether your numbers agree.
