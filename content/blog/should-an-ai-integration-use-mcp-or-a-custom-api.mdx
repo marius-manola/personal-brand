@@ -1,0 +1,189 @@
+---
+title: 'Should an AI Integration Use MCP or a Custom API?'
+date: '2026-09-01'
+updated: '2026-09-01'
+excerpt: 'Use a custom API for one embedded client. Extract MCP when independent model clients or a reusable platform create real reuse, with security vetoes.'
+answer: 'Use a custom API when one product or embedded client owns the integration. Use MCP when the same tools must serve multiple independent model clients, third-party model consumers, or an internal agent platform. The exception is decisive: do not extract MCP until authentication, version negotiation, observability, and server ownership are explicit and operable.'
+targetQuery: 'should an AI integration use MCP or a custom API'
+queryAliases:
+  - 'MCP vs custom API for AI integration'
+  - 'when to use MCP instead of a custom API'
+  - 'MCP or REST API for AI tools'
+intent: 'decision'
+funnel: 'consideration'
+cluster: 'architecture'
+parent: '/blog/when-to-use-an-ai-agent'
+contentType: 'decision-tool'
+kind: 'satellite'
+sourceableAtom: 'A staged MCP-versus-custom-API matrix with a reuse threshold and security, versioning, observability, and ownership vetoes.'
+evidenceType: 'decision-artifact'
+evidenceBasis: 'A protocol-grounded matrix, three worked scenarios, a migration diagram, and a minimal lookup_invoice fixture whose five structural checks passed locally on 2026-08-23.'
+tags:
+  - 'MCP'
+  - 'AI architecture'
+  - 'API design'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-21'
+sources:
+  - 'https://modelcontextprotocol.io/specification/2025-06-18'
+  - 'https://modelcontextprotocol.io/specification/2026-07-28/server/tools'
+  - 'https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization'
+  - 'https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning'
+  - 'https://www.anthropic.com/engineering/building-effective-agents'
+  - 'https://aws.amazon.com/blogs/compute/effectively-building-ai-agents-on-aws-serverless/'
+cover: '/blog/should-an-ai-integration-use-mcp-or-a-custom-api-hero.webp'
+coverAlt: 'Illustration of a staged decision between a custom API and MCP for AI tool reuse'
+draft: false
+---
+
+MCP is a protocol boundary. A custom API is an application boundary. They can expose the same business capability, but they create different obligations for clients, authentication, versioning, and operations.
+
+I would not add MCP because an integration feels more serious with it. I would add it when another independent client needs the same capability and the team is ready to operate the shared boundary.
+
+## The decision artifact: which boundary fits the job?
+
+Use this matrix before writing an MCP server. The default column is the starting choice. The extraction trigger is the evidence that can justify changing it.
+
+| Situation | Default | MCP earns its place when | Custom API stays better when | Extraction trigger |
+| --- | --- | --- | --- | --- |
+| One embedded client in one product | Custom API or in-process function | The client boundary must be shared soon and the server owner already exists | The product owns the workflow, latency path, identity, and deployment | A named second consumer has a different release cycle |
+| Two independent model clients | Custom core plus a thin MCP adapter | Both clients need the same tools and discovery reduces duplicated adapters | The clients need different business workflows or incompatible auth | The same tool contract is accepted by both clients |
+| Third-party model consumers | Custom API by default | External consumers are model hosts, need MCP discovery, and you can support remote auth and compatibility | Partners are ordinary software clients, mobile apps, or data pipelines | At least one real consumer agrees to the MCP contract and support model |
+| Internal agent platform reuse | Keep the domain service private at first | Multiple teams need discoverable tools with a shared governance and trace layer | One platform team can expose stable typed functions without protocol translation | A platform owner accepts uptime, schema, and incident duties |
+| Auth control | Custom API or service boundary | A remote MCP server can authenticate each request, enforce scopes, and map tool access to the principal | Business authorization is still being designed or the protocol client cannot carry the needed context | A tested auth flow and denial cases exist |
+| Versioning | Custom API with an explicit application contract | Client and server can negotiate supported MCP versions and you can pin tool schemas | You cannot coordinate client support or the capability is changing weekly | Compatibility behavior is documented and replayed in CI |
+| Observability | Custom API with existing traces | Tool calls can carry request identity, latency, result, error, and audit data into the same trace system | The MCP hop would be a blind spot or logs would expose sensitive payloads | A trace from discovery through execution is inspectable |
+| Maintenance | Fewer moving parts | Reuse removes more duplicated adapters than the server, auth, test, and support work adds | There is one consumer and no committed reuse path | An owner, runbook, deprecation policy, and budget are named |
+
+This is the sourceable artifact of the page: a staged choice that treats MCP as an ownership and reuse decision, not a maturity badge.
+
+![Illustration of a custom API growing into a shared MCP adapter after a second client appears](/blog/should-an-ai-integration-use-mcp-or-a-custom-api-inline-1.webp)
+
+## What does MCP add to an integration?
+
+MCP standardizes how an LLM application discovers and invokes capabilities. The 2025 specification describes hosts, clients, and servers communicating with JSON-RPC 2.0, with servers exposing tools, resources, or prompts ([MCP specification](https://modelcontextprotocol.io/specification/2025-06-18)). The current tools specification makes the boundary concrete: clients use `tools/list` to discover tools and `tools/call` to invoke one, while each tool carries a name, description, and input schema ([MCP tools specification](https://modelcontextprotocol.io/specification/2026-07-28/server/tools)).
+
+That standardization is useful when clients are independent. The model host can discover a capability without you writing a bespoke adapter for every host. It is not automatically useful when your own product is the only caller.
+
+MCP does not remove the business API underneath. A good server still calls a domain function or service that validates identity, arguments, side effects, and postconditions. The protocol is the model-facing adapter. It should not become the place where invoices, permissions, or workflow state are invented.
+
+Anthropic's agent guidance supports the simpler starting point. It recommends finding the simplest solution that meets the need, notes that agentic systems trade latency and cost for performance, and says many patterns can start with direct LLM APIs ([Anthropic's guide to effective agents](https://www.anthropic.com/engineering/building-effective-agents)). That is not an argument against MCP. It is an argument against paying for a reusable boundary before reuse exists.
+
+## When should a single-client integration stay custom?
+
+Keep the integration custom when one embedded client owns the user experience, the workflow, the identity context, and the release schedule.
+
+The shape is simple:
+
+```text
+embedded product
+      |
+      v
+application API -> domain function -> business system
+```
+
+This path gives one team direct control over request context, timeouts, error mapping, traces, and rollout. A custom API is also the better fit when the caller is not an LLM client. A mobile application, scheduled job, partner backend, or data pipeline usually wants a product API with explicit resource semantics, not model-oriented discovery.
+
+Do not confuse a typed function with a lack of architecture. A small interface can still have a stable schema, permission check, idempotency rule, audit record, and test fixture. The protocol question comes after you know what the function means.
+
+## What changes when a second model client appears?
+
+The second independent model client is the first credible reason to test an MCP adapter. It is a signal, not an automatic threshold.
+
+The safer migration keeps the business capability in one place:
+
+```text
+product client ---------> application API ---------\
+                                                   -> domain function -> system
+second model client ---> MCP adapter --------------/
+```
+
+The adapter should translate MCP discovery and tool calls into the same domain contract. It should not duplicate authorization or business rules. If the two clients need different permissions, the server should expose only the tools allowed for the authenticated caller. The current MCP tools guidance says a tool list may vary with authorization and recommends treating tool annotations as untrusted ([MCP tools specification](https://modelcontextprotocol.io/specification/2026-07-28/server/tools)).
+
+Use the second-client case to answer four questions:
+
+1. Is the tool contract identical, or are we hiding two different workflows behind one name?
+2. Can both clients handle the same input and output schema?
+3. Who owns the adapter when a client changes its supported protocol version?
+4. Can one trace show discovery, authorization, execution, and the final business result?
+
+If those answers are unclear, keep the custom API and create an extraction seam. That means a domain function, a versioned schema, and tests that make a future adapter cheap without forcing the adapter into production today.
+
+## Does a third-party consumer justify MCP?
+
+Only when the third party is actually a model client and the reuse is real. A normal software partner may be better served by a custom API, OpenAPI description, webhook, or event contract.
+
+MCP becomes more attractive when external model hosts need tool discovery, the tools are useful across products, and you are prepared to run a remote service. AWS gives a concrete vendor example: its guidance describes remote MCP servers as reusable tool boundaries across business domains and shows APIs and Lambda functions made available through MCP-compatible gateways ([AWS on building AI agents on Serverless](https://aws.amazon.com/blogs/compute/effectively-building-ai-agents-on-aws-serverless/)). That demonstrates feasibility. It does not prove that every API should become MCP.
+
+External reuse changes the support contract. You now need a public compatibility story, an authentication flow, rate limits, abuse handling, deprecation notices, and documentation that does not assume your own UI is present. If the team cannot support those obligations, a private custom integration is the more honest choice.
+
+## When does an internal platform make MCP worthwhile?
+
+An internal platform justifies MCP when multiple agent teams need the same capabilities and the platform can own discovery, authorization, traces, and change management.
+
+The reusable shape is:
+
+```text
+agent client A --\
+agent client B ----> MCP server or gateway -> domain services -> systems
+third-party ------/
+```
+
+The platform benefit is not that MCP makes business logic reusable by magic. The benefit is that a standard client-server boundary can reduce duplicated model adapters while keeping domain services behind it. AWS's current serverless guidance also separates in-process tools from remote MCP tools and calls out reuse, versioning, and centralized governance as reasons to use the remote boundary ([AWS remote MCP guidance](https://aws.amazon.com/blogs/compute/effectively-building-ai-agents-on-aws-serverless/)). Treat that as an example of the trade-off, not an independent benchmark.
+
+If only one team needs the capability, an internal MCP platform can create a committee before it creates reuse. Start with a private function and a contract. Promote it when a second team has a named use case and the platform owner accepts the operational cost.
+
+## Which score should trigger an MCP prototype?
+
+Use this five-signal screen as a forcing function, not a protocol rule. Give one point for each “yes.”
+
+| Signal | Yes means |
+| --- | --- |
+| Second independent model client | A different host needs the same capability |
+| Third-party model consumer | An external model client has a concrete use case |
+| Internal platform reuse | More than one team needs the tool |
+| Independent tool lifecycle | The tool must deploy, version, or scale apart from the product |
+| Shared governance need | Auth, approval, discovery, or tracing should be managed once |
+
+- **0-1 points:** keep the custom API. Create a clean domain contract and stop there.
+- **2-3 points:** build an extraction seam and a small MCP prototype against a read-only tool.
+- **4-5 points:** MCP is a serious candidate, but the veto list below still wins.
+
+The score cannot compensate for an unsafe boundary. A small team should prefer a reversible adapter over a protocol commitment it cannot operate.
+
+## What vetoes MCP extraction?
+
+Stop the extraction if any of these conditions is true:
+
+1. **Auth is vague.** For HTTP-based protected servers, MCP authorization is a transport-level capability. The current specification requires token handling and audience validation for protected servers, but it does not define your business roles or decide whether a user may update a particular record ([MCP authorization specification](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization)). If you cannot name the principal, scope, resource, and denial behavior, keep the boundary custom.
+2. **Versioning is assumed.** The current versioning specification describes per-request protocol metadata, compatibility errors, and legacy versus modern behavior ([MCP versioning and compatibility](https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning)). If client and server support are not tested together, do not make MCP the shared dependency.
+3. **Observability stops at the adapter.** MCP clients should validate results, use timeouts, and log tool usage for audit. If you cannot connect a tool call to caller identity, input classification, outcome, latency, and business postcondition, the new hop is not ready ([MCP tools security considerations](https://modelcontextprotocol.io/specification/2026-07-28/server/tools)).
+4. **Destructive actions have no denial path.** The tools guidance says applications should show exposed tools, provide indicators, and keep a human able to deny invocations. A write tool without an approval or rollback design is a veto, regardless of client count ([MCP tools user interaction model](https://modelcontextprotocol.io/specification/2026-07-28/server/tools)).
+5. **Nobody owns the server.** A protocol boundary creates duties: dependency updates, schema review, incident response, deprecation, and support. If ownership is “the platform” but no person or team accepts the runbook, keep the custom path.
+
+AWS's own example makes the principle tangible by defaulting its Serverless MCP server to read-only behavior and requiring explicit settings for write or sensitive-data access ([AWS Serverless MCP Server](https://aws.amazon.com/blogs/compute/introducing-aws-serverless-mcp-server-ai-powered-development-for-modern-applications/)). The lesson is not to copy AWS's flags. It is to make capability expansion deliberate.
+
+## How should you migrate without duplicating the system?
+
+Use a narrow migration sequence:
+
+1. **Name the domain capability.** Define the operation, identity inputs, allowed resources, side effects, postcondition, and error states without mentioning MCP.
+2. **Keep the custom caller working.** Put the existing product path behind that contract and capture a representative fixture such as `lookup_invoice`.
+3. **Add a read-only MCP adapter.** Map `tools/list` and `tools/call` to the same function. Do not add a second business implementation.
+4. **Replay the contract.** Test valid input, missing input, unauthorized resource, tool failure, timeout, malformed output, and protocol-version mismatch.
+5. **Compare operating evidence.** Check traces, auth decisions, response times, support ownership, and schema changes with both clients.
+6. **Promote only if reuse is cheaper than duplication.** If the adapter adds more maintenance than it removes, keep it private or remove it.
+
+This sequence keeps the decision reversible. It also leaves you with a useful custom API even if the MCP experiment fails.
+
+When I teach product managers to move from writing specs to building and shipping products, the recurring failure is not a missing framework. It is that nobody can say what “done” means. The same lesson applies here: do not debate MCP until the tool’s input, output, permission, and postcondition are concrete. That is a bounded teaching observation from Marius Manolachi’s work with product managers, not a benchmark.
+
+## Final decision
+
+Choose a custom API for one embedded client, or for callers that are ordinary software consumers rather than model hosts. Keep the business capability behind a typed domain contract.
+
+Choose MCP when a second independent model client, a third-party model consumer, or an internal agent platform creates real reuse. Add it as a thin adapter first. Let the reuse case pay for the protocol boundary.
+
+If you need to inspect a live workflow, the related guides on [integrating an AI agent with existing business systems](/blog/how-to-integrate-an-ai-agent-with-existing-business-systems), [securing an MCP server](/blog/how-to-secure-an-mcp-server-for-ai-agents), and [preventing tool schema drift](/blog/how-to-prevent-ai-agent-tool-schema-drift) cover the adjacent implementation work. The [guide to when to use an AI agent](/blog/when-to-use-an-ai-agent) is the canonical parent for the broader decision.
+
+If the choice crosses multiple systems, tenants, or approval domains, [Marius Manolachi’s AI consulting work](/learn-ai) can help you review the concrete boundary, evidence, and ownership model. The article’s matrix is enough to make the first decision without that next step.
