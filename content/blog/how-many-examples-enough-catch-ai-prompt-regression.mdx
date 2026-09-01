@@ -1,0 +1,193 @@
+---
+title: 'How Many Examples Are Enough to Catch an AI Prompt Regression?'
+date: '2026-09-01'
+updated: '2026-09-01'
+excerpt: 'A reproducible fixture benchmark shows why suite size depends on mutation coverage, case selection, false alarms, and the held-out regression curve.'
+answer: 'There is no universal number. In a 72-task, 48-mutation fixture, 24 risk-stratified examples detected all 24 held-out mutations, while 24 random examples averaged 93.0% and 24 diversity-selected examples detected 87.5%. Treat 24 as a result for this fixture only. For your product, hold out mutations, plot marginal detection, and stop only when new cases buy little coverage without missing critical slices.'
+targetQuery: 'how many examples are enough to catch an AI prompt regression'
+queryAliases:
+  - 'how many eval cases do I need for prompt regression testing'
+  - 'how large should an AI regression test set be'
+  - 'how many examples should an AI eval contain'
+intent: 'informational'
+funnel: 'consideration'
+cluster: 'evaluation'
+parent: '/blog/how-to-evaluate-an-ai-agent'
+contentType: 'decision-tool'
+kind: 'satellite'
+sourceableAtom: 'In a deterministic 72-task, 48-mutation fixture, a 24-case risk-stratified suite detected all 24 held-out mutations, while a 24-case random suite averaged 93.0% and a 24-case diversity-based suite detected 87.5%; this is a fixture result, not a universal sample-size rule.'
+evidenceType: 'benchmark'
+evidenceBasis: 'Self-run dependency-free Python 3 fixture benchmark on 2026-08-23. The mutation catalogue, task set, selection algorithms, pinned seed, raw outcomes, reproduction code, and limitations are in research.md. No live model calls or provider billing data are used.'
+tags:
+  - 'AI evaluation'
+  - 'AI reliability'
+  - 'Prompt engineering'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-21'
+sources:
+  - 'https://www.cs.cmu.edu/~cyang3/papers/cain24.pdf'
+  - 'https://developers.openai.com/api/docs/guides/evals'
+  - 'https://www.anthropic.com/engineering/building-effective-agents'
+  - 'https://arxiv.org/abs/2510.08720'
+  - 'https://github.com/MAWanqin2002/LLM_Regression_Testing'
+faq:
+  - q: 'Is 24 examples enough for a production AI feature?'
+    a: 'Not from this benchmark alone. Twenty-four was enough for one authored fixture with six mutation classes. Your suite needs its own held-out mutations, risk slices, assertions, and rerun curve before you choose a release size.'
+  - q: 'Should I choose random, risk-stratified, or diverse examples?'
+    a: 'Start with risk-stratified coverage when refusal, tool-call, or business-edge failures matter. Add diversity selection when your mutation catalogue is stable, and compare both against a held-out set because development diversity can miss catalogue shift.'
+  - q: 'When should I stop adding regression examples?'
+    a: 'Stop when the next batch adds little held-out mutation coverage, false alarms or runtime rise, and every critical slice has explicit coverage. Reopen the decision when the prompt, model, output contract, tools, or business policy changes.'
+cover: '/blog/how-many-examples-enough-catch-ai-prompt-regression-regression-suite-hero.webp'
+coverAlt: 'Illustration of an AI regression suite balancing examples, mutation coverage, false alarms, and runtime'
+draft: false
+---
+
+A regression suite has the same failure mode as an unclear product requirement. Teams keep adding examples without checking whether the new rows expose a new failure.
+
+This is the narrow measurement layer beneath [how to evaluate an AI agent](/blog/how-to-evaluate-an-ai-agent). It is about the size and selection of a regression suite, not a general evaluation checklist.
+
+## The benchmark result: 24 cases was enough in one fixture
+
+In a deterministic fixture with 72 tasks and 48 seeded mutations, a 24-case risk-stratified suite detected all 24 held-out mutations. A 24-case random suite averaged 93.0% detection across 500 samples, while a 24-case development-diversity suite detected 87.5%.
+
+That is the result another author can cite from this page. It is not evidence that every AI product needs 24 examples. The number changed when the selector changed, and the fixture was authored rather than collected from production.
+
+| Suite size | Random detection | Risk-stratified detection | Diversity-based detection | What the next cases bought |
+| ---: | ---: | ---: | ---: | --- |
+| 6 | 44.6% | 41.7% | 37.5% | Large initial coverage, but many mutation classes remained unseen |
+| 12 | 70.1% | 66.7% | 70.8% | A second slice of coverage, with more overlap beginning |
+| 18 | 85.2% | 79.2% | 83.3% | Useful gains, but no strategy had full coverage |
+| 24 | 93.0% | **100.0%** | 87.5% | Risk stratification crossed the fixture's full-coverage line |
+| 30 | 97.1% | 100.0% | 95.8% | No risk-stratified gain; other strategies still found gaps |
+| 36 | 99.0% | 100.0% | 95.8% | Random gains became small |
+| 42 | 99.6% | 100.0% | 100.0% | Diversity finally reached all held-out mutations |
+| 48 | 100.0% | 100.0% | 100.0% | Full coverage for all three strategies in this fixture |
+
+The practical answer is conditional: choose enough examples to cover the mutations you care about, then verify that choice on mutations the selector never saw. A bigger suite is not automatically safer if it repeats the same behavior.
+
+## What does “enough” mean for a prompt regression suite?
+
+Enough means that the next batch of cases adds little held-out failure coverage while critical slices remain explicitly represented and false alarms stay acceptable. It is a stopping decision, not a fixed sample-size constant.
+
+Use this rule:
+
+> **A regression suite is large enough only when a held-out mutation curve has flattened for the current change surface, and no critical slice is relying on average coverage.**
+
+The change surface is every component that can alter behavior: prompt instructions and examples, model or snapshot, output format, refusal policy, tool schema or routing, and business rules. The CMU study of evolving LLM APIs is the reason to separate those surfaces. It reports prompt and model combinations moving differently across API updates, and argues for slice-level regression tests rather than one coarse aggregate score. [Read the paper's regression-testing analysis](https://www.cs.cmu.edu/~cyang3/papers/cain24.pdf).
+
+The stopping rule has three parts:
+
+1. **Held-out detection:** Does the next batch expose a mutation that the selector did not optimize for?
+2. **Critical-slice coverage:** Do refusal, authorization, tool-call, and high-consequence business cases have explicit tests, even if their average share is small?
+3. **Operational cost:** Does the extra coverage justify the added runtime, provider cost, reviewer time, and false-alarm burden?
+
+If the first answer is no but the second is also no, the suite is not done. If the first answer is no and the second is yes, stop for this release and record the evidence. If a prompt or model changes, reopen the curve.
+
+## Use this scorecard before choosing a number
+
+Use a short scorecard to turn the curve into a release decision. Set the thresholds before selecting cases, then apply the same thresholds to every strategy you compare.
+
+| Gate | Worked threshold | Decision |
+| --- | --- | --- |
+| Critical slices | Every mandatory refusal, authorization, tool-call, and high-consequence business slice has a dedicated case | Any missing slice is a veto. Add or replace cases before comparing totals. |
+| Held-out detection | 100% of the held-out mutations in this fixture | At 24 cases, risk-stratified passes; random at 93.0% and diversity-based at 87.5% do not. |
+| Next-batch gain | Less than 5 percentage points from the next six cases | At 24 cases, the risk-stratified curve adds 0 points at 30, so the worked decision stops there. |
+| Flaky-task share | No more than 10% of selected tasks in this worked policy | Risk-stratified is 8.3% at 24; random is 15.3% and diversity-based is 20.8%. |
+
+The 100%, 5-point, and 10% values are a worked policy for reading this fixture, not universal release standards. Choose stricter values when a missed regression can cause material harm. Choose a different marginal threshold when runtime or review capacity is the binding constraint. The non-negotiable rule is to write the policy down before looking at the winning curve.
+
+![Illustration of a decision flow for stopping or expanding an AI regression suite](/blog/how-many-examples-enough-catch-ai-prompt-regression-suite-size-decision-flow.webp)
+
+## What method and sample did the benchmark use?
+
+The benchmark method uses six failure classes, 12 tasks per class, and eight seeded mutations per class. Four mutations per class are visible to the diversity selector during selection. Four are held out until scoring. That sample is large enough to expose the selection trade-off in this fixture, but too small and synthetic to estimate a production sample size.
+
+| Fixture part | Configuration |
+| --- | --- |
+| Task count | 72, with 12 tasks in each of six classes |
+| Mutation count | 48, with eight in each class |
+| Development mutations | 24, four per class |
+| Held-out mutations | 24, four per class |
+| Suite sizes | 6, 12, 18, 24, 30, 36, 42, 48 |
+| Random repetitions | 500 suites per size, sampled without replacement |
+| Seed | `1787513800463` |
+| Dependencies | None beyond Python 3 standard library |
+
+The six classes are prompt, model, format, refusal, tool-call, and business-edge. Examples include removing a prompt constraint, changing a model snapshot, omitting a required output field, allowing an unsafe request, selecting the wrong tool, and mishandling a high-value approval. The full mutation catalogue and reproduction code are recorded in the evidence package for this benchmark.
+
+The fixture does not run an LLM. Each task has a deterministic exposure signature. If the selected task exposes a seeded mutation, that mutation counts as detected. Each task also has a baseline-flaky flag, a runtime proxy, and a cost proxy. That makes the benchmark inspectable and repeatable, while also making its limits obvious.
+
+The observed result is therefore a held-out mutation-detection result, not a live-model quality score. The sample, seed, selectors, and raw outcomes are fixed in the evidence record so another engineer can rerun the same comparison.
+
+The design follows the shape of current evaluation guidance without pretending to reproduce a vendor platform. OpenAI describes evals in terms of data sources, testing criteria, configurations, runs, and per-item results. Anthropic recommends comprehensive evaluation and testing tool behavior, especially as systems gain autonomy. Their guidance supports the structure here, not the result. [OpenAI's eval guidance](https://developers.openai.com/api/docs/guides/evals) and [Anthropic's agent guidance](https://www.anthropic.com/engineering/building-effective-agents) are reference points, not sources for the fixture's measurements.
+
+## Which selection strategy should you use?
+
+For a small team, start with risk-stratified selection. Give every important failure class a quota, then rank cases inside each class by the harm or likelihood of the failure. Add diversity selection when you have a stable mutation catalogue and enough data to know which cases expose different failure signatures.
+
+| Strategy | How it selects | What it did at 24 cases | Main risk |
+| --- | --- | ---: | --- |
+| Random | Samples cases without using metadata | 93.0% average detection | Can miss rare but important slices |
+| Risk-stratified | Gives equal quotas to six classes, then selects higher-risk tasks | 100.0% detection | Its risk scores can be wrong or overfit to the author's assumptions |
+| Diversity-based | Greedily maximizes new development-mutation coverage | 87.5% detection | Can optimize the development catalogue and miss held-out drift |
+
+Risk stratification was not magically best at every budget. At six, 12, and 18 cases it trailed random selection in this fixture. It won at 24 because the equal class quota happened to expose the remaining held-out mutations. That is why the right action is to compare curves, not to declare a winner from one suite size.
+
+The diversity result is also useful. Diversity is a strong intuition when redundant examples waste runtime, and the binary-matrix perspective in [the 2026 test-case study](https://arxiv.org/abs/2510.08720) formalizes why diagnostic variety matters. But diversity measured against one catalogue can fail when the held-out catalogue changes. The selector should be judged on what it did not see.
+
+## How do you choose a suite size for your own product?
+
+Run the following experiment before you put a number in a release checklist.
+
+1. **List the change surfaces.** Write down the prompt, model, format, refusal, tool-call, and business-policy changes that could regress independently. Add product-specific classes if needed.
+2. **Author or collect mutations.** For each class, write a small set of concrete changes that would be bad if they slipped through. Keep the mutation descriptions versioned.
+3. **Split the mutations before selecting cases.** Keep development mutations for selector tuning and held-out mutations for the final curve. Do not let the selector see the answer key.
+4. **Attach task metadata.** Record class, risk, expected harm, runtime, cost, and whether a baseline run is flaky. A case without an assertion is a prompt example, not a regression test.
+5. **Plot three curves.** Compare random, risk-stratified, and diversity-based selection at several suite sizes. For random, use repeated samples and report the mean plus a spread measure when the decision needs it.
+6. **Pick the knee, then add veto slices.** Select the smallest size where marginal held-out detection is low enough for the release risk, then keep mandatory refusal, authorization, tool-call, and business-edge cases even if they are not efficient on average.
+7. **Rerun after meaningful changes.** A new model, prompt version, output contract, tool definition, or policy should invalidate the old confidence curve.
+
+The case-selection artifact should travel with the suite. OpenAI's current eval API exposes configuration, grader, run, model, and usage fields because a score without its setup is hard to interpret. The CMU paper makes a related point from the model side: prompt and model versions both matter when behavior changes. [Keep those fields versioned in your own harness](https://developers.openai.com/api/docs/guides/evals).
+
+## When is 24 not enough?
+
+Twenty-four is not enough when the product has more independent failure surfaces than the fixture, when a critical mutation has no dedicated case, or when one task can expose only a narrow part of the behavior.
+
+Use a separate or larger suite when:
+
+- a refusal or authorization failure can create material harm;
+- a tool call can change external state, spend money, or expose private data;
+- the output format feeds a strict downstream parser;
+- business policy varies by country, role, plan, or approval value;
+- the model is non-deterministic enough that one execution per case hides flakiness;
+- the prompt or model changed together and you cannot attribute the regression;
+- the task catalogue was tuned on the same mutations used to report success.
+
+This is where the average can mislead. The CMU paper reports individual predictions regressing even when aggregate accuracy improves, and it finds regressions concentrated in particular slices. A release gate should therefore keep veto conditions separate from the average detection curve. A suite that catches 99% of harmless mutations but misses an authorization breach is not “99% safe.”
+
+For tool-using systems, the suite must test the tool boundary as well as the final answer. Anthropic's guidance emphasizes clear tool definitions, testing how the model uses tools, sandboxing, guardrails, and stopping conditions. That is why tool-call and business-edge mutations are first-class classes in this fixture rather than optional edge-case extras.
+
+## What should you publish with the benchmark?
+
+Publish enough of the experiment that another engineer can challenge it. The minimum artifact is:
+
+| Artifact | Required contents |
+| --- | --- |
+| Mutation catalogue | Named failure classes, mutation descriptions, and development versus held-out split |
+| Task manifest | Inputs or task IDs, class, risk rationale, expected assertion, and fixture metadata |
+| Selector code | Random seed, risk-quota logic, diversity objective, tie-breakers, and suite sizes |
+| Raw outcomes | Per-strategy detection, false alarms, runtime, cost, and marginal coverage |
+| Reproduction path | Clean-checkout command, runtime version, dependencies, and pinned configuration |
+| Limits | What is synthetic, what is not measured, and which claims cannot be generalized |
+
+The original CMU regression-testing repository is a useful model for making experiment code public, with dataset and reproduction instructions alongside the paper. [See the repository](https://github.com/MAWanqin2002/LLM_Regression_Testing). Your own artifact can be smaller. It cannot be only a polished percentage.
+
+## What are the benchmark's limitations?
+
+The benchmark's limitations are decisive: it does not prove that risk-stratified suites are better than random suites in general, estimate the number of examples needed for your model, task, domain, or release cadence, or measure live API drift, judge reliability, real provider cost, or human review time.
+
+It does show why the question needs an experiment. In this fixture, the answer changed from 24 to 48 depending on the selector, and development-set diversity missed held-out mutations that risk stratification caught. That is enough to reject a universal sample-size rule.
+
+If you want the next step, start with the existing guide on [building an evaluation dataset from production traces](/blog/how-to-build-an-evaluation-dataset-from-production-traces), then add the held-out mutation split described here. If the output itself has no single correct wording, use [the guide to measuring open-ended AI output](/blog/how-to-measure-ai-output-quality-no-single-right-answer) to define the assertions before you tune the case count.
+
+For teams that want help turning a real workflow into a repeatable measurement contract, [Marius Manolachi's AI implementation work](/learn-ai) is the relevant next step. Bring one workflow, its current prompt or tool contract, and three failures you do not want to see again.
