@@ -1,0 +1,207 @@
+---
+title: 'How to Make an AI Workflow Abstain on Ambiguous CRM Identity'
+date: '2026-09-01'
+updated: '2026-09-01'
+excerpt: 'Make ambiguous CRM identity a no-write result. A synthetic trace shows merge-aware binding, confirmation, idempotency, and held-out abstention tests.'
+answer: 'Make ambiguity a typed no-write result: resolve identity inside the tenant, follow stale IDs through merges, and call the write tool only when one canonical record has acceptable evidence. Show that proposal for confirmation when the change has side effects. If zero or multiple candidates remain, return abstain and leave the CRM unchanged. Strict JSON schemas do not establish identity.'
+targetQuery: 'how to make an AI workflow abstain on ambiguous CRM identity'
+queryAliases:
+  - 'when should an AI workflow abstain on a CRM match'
+  - 'how to stop ambiguous CRM identity matches from writing'
+  - 'AI workflow CRM identity abstention'
+intent: 'informational / implementation'
+funnel: 'consideration'
+cluster: 'implementation'
+parent: '/blog/how-to-scope-an-ai-agent-proof-of-concept'
+contentType: 'decision-tool'
+kind: 'satellite'
+sourceableAtom: 'A synthetic six-record CRM trace shows a stale ID plus unscoped name fallback changing a north-tenant record for a south-tenant request, then verifies merge-aware binding, confirmation, idempotency, and zero writes across three held-out ambiguous cases.'
+evidenceType: 'failure-reproduction'
+evidenceBasis: 'Node.js reproduction run on 2026-08-23 against a six-record synthetic CRM fixture with duplicate names, stale IDs, aliases, merged records, and three tenants; no customer data used.'
+tags:
+  - 'AI workflows'
+  - 'AI reliability'
+  - 'Building'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-21'
+sources:
+  - 'https://platform.openai.com/docs/guides/function-calling'
+  - 'https://owasp.org/www-project-top-ten/'
+  - 'https://airc.nist.gov/airmf-resources/airmf/appendices/app-c-ai-risk-management-and-human-ai-interaction/'
+  - 'https://www.anthropic.com/engineering/building-effective-agents'
+  - 'https://www.nist.gov/itl/ai-risk-management-framework'
+faq: []
+cover: '/blog/how-to-make-an-ai-workflow-abstain-on-ambiguous-crm-identity-wrong-record-binding-hero.webp'
+coverAlt: 'Illustration of an AI workflow tracing a stale identifier to the wrong CRM record before a safe binding check'
+draft: false
+---
+
+Make ambiguous CRM identity a typed no-write result. Resolve it inside the tenant, follow stale IDs through merge chains, and call the writer only after one canonical record survives the checks. If zero or multiple candidates remain, return `abstain` and leave the CRM unchanged.
+
+I reproduced the failure that makes this boundary necessary with a synthetic CRM, not customer data. The model output looked reasonable. The write was not.
+
+In the unsafe path, a south-tenant request carrying a stale ID and the name `Alex Morgan` changed `n-001`, a north-tenant record. The safe path resolved the merge, showed the canonical record for confirmation, and refused to write when identity stayed ambiguous.
+
+> **Observed result:** In a six-record fixture, the unsafe fallback changed the wrong tenant’s record. The repaired path resolved `crm-42` through `s-002 -> s-001`, required confirmation, replayed idempotently, and produced zero writes across three held-out ambiguous cases.
+
+## Make ambiguous CRM identity a no-write result
+
+The workflow must stop before mutation whenever its resolver cannot produce one canonical, tenant-scoped record with acceptable identity evidence. A display name, alias, or stale ID can help find candidates, but none is write authority by itself.
+
+The failure happens when the workflow lets a display value stand in for identity after the original identifier fails. The model can be locally correct about the name and still be globally wrong about the entity.
+
+Here is the actual pre-repair trace:
+
+```text
+input: tenant=south, model_output={record_id: crm-42, name: Alex Morgan}
+current_id_lookup: crm-42 -> null
+global_name_fallback: "alex morgan" -> n-001, tenant=north
+write: n-001, tenant=north, status new -> qualified, version 0 -> 1
+```
+
+The dangerous step is not the model response by itself. It is `global_name_fallback`. That line discards tenant scope and turns a failed identity lookup into permission to guess.
+
+The right trace has separate stages:
+
+| Stage | Safe question | Unsafe shortcut |
+| --- | --- | --- |
+| Request | Which tenant and user scope apply? | Trust the name in the prompt |
+| Model output | What did the model propose? | Treat its ID as authoritative |
+| Resolution | Which canonical record does the system resolve? | Fall back to the first name match |
+| Proposal | What exact record and fields would change? | Hide resolution inside the write call |
+| Mutation | Was the proposal confirmed and still current? | Write immediately |
+
+OpenAI’s function-calling guide describes tools as application-provided functionality and data exposed through a schema. Its strict mode can make arguments adhere reliably to that schema, but schema adherence only tells you that the call has the expected shape. It does not prove that `Alex Morgan` is the right entity for this tenant. [OpenAI’s function-calling documentation](https://platform.openai.com/docs/guides/function-calling) supports the first guarantee, not the second.
+
+That distinction is the diagnosis: the workflow has a tool contract, but no identity contract.
+
+## What did the synthetic CRM fixture expose?
+
+The fixture made ordinary CRM messiness explicit: duplicate names, aliases, a merged record, stale IDs, and a lookalike in another tenant.
+
+| Record | Tenant | Name | Identity detail | State |
+| --- | --- | --- | --- | --- |
+| `n-001` | north | Alex Morgan | `alex.morgan@north.example` | active |
+| `n-002` | north | Alex Morgan | legacy `crm-n-42` | merged into `n-001` |
+| `s-001` | south | Alex Morgan | `alex.morgan@south.example`, alias `Alex M` | active |
+| `s-002` | south | Alex Morgan | stale `crm-42` | merged into `s-001` |
+| `s-003` | south | Alex Morgan | `alex.morgan3@south.example`, alias `Alex M` | active |
+| `west-001` | west | Alex Morgan | `alex.morgan@west.example` | active |
+
+The model was not asked to invent an ID. It received a stale one from the workflow context. That is important. Identity failures can happen even when the model is only copying a value from a previous step.
+
+Three identifiers mean three different things:
+
+- **Canonical ID:** the current record key accepted by the write service.
+- **Legacy ID:** an old key that needs a server-side mapping and possibly a merge-chain traversal.
+- **Display identity:** a name, alias, email, or other value useful for finding candidates.
+
+Do not put those fields in one undifferentiated `record_id` parameter. If the resolver accepts a legacy ID, it should return a canonical ID plus its lineage. If it accepts a name, it should return candidates, not a write target.
+
+## What binding contract stops the wrong record?
+
+Make the resolver and writer different operations. The resolver may interpret evidence. The writer should accept only a canonical, tenant-scoped proposal that the server can verify again.
+
+The contract I tested looks like this:
+
+```json
+{
+  "tenant_id": "south",
+  "record_id": "s-001",
+  "record_version": 0,
+  "identity_basis": {
+    "type": "email_exact",
+    "value": "alex.morgan@south.example"
+  },
+  "changes": {
+    "status": "qualified"
+  },
+  "confirmation": "required",
+  "idempotency_key": "req-1"
+}
+```
+
+The write tool should reject a display name, alias, or legacy ID as its only target. It should verify all of these conditions server-side:
+
+1. `record_id` exists and is canonical.
+2. `record_id` belongs to `tenant_id`.
+3. `record_version` is still current.
+4. `identity_basis` was produced by a permitted resolver, not free text alone.
+5. The requested field change is allowed for this workflow.
+6. `idempotency_key` has not already committed a different result.
+
+This is an implementation recommendation from the reproduction, not a vendor guarantee. It follows the same design direction as Anthropic’s distinction between predictable workflows and more autonomous agents: keep identity resolution on a deterministic path, and give the model a narrow interface around it. Anthropic also recommends clear tool definitions, testing tool use, sandboxing, and guardrails for agents. [Anthropic’s guide to effective agents](https://www.anthropic.com/engineering/building-effective-agents) supports that operational boundary.
+
+Strict function schemas still help. Use them to require the proposal fields and reject extra arguments. But keep the final tenant and record checks in application code. A model can fill a strict `tenant_id` field with the wrong tenant just as cleanly as the right one.
+
+![Illustration of an AI workflow separating model output, deterministic identity resolution, confirmation, and a tenant-scoped write.](/blog/how-to-make-an-ai-workflow-abstain-on-ambiguous-crm-identity-wrong-record-binding-trace.webp)
+
+## Choose between confirmation and abstention
+
+Ask for confirmation when one canonical record has strong identity evidence and the change has meaningful side effects. Abstain when the resolver has no candidate, multiple candidates, a tenant mismatch, or unresolved merge lineage.
+
+| Evidence state | Action | Why |
+| --- | --- | --- |
+| Exact tenant-scoped email | Show proposal, then confirm before a write | Strong candidate, but the user should see the side effect |
+| Legacy ID that resolves through a merge chain | Show canonical ID and lineage, then confirm | The old ID is not the current write key |
+| One unique tenant-scoped candidate from a controlled alias | Ask for confirmation or use a read-only result | A name match is weaker than an exact external identifier |
+| Two or more candidates | Abstain and ask for a discriminator | Guessing converts ambiguity into damage |
+| Legacy ID belongs to another tenant | Reject the ID, then re-resolve within the requested tenant | Cross-tenant identity must not silently fall back |
+| No candidate | Abstain and request a stable identifier | A missing entity is not permission to create a guess |
+
+The confirmation payload should be concrete, not “Proceed?” It should include the canonical record ID, tenant, display name, strongest identity evidence, current version or updated-at value, requested field changes, and a short expiry. The user can then confirm the actual action rather than a model’s interpretation of it.
+
+NIST’s AI Risk Management Framework says human roles and responsibilities for decision making and oversight should be clearly defined and differentiated. That does not mean a person must approve every read. It does mean your design should say which decisions are autonomous, which are proposed, and which require a human. [NIST’s human-AI interaction guidance](https://airc.nist.gov/airmf-resources/airmf/appendices/app-c-ai-risk-management-and-human-ai-interaction/) is a useful source for that separation.
+
+This article is a bounded implementation check, not a compliance certification. NIST describes the AI Risk Management Framework as voluntary guidance for incorporating trustworthiness into the design, development, use, and evaluation of AI systems. [NIST’s framework overview](https://www.nist.gov/itl/ai-risk-management-framework) provides that scope.
+
+When I taught product managers to go from writing specs to building and shipping the product, the failure was often that nobody could say what done meant. For a write workflow, “the model returned a record” is not done. Done means the intended canonical record changed, under the right tenant, once, with a trace that explains why.
+
+## How do you verify the repair before using customer data?
+
+Use a synthetic fixture that contains the failure modes your happy-path demo hides, then hold out ambiguous cases for a no-write test.
+
+The run used this sequence:
+
+1. Create records with duplicates, aliases, merges, stale IDs, and cross-tenant lookalikes.
+2. Run the unsafe writer and retain every identifier transformation.
+3. Re-run the same request through a read-only resolver.
+4. Compare the proposed canonical record with the requested tenant and identity evidence.
+5. Confirm one exact proposal and check the before and after version.
+6. Replay the same idempotency key and verify that the version does not increment again.
+7. Run held-out name-only, alias-only, and cross-tenant stale-ID cases.
+8. Assert that every ambiguous held-out case returns `abstain` and leaves the fixture unchanged.
+
+The observed output was:
+
+| Check | Result |
+| --- | --- |
+| Wrong-write reproduction | `n-001` in north changed for a south request |
+| Merge-aware lookup | `crm-42` resolved `s-002 -> s-001` |
+| Exact confirmation | `s-001` changed only after confirmation |
+| Idempotent retry | Prior result replayed; version stayed at 1 |
+| Held-out ambiguous cases | 3 abstentions, 0 writes |
+
+The last row is the important safety check. A workflow that can resolve the obvious test but writes through ambiguous cases is not repaired. The correct result for an uncertain identity is often no write.
+
+This is also where [idempotent tools for AI agents](/blog/how-to-design-idempotent-tools-for-ai-agents) can help: make a retry return the existing result without applying a second mutation. Pair that with [pre-run input validation](/blog/how-to-validate-ai-agent-inputs-before-a-run) so tenant, authority, and reference checks happen before the model or tools operate.
+
+## What should you change first in a real workflow?
+
+Start with the write boundary, not the prompt. The first repair should make an unsafe write impossible to express through the tool schema.
+
+Use this order:
+
+1. Add a trace field for every identifier transformation: raw input, model output, resolver query, candidate set, canonical ID, tenant, and write target.
+2. Split `find_record` from `update_record`. Make the first return candidates or a canonical resolution; make the second reject names, aliases, and legacy IDs.
+3. Make tenant scope a server-derived or server-verified field. Do not let a model choose the scope that authorizes its own write.
+4. Require exact identity evidence or explicit confirmation for side effects. Treat fuzzy matching as candidate generation only.
+5. Add merge-chain resolution and stale-ID tests to the fixture.
+6. Add an idempotency key and expected record version to every mutation.
+7. Keep ambiguous cases on a review queue or return a typed abstention with the missing discriminator.
+
+OWASP describes its Top 10 as an awareness document for critical web application security risks. The practical implication here is simple: a tenant check is not a prompt instruction. It is an access-control boundary in the application. [OWASP’s Top 10](https://owasp.org/www-project-top-ten/) is the right level of authority for that framing, while the exact CRM rules remain your system’s responsibility.
+
+For the broader architecture, start with [how to scope an AI agent proof of concept](/blog/how-to-scope-an-ai-agent-proof-of-concept). The article is complete without another model, another agent, or a more elaborate prompt. It needs a traceable identity path and a safe refusal when the path is not strong enough.
+
+If your team is still deciding what to build and how to make it safe, [Marius Manolachi’s AI consulting and tutoring work](/learn-ai) focuses on making existing people capable of building AI products on their own work.
