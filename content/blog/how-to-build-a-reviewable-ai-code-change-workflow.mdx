@@ -1,0 +1,186 @@
+---
+title: "How to Build a Reviewable AI Code-Change Workflow"
+date: "2026-09-02"
+updated: "2026-09-02"
+excerpt: "Bound one AI issue, require a plan, test the diff, emit a change receipt, and stop unsafe scope before a human reviews the pull request."
+answer: "Build a reviewable AI code-change workflow around one bounded issue: require a plan, create a branch, cap changed files, require tests and passing checks, reject dependency or unrelated-file changes, emit a machine-readable receipt with uncertainty, and open a review-ready pull request only when every gate passes. The exception is a deliberate dependency or cross-cutting change, which needs a separate human-approved path."
+targetQuery: "how to build a reviewable ai code-change workflow"
+queryAliases:
+  - "AI code change workflow"
+  - "issue to reviewable pull request"
+  - "how to make AI coding changes reviewable"
+  - "AI coding agent pull request workflow"
+intent: "implementation"
+funnel: "consideration"
+cluster: "implementation"
+parent: "/blog/how-to-scope-an-ai-agent-proof-of-concept"
+contentType: "decision-tool"
+kind: "satellite"
+sourceableAtom: "A worked bounded-change rubric routes a change to review only when one issue, a pre-edit plan, no more than three changed files, allowed paths, passing checks, no dependency delta, and a complete receipt all hold; the clean-copy fixture accepted 1 case and rejected 6 of 7 with named reasons."
+evidenceType: "build-measurement"
+evidenceBasis: "A dependency-free Python policy fixture was run from a fresh copied checkout on 2026-08-23. It emitted one review-ready receipt, six rejection traces, and a rejection-reason table. It measured gate behavior only, with no client-adoption or human-review-time claim."
+tags:
+  - "AI implementation"
+  - "AI code review"
+  - "Software engineering"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://docs.github.com/en/copilot/tutorials/review-ai-generated-code"
+  - "https://github.com/reviews/reviews/blob/main/workflows.md"
+  - "https://arxiv.org/abs/2605.17548"
+  - "https://cdn.openai.com/business-guides-and-resources/building-an-ai-native-engineering-team.pdf"
+  - "https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches"
+faq:
+  - q: "Does an AI code-change workflow replace human review?"
+    a: "No. It prepares a smaller, better-evidenced change for a human. The named reviewer still decides whether the code fits the product, architecture, security needs, and repository conventions."
+  - q: "Should dependency changes be rejected automatically?"
+    a: "Reject them from the ordinary bounded path and route them to a separate review. A dependency change can be correct, but it changes the risk surface and deserves explicit license, security, maintenance, and compatibility checks."
+  - q: "Is three changed files a universal limit?"
+    a: "No. Three files was the fixture's starting threshold. Tune the limit to your repository, but keep a reason for the threshold and test the rejection path when an agent exceeds it."
+cover: "/blog/how-to-build-a-reviewable-ai-code-change-workflow-hero.webp"
+coverAlt: "Illustration of an AI coding agent moving one bounded issue through a plan, branch, checks, receipt, and human review"
+draft: false
+---
+
+An AI agent can produce a clean-looking pull request and still leave the reviewer with the wrong unit of work. I built a small gate around one issue and tested the refusal paths before writing this. The result is deliberately plain: one of seven fixtures reached `review_ready`, and six produced a named rejection reason.
+
+When I taught product managers to ship instead of only writing specifications, the failure was almost never the model. It was that nobody could say what done meant. ([Marius Manolachi's AI teaching work](/learn-ai))
+
+![Illustration of an issue moving through a plan, branch, scope gate, checks, receipt, and human review](/blog/how-to-build-a-reviewable-ai-code-change-workflow-inline-1.webp)
+
+## What did the clean-copy fixture reject?
+
+The workflow accepted only a bounded change with a plan, tests, passing checks, no dependency delta, and a complete receipt. It accepted 1 case and rejected 6 of 7:
+
+| Fixture case | Decision | Receipt reason |
+| --- | --- | --- |
+| accepted | `review_ready` | none |
+| oversized scope | `rejected` | `scope.too_many_files` |
+| missing tests | `rejected` | `tests.missing` |
+| unrelated files | `rejected` | `scope.unrelated_file` |
+| failed checks | `rejected` | `checks.failed:unit` |
+| dependency change | `rejected` | `dependency.change_requires_review` plus unrelated scope |
+| incomplete summary | `rejected` | `receipt.summary_missing:uncertainty` |
+
+This is a fixture result, not a team benchmark. The check statuses were controlled test inputs, and the clean-copy run measured gate behavior rather than human review time. The useful result is the rejection trace: a reviewer can see why the change did not reach the pull request stage.
+
+## What makes an AI code change reviewable?
+
+A change is reviewable when a person can answer five questions without reconstructing the agent's entire conversation: which issue was requested, what plan was followed, which files changed, which checks passed, and what remains uncertain.
+
+GitHub's review guidance starts with functional checks, then asks reviewers to verify context and intent, inspect quality and dependencies, use collaborative review, and automate repeatable checks. ([GitHub's review guidance](https://docs.github.com/en/copilot/tutorials/review-ai-generated-code)) A recent code-review paper makes a similar distinction at workflow level: agents can support stages of the lifecycle, but human-controlled quality gates preserve judgment and accountability. ([Rethinking Code Review in the Age of AI](https://arxiv.org/abs/2605.17548))
+
+The receipt is the boundary between agent activity and human judgment. It should not say only `done: true`.
+
+## Which policy should run before the agent opens a pull request?
+
+Start with a narrow policy that rejects ambiguity early. This is the configuration I used for the fixture:
+
+```yaml
+issue: one bounded issue
+plan: required before edits
+branch_prefix: agent/
+max_changed_files: 3
+allowed_prefixes:
+  - src/
+  - tests/
+  - docs/
+required_checks:
+  - unit
+  - lint
+dependency_changes: separate human review
+receipt_fields:
+  - intent
+  - tests
+  - uncertainty
+  - human_decision
+```
+
+The file limit is not a law. It is a forcing function. If an agent needs more files, the default response should be “split the issue or explain the exception,” not silently widen the change.
+
+The policy should run in this order:
+
+1. Validate that the issue has one outcome, acceptance conditions, and allowed paths.
+2. Require the agent to write a plan before it edits code.
+3. Create an isolated branch whose name points back to the issue.
+4. Compare the branch with the base branch and count changed files.
+5. Reject unrelated paths, dependency files, missing tests, and failed required checks.
+6. Validate the receipt, including uncertainty and the named human decision.
+7. Open a review-ready pull request only after the receipt is complete.
+
+OpenAI's engineering guide recommends starting with well-specified tasks, committing a `PLAN.md` or using a planning tool, checking the commands an agent runs, and iterating on `AGENTS.md` instructions for test and linter feedback. It also keeps final review and merge ownership with engineers. ([Building an AI-native engineering team](https://cdn.openai.com/business-guides-and-resources/building-an-ai-native-engineering-team.pdf))
+
+This connects naturally to the typed task contract in [How to Build a Typed Task Contract for an AI Workflow](/blog/how-to-build-a-typed-task-contract-for-an-ai-workflow). The difference is that this contract ends at a reviewable code change, not a generic workflow output.
+
+Use the ordinary reviewable path only when every required row passes:
+
+| Check | Keep the change on the bounded path when | Stop and escalate when |
+| --- | --- | --- |
+| Issue and plan | One outcome and a written plan exist before edits | The issue has several outcomes or the plan is missing |
+| Scope | The diff touches no more than three allowed files | The diff exceeds three files or leaves the allowed paths |
+| Verification | Unit and lint checks both pass, with tests for code changes | A required check fails or source files have no test change |
+| Risk surface | No dependency file changes | A dependency changes and needs separate review |
+| Receipt | Intent, tests, uncertainty, and human decision are present | Any receipt field is missing |
+
+The fixture's threshold is three changed files, not a universal law. Tune it to the repository, but keep the vetoes: missing tests, failed checks, dependency changes, unrelated paths, and incomplete uncertainty should not silently become review-ready.
+
+## What should the change receipt contain?
+
+The receipt must preserve the task contract and the evidence of the run. Here is the smallest useful accepted receipt from the fixture:
+
+```json
+{
+  "receipt_version": "1",
+  "issue": "ISSUE-001",
+  "branch": "agent/issue-001-bounded-change",
+  "plan": [
+    "add a currency formatter",
+    "test rounding behavior"
+  ],
+  "changed_files": [
+    "src/currency.py",
+    "tests/test_currency.py"
+  ],
+  "checks": {
+    "unit": "pass",
+    "lint": "pass"
+  },
+  "dependencies": [],
+  "summary": {
+    "intent": "format currency with two decimal places",
+    "tests": "unit and lint checks passed",
+    "uncertainty": "locale-specific symbols remain out of scope",
+    "human_decision": "review and merge only after named reviewer approval"
+  },
+  "decision": "review_ready"
+}
+```
+
+Keep `uncertainty` as a required field. A summary that reports only success makes the reviewer guess where the agent stopped. Keep `human_decision` explicit too. `review_ready` means “ready for a person to decide,” not “safe to merge.”
+
+If your team already uses OpenTelemetry or an audit trail, you can link this receipt to the run ID rather than duplicating every event. The receipt still needs the change-specific fields a pull request reviewer needs. See [How to Add an Audit Trail to an AI Workflow](/blog/how-to-add-an-audit-trail-to-an-ai-workflow) for the broader execution record.
+
+## How should the workflow hand off to a human?
+
+The workflow should stop at a review-ready pull request. It should not merge because its own checks passed.
+
+Configure the repository so the base branch requires pull request approval and passing status checks. GitHub's protected-branch rules support both, and can dismiss stale approvals when a new push changes the diff. ([GitHub's protected-branch documentation](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches))
+
+The human review then has a smaller job:
+
+- Does the implementation match the issue and plan?
+- Are the changed files within the stated boundary?
+- Do the tests prove the acceptance conditions rather than merely execute?
+- Is the uncertainty acceptable, or does the issue need clarification?
+- Is the named decision still “review and merge,” or should it be changed to request changes, split, or reject?
+
+The public `reviews` repository recommends using AI for self-review and PR triage, while warning that noisy CI review can slow a team and should usually remain informational. ([AI Review Workflows](https://github.com/reviews/reviews/blob/main/workflows.md)) That is the right division here: make the mechanical gate strict, keep the architectural and product decision human.
+
+## What does this workflow not prove?
+
+It does not prove that coding agents reduce review time. It does not prove that a three-file cap works for your repository. It does not prove that a receipt catches semantic bugs that pass tests. The fixture used controlled statuses and no live GitHub API.
+
+It does prove something narrower and reusable: a receipt contract can make scope, checks, uncertainty, and ownership inspectable, while failure cases can be rejected before they become a human's vague review task. Treat that as the starting point for a repository experiment. Add real issues, run the real checks, and log how often reviewers request changes for scope, tests, semantics, dependencies, or missing context.
+
+If you want the parent implementation path, place this workflow under [How to Scope an AI Agent Proof of Concept](/blog/how-to-scope-an-ai-agent-proof-of-concept). If your team can name one bounded issue but cannot yet agree on its receipt fields, [Marius Manolachi's AI consulting and tutoring work](/learn-ai) is the next step.
