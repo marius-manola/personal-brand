@@ -1,0 +1,167 @@
+---
+title: 'How to Design an AI Workflow Around Reversible Actions'
+date: '2026-09-02'
+updated: '2026-09-02'
+excerpt: 'A provider-neutral action contract and failure matrix for deciding what an AI workflow may run, stage, approve, compensate, or block.'
+answer: 'Design the workflow around the action’s real-world effect, not the agent’s confidence. Classify each action as read, idempotent, reversible, compensable, or irreversible; persist a receipt and precondition; bind approval to the exact payload; and represent unknown after a lost response. The exception is an effect that cannot be safely undone, which stays staged or human-owned.'
+targetQuery: 'How to design an AI workflow around reversible actions'
+queryAliases:
+  - 'AI workflow reversible actions'
+  - 'reversible actions for AI agents'
+  - 'AI workflow rollback and compensation'
+intent: 'implementation'
+funnel: 'consideration'
+cluster: 'architecture'
+parent: '/blog/when-to-use-an-ai-agent'
+contentType: 'decision-tool'
+kind: 'satellite'
+sourceableAtom: 'A provider-neutral action contract and failure matrix that observes unknown-to-reconciled-to-replayed recovery, rejects changed retries, separates compensation from forward execution, and blocks an irreversible message without approval.'
+evidenceType: 'reproducible test plus worked decision artifact'
+evidenceBasis: 'Node.js v20.11.0 provider-neutral fixture, 13 assertions across eight required failure scenarios plus separate compensation, run 2026-08-23; illustrative, not a client outcome or benchmark.'
+tags:
+  - 'AI architecture'
+  - 'AI reliability'
+  - 'AI workflows'
+  - 'Human oversight'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-21'
+sources:
+  - 'https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/'
+  - 'https://www.anthropic.com/engineering/building-effective-agents'
+  - 'https://docs.cloud.google.com/architecture/choose-design-pattern-agentic-ai-system'
+  - 'https://eur-lex.europa.eu/eli/reg/2024/1689/oj'
+  - 'https://arxiv.org/abs/2604.23283'
+faq:
+  - q: 'Is compensation the same as rollback in an AI workflow?'
+    a: 'No. Rollback restores a technical state under a defined contract. Compensation is a later corrective action that may reduce harm without erasing the original effect, such as issuing a correction after an external message was sent.'
+  - q: 'What should an AI workflow do after a lost tool response?'
+    a: 'Mark the outcome unknown, reconcile using the durable operation key and system of record, then replay only when the fingerprint matches. A timeout is not proof that the external effect did not happen.'
+  - q: 'When should an AI workflow require approval?'
+    a: 'Require approval before an action that is consequential, privileged, subjective, hard to reverse, or externally visible. Bind the decision to the exact normalized payload, target, actor, and current preconditions.'
+cover: '/blog/how-to-design-an-ai-workflow-around-reversible-actions-reversible-actions-hero.webp'
+coverAlt: 'Illustration of an AI workflow routing proposed actions through receipts, compensation, approval, and an irreversible boundary'
+draft: false
+---
+
+I ran a small provider-neutral fixture because “add an approval step” is not a recovery design. The useful question is what happens when the outside system acted, the response disappeared, and the model tries again. The answer lives in the action contract and the receipt, not in the prompt.
+
+This is a satellite of [When to Use an AI Agent](/blog/when-to-use-an-ai-agent). It focuses on one implementation job: deciding which effects can run automatically and which must stop at a human boundary.
+
+## The fixture result
+
+The fixture made the following decision table executable. It recorded 13 assertions across eight required scenarios, plus a separate compensation run.
+
+| Scenario | Observed result | External effect |
+| --- | --- | --- |
+| Read | Applied | Read receipt created |
+| Reversible write | Applied | One record version changed |
+| Response lost after effect | `unknown`, then reconciled, then replayed | No duplicate version |
+| Changed retry payload | Rejected | No second effect |
+| Rejected approval | Blocked | Store unchanged |
+| Partial multi-step run | First step applied, second failed before effect | First receipt remained available |
+| Irreversible external message | Blocked without approval | Zero messages sent |
+| Interrupted run | Interrupted after commit, then replayed | No duplicate effect |
+
+The separate compensation test restored the record from `{version: 2, value: "new"}` to its recorded prior state `{version: 1, value: "old"}`. That is the sourceable result on this page. The fixture is illustrative and provider-neutral. It is not a client outcome, production incident, or benchmark.
+
+## Classify the action before choosing the workflow
+
+Classify the effect, not the agent. The same agent might read an account, update a record, draft an email, and send it. Those actions need different controls.
+
+| Class | Use it when | Default route |
+| --- | --- | --- |
+| Read | The action retrieves state without changing it | Auto-run with authorization and a receipt |
+| Idempotent | Repeating the same logical operation creates one business effect | Auto-run only when the operation key and fingerprint match |
+| Reversible | The exact technical effect can be restored | Auto-run with a live precondition and tested compensation |
+| Compensable | The effect cannot be erased, but a corrective action can reduce harm | Stage by default, then approve when policy allows |
+| Irreversible | The external effect cannot be reliably recalled or restored | Approval or human handling, never autonomous |
+
+OpenAI's tool-risk guidance uses read versus write access, reversibility, permissions, and financial impact as risk inputs. That supports classifying the action at the tool boundary rather than assigning one risk label to the whole agent. ([OpenAI, A practical guide to building agents](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/))
+
+Do not call a write reversible because the API calls it `update`. Ask whether you can restore the exact prior state, whether downstream effects also revert, and whether the restoration is safe after other work has happened. If the answer is unclear, route it to staging or approval.
+
+For the broader state and transition boundary, see [How to Design an AI Agent State Machine](/blog/how-to-design-an-ai-agent-state-machine). This post adds the effect classification that decides what may happen inside each state.
+
+## Put the control fields in the proposed action
+
+The model can propose an action. Application code should own whether that proposal is legal, current, approved, and safe to deliver.
+
+![Illustration of a provider-neutral proposed-action contract with preconditions, approval binding, receipt, compensation, and unknown state](/blog/how-to-design-an-ai-workflow-around-reversible-actions-reversible-actions-contract.webp)
+
+```json
+{
+  "runId": "run-42",
+  "stepId": "step-2",
+  "actionId": "update_account",
+  "classification": "reversible",
+  "target": "record:acct-1",
+  "normalizedPayload": {"value": "new"},
+  "preconditions": [{"recordId": "acct-1", "version": 1}],
+  "approvalBinding": null,
+  "durableReceipt": {"operationKey": "run-42:step-2", "state": "proposed"},
+  "compensation": {"actionId": "restore_account"},
+  "unknownState": "unknown"
+}
+```
+
+The minimum fields do different jobs:
+
+1. `classification` selects the policy route.
+2. `preconditions` stop a stale proposal from changing a newer record.
+3. `approvalBinding` records which exact action a person accepted.
+4. `operationKey` gives retries one logical identity.
+5. `normalizedPayload` lets the executor reject a changed retry.
+6. `durableReceipt` records the effect and its external reference.
+7. `compensation` names the recovery action without pretending it is a rollback.
+8. `unknownState` prevents a timeout from being silently converted into “not applied.”
+
+Anthropic describes workflows as fixed sequences that can include programmatic checks, while agents need environmental ground truth and can pause at checkpoints or blockers. That is the division here: the model proposes; deterministic runtime code checks and commits. ([Anthropic, Building effective agents](https://www.anthropic.com/engineering/building-effective-agents))
+
+## Bind approval to the exact effect
+
+An approval is useful only if the executor can prove that the action approved is the action about to run. Bind at least the action ID, target, normalized payload, authenticated actor, policy version, and expiry. Recheck the current precondition after approval.
+
+The fixture rejected a compensable write after the reviewer recorded `rejected`, and it blocked the irreversible message when no approval existed. In the second case, the message sink contained zero messages. Staging prevented the irreversible effect because the approval gate sat before the external call.
+
+Google Cloud describes the human-in-the-loop pattern as a predefined checkpoint where execution pauses for a person to approve, correct, or provide input before continuing. It also treats workflow shape, latency, and orchestration needs as architecture-selection criteria. ([Google Cloud, choose a design pattern](https://docs.cloud.google.com/architecture/choose-design-pattern-agentic-ai-system))
+
+Approval is not the same as compensation. A person approving an email does not make the email retractable. A compensation plan is not permission to send it. Keep those fields and decisions separate.
+
+## Treat a lost response as unknown
+
+The dangerous retry path is:
+
+1. The executor sends the external request.
+2. The external system commits the effect.
+3. The response is lost.
+4. The workflow sees a timeout and proposes the action again.
+
+The fixture returned `unknown` after step 3. Reconciliation used the durable operation key to find the receipt. An identical retry returned `replayed`; it did not create another record version. A retry with a changed payload returned `rejected` because the stored fingerprint did not match.
+
+That sequence is why [How to Design Idempotent Tools for AI Agents](/blog/how-to-design-idempotent-tools-for-ai-agents) treats the operation key, request fingerprint, receipt, and explicit in-flight or unknown state as one contract. Reversibility helps recovery, but it does not identify whether the first request happened.
+
+The 2026 revisability paper makes a related theoretical argument: treating agent execution as one isolated transaction forces users to wait or lose progress when they interrupt it. I use that paper as context for making runs inspectable and resumable, not as evidence for this fixture's result. ([Revisable by Design](https://arxiv.org/abs/2604.23283))
+
+## Recover partial and interrupted runs from receipts
+
+For a multi-step workflow, persist a receipt after each external effect. On restart, reconcile the pending step before calling the tool again. Resume only from a known state.
+
+In the partial-run test, step one changed a record and stored its receipt. Step two failed before its effect. The workflow could therefore mark the run partial, retry step two with the same contract, or compensate step one according to policy. It did not pretend that the whole run was atomic.
+
+In the interruption test, the worker stopped after the record commit but before the success response. The durable receipt made the next attempt a replay, not a second write. Anthropic recommends ground truth at each step and stopping conditions; Google similarly warns that multi-step loops need explicit termination conditions. ([Anthropic](https://www.anthropic.com/engineering/building-effective-agents), [Google Cloud](https://docs.cloud.google.com/architecture/choose-design-pattern-agentic-ai-system))
+
+When I teach product managers to move from writing specifications to building and shipping, the useful failure is often an undefined “done,” not an obviously bad model. The receipt gives “done” a checkable meaning: the external effect has an authoritative reference, or the run is explicitly partial, unknown, blocked, or failed. That observation is part of how I teach, not a measured study. ([Marius Manolachi's Learn AI work](https://mariusmanolachi.com/learn-ai))
+
+## Where human oversight becomes a requirement
+
+For systems covered by the EU AI Act's high-risk provisions, Article 14 requires effective human oversight proportionate to risk, autonomy, and context, including the ability to understand limitations, monitor operation, and intervene. The rule does not turn every AI workflow into a manual queue. It does make a risk-based human boundary part of the system design where the provision applies. ([EU AI Act, Article 14](https://eur-lex.europa.eu/eli/reg/2024/1689/oj))
+
+For other workflows, use the same engineering question: can a qualified person understand the proposed effect, know whether it already happened, and stop or correct the system before the harmful boundary? If not, reduce the action's authority, stage it, or keep the task human-owned.
+
+## Limits of this fixture
+
+The fixture uses an in-memory fake record store and message sink. It does not prove that a real payment, email, CRM, queue, or database supports these guarantees. It runs one deterministic trial per case, so it is a contract test and teaching artifact, not a statistical benchmark. Its compensation path restores one record from a saved prior state; real-world consequences, notifications, and downstream jobs may not be restorable.
+
+Use the matrix as a starting point. Replace the fake effects with your system of record, document each provider's idempotency and cancellation guarantees, and add cases for authorization changes, expired approvals, stale versions, duplicate callbacks, and downstream fan-out.
+
+The practical next step is to take one workflow step and complete the contract. If you cannot name its classification, precondition, receipt, and recovery path, it is not ready for autonomous execution.
