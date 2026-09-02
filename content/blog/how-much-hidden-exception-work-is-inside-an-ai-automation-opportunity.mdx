@@ -1,0 +1,167 @@
+---
+title: "How Much Hidden Exception Work Is in an AI Automation Opportunity?"
+date: "2026-09-02"
+updated: "2026-09-02"
+excerpt: "A public event-log worksheet turns variants, rework, returns, escalation, and unresolved traces into an automation boundary without pretending to measure human minutes."
+answer: "Treat exception work as exposure, not as a guessed labor rate. In a public sepsis-care event log, 88% of cases sit outside the dominant trace variant, repeat diagnostic events add 4,961 events above a one-per-case baseline, and 26% of traces end outside accepted discharge or return endings. Use those proxies to stabilize first, assist or review exceptions, and reserve autonomous automation for a narrower path."
+targetQuery: "how much hidden exception work is inside an ai automation opportunity"
+queryAliases:
+  - "hidden exception work in ai automation"
+  - "how to estimate exception work before ai automation"
+  - "exception exposure in an automation opportunity"
+intent: "opportunity-stage decision tool"
+funnel: "opportunity"
+cluster: "opportunity"
+parent: "/blog/how-to-prioritize-ai-use-cases-in-a-small-business"
+contentType: "decision-tool"
+kind: "satellite"
+sourceableAtom: "A worked exception-ledger method turns public event-log proxies into a bounded choice among deterministic automation, AI assistance, human review, process stabilization, and no automation."
+evidenceType: "reproducible event-log analysis plus worked decision artifact, bounded by a qualitative operator observation"
+evidenceBasis: "Version-1 Sepsis Cases event log from 4TU.ResearchData, published activity and terminal-event counts, local arithmetic worksheet, downloadable ledger template, calculation sheet, and reproducible notebook."
+tags:
+  - "AI automation"
+  - "Opportunity assessment"
+  - "Process mining"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://tfpm.compute.dtu.dk/resources/logs"
+  - "https://doi.org/10.4121/uuid:915d2bfb-7e84-49ad-a286-dc35f063a460"
+  - "https://ceur-ws.org/Vol-1859/bpmds-08-paper.pdf"
+  - "https://github.com/andreamalhera/feeed"
+  - "https://pmc.ncbi.nlm.nih.gov/articles/PMC12986027/"
+  - "https://doi.org/10.1109/TKDE.2021.3052927"
+  - "https://www.anthropic.com/engineering/building-effective-agents"
+  - "https://docs.aws.amazon.com/prescriptive-guidance/latest/agentic-ai-economics/understanding.html"
+  - "https://airc.nist.gov/airmf-resources/airmf/appendices/app-c-ai-risk-management-and-human-ai-interaction/"
+faq:
+  - q: "Can an event log measure hidden human work?"
+    a: "No. It can show recorded variants, repeat events, returns, escalations, and terminal states. It cannot measure preparation, off-system coordination, or human minutes unless effort data is captured."
+  - q: "Does high exception exposure rule out AI automation?"
+    a: "No. It usually narrows the boundary. Use AI for bounded classification, summarization, or review preparation, while keeping irreversible decisions and unresolved paths human-owned."
+  - q: "What if my team has no event log?"
+    a: "Use a small case sample and the exception ledger, but label the result as a sample observation. Do not turn an unmeasured guess into an exception rate."
+cover: "/blog/how-much-hidden-exception-work-is-inside-an-ai-automation-opportunity-hidden-exception-work-hero.webp"
+coverAlt: "Illustration of a business process splitting into a stable path and an exception queue"
+draft: false
+---
+
+A happy-path demo tells you what a process can look like. It doesn't tell you how many cases leave that path, repeat work, return later, or stop without a clear ending.
+
+This is the narrow measurement job inside the broader [guide to prioritizing AI use cases in a small business](/blog/how-to-prioritize-ai-use-cases-in-a-small-business).
+
+I built a small worksheet to make that exposure visible before a team approves an AI build. It uses the public Sepsis Cases event log as a worked example, not as a universal benchmark.
+
+The short result is below.
+
+| Observed proxy | Result | What it changes |
+| --- | ---: | --- |
+| Cases outside the dominant observed variant | 88.0% | Don't assume one straight-through path. |
+| Repeatable diagnostic events above one per case | 4,961 events | Rework is visible, but labor minutes are not. |
+| `Return ER` event exposure | 294 events, 28.0% of cases as a proxy | Returns need a different boundary from the first pass. |
+| `Admission IC` event exposure | 117 events | Escalation-sensitive work needs explicit review. |
+| Traces outside accepted terminal endings | 273, 26.0% | Stabilize completion states before adding autonomy. |
+
+These values overlap. You can't add them into one “exception rate.” They are separate signals that help decide what to automate, what to assist, and what to leave human-owned.
+
+![Illustration of an event-log process splitting into measured exception proxies](/blog/how-much-hidden-exception-work-is-inside-an-ai-automation-opportunity-exception-ledger-boundary.webp)
+
+## What does the public log actually show?
+
+The log shows a process with enough recorded variation to reject end-to-end autonomous automation as the default starting point.
+
+The Sepsis Cases event log contains 1,050 patient trajectories and 15,214 events across 16 activity types. The original case study describes trajectories from emergency-room registration through admission and discharge, with laboratory and triage attributes included in the event log. The [IEEE Task Force on Process Mining catalog](https://tfpm.compute.dtu.dk/resources/logs) lists the log as a public hospital XES dataset, and the [original case study](https://ceur-ws.org/Vol-1859/bpmds-08-paper.pdf) describes its scope.
+
+Published [process-mining feature extraction](https://github.com/andreamalhera/feeed) reports 846 activity-sequence variants and a dominant-variant share of 0.12. I turn that into a simple diversity proxy:
+
+```text
+variant exposure = 1 - dominant variant share
+                 = 1 - 0.12
+                 = 0.88
+```
+
+That does not mean 88% of cases are wrong. A variant can be valid. It means 88% of cases sit outside the most common observed path, so a demo of that path is a weak description of the total boundary.
+
+The event counts tell the same story. The public analyses report 3,383 Leucocytes events, 3,262 CRP events, 1,466 LacticAcid events, 294 Return ER events, and 117 Admission IC events. Those labels are useful because they reveal repetition, return, and escalation without pretending to reveal why each event happened.
+
+## Which exception proxies can you count before choosing an automation boundary?
+
+Use definitions that a second analyst can apply without guessing what “exception” means.
+
+| Proxy | Pre-analysis definition | What it can support | What it cannot support |
+| --- | --- | --- | --- |
+| Nonconforming variant proxy | Case is outside the dominant observed activity sequence | A measure of path diversity | A formal conformance failure unless you have a normative model |
+| Loop or rework proxy | Repeatable diagnostic events above one occurrence per case | A count of extra recorded events | Proof that the repeats were wasteful or manual |
+| Return proxy | A `Return ER` event appears | A boundary-changing return signal | A reason for the return or its labor cost |
+| Escalation proxy | An `Admission IC` event appears | A signal for higher-risk routing | A unique-case rate if events can repeat |
+| Unresolved trace proxy | Final event is outside `Release A-E` and `Return ER` | A completion-boundary signal | An abandonment count |
+| Abandoned case proxy | Explicit abandonment, cancellation, or case status | A direct abandoned-case count when available | Anything when the field is absent |
+
+For repeatable diagnostics, the worksheet uses a one-per-case baseline:
+
+```text
+(3,383 - 1,050) + (3,262 - 1,050) + (1,466 - 1,050) = 4,961 events
+```
+
+That is 32.6% of all recorded events in the log. The denominator is event volume, not people, cost, or time. The [activity statistics](https://pmc.ncbi.nlm.nih.gov/articles/PMC12986027/) support the input counts, while the arithmetic and definition are in the downloadable calculation sheet.
+
+The terminal-state proxy uses the terminal-event frequencies reported in the [IEEE structural-error analysis](https://doi.org/10.1109/TKDE.2021.3052927). I count Release A through E and Return ER as accepted endings for this worksheet. They account for 777 of 1,050 terminal events, leaving 273 traces outside that set. That 26.0% is an unresolved-trace proxy. It is not proof that anyone abandoned a case.
+
+The worksheet deliberately leaves abandonment as “not measurable.” That is a useful result. Missing evidence should narrow a decision, not be filled with a confident label.
+
+## Which automation option fits the observed exposure?
+
+Use a decision table, not a single score. A score hides the fact that a return and a repeated lab measurement may require different owners and different controls.
+
+The thresholds below are working thresholds for this worksheet. They are not industry benchmarks.
+
+| Option | Conditions to meet | Result on the public-log example |
+| --- | --- | --- |
+| Deterministic automation | At least 80% of cases follow the dominant path, unresolved proxy at most 5%, and no high-risk return or escalation inside the boundary | No for end-to-end automation. A narrow stable substep may still qualify. |
+| AI assistance | Context or variation needs interpretation, but a person can review a bounded recommendation before action | Yes for summaries, classification, and review packets. |
+| Human review | A return, escalation, irreversible outcome, or unresolved path can change the decision | Yes. Route these proxy classes to a named owner. |
+| Process stabilization | Completion states, ownership, or event capture are unclear | Yes. Clarify states and data capture first. |
+| No automation yet | Done criteria, risk tolerance, or hidden effort are unknown | Yes until the missing decision inputs exist. |
+
+This choice follows the general distinction in [Anthropic's agent guidance](https://www.anthropic.com/engineering/building-effective-agents): fixed workflows are more predictable for well-defined tasks, while agents are useful when the path cannot be hardcoded and model-driven decisions are needed. [AWS guidance](https://docs.aws.amazon.com/prescriptive-guidance/latest/agentic-ai-economics/understanding.html) makes the same decision depend on complexity, standardization, volume, value, risk, and human involvement. The event-log worksheet supplies only part of that input.
+
+The public example therefore supports a staged boundary:
+
+1. Stabilize the recorded process and define what a completed case means.
+2. Use deterministic rules for the stable, low-risk subpath.
+3. Use AI to prepare context for variant, return, or escalation cases.
+4. Keep a human owner for the decision and the unresolved queue.
+5. Re-measure after the process and event capture change.
+
+That is an automation opportunity. It is not yet a case for an autonomous agent that owns the whole process.
+
+## Why doesn't the worksheet claim to measure hidden human effort?
+
+Because event logs record system events, not every action around those events.
+
+The log can show that a diagnostic event happened twice. It cannot show whether a nurse, analyst, coordinator, or system prepared the work, how long the preparation took, whether the event was triggered automatically, or what happened in another system. It also cannot show abandoned work when no event or status records the abandonment.
+
+This distinction matters for an AI business case. The [AWS economic guidance](https://docs.aws.amazon.com/prescriptive-guidance/latest/agentic-ai-economics/understanding.html) says to account for current human costs and hidden costs such as training, coverage, and downtime. The public log has none of those effort fields. Do not multiply 4,961 events by an invented handling time.
+
+NIST also separates human roles and responsibilities in human-AI configurations, from fully manual to fully autonomous. That makes “human review” an operating design choice, not a vague safety sentence. Name the owner, the decision they retain, the evidence they see, and the condition that sends work back.
+
+There is a second practical veto. In teaching product managers to move from writing specs to building and shipping products, Marius Manolachi has observed qualitatively that the recurring failure was often an undefined “done,” not a model problem. That is a teaching observation from [Marius's AI work](https://mariusmanolachi.com/learn-ai), not a measured rate or a client outcome. If your team cannot write the terminal condition, pause the automation decision.
+
+## How can you run this on your own process?
+
+Start with the smallest trustworthy slice. A full enterprise event warehouse is not required to expose the first boundary problem.
+
+1. Pick one case identifier and one event name. Keep timestamps and owners if they exist.
+2. Write the proxy definitions before looking at the output. Include nonconforming variants, loops or rework, returns, escalations, abandoned cases, and unresolved traces.
+3. Fill one row per observed exception in the [exception-ledger template](./artifacts/exception-ledger-template.csv). Record the event, owner, decision, and follow-up. If the data does not support a field, write “not measurable.”
+4. Run the [calculation sheet](./artifacts/calculation-sheet.csv) and inspect each proxy separately. Do not add overlapping numerators.
+5. Choose the smallest boundary that the evidence supports. If the stable path is small, assist or review the rest. If the terminal state is unclear, stabilize before automating.
+6. Re-run the worksheet after changing the process or the event capture. The point is not to produce a permanent exception percentage. The point is to make the next boundary decision more honest.
+
+The complete [reproducible notebook](./artifacts/exception_analysis.ipynb) records the data version, definitions, calculations, and limitations. It also shows how to run the same definitions against the lossless XES mirror when you have the raw file locally.
+
+If you want to turn this into a team capability rather than a one-off spreadsheet, [Marius Manolachi's AI learning work](/learn-ai) is the natural next step. Bring the process, the cases, and the uncomfortable unknowns. The article is complete without choosing an agent.
+
+For the next layer of discovery, pair this worksheet with [how to find hidden human work in an AI automation workflow](/blog/how-to-find-hidden-human-work-in-an-ai-automation-workflow). The event log shows recorded exposure; that companion job looks for work the systems never captured.
+
+Start with the exception ledger. Approve the model only after the boundary survives it.
