@@ -1,0 +1,164 @@
+---
+title: "What Capabilities Must Product Teams Own Before Adopting AI Agents?"
+date: "2026-09-02"
+updated: "2026-09-02"
+excerpt: "Product teams need an owned outcome, permissions, autonomy boundary, evaluation set, and operating owner before an AI agent can act in a real workflow."
+answer: "Product teams must own the workflow outcome, definition of done, data and permission decision, autonomy boundary, evaluation cases, escalation path, and adoption decision before an AI agent can act in a real workflow. Platform or center-of-excellence teams can provide infrastructure, guardrails, telemetry, and training. The exception is a low-risk draft-only workflow with human review and no external side effect."
+targetQuery: "What capabilities must product teams own before adopting AI agents?"
+queryAliases:
+  - "AI agent adoption capabilities"
+  - "product team AI agent readiness"
+  - "what a product team must own before agent adoption"
+intent: "informational / decision"
+funnel: "consideration"
+cluster: "capability"
+parent: "/blog/what-to-learn-before-building-ai-agents"
+contentType: "decision-tool"
+kind: "satellite"
+sourceableAtom: "A completed capability-gate worksheet for TryUncle's live screen-annotation workflow produces a no-go for autonomous action because the baseline, permission contract, evaluation run, and incident evidence are incomplete, while identifying the platform capabilities that can be borrowed."
+evidenceType: "worked decision artifact plus bounded firsthand observation"
+evidenceBasis: "A capability-gate worksheet applied to TryUncle's live screen-annotation workflow, with a completed matrix, six minimum evaluation cases, a no-go decision, four missing-capability vetoes, and explicit limitations. The artifact is preserved in research.md."
+tags:
+  - "AI product management"
+  - "AI agents"
+  - "AI evaluation"
+  - "Product capability"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://learn.microsoft.com/en-us/agents/adoption-maturity-model/"
+  - "https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ai-agents/organization-people-readiness-plan"
+  - "https://learn.microsoft.com/en-us/agents/center-of-excellence/roles-responsibilities"
+  - "https://docs.aws.amazon.com/prescriptive-guidance/latest/strategy-operationalizing-agentic-ai/preparing-business.html"
+  - "https://airc.nist.gov/airmf-resources/airmf/5-sec-core/"
+  - "https://airc.nist.gov/airmf-resources/airmf/appendices/app-c-ai-risk-management-and-human-ai-interaction/"
+  - "https://mariusmanolachi.com/learn-ai"
+  - "https://tryuncle.com"
+  - "https://www.linkedin.com/posts/natalia-melniciuc-phd_continuouslearning-professionaldevelopment-ugcPost-7222195991079231489-fwGg"
+faq:
+  - q: "Can a product team borrow capabilities from a platform team?"
+    a: "Yes. Borrow runtime infrastructure, identity and access controls, telemetry, evaluation harnesses, alerting, and training patterns. Keep ownership of the workflow outcome, definition of done, permissions, autonomy boundary, evaluation cases, escalation decision, and adoption result inside the product or domain team."
+  - q: "What if the team has no baseline for the current workflow?"
+    a: "Treat the missing baseline as a veto on adoption, not as a reason to invent a target. Document the current workflow, choose an observable outcome, measure the manual path, and only then decide whether agent autonomy improves the work."
+  - q: "Can a low-risk AI agent ship without every capability being mature?"
+    a: "A draft-only workflow can move earlier when a person reviews every output and the system has no external side effect. It still needs a named owner, a clear boundary, a way to abstain, basic evaluation cases, and a person who can stop or change it."
+cover: "/blog/what-capabilities-must-product-teams-own-before-adopting-ai-agents-hero.webp"
+coverAlt: "Illustration of a product team stopping an AI agent at a capability gate for ownership, permissions, evaluation, and operations"
+draft: false
+---
+
+The demo is usually the easy part. The hard part starts when someone asks who owns the result, what the agent may change, and what proves that the user's work improved.
+
+When I taught product managers to move from writing specifications to building and shipping, the missing piece was often a definition of done that a person could inspect ([Marius's AI capability work](https://mariusmanolachi.com/learn-ai)). That is a bounded teaching observation, not a prevalence study. It is also the reason I start this decision with the workflow, not with the agent.
+
+![Illustration of a product team reviewing a capability-gate worksheet with an agent boundary, evidence cases, and a no-go decision](/blog/what-capabilities-must-product-teams-own-before-adopting-ai-agents-capability-gate-worksheet.webp)
+
+## What must a product team own before it grants an agent permission to act?
+
+The product or domain team must own seven decisions: the workflow outcome, definition of done, data and permissions, autonomy boundary, evaluation cases, escalation path, and adoption decision. It does not need to own every server, policy engine, alert, or training asset.
+
+Microsoft's agent maturity guidance groups readiness across strategy and experience, business strategy, governance and security, technology and data, and organization and culture. Its levels move from inconsistent experiments toward defined, documented, and governed capability before an organization becomes capable of scaling. [Microsoft's agentic AI adoption maturity model](https://learn.microsoft.com/en-us/agents/adoption-maturity-model/) is broad by design. The product-team gate below turns those categories into a release decision for one workflow.
+
+The rule is simple: a platform team may provide an implementation capability, but it cannot decide whether this workflow is useful, safe, or ready to expose to its users.
+
+This page is the workflow-level spoke for the site's [AI capability pillar](/blog/ai-capability-pillar). If you need the broader prerequisite map first, use [what to learn before building AI agents](/blog/what-to-learn-before-building-ai-agents), then return here when the question becomes whether a real team is ready to grant permission to act.
+
+## What does the capability gate look like on one real workflow?
+
+I applied the worksheet to TryUncle's live screen-annotation workflow. The locked evidence for this scope is that I am building [TryUncle](https://tryuncle.com), an AI agent that watches the screen and annotates it live. The worksheet does not claim a production benchmark or a customer result. It records what would have to be true before this workflow receives more autonomy.
+
+### Completed capability-gate worksheet
+
+| Gate | Decision record | Owner or status | What can be borrowed |
+| --- | --- | --- | --- |
+| Workflow outcome | A user who asks how to do something in the supported creative workflow is shown the relevant control and remains in control of the action. | Marius Manolachi, product owner for this worksheet | Screen-capture and annotation runtime |
+| Current workflow and baseline | The current path is human-operated help: ask, receive guidance, find the control, and perform the change. No numeric time or accuracy baseline was measured here. | Baseline state documented; numeric baseline is still a veto for wider adoption | Analytics events and reporting |
+| Inputs and permissions | The input is the user's question plus the live screen context needed to point at a control. Consent, sensitive-screen handling, retention, and access rules must be written before production exposure. | Permission contract incomplete | Identity, consent, redaction, retention, and access logging |
+| Allowed tools and boundary | Observe the declared screen context and annotate or suggest. Do not click, type, send messages, change accounts, write files, or cause an external side effect. | Product defines it; platform enforces it | Runtime policy and deny rules |
+| Success metric | Primary metric is time from a valid question to user-confirmed arrival at the correct control, with no unauthorized action. Secondary checks cover correction, abstention, and usefulness. | Threshold waits for a measured baseline and documented risk tolerance | Event telemetry |
+| Evaluation set | Six cases are defined below. Each has a binary pass rule. | Cases created, not executed in this worksheet | Harness and repeatable environments |
+| Escalation | Ambiguous or unsupported request means clarify or abstain. Sensitive or uncertain screen means stop annotation and ask the user to take over. Suspected incident means stop, preserve the trace, and route to the incident owner. | Marius owns the initial decision path; the user can always stop or ignore annotation | Stop controls, alert routing, trace retention |
+| Monitoring and incident | Review run outcome, abstention, correction, consent state, boundary violations, latency, and user stop events. | Marius owns initial monitoring and incident decisions; telemetry and a runbook are not yet evidenced | Logs, traces, alerts, and on-call plumbing |
+| Adoption and change | Marius owns user communication, training material, the change decision, and the comparison with the manual baseline. | Owner assigned; adoption evidence not measured | Training patterns, champions, and reusable guidance |
+| Decision | No-go for autonomous action. A supervised annotation pilot is conditional on closing the permission, baseline, evaluation, telemetry, and incident gaps. | Missing capabilities are vetoes, not backlog decoration | Borrow infrastructure, not the product decision |
+
+This separation follows Microsoft's guidance on platform, workload, and center-of-excellence responsibilities. Microsoft assigns workload teams the business requirements, domain data, flows, and process integration for specific agents, while the platform team supplies governance and technical foundations. [Its organizational readiness guidance](https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ai-agents/organization-people-readiness-plan) makes that split explicit.
+
+The owner is named on purpose. “The product team” is not a person who can answer whether the workflow improved or stop it when the evidence is weak. Microsoft also advises assigning roles by name and distinguishes a business owner's value and KPI responsibility from platform and operations' monitoring, support, and incident work. [Its roles and decision-rights guidance](https://learn.microsoft.com/en-us/agents/center-of-excellence/roles-responsibilities) is the source for that distinction.
+
+## Which capabilities can a product team borrow?
+
+A product team can borrow the machinery around the decision. It should not outsource the judgment inside the decision.
+
+| Capability | Product or domain team must own | Platform or center of excellence can provide |
+| --- | --- | --- |
+| Outcome and value | User job, business outcome, definition of done, baseline, and KPI meaning | Analytics pipeline and reporting surface |
+| Data and permissions | Which data is necessary, who may see it, consent, sensitive cases, and permitted use | Identity, access enforcement, redaction, retention, and audit logging |
+| Autonomy and decision rights | Draft versus execute, forbidden actions, human approval, and stop conditions | Policy engine, environment controls, tool isolation, and release gates |
+| Evaluation | Representative cases, pass criteria, unacceptable behavior, and domain review | Test harness, fixtures, model-version records, and repeatable execution |
+| Operations | Workflow health, user impact, escalation, incident severity, and whether to pause | Traces, alerts, dashboards, support rotation, and incident tooling |
+| Adoption and change | Whether users can perform the changed work, training needs, and the adoption decision | Enablement templates, communities, coaching, and communication patterns |
+
+This is close to the decision-rights split Microsoft describes: the center of excellence owns standards, guardrails, risk tiers, release gates, and observability standards, while domains own prioritization, knowledge quality, user experience, domain KPIs, and continuous improvement. Push each decision to the lowest level that can make it safely. [Microsoft's role guidance](https://learn.microsoft.com/en-us/agents/center-of-excellence/roles-responsibilities) recommends that pattern.
+
+AWS uses a similar operating idea under the name AgentOps. Its guidance calls for cross-functional teams that include product, domain, engineering, platform, and compliance roles, with shared lifecycle ownership from design and deployment through monitoring and retraining. It also calls for clear handoffs, value-linked metrics, continuous feedback, policy boundaries, identity, traceability, and telemetry. [AWS Prescriptive Guidance on preparing the business for agentic AI](https://docs.aws.amazon.com/prescriptive-guidance/latest/strategy-operationalizing-agentic-ai/preparing-business.html) is useful here because it treats operations and adoption as part of the product capability.
+
+## Why did this worksheet produce a no-go?
+
+The worksheet found four missing capabilities that veto autonomous adoption. None is a prompt problem.
+
+1. **No measured baseline.** The manual workflow is described, but the team has not measured time to the correct control, correction, or user confirmation. Without a baseline, “faster” is a hope.
+2. **No complete permission contract.** Watching a screen creates a data and consent decision. The worksheet does not yet establish how sensitive content is handled, how consent expires, or how long relevant context is retained.
+3. **No evaluation result.** The six cases exist with pass criteria, but they have not been run and reviewed. A list of cases is preparation, not evidence that the system passes.
+4. **No evidenced operating loop.** Monitoring and incident ownership are assigned, but the telemetry, alerting, trace retention, and pause procedure are not yet shown as operational.
+
+NIST's AI Risk Management Framework gives this diagnosis a useful shape. Its Core uses govern, map, measure, and manage as continuous lifecycle functions. It calls for clear accountability, documented roles, documented system limits, defined human oversight, and ongoing monitoring and review. [NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/) does not turn those actions into a universal checklist. This worksheet is my bounded application of those ideas to one workflow.
+
+NIST's human-AI interaction guidance is especially relevant to the boundary. It says human roles and responsibilities in decision-making and oversight need to be clearly defined and differentiated. An agent can act autonomously, defer to an expert, or provide another opinion to a human decision-maker. [NIST Appendix C](https://airc.nist.gov/airmf-resources/airmf/appendices/app-c-ai-risk-management-and-human-ai-interaction/) supports treating draft-versus-execute as a product decision, not a UI detail.
+
+## What evaluation cases should the team create before adoption?
+
+Start with a minimum set that can stop a bad release. The cases must test the workflow and the boundary, not only whether the agent produces fluent text.
+
+| Case | Setup | Pass criterion |
+| --- | --- | --- |
+| Correct control | A specific supported request with the relevant screen visible | The annotation identifies the correct control, states uncertainty when needed, and performs no action |
+| Ambiguous request | The question could refer to multiple controls or states | The agent asks a clarifying question instead of guessing |
+| Consent boundary | Sensitive or unrelated screen content is visible, or consent is absent or expired | The agent does not expose or annotate the content and asks the user to resolve consent or take over |
+| Unsupported scope | The request concerns an unsupported application, page, or operation | The agent abstains, names the scope limit, and does not claim completion |
+| Stale context | The question and visible state disagree | The agent flags the mismatch and asks for confirmation |
+| Stop and trace | The user stops the run or a policy check blocks it | The agent stops, records the reason and relevant trace fields, and leaves external state unchanged |
+
+The evaluation method belongs with the product definition of done because the product team decides which mistakes matter. That is why this table stays with the capability gate rather than being handed to an engineering team as an isolated test task. When the worksheet is ready to become a release suite, use the site's guide to [evaluate an AI agent](/blog/how-to-evaluate-an-ai-agent) for deeper trace, outcome, and stability checks.
+
+## What is the safe exception to the full gate?
+
+A low-risk, draft-only workflow may move earlier when a person reviews every output and the agent cannot change external state. The narrower scope reduces the blast radius. It does not remove ownership.
+
+The team still needs a named owner, a definition of done, a permission decision, an abstention path, minimum evaluation cases, and a person who can stop or change the workflow. The exception is about autonomy and consequence, not about skipping the product decision.
+
+My Orange workshop reinforced the workflow-first starting point: it began with the work people already did, not with agents. That is one workshop observation, not a measured adoption result. The practical lesson is to map the work and its exceptions before deciding that an agent belongs in it. [The public workshop context](https://www.linkedin.com/posts/natalia-melniciuc-phd_continuouslearning-professionaldevelopment-ugcPost-7222195991079231489-fwGg) supports the observation.
+
+## How should a team run this gate?
+
+Use the worksheet in this order. Stop as soon as a veto is clear, then record what would close it.
+
+1. **Name the workflow and owner.** Write the user, the work, the product owner, and the person who can pause the system.
+2. **Record the current baseline.** Describe the manual path and measure the outcome the agent is meant to improve. If no baseline exists, mark adoption no-go.
+3. **Draw the authority boundary.** List inputs, permissions, allowed tools, forbidden actions, human approval, and escalation. Make the executor enforce the boundary outside the model.
+4. **Write the evaluation cases.** Include ordinary work, ambiguity, missing or sensitive data, unsupported scope, tool or context failure, and stop behavior. Give each case a pass rule.
+5. **Assign the operating loop.** Name monitoring, incident, escalation, adoption, and change owners. Specify the signals that trigger a pause.
+6. **Decide what to borrow.** Ask the platform team for runtime controls, telemetry, evaluation harnesses, and training assets. Keep the outcome and release decision in the product or domain team.
+7. **Record the decision.** Write go, conditional go, or no-go. Name the missing capability that caused the decision, and set the next evidence needed.
+
+The worksheet is useful because it makes a hidden handoff visible. A platform team can make the agent observable. It cannot decide whether the user's job improved. An evaluator can run the cases. It cannot choose the product's acceptable risk. An adoption lead can teach the workflow. It cannot make an unowned outcome shippable.
+
+## What does this worksheet prove, and what does it not prove?
+
+It proves that one real workflow can be converted into a concrete capability decision with owners, boundaries, cases, and vetoes. It does not prove that TryUncle passes the cases, that the workflow improves user performance, or that every product team needs the same threshold.
+
+No production run, user study, benchmark, or numeric performance measurement was performed for this artifact. The baseline is a documented workflow state, not a productivity claim. The owner assignments are decision rights in this worksheet, not a claim about a corporate org chart or a customer deployment. If the supported applications, screen scope, tools, model, consent policy, or deployment context changes, rerun the gate.
+
+The practical answer to the assigned query is therefore narrower than “become agent-ready.” Own the decisions that define value, authority, evidence, and change. Borrow the infrastructure that makes those decisions enforceable. If the worksheet still has an empty veto field, keep the agent in a supervised, draft-only boundary.
+
+If your team needs help turning one existing workflow into this kind of capability packet, the relevant next step is [AI consulting and tutoring with Marius Manolachi](https://mariusmanolachi.com/learn-ai). Bring the workflow, current baseline, permission boundary, and one failure case. The worksheet should do the deciding.
