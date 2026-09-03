@@ -1,0 +1,140 @@
+---
+title: 'Why Does an AI Implementation Pass the Demo but Fail During Handover?'
+date: '2026-09-03'
+updated: '2026-09-03'
+excerpt: 'A handover acceptance test exposes the access, trace, ownership, change, and rollback gaps that a successful AI demo can hide.'
+answer: 'An AI implementation can pass a demo yet fail during handover when the builder supplies undocumented context, privileged access, or manual recovery. Accept the transfer only after a fresh operator, using the packet and transferred access alone, can run a baseline, diagnose a seeded failure from the trace, apply an authorized change, and roll it back. If that evidence is missing, keep ownership with the builder.'
+targetQuery: 'Why does an AI implementation pass the demo but fail during handover?'
+queryAliases:
+  - 'ai implementation handover failure'
+  - 'AI workflow handover test'
+intent: 'implementation'
+funnel: 'consideration'
+cluster: 'implementation'
+parent: '/blog/how-to-scope-an-ai-agent-proof-of-concept'
+contentType: 'decision-tool'
+kind: 'satellite'
+sourceableAtom: 'A handover is accepted only when a fresh operator can complete a five-stage packet test with transferred access alone: baseline, seeded failure, trace diagnosis, authorized change, and rollback, with the ownership decision recorded.'
+evidenceType: 'worked handover packet and transfer exercise'
+evidenceBasis: 'Completed source-mapped handover packet, transfer protocol, and decision artifact derived from NIST, Microsoft Foundry, AWS operational guidance, and OpenAI evaluation documentation. The guide labels the protocol as a reader exercise and reports no fresh-operator result, timing, success rate, or firsthand test.'
+tags:
+  - Building
+  - Learning
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-21'
+sources:
+  - 'https://www.nist.gov/publications/challenges-monitoring-deployed-ai-systems-center-ai-standards-and-innovation'
+  - 'https://learn.microsoft.com/en-us/azure/foundry/concepts/observability'
+  - 'https://docs.aws.amazon.com/prescriptive-guidance/latest/gen-ai-lifecycle-operational-excellence/prod.html'
+  - 'https://docs.aws.amazon.com/prescriptive-guidance/latest/gen-ai-lifecycle-operational-excellence/prod-monitoring-performance.html'
+  - 'https://developers.openai.com/api/reference/resources/evals/methods/delete'
+faq: []
+cover: '/blog/why-does-ai-implementation-pass-demo-but-fail-during-handover-handover-packet-hero.webp'
+coverAlt: 'Illustration of an AI workflow packet being transferred from a builder to an operator'
+draft: false
+---
+
+A demo answers one narrow question: can the builder make the workflow work in a prepared setting? Handover asks a harder question: can another person operate the same workflow when the builder is no longer explaining every step?
+
+That difference is easy to miss. The builder knows which access matters, which trace field to inspect, which failure is harmless, and which manual repair is safe. A handover packet has to make those decisions visible. This decision tool extends the [guide to scoping an AI agent proof of concept](/blog/how-to-scope-an-ai-agent-proof-of-concept) with a packet and a transfer exercise you can run before ownership changes.
+
+## Why does the demo create false confidence?
+
+The demo creates false confidence when it proves a builder-led path instead of an operator-independent path. A successful run shows that the system can produce an acceptable result under known conditions. It does not show that a new owner can identify the conditions, recover from a failure, or change the system safely.
+
+The missing evidence usually sits at one of five boundaries:
+
+| Boundary | What the builder supplies informally | What the operator needs in the packet |
+| --- | --- | --- |
+| Task | The intended meaning of a vague request | Input limits, expected outcome, and an explicit stop condition |
+| Access | A privileged account or a remembered setting | Named permissions, environment, and the minimum access required |
+| Diagnosis | A familiar trace pattern | Trace fields, alert route, failure signatures, and the next safe check |
+| Change | A quick edit made from memory | Authorized change steps, version record, and approval point |
+| Recovery | A builder who knows how to undo the change | Rollback trigger, rollback action, verification, and escalation owner |
+
+This is why deployment is not the end of the operational work. NIST describes pre-deployment evaluation as mainly controlled and identifies post-deployment monitoring as necessary for real-world operation, unforeseen outputs, and consequences ([NIST on monitoring deployed AI systems](https://www.nist.gov/publications/challenges-monitoring-deployed-ai-systems-center-ai-standards-and-innovation)). AWS likewise frames production as continuous operation, with monitoring, feedback, security, governance, and sustained value checks ([AWS production and continuous operation guidance](https://docs.aws.amazon.com/prescriptive-guidance/latest/gen-ai-lifecycle-operational-excellence/prod.html)).
+
+The principal exception is a one-off, disposable demonstration with no operational owner and no external side effect. It still needs a clear label. Once a team expects someone else to run it, the demo has become a transfer candidate.
+
+## What should a handover acceptance test prove?
+
+The test should prove five things in order: the operator can run a known case, observe a controlled failure, diagnose it from available evidence, make an authorized change, and return to a known-good version. The result is a decision record, not a score manufactured to make the transfer look ready.
+
+Use this five-stage protocol:
+
+| Stage | Operator action | Evidence to preserve | Fail the stage when |
+| --- | --- | --- | --- |
+| 1. Baseline | Run a known case with transferred access | Input, expected outcome, actual outcome, versions, and trace ID | The expected outcome or source of truth is unclear |
+| 2. Seeded failure | Repeat with one controlled defect, such as an unavailable dependency or changed prompt version | Failure condition, time, alert or detection path, and trace | The operator cannot tell that the result is unsafe or incomplete |
+| 3. Diagnose | Use the packet and trace to identify the failing boundary | Relevant log or trace fields, diagnosis, and discarded hypotheses | The diagnosis depends on an undocumented builder explanation |
+| 4. Authorized change | Apply one approved fix or configuration change | Approval, changed version, operator action, and post-change result | The operator lacks a safe change path or cannot state the risk |
+| 5. Roll back and decide | Restore the known-good version and verify the outcome | Rollback record, verification, owner, and open gap | Rollback is unavailable, unverified, or still needs the builder |
+
+![Illustration of a five-stage AI handover acceptance test with rollback](/blog/why-does-ai-implementation-pass-demo-but-fail-during-handover-handover-test-flow.webp)
+
+Microsoft's observability guidance groups useful evidence around evaluation, monitoring, and tracing, including logs, traces, model outputs, alerts, tool invocations, and service dependencies ([Microsoft Foundry observability](https://learn.microsoft.com/en-us/azure/foundry/concepts/observability)). AWS makes the same operational chain explicit: capture signals, alert on meaningful conditions, respond through a runbook, and connect the result to model and application quality ([AWS monitoring pillars](https://docs.aws.amazon.com/prescriptive-guidance/latest/gen-ai-lifecycle-operational-excellence/prod-monitoring-performance.html)). The packet turns those categories into a transfer decision.
+
+This protocol is not a benchmark and does not produce a universal pass rate. It is a boundary test. A system can pass the baseline and still fail handover because the operator cannot explain, contain, or reverse a seeded failure.
+
+## What belongs in the handover packet?
+
+The packet needs enough detail for a new operator to make the five decisions without asking the builder. More pages do not make it better. Every field earns its place by answering a question in the acceptance test.
+
+Create this artifact before the exercise:
+
+| Packet section | Minimum contents | Decision it supports |
+| --- | --- | --- |
+| Task contract | Trigger, inputs, exclusions, expected result, source of truth, stop condition | Can the operator tell what done means? |
+| Ownership | Builder, operator, business owner, escalation route, support window | Who acts when the system is blocked? |
+| Access matrix | Environment, role, secret or token boundary, read and write rights, expiry | Can the operator work without excess privilege? |
+| Evaluation cases | One baseline case, one seeded failure, expected evidence, safe result | What counts as a pass or a contained failure? |
+| Trace contract | Run ID, versions, tool calls, outputs, errors, approvals, state changes, timestamps | Can the operator reconstruct the run? |
+| Change and rollback | Allowed change, approval, versioning, rollback trigger, reversal, verification | Can the operator change and undo safely? |
+| Escalation rules | Stop conditions, severity, owner, response path, unresolved gaps | When must the operator stop instead of guessing? |
+
+The most important line is the source of truth. A final model message is not enough when the workflow changes a ticket, file, record, or external system. The operator must verify the effect directly. The [AI agent evaluation release gate](/blog/how-to-evaluate-an-ai-agent) explains the same distinction between a plausible response, the trace of actions, and the resulting state.
+
+Keep the packet versioned. Record the prompt or configuration version, tool schema version, code revision, environment, and access scope used in the exercise. If the packet cannot identify what changed, a later failure will look like a people problem even when the system changed.
+
+An exception applies to a read-only workflow. It may not need a rollback action, but it still needs a known-good version, a way to stop using the output, a trace, and an owner who can revoke access or disable the workflow.
+
+## How do you run the exercise with a fresh operator?
+
+Run the exercise as a controlled exchange. The operator receives the packet and transferred access, but not a live commentary from the builder. The builder prepares the baseline and seeded failure, then stays available only through the declared escalation path.
+
+1. **Freeze the packet.** Add a version, date, workflow revision, access scope, and the exact baseline case. Remove secrets and sensitive data from the exercise copy.
+2. **Run the baseline.** Let the operator complete the known case. Record the expected result, actual result, trace ID, and any question that the packet fails to answer.
+3. **Seed one failure.** Change one controlled condition. Examples include an unavailable dependency, a malformed tool response in a test environment, or a known configuration version that produces an incomplete result. Do not seed a failure that could harm a real user or system.
+4. **Observe detection and diagnosis.** Record what the operator noticed, which trace or log fields they used, the diagnosis they wrote down, and any hypothesis they rejected.
+5. **Authorize one change.** The operator follows the packet's change path. Record the approver, version change, expected risk, and verification step.
+6. **Rollback.** The operator restores the known-good version and verifies the source of truth. Record whether the system returned to the baseline state.
+7. **Test transfer on a new scenario.** Give the operator a nearby case that is not the one used in the packet. They must explain the expected outcome, locate the evidence, and state when they would stop, without builder help.
+
+The exercise produces a handover record with one row per stage:
+
+| Stage | Pass evidence | Operator note | Builder intervention | Decision |
+| --- | --- | --- | --- | --- |
+| Baseline | Known result and trace reconstructed | What was unclear? | None, or exact question answered through the route | Pass or gap |
+| Seeded failure | Failure detected and contained | What signal surfaced first? | None, or intervention detail | Pass or gap |
+| Diagnosis | Cause tied to trace evidence | Which field proved it? | None, or missing packet evidence | Pass or gap |
+| Change | Authorized version change verified | What risk was checked? | None, or undocumented step | Pass or gap |
+| Rollback | Known-good state restored | What proved recovery? | None, or manual repair | Pass or gap |
+| New scenario | Decision transferred without help | What changed from the baseline? | None, or builder explanation | Pass or gap |
+
+Do not turn this into a timed contest. Time can help expose a serious access or diagnosis gap, but the meaningful evidence is whether the operator used the transferred artifacts and reached a safe decision. Report missing evidence and interventions as gaps, not as a fabricated success rate.
+
+## When should you accept, conditionally accept, or reject the handover?
+
+Accept the handover only when the operator can run, diagnose, change, roll back, and transfer the decision to a nearby scenario using the packet and transferred access. A missing capability is an ownership risk even when the demo result looks good.
+
+| Decision | Evidence | Next action |
+| --- | --- | --- |
+| Accept | All five stages and the new-scenario check pass without undocumented builder help | Transfer the named owner, retain the packet version, and schedule a review trigger |
+| Conditional | The workflow is safe to pause, but one non-critical packet or access gap remains | Keep a named builder escalation, define the gap and deadline, and restrict scope until it closes |
+| Reject | The operator cannot detect, diagnose, contain, change, or roll back safely | Keep builder ownership, fix the packet or system boundary, and repeat the test |
+
+The veto is safety and reversibility. A polished baseline cannot compensate for an operator who cannot stop an unsafe action or restore the known-good version. AWS recommends connecting monitoring to response and runbooks because operational signals matter only when someone can act on them ([AWS monitoring guidance](https://docs.aws.amazon.com/prescriptive-guidance/latest/gen-ai-lifecycle-operational-excellence/prod-monitoring-performance.html)).
+
+If the packet exposes a broad capability gap, treat that as a learning task rather than a documentation task. The operator needs practice reading traces, checking source-of-truth state, and making bounded changes. If the gap is a missing permission, weak rollback, or unclear owner, repair the system boundary first. The exercise tells you which kind of help is needed.
+
+Use the protocol again after a model, prompt, tool, permission, dependency, or source-of-truth change. Handover is not a ceremony that happens once. It is the evidence required whenever the person responsible for safe operation changes.
