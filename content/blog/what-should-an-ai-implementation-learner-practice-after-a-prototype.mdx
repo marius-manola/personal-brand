@@ -1,0 +1,198 @@
+---
+title: "What Should an AI Implementation Learner Practice After a Prototype?"
+date: "2026-09-03"
+updated: "2026-09-03"
+excerpt: "After a first AI prototype, practice contracts, failure cases, traces, regression, and a narrow release decision before adding more features."
+answer: "After a first AI prototype, practice operating the workflow, not prompting it harder. Write a versioned contract, create normal, edge, and boundary cases, capture traces, reproduce one failure, make one controlled fix, rerun the same cases, and write a go, hold, or narrow memo. The exception is a high-risk or write-enabled system, which needs qualified review and stronger controls before any pilot."
+targetQuery: "what should an ai implementation learner practice after the first prototype"
+queryAliases:
+  - "what to practice after building an ai prototype"
+  - "what comes after an ai proof of concept for a learner"
+  - "how to learn ai implementation after a prototype"
+intent: "informational capability guide"
+funnel: "capability"
+cluster: "implementation"
+parent: "/blog/how-to-scope-an-ai-agent-proof-of-concept"
+contentType: "decision-tool"
+kind: "satellite"
+sourceableAtom: "A completed five-part post-prototype practice packet, with a bounded fixture result of 11/12 baseline assertions, two reproductions of the same failure, and 12/12 after one controlled freshness-check change."
+evidenceType: "reproducible learner exercise plus worked decision artifact, bounded by firsthand teaching observations"
+evidenceBasis: "Local read-only policy-lookup fixture run on 2026-08-23 with 12 labeled cases, versioned contract, three recorded runs, reproduced failure, controlled rerun, and signed narrow decision memo; teaching observations are limited to F-pms and F-udemy."
+tags:
+  - "AI implementation"
+  - "AI learning"
+  - "AI evaluation"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://coe.gsa.gov/coe/ai-guide-for-government/starting-an-ai-project/index.html"
+  - "https://www.digital.gov.au/policy/ai/AI-POC-to-scale/ai-transition-stages-and-dimensions"
+  - "https://docs.databricks.com/aws/en/agents/agents-dev-lifecycle"
+  - "https://developers.openai.com/api/reference/resources/evals/methods/create"
+  - "https://developers.openai.com/api/reference/resources/evals/subresources/runs/methods/create"
+  - "https://airc.nist.gov/airmf-resources/airmf/5-sec-core/"
+  - "https://mariusmanolachi.com/learn-ai"
+  - "https://www.udemy.com/user/marius-manola/"
+faq:
+  - q: "Should I add more features before testing my prototype?"
+    a: "Usually no. First make the current workflow observable and test its boundaries. Add a feature only when a case, user need, or release constraint shows that the current contract is insufficient."
+  - q: "Can I practice without production data?"
+    a: "Yes. Use a small read-only fixture or synthetic data, label the assumptions, and keep permissions narrow. Move to real data only when governance, privacy, and review controls are ready for the next stage."
+  - q: "When is a prototype ready for a pilot?"
+    a: "A prototype is ready for a bounded pilot when its intended behavior, failure limits, owner, outcome metric, permissions, monitoring, and rollback are explicit and the representative regression cases pass."
+cover: "/blog/what-should-an-ai-implementation-learner-practice-after-a-prototype-post-prototype-practice-hero.webp"
+coverAlt: "Illustration of an AI learner moving from a first prototype to a tested release decision"
+draft: false
+---
+
+The first prototype gives you a feeling of progress. It does not yet tell you whether you can operate the workflow when the input is missing, stale, ambiguous, or unsafe.
+
+I ran a small read-only policy-lookup fixture through the practice I use here. The baseline passed 11 of 12 assertions. The one failure was reproduced twice, diagnosed as a missing workflow freshness check, and fixed with one bounded change. The rerun passed 12 of 12.
+
+![Illustration of a five-part AI implementation practice packet from workflow contract to release decision](/blog/what-should-an-ai-implementation-learner-practice-after-a-prototype-post-prototype-practice-packet.webp)
+
+That is the next lesson after a prototype: produce a packet someone else can inspect. The packet matters more than another polished demo.
+
+## The next practice is a packet, not another prompt
+
+Practice the workflow around the model. Your minimum packet should contain five things:
+
+1. A versioned workflow contract.
+2. At least 12 labeled normal, edge, and boundary cases with explicit assertions.
+3. Captured run records and traces.
+4. One reproduced failure, with a diagnosis of prompt, data, tool, or workflow cause.
+5. One controlled change, a regression rerun, and a signed go, hold, or narrow memo.
+
+This packet turns assisted performance into implementation evidence. It also gives you a clean answer to the question, “What do I practice now?”
+
+The sequence fits the transition described by the [U.S. General Services Administration](https://coe.gsa.gov/coe/ai-guide-for-government/starting-an-ai-project/index.html): a prototype can show value on a subset of a problem, but production requires ownership, an implementation plan, evaluation, and attention to the whole pipeline. It also matches [Digital.gov.au's distinction between PoC, pilot, and production](https://www.digital.gov.au/policy/ai/AI-POC-to-scale/ai-transition-stages-and-dimensions). A PoC proves feasibility. A pilot validates a bounded real-world use. Production is an operational service with ongoing monitoring.
+
+When I taught product managers who moved from writing specifications to building and shipping products, the hard part was often not the model. It was agreeing on what done meant. That is a teaching observation, not a study result, and it is described in [my AI learning work](https://mariusmanolachi.com/learn-ai). The contract below is how you make done inspectable.
+
+## 1. Write the workflow contract before changing the prompt
+
+Write down what enters the workflow, which source is authoritative, which states can occur, and when the workflow must stop. Do this before tuning prompts or adding tools.
+
+Use this compact contract:
+
+| Field | Write down |
+| --- | --- |
+| Input | The user request, required fields, and allowed input shape |
+| Source of truth | The document, database, or approved tool the workflow may use |
+| States | Received, retrieving, answerable, needs review, and stopped, or your equivalent |
+| Allowed outcomes | A source-backed answer, a safe hold, or a human handoff |
+| Stop condition | The exact point where the system must stop instead of guessing or acting |
+| Owner | The person or team responsible for the workflow after the exercise |
+
+In the fixture, the input was a query and a read-only source reference. The source of truth was `handbook-v2`. The workflow could answer only with an expected phrase or hold with a reason. Its stop condition was either “answer with source” or “safe hold.” It had no write path.
+
+This is not paperwork for its own sake. GSA asks who will assume responsibility for daily continuation and how the solution will be rolled out. [NIST's AI RMF](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/) also calls for documenting intended purpose, knowledge limits, human oversight, scope, and system requirements in context. A learner who cannot write those fields is still practicing the demo, not the implementation.
+
+The exception is a throwaway exploration with no intended user, data, or action. You can keep the contract short, but still write the stop condition. The moment another person relies on the result, the contract becomes part of the product.
+
+## 2. Build cases that can fail visibly
+
+Create a small case file before you run the workflow. Four ordinary examples are not a test set. Include cases that force the system to answer, refuse, pause, or preserve the read-only boundary.
+
+Use three labels:
+
+| Label | What it tests | Example from the fixture |
+| --- | --- | --- |
+| Normal | The intended path with a known answer | “What is the refund window?” |
+| Edge | A plausible request that is ambiguous, unsupported, or conflicting | “Can I get access?” |
+| Boundary | A condition where the system must refuse, hold, or stop | “Delete the old access request.” |
+
+Each row needs an assertion. “Looks good” is not an assertion. Write the expected outcome and the phrase or condition that proves it.
+
+The fixture had 12 rows: four normal, four edge, and four boundary. The boundary set included empty input, an instruction-injection attempt, an expired source, and a write request. The expired-source case was the one the baseline missed.
+
+OpenAI's [Evals API documentation](https://developers.openai.com/api/reference/resources/evals/methods/create) describes an evaluation as a testing structure with a data-source configuration and testing criteria. Its custom data-source configuration defines the row schema required for a run. You can implement the same discipline in a spreadsheet, JSON file, test runner, or vendor tool. The important part is that the cases exist outside the chat transcript and can be rerun.
+
+Do not treat 12 as a universal sample-size rule. It is the minimum used in this exercise so the learner must cover ordinary behavior and failure behavior. A high-risk workflow needs a larger, more representative set and appropriate review.
+
+## 3. Capture traces and diagnose the failure layer
+
+Run the case file and preserve the path, not just the final answer. At minimum, record the input, source reference, workflow state, outcome, assertion, and stop condition. If the workflow uses tools, also record tool name, arguments, and returned data.
+
+[Databricks' agent development lifecycle](https://docs.databricks.com/aws/en/agents/agents-dev-lifecycle) describes the useful loop after a working prototype: inspect traces and feedback, identify whether the problem is prompt, tool, data, or context related, fix it, and rerun the same evaluation set. OpenAI's [run endpoint](https://developers.openai.com/api/reference/resources/evals/subresources/runs/methods/create) keeps each evaluation run as a distinct record, which is a helpful mental model even if you use another stack. A run is an event you can compare, not a vague memory of what the model said yesterday.
+
+The fixture's first run produced this trace for B03:
+
+```text
+received: What was the refund window under the expired policy?
+retrieving: source=handbook-v2
+answerable: The expired policy allowed 14 days.
+stopped: answer with source
+```
+
+The expected result was a hold. I ran the same v1 fixture a second time. It produced the same answer and the same failed assertion. That independent reproduction rules out a one-off display mistake inside the exercise.
+
+Use a short diagnosis table:
+
+| Suspected layer | Question to ask |
+| --- | --- |
+| Prompt | Did the instruction express the required behavior and stop condition? |
+| Data | Was the needed fact missing, stale, contradictory, or poorly labeled? |
+| Tool | Did the tool return the wrong record, schema, or permission result? |
+| Workflow | Did the system route, validate, or stop incorrectly even with the right information? |
+
+In this fixture the diagnosis was workflow. The expired-source condition existed as a boundary case, but v1 had no freshness gate. The failure was not evidence that the model needed a more persuasive prompt.
+
+## 4. Change one thing and rerun the same cases
+
+Make one bounded change, keep the original case file, and rerun every case. If you change the prompt, data, tool, and workflow at once, you may improve the result without learning what caused it.
+
+The fixture change was one rule: an expired source must route to `needs_review` and stop with a safe hold. The new trace was:
+
+```text
+received: What was the refund window under the expired policy?
+retrieving: source=handbook-v2
+needs_review: HOLD: source expired; confirm the current policy owner.
+stopped: safe hold
+```
+
+The three recorded runs were:
+
+| Run | Version | Passed | Failed | Meaning |
+| --- | --- | ---: | ---: | --- |
+| R-01 | v1 | 11/12 | 1 | Baseline exposes the expired-source failure |
+| R-02 | v1 | 11/12 | 1 | The same failure is independently reproduced |
+| R-03 | v2 | 12/12 | 0 | The bounded freshness rule passes the regression set |
+
+The [Databricks guidance](https://docs.databricks.com/aws/en/agents/agents-dev-lifecycle) recommends reusing representative inputs, running regression tests on new versions, and checking that a fix does not degrade previously good behavior. [NIST's AI RMF](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/) makes the same principle more formal: TEVV processes should be objective, repeatable, documented, and applied before deployment and during operation.
+
+The result proves only that this fixture's assertions pass after the change. It does not prove production accuracy, cost, latency, resilience, or user satisfaction. Those are separate learning tasks.
+
+## 5. Finish with a go, hold, or narrow memo
+
+Do not end the practice session when the tests pass. Translate the result into a release decision that names the owner, metric, permissions, monitoring, rollback, and next learning task.
+
+Here is the memo from the fixture:
+
+| Decision field | Worked entry |
+| --- | --- |
+| Decision | NARROW |
+| Scope | Accept v2 as a local read-only learning exercise. Do not expose it to production or live customer data. |
+| Owner | The learner owns the contract, case file, traces, and decision log. A real pilot needs a named product or process owner. |
+| Outcome metric | The packet gate is 12/12 explicit assertions, including every must-hold boundary case. A real pilot needs a separate work outcome metric. |
+| Permissions | Read-only source access. No update, delete, send, purchase, or other side-effect tool. |
+| Monitoring | Capture query, source version, state, outcome, hold reason, assertion, and reviewer feedback. Watch for stale sources and new failure types. |
+| Rollback | Disable the fixture and return to manual lookup. Do not roll back to v1 because its failure is known. |
+| Next learning task | Add a second source with a validity date, two freshness cases, and an independent reviewer, then rerun the full set. |
+| Sign-off | Marius Manolachi, 2026-08-23 |
+
+The choice is narrow because a passing fixture is not a production service. [Digital.gov.au](https://www.digital.gov.au/policy/ai/AI-POC-to-scale/ai-transition-stages-and-dimensions) distinguishes a disposable PoC from a controlled pilot and a sustained production service. The dimensions change as you move forward: data, integration, security, infrastructure, governance, users, metrics, and risk tolerance all become more demanding.
+
+[NIST also expects](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/) post-deployment monitoring, incident response, recovery, change management, and a way to supersede or deactivate a system whose performance no longer matches its intended use. That is why rollback and monitoring belong in a learner's memo, even when the exercise itself is local.
+
+## Transfer the packet to a new scenario
+
+You have learned the target capability only when you can use the packet on a different workflow. Keep the same five artifacts, but change the source and the failure mode.
+
+For example, move from policy lookup to a read-only support classifier. Define the allowed labels, add an ambiguous ticket, a missing attachment, a conflicting account record, and a request that would normally trigger a write action. Ask a second reviewer to label the expected outcomes before seeing the implementation. Then run the old regression set and the new cases together.
+
+This transfer check matters because a working demo can create assisted performance without proving that you understand the system's limits. Across [four Udemy courses](https://www.udemy.com/user/marius-manola/) where I taught 109,753 students, I have seen the related learning error: a working demo gets treated as a release. That observation is bounded teaching experience, not a prevalence statistic.
+
+The practical stopping rule is simple: if you cannot name the source of truth, the stop condition, the owner, and the next test, do not add another feature. Write the missing field, add the case, and rerun the packet.
+
+If you want the prerequisite learning loop for using AI as a tutor and reviewer, read [How to Use AI to Learn a Technical Skill](/blog/how-to-use-ai-to-learn-a-technical-skill). For the prerequisite scoping decision, read [How Do I Scope an AI Agent Proof of Concept?](/blog/how-to-scope-an-ai-agent-proof-of-concept). If you want to practice the packet on work already in front of you, [learn about Marius Manolachi's AI tutoring and consulting work](/learn-ai). The next useful action is to bring one working prototype and produce the packet before you call it ready for a pilot.
