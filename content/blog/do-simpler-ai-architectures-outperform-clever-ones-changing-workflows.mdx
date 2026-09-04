@@ -1,0 +1,156 @@
+---
+title: "Do Simpler AI Architectures Outperform Clever Ones on Changing Workflows"
+date: "2026-09-04"
+updated: "2026-09-04"
+excerpt: "A 12-fixture change-set benchmark compares fixed workflows, single agents, and orchestration on regression, repair effort, latency, cost, and traces."
+answer: "Usually, yes for known, local changes: a fixed workflow is cheapest and easiest to observe. Use a single agent when inputs or rules vary, and add orchestration only when an unexpected branch crosses specialist boundaries and its repair savings justify higher latency and token cost."
+targetQuery: "do simpler ai architectures outperform clever ones on changing workflows?"
+queryAliases:
+  - "simpler ai architecture vs agent for changing workflows"
+  - "fixed workflow vs single agent maintenance"
+intent: "decision"
+funnel: "consideration"
+cluster: "architecture"
+parent: "/blog/when-to-use-an-ai-agent"
+contentType: "decision-tool"
+kind: "satellite"
+sourceableAtom: "In a 12-fixture, four-revision local harness, all three architectures reached 12/12 after repair, but the fixed workflow needed 13 repair units and recorded one regression, the single agent needed 6 repair units, and the orchestrated design needed 4 while averaging 182.3 simulated ms and 67.9 normalized cost units per case versus 127.3 ms and 52.9 units for the single agent."
+evidenceType: "controlled comparative benchmark plus worked architecture decision artifact"
+evidenceBasis: "A dependency-free local harness with four versioned fixture sets, three executable architecture prototypes, a shared evaluator and read-only tool registry, a predeclared rubric, raw JSONL traces, and a change comparison log."
+tags:
+  - "AI architecture"
+  - "AI workflows"
+  - "AI agents"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-23"
+sources:
+  - "https://www.anthropic.com/engineering/building-effective-agents"
+  - "https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/"
+  - "https://learn.microsoft.com/en-us/agents/architecture/map-agent-flows"
+  - "https://arxiv.org/abs/2606.05670"
+  - "https://arxiv.org/abs/2603.01257"
+  - "https://arxiv.org/abs/2505.18286"
+faq:
+  - q: "Is a multi-agent architecture more resilient to every workflow change?"
+    a: "No. In the local harness it needed the fewest repair units for the unexpected risk branch, but it also added the highest latency and normalized token cost. It was not the best default for known input or policy changes."
+  - q: "What should I measure before choosing an AI architecture?"
+    a: "Run the same acceptance contract across the current workflow and three likely changes. Record first-pass success, regressions, repair effort, latency, calls, token cost, and whether the trace explains the decision."
+cover: "/blog/do-simpler-ai-architectures-outperform-clever-ones-changing-workflows-architecture-change-resilience-hero.webp"
+coverAlt: "Illustration of three AI workflow architectures absorbing the same requirement changes"
+draft: false
+---
+
+Most architecture debates test the first version of a workflow. The expensive part starts when the rule changes, the input becomes messier, or a new exception appears.
+
+I built a small local harness to test that moment. It routes bounded customer requests through a fixed workflow, a single tool-using agent, and an orchestrated design, then applies three versioned changes.
+
+## The result: simpler won on known changes, not every change
+
+Start with the fixed workflow when the next changes are known, local, and easy to express as code. Move to a single agent when the input language or rule combinations are likely to move. Add orchestration only when an unexpected branch creates a real specialist boundary and the repair savings are worth the recurring cost.
+
+Here is the sourceable result from the 12-fixture run:
+
+| Architecture | Final success after repair | Regressions after a change | Repair units | Avg latency | Avg model calls | Avg tokens | Avg normalized cost | Observable traces |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Fixed workflow | 12/12 | 1 | 13 | 16.0 ms | 0.0 | 0.0 | 0.0 | 100% |
+| Single agent | 12/12 | 0 | 6 | 127.3 ms | 2.0 | 44.9 | 52.9 | 100% |
+| Orchestrated agents | 12/12 | 0 | 4 | 182.3 ms | 3.0 | 57.9 | 67.9 | 100% |
+
+“Final success” needs a qualification. Every architecture passed after its repair sequence. The difference is the work required to absorb the changes. The fixed workflow was fastest, but its v2 patch matched “lost” too broadly and regressed an earlier ambiguous-receipt case. The orchestrated design used the fewest repair units, but it also had the highest recurring run cost.
+
+This is a bounded result, not a universal ranking. The complete architecture context belongs in the [AI architecture pillar](/blog/ai-architecture-pillar), while this page focuses on the maintenance decision after the first version works.
+
+![Illustration of three AI workflow architectures absorbing three versioned change sets](/blog/do-simpler-ai-architectures-outperform-clever-ones-changing-workflows-architecture-change-resilience-map.webp)
+
+## What did the harness actually compare?
+
+The test held the evaluator, acceptance contract, read-only tools, and local model policy constant where they applied. The fixed arm made no model calls by design. Both agent arms used the same deterministic `MockModel` policy, so the comparison isolates architecture and repair behavior rather than a provider model change.
+
+| Test element | Constant across the comparison |
+| --- | --- |
+| Task | Route a customer request to a decision, route, and reason code |
+| Acceptance contract | Exact match on all three output fields, evidence in the trace, zero unauthorized tool calls |
+| Tools | `lookup_policy`, `lookup_order`, and `lookup_risk`, all read-only |
+| Evaluator | One shared evaluator in `harness.py` |
+| Model policy | One deterministic local policy for both agent prototypes |
+| Change accounting | Declared code, prompt, policy, or handoff units |
+| Cost accounting | Input and output tokens plus normalized units from `rubric.json`, not a provider invoice |
+
+The design follows a useful controlled-evaluation principle: compare systems under the same loader, tools, answer contract, usage accounting, and trace logging. That is the protocol described by the BenchAgent paper, although this local test is much smaller and uses a synthetic bounded workflow. [BenchAgent](https://arxiv.org/abs/2606.05670) is context for the method, not evidence for the local numbers.
+
+Anthropic makes a related distinction between predefined workflows and agents that dynamically choose process steps and tools. It also warns that agentic systems can trade latency and cost for task performance. [Anthropic's architecture guidance](https://www.anthropic.com/engineering/building-effective-agents) supports the comparison, but it does not run this change-set test.
+
+## Which changes separated the architectures?
+
+The fixtures represent the changes a small product team can actually discuss before launch:
+
+| Change set | New requirement | Fixed workflow | Single agent | Orchestrated agents |
+| --- | --- | --- | --- | --- |
+| v2, changed inputs | Voice-transcript phrasing, lost shipment, subscription request, and ambiguous “lost receipt” wording | 1/3 before repair, 2/3 after, 1 regression, 5 repair units | 3/3 before repair, 3/3 after, 0 regressions, 1 unit | 3/3 before repair, 3/3 after, 0 regressions, 2 units |
+| v3, changed rules | Refund window becomes 45 days; gold customers get a replacement exception | 1/3 before repair, 3/3 after, 0 regressions, 4 units | 3/3 before repair, 3/3 after, 0 regressions, 1 unit | 3/3 before repair, 3/3 after, 0 regressions, 1 unit |
+| v4, unexpected branch | Chargeback risk and low-confidence identity require a different route | 0/2 before repair, 2/2 after, 0 regressions, 4 units | 0/2 before repair, 2/2 after, 0 regressions, 4 units | 0/2 before repair, 2/2 after, 0 regressions, 1 unit |
+
+The fixed workflow did not fail because deterministic code is inherently bad. It failed because the v2 patch widened a lexical branch without preserving the old meaning of “lost receipt.” That is a maintenance failure. A regression fixture caught it.
+
+The single agent handled changed language and policy data without a new branch in the first two change sets. It still needed explicit instructions for the risk branch. Flexibility reduced repair effort, but it did not remove the need for a versioned acceptance contract.
+
+The orchestrated design did not produce a higher final success rate here. Its advantage was narrower: the exception path had a place to live, so v4 took one repair unit instead of four. Its cost was three model calls per case, 182.3 simulated milliseconds, and 67.9 normalized cost units on average.
+
+## When should you keep the workflow fixed?
+
+Keep a fixed workflow when the next change is a named rule, a bounded field, or a branch you can test before release. This is the right default when latency, auditability, and predictable behavior matter more than open-ended input handling.
+
+Microsoft's guidance makes the same kind of distinction by mapping workflow stages to deterministic or AI-enhanced components. A stage with a predictable input and output contract can stay code-based even when another stage needs a model. [Microsoft's stage mapping](https://learn.microsoft.com/en-us/agents/architecture/map-agent-flows) is useful here because it prevents an all-or-nothing architecture choice.
+
+Use this local trigger:
+
+1. Add the new fixture before changing the implementation.
+2. Run the old implementation and record first-pass success.
+3. Patch the smallest branch or policy unit that can pass the new fixture.
+4. Re-run every earlier fixture. If a known change causes a regression or needs more than three repair units in a small workflow, test the single-agent version before adding more code branches.
+
+The threshold is a decision aid from this harness, not a law of software architecture. Its purpose is to force a repair-cost comparison before complexity becomes a habit.
+
+## When is a single tool-using agent the better middle choice?
+
+Choose a single agent when the workflow has a stable acceptance contract but the route to that result depends on changing language, incomplete context, or combinations of rules that are awkward to enumerate.
+
+The OpenAI guide describes a single agent as a manageable way to add tools incrementally and recommends maximizing that capability before splitting into multiple agents. It also points to complex decisions, difficult-to-maintain rules, and unstructured data as situations where agents may fit better than traditional deterministic approaches. [OpenAI's practical guide](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/) supports that conditional choice.
+
+In this harness, the single agent passed all changed-input and changed-rule fixtures before repair. That is the strongest argument for it. It absorbed the change without pretending that every future exception would be understood automatically.
+
+If you are still deciding whether the task needs an agent at all, start with [When Should You Use an AI Agent?](/blog/when-to-use-an-ai-agent). If the question is specifically one agent or several, use [When Should I Use a Single AI Agent Instead of Multiple Agents?](/blog/single-ai-agent-instead-of-multiple-agents). This page adds the missing maintenance test after those choices.
+
+## When does orchestration pay for itself?
+
+Add orchestration when an unexpected branch has a durable boundary: a separate policy owner, a separate permission set, a different evidence requirement, or a distinct tool domain. Do not add it merely because the diagram looks more sophisticated.
+
+In the local run, orchestration bought a four-unit repair total versus six for the single agent and thirteen for the fixed workflow. That saving matters only if repair effort is more expensive than the extra 55.0 simulated milliseconds and 15.0 normalized cost units per case compared with the single agent.
+
+The recent research points in the same direction without settling the decision for you. One automated-patching study reports trade-offs among fixed workflows, single agents, and multi-agent systems, including overhead and reasoning drift. Another study reports that multi-agent benefits can diminish as model capabilities improve. [The patching comparison](https://arxiv.org/abs/2603.01257) and [the single-agent versus multi-agent study](https://arxiv.org/abs/2505.18286) are useful priors, not substitutes for your change fixtures.
+
+My practical rule is simple: test the single agent first. Add orchestration only if the single agent still needs repeated repairs for the same class of unexpected branch, or if separating the branch makes permissions and evidence easier to inspect. In this harness, orchestration earned its keep on repair effort for v4, not on accuracy. If v4 were rare and latency were strict, the single agent would be the better choice.
+
+## What should the decision artifact contain?
+
+Put the following worksheet beside the architecture proposal. It turns “the workflow will change” into something you can run.
+
+| Question | If the answer is yes | Default choice |
+| --- | --- | --- |
+| Are the next changes known rules or fields? | Add fixtures and code branches without changing the acceptance contract | Fixed workflow |
+| Will users express the same intent in new or incomplete language? | Keep the output contract fixed and allow the route to be inferred | Single agent |
+| Does an unexpected branch need a separate owner, tool domain, or evidence path? | Isolate the branch and make the handoff visible | Orchestrated design |
+| Did the smallest patch regress an earlier fixture? | Freeze the change, add the failing trace to the regression set, and reconsider the branch structure | Test a single agent |
+| Does the extra architecture add recurring latency or token cost that the workflow cannot afford? | Keep the simpler architecture and accept explicit human review for the exception | Simpler design |
+
+The acceptance contract is the important part. When I taught product managers to move from writing specs to building and shipping products, the gap was often not a missing model. It was that “done” had not been defined clearly enough. The same gap appears in architecture comparisons: teams argue about agents before they define what counts as a correct result. [Marius Manolachi's AI learning work](/learn-ai) starts from that capability problem.
+
+## What this benchmark does not prove
+
+It does not prove that fixed workflows are always cheaper in production, that agents understand arbitrary language, or that orchestration is better for every exception-heavy process. It uses a small, synthetic request-routing task, a deterministic local model policy, simulated latency, normalized cost units, read-only tools, and manually declared repair units.
+
+It also reports a final repaired state. The meaningful evidence is the path to that state: the v2 fixed-workflow regression, the v3 rule repair, the v4 branch repairs, and the recurring run cost. A larger fixture set, a live model, write tools, or a workflow with longer horizons could change the comparison.
+
+The useful conclusion is conditional. Start with the simplest architecture that satisfies the current contract. Add a single agent when changing inputs or rules make code branching expensive. Add orchestration when a recurring unexpected branch has a real boundary and the measured repair savings outweigh the ongoing latency, token, and tracing burden.
+
+If you are choosing an architecture for a real workflow, run this kind of change-set test before you commit to the diagram. [Work with Marius Manolachi on building the team's AI capability](/learn-ai) when the next step is turning the test into a repeatable engineering practice.
