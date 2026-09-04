@@ -1,0 +1,142 @@
+---
+title: 'What Evidence Belongs in an AI Feature Launch Decision?'
+date: '2026-09-04'
+updated: '2026-09-04'
+excerpt: 'A worked 24-case launch packet shows which evidence can approve, hold, or stop an AI feature, including a failure that changed the decision.'
+answer: 'An AI feature launch decision needs proof of the user decision and counterfactual, feature contract, representative and adversarial cases, task-level results, uncertainty, privacy and safety, latency or cost, monitoring, rollback, and named ownership. Use hard stops for unresolved safety, privacy, or ownership, and release-blocking gates for irreversible writes. A complete packet can still produce HOLD when one veto is missing.'
+targetQuery: 'What evidence belongs in an AI feature launch decision?'
+queryAliases:
+  - 'evidence for an AI feature launch decision'
+  - 'AI launch readiness evidence'
+  - 'what to include in an AI launch decision packet'
+intent: 'informational'
+funnel: 'consideration'
+cluster: 'evaluation'
+parent: '/blog/how-to-evaluate-an-ai-agent'
+contentType: 'decision-tool'
+kind: 'satellite'
+sourceableAtom: 'In a local 24-case launch-decision test, an aggregate completeness gate produced 21 false GO decisions and 3/24 correct dispositions; a per-field and veto repair produced 24/24 correct dispositions, including a write-without-rollback case that changed from GO to HOLD.'
+evidenceType: 'worked decision artifact plus reproducible failure-clinic test'
+evidenceBasis: 'A dated, explicitly labeled local decision-checker fixture with 24 expected GO/HOLD/STOP cases, recorded configuration, redacted before/after outputs, a scoring rubric, task-level and adversarial cases, local latency observations, rollback and approval gates, named owner, hard stops, and a signed limited-launch disposition. No external model, client data, or production traffic was used.'
+tags:
+  - 'AI evaluation'
+  - 'AI reliability'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-21'
+sources:
+  - 'https://airc.nist.gov/airmf-resources/playbook/measure/'
+  - 'https://airc.nist.gov/airmf-resources/playbook/manage/'
+  - 'https://developers.openai.com/api/docs/guides/evals'
+  - 'https://developers.openai.com/api/docs/guides/graders'
+  - 'https://cloud.google.com/vertex-ai/generative-ai/docs/models/evaluation-overview'
+  - 'https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.100-1.pdf'
+faq:
+  - q: 'Does a 20-case AI test prove production readiness?'
+    a: 'No. It proves that the recorded checks passed on those cases. Add staged exposure, monitoring, feedback, and regression capture before expanding the launch. The local packet here supports only a limited internal GO.'
+  - q: 'What changes if an AI feature never writes to another system?'
+    a: 'The write-path approval and rollback gates may be lighter, but task outcome, uncertainty, privacy, safety, representative cases, monitoring, and an owner still belong in the packet. Informational outputs can drive consequential human actions.'
+cover: '/blog/what-evidence-belongs-in-an-ai-feature-launch-decision-hero.webp'
+coverAlt: 'Illustration of an AI feature launch packet moving from evidence to a GO, HOLD, or STOP decision'
+draft: false
+---
+
+I built a small local launch-decision fixture because “the eval passed” is too often treated as a release decision. The first version produced the wrong answer 21 times in 24 cases. One failure was simple: a write path had no tested rollback, but an aggregate score still returned `GO`.
+
+The repaired checker returned the expected disposition for all 24 cases. The evidence changed the decision from “looks complete” to “safe enough for a limited internal launch.” The model layer was a deterministic stub, so this is a test of the packet and its gates, not a hosted-model benchmark.
+
+| Local result | Aggregate checker v0 | Per-field and veto checker v1 |
+| --- | ---: | ---: |
+| Correct dispositions | 3/24 | 24/24 |
+| False `GO` decisions | 21 | 0 |
+| Reproduced write-without-rollback case | `GO` | `HOLD` |
+
+![Illustration of a launch decision packet connecting feature claims to tests, owners, vetoes, and a final disposition](/blog/what-evidence-belongs-in-an-ai-feature-launch-decision-inline-1.webp)
+
+## The packet should end in GO, HOLD, or STOP
+
+The evidence belongs in a decision packet that maps each feature claim to a proof artifact, a deployment-shaped test, a risk owner, a veto condition, and the next test. Do not collapse those rows into one readiness score.
+
+That shape follows NIST's distinction between measuring an AI system and deciding whether its development or deployment should proceed. NIST's Measure guidance asks teams to document test sets, metrics, acceptable limits, course correction, and pre- versus post-deployment performance. Manage 1.1 then asks for a determination about intended purpose, objectives, risks, benefits, and TEVV outputs ([NIST Measure](https://airc.nist.gov/airmf-resources/playbook/measure/), [NIST Manage](https://airc.nist.gov/airmf-resources/playbook/manage/)).
+
+Use this claim-to-proof row as the center of the packet:
+
+| Feature claim | Evidence artifact | Deployment-shaped test | Owner | Veto or next test |
+| --- | --- | --- | --- | --- |
+| The feature completes the user's task | Task contract, expected outcome, and per-case result | Representative cases with a verified outcome | Product owner | `HOLD` below the agreed task threshold |
+| It knows when not to answer or act | Abstention examples and uncertainty policy | Missing, conflicting, and out-of-scope inputs | Product and risk owner | `STOP` for unsafe confident action |
+| It stays inside its authority | Permission matrix, privacy review, and adversarial traces | Prompt override, data boundary, and unauthorized-action cases | Security or risk owner | `STOP` on privacy or safety breach |
+| It fits the workflow | Latency, cost, human-review, and queue observations | Deployment-shaped timing and approval path | Operations owner | `HOLD` when limits or capacity fail |
+| It can be recovered | Rollback command, flag, or approval-gated fallback | Disable or reverse the feature in a sandbox | Engineering owner | `HOLD` on irreversible writes without recovery |
+| Someone owns the decision | Named owner and signed disposition | Review record with date and scope | Decision owner | `STOP` when ownership is unclear |
+
+OpenAI's eval documentation expresses the same separation in executable terms: a test data schema holds the cases, while testing criteria and graders determine whether each output is correct ([OpenAI evals](https://developers.openai.com/api/docs/guides/evals)). Google Cloud's evaluation workflow likewise starts with prompt instances that reflect the use case, then defines metrics, generates responses, runs the evaluation, and reviews individual responses as well as aggregates ([Google Cloud Gen AI evaluation](https://cloud.google.com/vertex-ai/generative-ai/docs/models/evaluation-overview)).
+
+## What evidence belongs in each launch packet?
+
+Start with evidence about the job, then add evidence about failure, harm, operation, and recovery. A packet is sufficient only when another person can replay the decision without asking what “good” meant.
+
+1. **User decision and counterfactual.** State what user decision the feature supports and what happens if you keep the current manual or non-AI process. This prevents a good-looking output from becoming a solution without a real job.
+2. **Feature contract.** Record inputs, outputs, authority, forbidden actions, escalation behavior, and the definition of a usable result. A label such as “high quality” is not a contract.
+3. **Representative and adversarial cases.** Include ordinary work, edge cases, missing context, conflicting context, out-of-scope requests, tool or data failures, and known abuse paths. Keep the raw or redacted outputs beside the case IDs.
+4. **Task-level evaluation.** Write the expected outcome before running the system. Use deterministic checks for exact state or schema, a bounded grader for language quality, and human review where ambiguity or consequence requires it. OpenAI calls the per-item criteria the graders that determine whether output is correct; Google documents static, adaptive, computation-based, and custom evaluation methods ([OpenAI graders](https://developers.openai.com/api/docs/guides/graders), [Google Cloud metrics](https://cloud.google.com/vertex-ai/generative-ai/docs/models/evaluation-overview)).
+5. **Uncertainty and failure examples.** Preserve cases where the system abstains, asks for clarification, exposes a conflict, or fails. A launch packet that stores only passes cannot show what the feature does at its boundary.
+6. **Privacy and safety checks.** Record the data used, access boundary, retention assumption, prompt override tests, unauthorized-action tests, and the owner of residual risk. An unresolved breach is a `STOP`, regardless of the task score.
+7. **Latency, cost, and workflow observation.** Measure the relevant path, not just a local function call. Record queue time, review time, retries, model cost, or the absence of that evidence. Unknown is not zero.
+8. **Monitoring and rollback proof.** Show the event that will be monitored, its alert threshold, the person who receives it, and the tested disable or recovery path. NIST Manage 4.1 explicitly includes monitoring, appeal and override, decommissioning, incident response, recovery, and change management ([NIST Manage](https://airc.nist.gov/airmf-resources/playbook/manage/)).
+9. **Named owner and hard-stop rules.** Put the decision owner's name on the packet. Write the conditions that force `HOLD` or `STOP` before looking at the aggregate result.
+
+When I taught product managers to move from writing specs to building and shipping, the recurring failure was usually an undefined “done,” not the model. That is a locked teaching observation, not a failure-rate statistic. A launch packet makes “done” observable: the user outcome, the safety boundary, the operating limit, and the recovery path are all written down ([Marius Manolachi's AI teaching work](https://mariusmanolachi.com/learn-ai)).
+
+## What did the failure reproduction change?
+
+The failure was not a bad number. It was a bad rule.
+
+Case `C07-write-no-rollback` contained a write action, no rollback evidence, recorded human approval, and all other packet fields. The old checker counted 11 of 12 fields and returned `GO` at 0.92. The repaired checker treated missing rollback on a write path as a `HOLD` condition.
+
+```text
+Input
+writeAction=true
+rollback=""
+humanApproval="present"
+all other packet fields populated
+```
+
+```json
+// v0, redacted output
+{"case":"C07-write-no-rollback","score":0.92,"decision":"GO","failure":[]}
+
+// v1, redacted output after one evaluator repair
+{"case":"C07-write-no-rollback","score":0.92,"decision":"HOLD","failure":["write path has no tested rollback","rollback evidence is missing"]}
+```
+
+The score did not move. The disposition did. That is the evidence a launch review needs. NIST Manage 1.1 frames the decision around whether the system achieves its intended purpose and whether deployment should proceed. It does not say that one blended score can erase a missing control ([NIST Manage 1.1](https://airc.nist.gov/airmf-resources/playbook/manage/)).
+
+The full local run covered 24 cases. The aggregate checker returned 21 false `GO` decisions, including unresolved privacy, adversarial, ownership, monitoring, task, latency, and rollback gaps. The repaired checker returned the expected decision for every case: 16 `HOLD` cases, 5 `STOP` cases, and 3 `GO` cases. These are fixture results, not production rates.
+
+## How should a small team run the review?
+
+Use a short review that leaves an audit trail.
+
+1. **Freeze the candidate.** Record the model or stub version, prompt or rule version, tools, permissions, retrieval or data source, UI path, code revision, and date. NIST says the test sets, metrics, and evaluation details should be documented so measurement can be repeated ([NIST Measure](https://airc.nist.gov/airmf-resources/playbook/measure/)).
+2. **Write the decision before the score.** Name the user decision, counterfactual, expected outcome, allowed authority, and what would make the feature better than the current path.
+3. **Run the cases.** Keep at least 20 deployment-shaped cases, with edge and adversarial cases mixed into the same run. Store case IDs, inputs, redacted outputs, graders, and final state.
+4. **Apply vetoes first.** Check privacy, safety, authority, ownership, approval, rollback, and operating limits. A veto returns `STOP` or `HOLD`, even when the task score looks strong.
+5. **Review failures line by line.** Read the output, the trace, the expected outcome, and the user or operator correction path. Google recommends inspecting individual responses as well as aggregate results because the aggregate hides which task failed ([Google Cloud evaluation workflow](https://cloud.google.com/vertex-ai/generative-ai/docs/models/evaluation-overview)).
+6. **Fix one thing and rerun the same cases.** Do not replace the test set after a failure. In the local fixture, the single repair was to add per-field checks and hard vetoes to the evaluator, then rerun all 24 packets.
+7. **Sign a scoped decision.** Record `GO`, `HOLD`, or `STOP`, the allowed launch scope, hard stops, owner, date, and next review trigger. A `GO` is not permission to expand forever.
+
+The packet should be easy to hand to the next reviewer. Link the case set to [the evaluation dataset guide](/blog/how-to-build-an-evaluation-dataset-from-production-traces), then use the canonical [AI agent evaluation guide](/blog/how-to-evaluate-an-ai-agent) as the parent context for the evaluation cluster.
+
+## What qualifies as GO, HOLD, or STOP?
+
+Use the decision rule below. Treat the aggregate score as supporting evidence, never as the decision by itself.
+
+| Disposition | Minimum evidence | Typical trigger |
+| --- | --- | --- |
+| `GO` | All required packet fields, task threshold met, no veto, operational limit observed, monitoring active, recovery tested, owner signed, scope stated | Limited launch with the same permissions and workflow that were tested |
+| `HOLD` | The feature may be useful, but a required proof, threshold, approval, limit, or recovery path is missing | Missing rollback, missing case set, unknown cost, weak task result, or absent alert |
+| `STOP` | A high-consequence risk is unresolved or ownership is absent | Privacy or safety breach, unresolved adversarial failure, unknown decision owner, or prohibited action |
+
+My signed local disposition is `GO` for a limited internal launch with read-only default behavior and approval-gated writes. The hard stops are any privacy or safety breach, unresolved adversarial failure, or missing named owner. Release-blocking `HOLD` gates include missing tested rollback or missing recorded human approval on a write path. The signature is Marius Manolachi, 2026-08-23.
+
+That decision is useful because it is narrow. It says what was tested, who signed it, what must remain true, and what would stop the feature. The packet is launch evidence. The score is only one line inside it.
