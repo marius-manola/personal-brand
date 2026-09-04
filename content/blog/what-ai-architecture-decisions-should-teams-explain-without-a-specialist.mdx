@@ -1,0 +1,167 @@
+---
+title: "What AI Architecture Decisions Should Teams Explain to Non-Specialists?"
+date: "2026-09-04"
+updated: "2026-09-04"
+excerpt: "Use this six-decision matrix to explain an AI workflow's boundaries, trade-offs, owners, consequences, and verification evidence."
+answer: "An AI team should explain any architecture decision that changes capability, data access, interfaces, human oversight, production behavior, or cost and latency. For each one, a non-specialist should be able to state the choice, trade-off, owner, accepted consequence, and verification evidence. A specialist still owns implementation detail, security, and measurement design."
+targetQuery: "What architecture decisions should an AI team explain without a specialist?"
+queryAliases:
+  - "which ai architecture decisions should a team explain"
+  - "what should non technical people understand about ai architecture"
+  - "how to explain ai architecture decisions to product managers"
+intent: commercial-decision
+funnel: consideration
+cluster: architecture
+parent: /blog/when-to-use-an-ai-agent
+contentType: decision-tool
+kind: satellite
+sourceableAtom: "A six-decision explanation matrix for a screen-watching AI tutor, with the plain-language boundary, owner, accepted consequence, verification exercise, and five-field readiness rule for each decision."
+evidenceType: "worked decision artifact plus bounded firsthand teaching observation"
+evidenceBasis: "Original six-row matrix built from the public F-tryuncle workflow description, cross-checked against AWS ADR guidance, the GOV.UK ADR framework, NIST AI RMF, Google production-ML monitoring guidance, and Zhang et al.'s empirical study. Bounded F-pms observation used without a sample size or outcome rate."
+tags:
+  - AI architecture
+  - Product decisions
+author: "Marius Manolachi"
+nextReviewAt: "2027-02-21"
+sources:
+  - "https://docs.aws.amazon.com/prescriptive-guidance/latest/architectural-decision-records/adr-process.html"
+  - "https://www.gov.uk/government/publications/architectural-decision-record-framework/architectural-decision-record-framework"
+  - "https://airc.nist.gov/airmf-resources/airmf/5-sec-core/"
+  - "https://developers.google.com/machine-learning/crash-course/production-ml-systems/monitoring"
+  - "https://arxiv.org/abs/2212.13866"
+faq:
+  - q: "Does every AI architecture decision need a specialist?"
+    a: "No. The team should own the purpose, boundary, trade-off, owner, and evidence. Bring in a specialist for security, privacy, system interfaces, measurement design, or a decision whose failure consequence the team cannot describe."
+  - q: "What if the team cannot name verification evidence yet?"
+    a: "Treat the decision as incomplete. Write the smallest reproducible exercise that could change confidence in it, assign an owner, and keep the workflow at its current risk boundary until that evidence exists."
+  - q: "Is this the same as writing an architecture decision record?"
+    a: "It is a reader-friendly input to an ADR. An ADR should still record context, the decision, consequences, ownership, and lifecycle state. The matrix adds the explanation and verification fields a non-specialist needs."
+cover: "/blog/what-ai-architecture-decisions-should-teams-explain-without-a-specialist-hero.webp"
+coverAlt: "Illustration of a team explaining six AI architecture decisions on a review board"
+draft: false
+---
+
+When I taught product managers to move from writing specs to building and shipping, I saw a recurring gap: people could discuss architecture, but nobody had made “done” concrete. That is a communication failure before it is a model failure.
+
+The matrix below turns one real workflow into a reviewable decision artifact. It uses only the public description of TryUncle as a screen-watching AI tutor that annotates the screen live. It does not disclose private implementation details.
+
+## What should a non-specialist be able to say?
+
+A non-specialist should be able to state the decision, the trade-off, the owner, the consequence the team accepts, and the evidence that would verify or overturn the choice. If they can only name a model, framework, or diagram box, the explanation is incomplete.
+
+That shape follows the practical center of an architectural decision record: context, decision, and consequences. AWS also treats interfaces, dependencies, non-functional requirements, and construction techniques as architecture-significant decisions. The GOV.UK Architectural Decision Record Framework makes the same broader move: document architectural decisions during system design and development so they remain visible to the people who must use them. ([AWS ADR process](https://docs.aws.amazon.com/prescriptive-guidance/latest/architectural-decision-records/adr-process.html), [GOV.UK ADR Framework](https://www.gov.uk/government/publications/architectural-decision-record-framework/architectural-decision-record-framework))
+
+The owner does not need to be the person who can explain every implementation detail. They do need to know who can, what consequence was accepted, and which verification artifact is still missing.
+
+## Which decisions belong in the explanation?
+
+Use six categories as a first pass: capability boundary, data and context, component and interface boundary, human oversight, deployment and monitoring, and cost and latency. These categories cover the decisions that change what the system can do, what it can see, how it connects, who remains accountable, how it behaves in production, and what the business gives up to operate it.
+
+### Original practical artifact: the six-decision matrix
+
+This is my worked matrix, not a claim that the sources use this exact format. “Chosen” describes the public-surface decision used to make the workflow explainable. It is analysis, not an internal TryUncle architecture disclosure.
+
+Evidence labels: links to AWS, GOV.UK, NIST, Google, and the research paper are sourced facts. Statements beginning “I” are my bounded teaching or shipping observations. The choices, owners, consequences, and exercises in the matrix are analysis and original practical artifact.
+
+| Decision | Chosen explanation | Owner | Accepted consequence | Verification evidence |
+| --- | --- | --- | --- | --- |
+| Capability boundary | The tutor watches and annotates; the person performs the action. | Product owner | The last step stays manual, and unfamiliar screens may need clarification. | Five fixed UI-location task cards plus a boundary check: does the reviewer infer guidance, not autonomous action? |
+| Data and context | Explain the answer as depending on the current visible context and the person's stated task. | Product and privacy/data owner | Incomplete context should trigger a limit or clarification. | Repeat one task with irrelevant prior context and with a fresh context. Irrelevant history must not silently change the guidance. |
+| Component and interface | Treat the output as a constrained guidance envelope: target, reason, limitation or unknown, and next human step. | Technical lead | Unusual states may be deferred instead of receiving fluent unsupported prose. | Fixtures for valid, stale, ambiguous, and unsupported inputs. Reject missing target, limitation, or next step. |
+| Human oversight | The person can reject the guidance and remains responsible for the action. | Product owner and security reviewer if scope expands | It is slower than silent automation and depends on attention. | Replay a deliberately wrong target. The safe result is a decline or stop with no unintended side effect. |
+| Deployment and monitoring | Monitor freshness, latency, failures, versions, corrections, and real workflow usefulness, not only uptime. | Operations owner or technical lead | Monitoring adds product, operational, and privacy work. | Replay stale input, delay, UI change, and malformed output. The system should flag, abstain, or stop. |
+| Cost and latency | Bound the context and keep guidance short, with an explicit limit when freshness is uncertain. | Product and engineering | Cheaper or faster context can miss transient detail and require a repeat. | Replay the same task at three context frequencies and record response time, context processed, cost proxy, and stale guidance. |
+
+This is the sourceable part of the page: a situated matrix another team can copy into its own review. The sources give the categories and evidence habits. They do not give this workflow, these owners, or these exercises.
+
+Use the matrix as a scorecard. Mark a row ready only when all five fields are filled: choice, trade-off, owner, accepted consequence, and verification evidence. If one field is missing, keep the decision open. Escalate the gap when it concerns security, privacy, an external interface, production safety, measurement validity, or recovery from failure.
+
+![Illustration of a five-minute architecture decision review from choice to verification](/blog/what-ai-architecture-decisions-should-teams-explain-without-a-specialist-inline-1.webp)
+
+## What capability boundary should the team explain?
+
+Explain what the system is allowed to help with and what it is not allowed to do. For the screen-watching tutor, the plain answer is: it points at or describes a control, while the person remains responsible for using it.
+
+That sentence is more useful than “we use computer vision.” It tells a product manager what a successful interaction looks like and what a safe failure looks like. It also prevents a demo from being mistaken for autonomous task completion.
+
+The specialist still needs to explain capture, visual grounding, privacy controls, and how the system behaves when the screen is unfamiliar. The non-specialist does not need to explain the vision pipeline. They do need to know that the pipeline can be wrong and that the product boundary leaves the action with the person.
+
+Verify this with fixed task cards. Before anyone sees the workflow, ask them whether the system acts or guides. If the description causes them to infer silent action, rewrite the capability boundary.
+
+## What data and context does the explanation need?
+
+Explain the smallest context that makes the decision intelligible: what the system can currently see and what the person asked it to help with. Do not imply a memory, retention policy, or data path that the team has not documented.
+
+NIST's AI RMF asks teams to establish context, document knowledge limits, define how outputs will be used and overseen, and examine costs and impacts. Its core is organized around govern, map, measure, and manage, with governance running through the lifecycle. ([NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/))
+
+The non-specialist explanation is therefore: “This answer depends on the current screen and the stated task.” The specialist explanation includes frame sampling, redaction, access control, retention, and the behavior of the visual system under poor input.
+
+The verification exercise is simple. Run the same task once with irrelevant prior context and once from a fresh context. If irrelevant history changes the recommendation, find out why. If the current view is insufficient, the system should ask for clarification or state its limit.
+
+## Where should the component and interface boundary sit?
+
+Explain what crosses from one component to another. For this workflow, describe a constrained guidance result rather than an invisible command: target, reason, limitation or unknown, and next human step.
+
+This is analysis built on two sourced observations. AWS treats interfaces and dependencies as architecture-significant, while research on AI architecture decisions identifies technology, component, and data decisions as main types. The same study found performance was the dominant quality attribute in its collected material and reported design and data issues as common challenges. ([AWS ADR process](https://docs.aws.amazon.com/prescriptive-guidance/latest/architectural-decision-records/adr-process.html), [AI architecture decisions empirical study](https://arxiv.org/abs/2212.13866))
+
+The non-specialist needs the contract, not the code. They should know what the system returns, what it does when evidence is missing, and who owns the next step. The technical lead owns schema validation, retries, frame identifiers, versioning, and compatibility.
+
+Build four fixtures: valid target, stale frame, ambiguous request, and unsupported evidence. A checker should reject an output that has no target, limitation, or next step. That exercise tests whether the interface makes uncertainty visible instead of hiding it behind fluent language.
+
+## Who remains responsible when the system is wrong?
+
+The team should explain the human checkpoint as a product behavior, not as a sentence in a policy document. In this workflow, the person can reject the guidance and remains responsible for the action.
+
+NIST explicitly includes human oversight, documented roles, and the ability to fail safely in its risk-management outcomes. The practical consequence is straightforward: if the system can change the user's work without a visible human decision, that is an architecture decision that needs specialist and security review. ([NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/))
+
+The specialist still owns permission isolation, action scopes, audit design, and security testing. The team can explain the user-facing boundary without pretending to have solved those implementation problems.
+
+Use a deliberately wrong target in a replay. The verification result should be a decline, clarification, or safe stop. It should not be a silent action or a success label.
+
+## What must be monitored after deployment?
+
+Monitor the workflow, not only the model endpoint. The useful signals are input freshness, response latency, malformed or unsupported guidance, version changes, human corrections, and whether the guidance helped the real task.
+
+Google's production-ML guidance recommends validating data against schemas, testing transformed inputs, checking important slices, tracking real-world metrics, monitoring model age and response performance, and testing live quality when labels arrive late. NIST likewise calls for documented test details, production monitoring, regular evaluation, and safe failure. ([Google production ML monitoring](https://developers.google.com/machine-learning/crash-course/production-ml-systems/monitoring), [NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/))
+
+For a non-specialist, the key sentence is: “A response is not a success just because the model returned text.” A specialist must design instrumentation, slices, thresholds, incident response, and rollback. That work is where the verification artifact becomes operational.
+
+Replay four conditions: stale input, delayed response, changed UI, and malformed output. The monitoring contract should flag, abstain, or stop, and preserve enough version context to investigate. This page reports no result from that exercise. It defines the test the team should run.
+
+## How should the team explain cost and latency?
+
+State the trade-off in business language: richer or more frequent context may improve freshness but costs more time, compute, money, or privacy; bounded context may be faster and cheaper but miss transient detail.
+
+The public TryUncle description gives a bounded firsthand constraint: a system that watches a screen and acts in time makes latency a product concern, not a later optimization. That does not provide a latency number. It tells you what to measure.
+
+The specialist owns capture frequency, model routing, batching, caching, token or compute budgets, and percentile thresholds. The product team owns the consequence: is a repeat request acceptable, or does the workflow need a faster and more expensive path?
+
+Replay the same task at three configured context frequencies. Record response time, context processed, a cost proxy, and stale-guidance count. Choose a setting only after the team can say which consequence it accepts. Do not convert this procedure into a performance claim until it has actually been run.
+
+## Which parts still require a specialist?
+
+A non-specialist should not have to explain the internals of visual grounding, security isolation, retention, schema compatibility, drift detection, sampling, alert thresholds, or rollback. They should be able to name those as specialist-owned areas, identify the decision owner, and ask for the evidence.
+
+The boundary matters commercially. If a team cannot explain the purpose, scope, human responsibility, accepted consequence, or verification evidence, it needs a clearer decision record or capability-building work. If it can explain those things but cannot design the security or measurement machinery, it needs a specialist review for that bounded gap.
+
+This is also where my teaching observation matters. Product managers I taught were trying to make architecture useful before “done” had a shared meaning. The first intervention was not a more complex diagram. It was making the acceptance condition explicit. You can read that capability-building path on [Marius Manolachi's AI learning page](/learn-ai).
+
+## How can a team run the five-minute explanation test?
+
+Take one real workflow and ask a non-specialist to answer these five prompts without opening the implementation:
+
+1. What did we choose, and what alternative did we reject?
+2. What consequence are we accepting?
+3. Who owns the decision and who can change it?
+4. What must a user or operator understand about the boundary?
+5. What test, trace, metric, or replay would make us change our mind?
+
+If any answer is “the specialist knows,” mark that row incomplete. Then link the row to the specialist-owned implementation note or review. An ADR is useful here because AWS describes accepted decisions as part of a decision log and uses the record during design and code review. For the broader guide on when an agent is appropriate, continue to [when to use an AI agent](/blog/when-to-use-an-ai-agent). For the definition-of-done dependency, see [how to write acceptance criteria for an AI feature](/blog/how-to-write-acceptance-criteria-for-an-ai-feature).
+
+## When should a specialist join the decision?
+
+Bring in a specialist when the decision changes permissions, privacy, external interfaces, production safety, measurement validity, or the team's ability to recover from failure. Keep the product team in the room because the specialist can explain how a system works, but the team still has to choose which consequence the product can accept.
+
+The right handoff is not “please approve our architecture.” It is a bounded question with context, alternatives, owner, consequence, and verification evidence. That makes specialist time more useful and leaves the team capable of explaining the decision after the review.
+
+If you are choosing between a clearer decision record and outside help, start with the matrix. The rows that remain undefined tell you what kind of help you actually need.
