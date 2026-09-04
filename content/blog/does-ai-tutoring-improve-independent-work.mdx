@@ -1,0 +1,185 @@
+---
+title: "Does AI Tutoring Improve Independent Work or Only Session Performance?"
+date: "2026-09-04"
+updated: "2026-09-04"
+excerpt: "AI tutoring can lift session performance without building independent capability. Use this transfer benchmark to test immediate and delayed unaided work."
+answer: "AI tutoring can improve independent work, but only when the tutor makes the learner generate, explain, and verify the answer. Answer-giving tutors can make a session look successful while transfer falls. The principal exception is low-risk orientation, where direct answers are useful; even then, approve the tutor only after an unaided immediate test and a delayed transfer test pass."
+targetQuery: "Does AI tutoring improve independent work or only session performance?"
+queryAliases:
+  - "does AI tutoring improve independent work"
+  - "AI tutoring independent learning versus session performance"
+  - "does AI tutoring improve transfer"
+intent: "informational, practical capability evaluation"
+funnel: "problem-aware"
+cluster: "capability"
+parent: "/blog/what-to-learn-before-building-ai-agents"
+contentType: "decision-tool"
+kind: "satellite"
+sourceableAtom: "In a 12-case matched-run test of a bounded AI workflow policy, answer-giving reached 12/12 assisted success but only 3/6 delayed unaided transfer, while hint-and-question reached 5/6 delayed transfer."
+evidenceType: "reproducible pre/post and delayed-transfer test, supported by randomized tutoring research"
+evidenceBasis: "A dated 2026-08-23 matched-run system test with 12 assisted cases, six immediate unaided cases, six delayed unaided transfer cases, fixed tutor instructions, a point rubric, per-case result vectors, and three checkable failures, framed against four supplied RCT/review sources plus a human-AI tutoring RCT."
+tags:
+  - "AI tutoring"
+  - "team capability"
+  - "AI evaluation"
+author: "Marius Manolachi"
+nextReviewAt: "2027-02-23"
+sources:
+  - "https://www.nature.com/articles/s41598-025-97652-6"
+  - "https://www.pnas.org/doi/10.1073/pnas.2422633122"
+  - "https://documents1.worldbank.org/curated/en/099548105192529324/pdf/IDU-c09f40d8-9ff8-42dc-b315-591157499be7.pdf"
+  - "https://www.nature.com/articles/s41539-025-00320-7"
+  - "https://arxiv.org/abs/2410.03017"
+faq:
+  - q: "What is the difference between assisted performance and transfer?"
+    a: "Assisted performance is what the learner can do with the tutor available. Transfer is what the learner can do on a new, unaided case. A tutor decision should use the second measure, not the first one alone."
+  - q: "Should an AI tutor ever give the answer directly?"
+    a: "Yes, for low-risk orientation, worked examples, or recovery after a learner has made a good-faith attempt. Do not treat a correct assisted answer as proof of capability. Require an unaided check before the learner owns the task."
+  - q: "How long should you wait before testing transfer?"
+    a: "Use an immediate unaided test first, then repeat with novel cases after a context reset or a realistic work interval. The exact delay should match when the capability matters."
+cover: "/blog/does-ai-tutoring-improve-independent-work-hero.webp"
+coverAlt: "Illustration of an AI tutor session opening into an unaided transfer test"
+draft: false
+---
+
+> **Quick answer:** AI tutoring can improve independent work, but only when the tutor makes the learner generate, explain, and verify the answer. Answer-giving tutors can make a session look successful while transfer falls. Approve a tutor only after an unaided immediate test and a delayed transfer test pass.
+
+An AI tutor can make a learner look capable in minutes. The learner asks, the tutor answers, and the task gets finished. That is useful work. It is not yet evidence that the learner can do the next version alone.
+
+When I taught product managers who went from writing specs to building and shipping the product, the useful question was never whether the session felt productive. It was whether they could make the next decision and move the work forward. That same boundary matters here.
+
+## The benchmark found a transfer gap
+
+In a small matched-run test, answer-giving won the assisted session, while hint-and-question produced the strongest delayed unaided result.
+
+The benchmark used 12 work-shaped cases from a small policy domain. Each case required the learner to choose `AUTO`, `APPROVE`, or `ABSTAIN`, then add `LOG` or `IDEMPOTENCY` when the action changed external state.
+
+| Tutor mode | Assisted cases | Immediate unaided | Delayed unaided transfer | Median task turns |
+| --- | ---: | ---: | ---: | ---: |
+| Answer-giving | 12/12 | 4/6 | 3/6 | 2 |
+| Hint-and-question | 11/12 | 6/6 | 5/6 | 4 |
+| No tutor | 8/12 | 3/6 | 2/6 | 1 |
+
+The result is a diagnostic, not a human effect estimate. It used one GPT-5/Codex learner run per mode, a synthetic policy domain, and a task-turn proxy instead of wall-clock time. Its value is that it separates three things teams often collapse into one number: finishing the session, passing a fresh unaided test, and transferring the skill to new cases later.
+
+The 12 assisted cases were frozen before scoring:
+
+| Case | Task | Expected decision |
+| --- | --- | --- |
+| T01 | Summarize two agreeing public release-note sources | AUTO |
+| T02 | Summarize one public source | ABSTAIN |
+| T03 | Extract from a salary file | APPROVE |
+| T04 | Send a customer email | APPROVE + LOG |
+| T05 | Delete duplicate CRM records | APPROVE + LOG + IDEMPOTENCY |
+| T06 | Update a CRM phone number | APPROVE + LOG + IDEMPOTENCY |
+| T07 | Resolve two disagreeing public sources | ABSTAIN |
+| T08 | Summarize anonymized internal notes | AUTO |
+| T09 | Export a customer list to a vendor | APPROVE + LOG |
+| T10 | Aggregate public data from two agreeing sources | AUTO |
+| T11 | Archive old tickets | APPROVE + LOG |
+| T12 | Draft, but do not send, a customer message | APPROVE |
+
+The immediate cases were one-source notes, anonymized notes, a CRM update, conflicting policy documents, duplicate-record deletion, and a sensitive customer-message draft. The context-reset transfer cases were a two-source public summary, salary extraction, inconsistent documentation, an invoice email, ticket archiving, and record deletion. The transfer cases changed the surface details so a copied sentence could not pass by itself.
+
+![Illustration of three tutoring paths separating into assisted performance, immediate unaided testing, and delayed transfer](/blog/does-ai-tutoring-improve-independent-work-transfer-benchmark.webp)
+
+The full task set, mode instructions, scoring rubric, raw result vectors, and failure examples are in the benchmark record for this page. The short version is the decision rule: a tutor has built independent capability only when the learner passes novel unaided cases after the tutor is removed.
+
+## What do the strongest tutoring studies actually prove?
+
+The research supports a conditional answer. Structured tutoring can improve learning. Unrestricted answer access can improve the work happening in the session while weakening unaided performance.
+
+The Harvard physics RCT is a strong example of structured tutoring. It compared an AI-supported lesson with active-learning classes in a crossover design. The 194 eligible students completed pre-tests and post-tests, and the AI tutor was built around active engagement, scaffolding, accurate feedback, and self-pacing. Students in the AI condition performed better on the immediate post-test and spent a median of 49 minutes on the lesson. [Read the Harvard physics RCT](https://www.nature.com/articles/s41598-025-97652-6).
+
+That is evidence for a carefully engineered tutor on immediate learning. It is not evidence that any chat window produces independent work later. The authors themselves describe the system's sequential problem structure, expert-authored solutions, and substantial preparation effort.
+
+The PNAS high-school mathematics RCT is closer to the question teams face. Nearly 1,000 students were assigned by classroom to a no-AI control, GPT Base, or GPT Tutor. The second part of each session was assisted practice. The third part was a closed-book, closed-laptop exam. GPT Base improved practice performance by 48% but reduced exam performance by 17% relative to control. GPT Tutor improved practice by 127% and removed the observed negative exam effect, but it did not produce a positive exam effect. [Read the PNAS study](https://www.pnas.org/doi/10.1073/pnas.2422633122).
+
+That pattern is the warning. A dashboard that reports only assisted completion can reward the mode that creates the weakest unaided learning.
+
+The Nigeria World Bank RCT adds a different kind of evidence. Over six weeks, senior secondary students attended an after-school program using Copilot with carefully crafted prompts. The program reported a 0.31 standard-deviation improvement on an English assessment. It is encouraging, but it combines AI tutoring with a structured program and local context. It does not isolate answer-giving from hinting, and it does not answer whether a workplace learner can transfer the capability to a new task. [Read the World Bank paper](https://documents1.worldbank.org/curated/en/099548105192529324/pdf/IDU-c09f40d8-9ff8-42dc-b315-591157499be7.pdf).
+
+The K-12 systematic review reaches a similarly useful boundary. Its 28 studies, covering 4,597 students, found generally positive effects for intelligent tutoring systems, but effects were smaller when compared with non-intelligent tutoring systems. The authors also called for longer interventions, larger and more diverse samples, and more attention to ethics. [Read the K-12 ITS review](https://www.nature.com/articles/s41539-025-00320-7).
+
+Finally, Tutor CoPilot is an important exception to keep separate. It helped human tutors use more guiding questions and improved topic mastery in a randomized study, but the AI was supporting the tutor rather than replacing the learner's independent work. [Read the Tutor CoPilot study](https://arxiv.org/abs/2410.03017).
+
+The studies are not contradictory. They measure different tutoring designs, learners, domains, and outcomes. The practical conclusion is narrower: if independent work matters, measure it directly.
+
+## How do you run a transfer benchmark on a real work task?
+
+Use the smallest test that can catch answer dependence. You do not need a semester-long study to decide whether an internal tutor is ready for a pilot, though a context-reset test is not a substitute for a multi-day retention study.
+
+1. **Choose one task family.** Use a recurring, reviewable task with a clear owner. Examples include classifying an intake request, checking an AI workflow against a policy, or turning a brief into a decision record.
+2. **Write the scoring rubric first.** Define the correct outcome, required checks, forbidden shortcuts, and the minimum evidence for a pass. If two reviewers would score the same answer differently, the task is not ready.
+3. **Freeze 12 cases.** Include normal cases, missing evidence, conflicting evidence, sensitive inputs, and an irreversible action. Create parallel cases for the immediate and delayed tests. Do not reuse the exact training wording.
+4. **Randomize the mode.** Use participants when you have them. If you are testing a system, run matched cases in permuted mode order. Record the model, prompt, tools, permissions, date, and any hidden context.
+5. **Measure three layers.** Record assisted success, immediate unaided success, and delayed unaided transfer. Also record task time, help requests, and the failure mode. The first number tells you whether the tutor helps now. The second and third tell you whether capability remains. If you cannot wait a realistic work interval, label the result as context-reset transfer rather than long-term retention.
+6. **Write the decision rule before scoring.** For a low-risk internal skill, one workable rule is: do not expand the tutor beyond pilot if delayed transfer is below the no-tutor baseline or if any critical safety error appears. Treat assisted success as a diagnostic, not as the release gate.
+
+Turn this into a short exercise with a produced artifact, not just a score in a dashboard. Give the learner six immediate cases without tutor help, then clear the conversation and give six new scenarios with changed surface details. Ask for the decision code, the required controls, and one sentence explaining the boundary on every case.
+
+Save one transfer record for each case:
+
+```text
+case_id:
+test_stage: immediate | delayed-transfer
+decision_code:
+required_controls:
+boundary_reason:
+result: pass | fail
+failure_mode:
+next_action:
+```
+
+The record is the produced artifact. It lets a reviewer distinguish a correct answer from a copied phrase and preserves the reason for any repair. The transfer check passes only when the learner completes a new scenario without help, applies the right boundary, and names the required control. If the learner needs the tutor to supply the decision, record a failure and retest a different case after targeted practice. This is a reusable evaluation record, not a participant result from the benchmark above.
+
+If the task is high stakes, replace the simple pass rule with a human approval gate. No learning benchmark makes it safe to let a learner or a tutor change production data, send external messages, or make a consequential decision without the required authority.
+
+## What should count as independent work?
+
+Independent work is not “the learner never asks for help.” It is a new task completed without the tutor supplying the decision, with enough reasoning and checking to make the result trustworthy.
+
+| Dimension | Pass condition | Common false positive |
+| --- | --- | --- |
+| Outcome | The new task reaches the correct state | The learner copies the tutor's final answer |
+| Reasoning | The learner explains why the decision fits | The learner repeats a phrase without applying it |
+| Verification | The learner checks sources, constraints, or side effects | The learner trusts fluent wording |
+| Boundary judgment | The learner knows when to abstain or ask for approval | The learner forces an answer to finish |
+| Transfer | The learner passes a novel case after the context reset | The learner succeeds only on a near-duplicate |
+
+This is where many evaluations go wrong. They test recall of the tutor conversation, not the skill the conversation was meant to create. A post-test with the same wording can reward memorization. A delayed test with new surface details is harder to game.
+
+## Which failure modes should a tutor evaluation catch?
+
+The benchmark exposed three failures that are easy to miss if you report only session completion.
+
+First, the answer-giving run marked an invoice email as `AUTO`. The learner had seen the right general policy, but copied the pattern without noticing that sending changes the outside world. The correct code was `APPROVE + LOG`.
+
+Second, the no-tutor run marked a CRM phone update as `AUTO`. The correct code was `APPROVE + LOG + IDEMPOTENCY`. The failure was not language quality. It was missing state-change reasoning.
+
+Third, the hint-and-question run abstained on an aggregate over two agreeing public sources. That was a false refusal. A tutor can create over-caution as well as overconfidence, especially when the learner remembers “uncertainty means stop” but forgets the conditions for safe automation.
+
+These are independently checkable against the policy card and case text. They also point to different repairs. The first needs a side-effect check. The second needs an idempotency check. The third needs a positive example of when the policy permits progress.
+
+## When is answer-giving still the right choice?
+
+Direct answers are useful when the goal is orientation, not capability. Use them for a worked example, a glossary lookup, recovery after a good-faith attempt, or a low-risk task where the learner is not expected to own the method later.
+
+Answer-giving becomes a poor default when the learner must make the decision independently next time. In that setting, make the learner commit first, ask a diagnostic question, give the smallest useful hint, and require a check against the rubric. The tutor can reveal the answer after the attempt, but the answer should not be the only successful path through the session.
+
+This is also the cleanest way to compare a tutor with a course, a workshop, or a consultant. Ask what the person can do without the support after the intervention. [What to Learn Before Building AI Agents](/blog/what-to-learn-before-building-ai-agents) provides the broader capability context, while [How to Make AI Training Stick in a Small Team](/blog/how-to-make-ai-training-stick-in-a-small-team) covers the practice loop after a session.
+
+## The decision rule for an AI tutoring pilot
+
+Approve an AI tutor for a capability-building pilot only if all four conditions hold:
+
+1. Assisted performance improves enough to justify the learner's time.
+2. Immediate unaided performance meets or exceeds the no-tutor baseline.
+3. Delayed transfer on novel cases meets or exceeds the baseline.
+4. No critical safety or boundary failure appears in the transfer set.
+
+If condition one passes but condition three fails, you have a session-performance tool. That can still be valuable, but buy or design it as an assistant, not as a capability program.
+
+If conditions two and three pass only for hint-based tutoring, restrict the tutor to hints, questions, and verification prompts. If no mode passes transfer, the problem may be the task design, the practice interval, the learner's baseline, or the tutor's accuracy. Run the test again with those variables documented before you scale.
+
+The next step is not another impressive demo. Freeze one task family, remove the tutor, and see what remains.
