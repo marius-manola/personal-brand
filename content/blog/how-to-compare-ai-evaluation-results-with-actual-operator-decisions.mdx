@@ -1,0 +1,230 @@
+---
+title: "How to Compare AI Evaluation Results With Operator Decisions"
+date: "2026-09-05"
+updated: "2026-09-05"
+excerpt: "A reproducible paired-decision fixture shows how to join evaluator results, operator actions, outcome proxies, disagreements, and shipping gates."
+answer: "Compare an AI evaluation with an operator decision at the same case level. Preserve the evaluator verdict, operator action, rationale, context, and later outcome or adjudicated proxy, then classify agreement, false pass, false fail, and abstention. A score can support review, but a harmful disagreement or missing outcome must block an automatic shipping decision."
+targetQuery: "How to compare AI evaluation results with actual operator decisions"
+queryAliases:
+  - "compare ai evaluation results with operator decisions"
+  - "ai evaluator versus human operator decisions"
+  - "how to analyze ai evaluation overrides"
+intent: "Informational implementation and shipping decision"
+funnel: "Consideration"
+cluster: "evaluation"
+parent: "/blog/how-to-evaluate-an-ai-agent"
+contentType: "decision-tool"
+kind: "satellite"
+sourceableAtom: "A reproducible eight-case paired-decision fixture shows that evaluator pass or fail agreed with decisive operator ship or hold actions in 3 of 7 records, while four decisive disagreements and one abstention changed the review path; the accompanying schema and veto rule preserve the outcome proxy instead of treating evaluator agreement as a shipping result."
+evidenceType: "reproducible paired-decision fixture plus worked decision artifact"
+evidenceBasis: "A bounded local comparison artifact was executed on 2026-08-23 from eight explicitly authored, redacted case records. Each record carried an evaluator label, operator action, rationale code, outcome proxy, and disagreement class. A fixed decision rule was applied row by row and reproduced the result tables in this post. This is a synthetic fixture and method test, not a production operator study or a claim about Marius's clients."
+tags:
+  - "AI evaluation"
+  - "AI product"
+  - "Human review"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://arxiv.org/abs/2407.18370"
+  - "https://www.nature.com/articles/s41598-026-59232-0"
+  - "https://developers.openai.com/api/reference/resources/graders"
+  - "https://pair.withgoogle.com/guidebook-v2/chapter/data-collection/"
+  - "https://pair.withgoogle.com/guidebook-v2/chapter/explainability-trust/"
+faq:
+  - q: "Can evaluator agreement replace an operator decision?"
+    a: "No. Agreement is a diagnostic comparison between two records. A release decision also needs a defined outcome, a risk boundary, and an owner who can veto or escalate the action."
+  - q: "What if there is no later outcome?"
+    a: "Keep the case as outcome-missing or use a named adjudicated proxy. Do not turn an unresolved case into a success or failure merely because the evaluator and operator agreed."
+  - q: "How many cases do I need?"
+    a: "Enough cases to cover the workflow's important slices and disagreement types. This article's eight-case fixture demonstrates the method; its count is not a production sample-size claim."
+cover: "/blog/how-to-compare-ai-evaluation-results-with-actual-operator-decisions-paired-decision-evidence-gate-hero.webp"
+coverAlt: "Illustration of an evidence gate connecting AI evaluation results with operator decisions"
+draft: false
+status: "approved"
+---
+
+An evaluator can mark an output as a pass while the operator holds it. The reverse can also happen: the evaluator marks a case as a fail, but the operator ships a corrected result. If the records are not joined, both decisions disappear into one average score.
+
+The comparison has to happen at the case level. Keep the evaluator's verdict, the operator's contemporaneous action, the reason for any override, and a later outcome or adjudicated proxy. Then classify the disagreement before changing a prompt, model, rubric, or release policy.
+
+This article publishes a small synthetic fixture to make that record concrete. It is a reproducible method artifact, not evidence of how real operators behave. For the broader evaluation lifecycle, start with the [AI evaluation pillar](/blog/ai-evaluation-pillar), then compare this paired record with the [guide to evaluating an AI agent](/blog/how-to-evaluate-an-ai-agent).
+
+## What exactly should be compared?
+
+Compare two decisions about the same case, not two aggregate scores. The evaluator produces a bounded verdict such as pass or fail. The operator makes a contemporaneous action such as ship, hold, edit, reject, or abstain. A later outcome or adjudicated proxy tests whether either decision was useful.
+
+The minimum record is a join key plus five evidence groups:
+
+| Evidence group | Required field | Why it matters |
+| --- | --- | --- |
+| Case identity | Redacted case ID and workflow slice | Prevents a score from being paired with a different task |
+| Evaluation | Label, score if available, model or grader version, rubric version, timestamp | Preserves what the evaluator actually saw |
+| Operator context | Role or expertise band, stakes, available evidence, time pressure | Explains why a human action may differ without calling it an error |
+| Operator decision | Ship, hold, edit, reject, or abstain; rationale code; timestamp | Captures the decision that affected the workflow |
+| Outcome | Later result or named adjudicated proxy, reviewer, timestamp, confidence | Separates a plausible response from a verified result |
+
+The join key must point to the same input, output, and workflow state. A daily evaluator score compared with a weekly correction rate is a trend comparison, not a paired-decision analysis. OpenAI's grader reference makes evaluator configuration explicit through model, label, score, range, sampling, and multi-grader fields. Preserve the equivalent fields even when the grader is local or rule-based. [OpenAI's grader reference](https://developers.openai.com/api/reference/resources/graders) documents the configuration boundary.
+
+If the outcome is unavailable, retain the row with an `outcome_missing` status. Do not silently treat operator agreement as proof. Google PAIR recommends planning data collection and evaluation together, including quality and bias risks in the collection process. [Google PAIR's data collection guidance](https://pair.withgoogle.com/guidebook-v2/chapter/data-collection/) supports that separation.
+
+The existing [production-trace evaluation dataset guide](/blog/how-to-build-an-evaluation-dataset-from-production-traces) is useful for collecting cases. This page adds the decision and outcome joins that make the dataset useful for a shipping call.
+
+![Illustration of a paired-decision record linking an evaluator result, operator action, rationale, and later outcome](/blog/how-to-compare-ai-evaluation-results-with-actual-operator-decisions-paired-decision-schema.webp)
+
+## What did the paired-decision fixture show?
+
+In the eight-case fixture, evaluator pass or fail agreed with the operator's decisive ship or hold action in 3 of 7 decisive records. Four decisive records disagreed, and one operator abstained. The result is a property of this authored fixture, not a rate for production operators or any model.
+
+The fixed rule was simple: evaluator pass maps to ship, evaluator fail maps to hold, and operator abstention is kept outside the decisive agreement count. The rows were then classified against the operator action and the outcome proxy.
+
+| Case | Evaluator | Operator action | Outcome proxy | Classification | Review consequence |
+| --- | --- | --- | --- | --- | --- |
+| E01 | Pass | Ship | Success | Agreement | Record and continue |
+| E02 | Pass | Hold | Corrected after stale evidence was found | Evaluator false pass | Inspect evidence freshness |
+| E03 | Fail | Hold | Risky output prevented | Agreement | Record the veto |
+| E04 | Fail | Ship after edit | Successful after correction | Evaluator false fail | Review rubric strictness |
+| E05 | Pass | Abstain | Unresolved, evidence incomplete | Abstention | Escalate, do not auto-ship |
+| E06 | Pass | Hold | Unsafe path blocked | Evaluator false pass | Apply a release veto |
+| E07 | Fail | Ship after edit | Successful after correction | Evaluator false fail | Separate useful edit from raw fail |
+| E08 | Pass | Ship | Success | Agreement | Record and continue |
+
+The sourceable result is the pairing, not the percentage. A page that reports only “the evaluator passed” loses E02, E05, and E06, which are the rows that change the action. The table also shows why an outcome proxy matters: E04 and E07 look like evaluator failures until the corrected result is checked.
+
+The artifact supports one narrow conclusion: in this fixture, an evaluator verdict was insufficient to determine the next shipping action whenever the operator held, edited, or abstained. It does not show that human judgment is generally better. It shows which fields a comparison needs to preserve.
+
+## How was the fixture run?
+
+The method used eight explicitly authored cases, one fixed mapping rule, and one review pass over every row. No live model call, customer record, operator interview, or production event was used. That constraint makes the artifact reproducible and prevents a synthetic row from being presented as firsthand operational evidence.
+
+The sample and procedure were:
+
+| Method item | Specification |
+| --- | --- |
+| Sample size | n = 8 authored case records |
+| Unit of analysis | One evaluator result paired with one operator action |
+| Evaluator labels | Pass or fail |
+| Operator actions | Ship, hold, ship after edit, or abstain |
+| Outcome values | Success, corrected, prevented, blocked, unresolved, or success after edit |
+| Decision rule | Pass plus ship is agreement; fail plus hold is agreement; abstention is separate; all other decisive pairs are disagreements |
+| Date | 2026-08-23 |
+| Reproduction check | The eight rows were counted by classification and reconciled to the total sample |
+
+The record schema is deliberately small. A team can add score bands, token cost, latency, or slice labels, but those fields must not replace the operator action and outcome. HCCD-DS v2 is useful as a schema precedent because it links confidence, acceptance or override, override rationale, and realized outcome. Its benchmark is explicitly synthetic, so it is method context rather than evidence about this fixture or a live workflow. [The Scientific Reports benchmark](https://www.nature.com/articles/s41598-026-59232-0) makes that boundary visible.
+
+The fixture is also not a model benchmark. It does not estimate accuracy, calibration, latency, cost, or inter-rater reliability. Its observed result is that the record structure and decision rule produce four disagreement rows and one abstention row without collapsing them into a single agreement number.
+
+## How should agreement and disagreement be classified?
+
+Use separate classes for agreement, evaluator false pass, evaluator false fail, and abstention. “Disagreement” alone is too broad to guide a repair.
+
+The fixture produced this classification table:
+
+| Class | Definition | Fixture count | Next question |
+| --- | --- | ---: | --- |
+| Agreement | Evaluator pass with operator ship, or evaluator fail with operator hold | 3 | Is the decision rule still safe on higher-stakes slices? |
+| Evaluator false pass | Evaluator pass with operator hold or reject | 2 | What evidence or risk did the evaluator miss? |
+| Evaluator false fail | Evaluator fail with operator ship after correction | 2 | Is the rubric testing the wrong output boundary? |
+| Abstention | Operator does not make a ship or hold decision | 1 | What missing evidence or authority caused escalation? |
+
+The decisive denominator is seven because the abstention is not an agreement or disagreement. That distinction matters. Counting abstention as agreement would make the evaluator look safer. Counting it as disagreement would imply that the operator had enough information to choose and declined for no reason. The record says something else: the workflow could not support an automatic decision.
+
+Treat score bands as a second analysis, not as a replacement for the action join. A high score with a false pass is a risk signal. A low score with a corrected ship may indicate a strict rubric, a useful human edit, or an outcome check that measures something different from the grader. Those possibilities need different repairs.
+
+Google PAIR frames trust calibration around helping people know when to trust a prediction and when to apply their own judgment. The operator context and abstention fields are the practical way to retain that judgment instead of treating it as noise. [PAIR's explainability and trust guidance](https://pair.withgoogle.com/guidebook-v2/chapter/explainability-trust/) provides the methodological context.
+
+## Which disagreements change the shipping decision?
+
+A harmful evaluator false pass is a veto. An evaluator false fail prompts rubric review. An abstention routes to a person or a narrower workflow. These outcomes cannot share one automatic threshold because they carry different consequences.
+
+Use this decision artifact after the paired rows have been classified:
+
+| Observed pair | Default action | Veto or escalation condition |
+| --- | --- | --- |
+| Pass and ship, with verified outcome | Keep the case in the regression set | Veto if the outcome later proves harmful |
+| Pass and hold or reject | Do not auto-ship the slice | Veto when the missing or stale evidence can recur |
+| Fail and ship after edit | Preserve the edited output and review the rubric | Escalate if the edit changes a consequential fact or action |
+| Any operator abstention | Route to explicit human review | Escalate until the required evidence and authority are present |
+| Missing outcome | Mark unresolved and exclude from success totals | Veto automatic rollout when missingness hides a high-stakes slice |
+
+For the fixture, E06 triggers the strongest action. The evaluator passed the row, the operator held it, and the outcome proxy says an unsafe path was blocked. That is a false pass with a safety consequence, so changing the threshold without inspecting the missing evidence would be the wrong repair. E04 and E07 trigger a different review: the operator's correction produced a usable outcome, so the team should inspect whether the evaluator is scoring a draft before an allowed edit rather than the completed task.
+
+The rule can be written as a small release gate:
+
+```text
+if outcome_missing:
+    escalate("no verified result")
+elif operator_abstained:
+    escalate("operator lacked evidence or authority")
+elif evaluator_pass and operator_hold:
+    veto("evaluator false pass")
+elif evaluator_fail and operator_ship_after_edit:
+    review_rubric("evaluator false fail")
+else:
+    keep_in_regression_set()
+```
+
+This is a worked decision rule, not a universal risk policy. The veto condition depends on the workflow's consequence of failure. A draft that never changes external state may need a review queue. A write or send action may need a hard stop.
+
+## How do you join the decision to a later outcome?
+
+Record the outcome independently from the evaluator and operator fields. The outcome check should inspect the source of truth or use a named adjudicated proxy with its own reviewer and timestamp.
+
+| Outcome type | Acceptable evidence | Weak evidence to avoid |
+| --- | --- | --- |
+| External state change | The changed record, message, task, or transaction | The model's claim that it completed the action |
+| Human-reviewed result | A reviewer decision with rubric and timestamp | A later summary with no case reference |
+| Safety proxy | A documented block, policy violation, or incident review | “It looked risky” without a rule |
+| Unresolved | Explicit missing-outcome code and reason | Treating silence as success |
+
+The outcome reviewer should not infer the label from the evaluator verdict. Otherwise the comparison is circular. Keep the evaluator prompt or rubric version, operator evidence packet, and outcome evidence separate enough that another reviewer can inspect the chain.
+
+This is where the paired dataset connects to the broader question of why evals can pass while users still fail. The existing [diagnosis of passing evals and failing users](/blog/why-do-ai-evals-pass-while-users-still-fail) explains the distribution and product-boundary problem. The paired record adds a testable trace: which case passed, who overrode it, why, and what happened after.
+
+If a workflow has no observable outcome, change the product contract before comparing scores. A response-quality label may still be useful for drafting, but it cannot support a claim about task completion that nobody can verify.
+
+## How should a team use the record before shipping?
+
+Use the paired records to choose the next measurement or control, not to chase a higher average evaluator score. Start with the cases that changed the operator action, then inspect the outcome and the missing evidence.
+
+The practical review sequence is:
+
+1. Freeze the evaluator version, prompt or rubric, and configuration for the comparison window.
+2. Attach each evaluator result to the exact output and workflow context the operator saw.
+3. Record the operator action at the time it happened, including edit, hold, reject, or abstain.
+4. Assign a rationale code before reading the later outcome so the reason is not reconstructed from hindsight.
+5. Check the later outcome or adjudicated proxy independently.
+6. Classify the pair and apply the veto or escalation rule.
+7. Add every disagreement to the regression set with its decision-changing evidence.
+
+The deliverable is a small review packet, not a single score:
+
+```text
+case_id: E06
+evaluator: pass
+operator: hold
+operator_reason: security boundary
+outcome_proxy: unsafe path blocked
+classification: evaluator false pass
+release_action: veto automatic rollout for this slice
+evidence_needed: inspect the missing safety signal and add a regression case
+```
+
+The packet lets a product manager ask a concrete question: did the evaluator miss a risk, did the operator apply a policy outside the rubric, or did the outcome check measure a different job? Each answer points to a different change. A prompt edit is not a substitute for a missing authority boundary.
+
+## What did this artifact not establish?
+
+The fixture does not establish how often evaluators disagree with real operators, which model is better, or whether the veto rule improves a production outcome. It demonstrates a record shape, a classification procedure, and a bounded shipping artifact.
+
+The limitations are material:
+
+- The sample contains eight authored synthetic cases, not real operator decisions.
+- The labels and outcome proxies were written for the fixture, so they cannot estimate prevalence.
+- The evaluator has only pass and fail labels. Score calibration and confidence curves were not measured.
+- The operator role, stakes, time pressure, and available evidence are represented as fields, not observed human behavior.
+- The fixture has no model variance, repeated runs, drift, latency, or cost measurement.
+- A successful outcome proxy can miss a delayed failure, and an adjudicated proxy can reflect reviewer judgment.
+- The classification rule treats ship after edit as an evaluator false fail, although some workflows define the edited output as a different task.
+
+A real workflow needs a consented, anonymized case set with provenance, timestamps, evaluator configuration, operator context, outcome review, and a missingness policy. The fixture makes that requirement inspectable. It does not pretend to satisfy it.
+
+The safest interpretation is therefore narrow: compare evaluator and operator decisions only after joining the same case and preserving the later outcome. Use agreement as a diagnostic field. Let harmful false passes veto automatic action, let abstentions remain visible, and keep unresolved outcomes out of success totals.
