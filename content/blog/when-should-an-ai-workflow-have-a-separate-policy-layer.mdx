@@ -1,0 +1,174 @@
+---
+title: "When Should an AI Workflow Have a Separate Policy Layer?"
+date: "2026-09-06"
+updated: "2026-09-06"
+excerpt: "A worked decision matrix and bypass test show when embedded checks stop being enough, and what the smallest passing policy architecture looks like."
+answer: "Give an AI workflow a separate policy layer when policy must govern multiple execution paths, policy ownership is independent, or a bypass can affect money, tenant isolation, sensitive data, or a durable side effect. Keep policy embedded for one controlled path with low-risk actions. The exception is that a separate policy service cannot protect uninstrumented calls or replace backend authorization."
+targetQuery: "When should an AI workflow have a separate policy layer?"
+queryAliases:
+  - "when to use a policy decision point for an AI workflow"
+  - "separate policy service for an AI agent"
+intent: "architecture decision"
+funnel: "consideration"
+cluster: "architecture"
+parent: "/blog/when-to-use-an-ai-agent"
+contentType: "decision-tool"
+kind: "satellite"
+sourceableAtom: "In the synthetic refund workflow tested here, embedded enforcement failed all seven adversarial cases; the smallest passing design used a mandatory gateway, exact-call policy evaluation, approval binding, and backend authorization."
+evidenceType: "worked architecture decision matrix plus reproducible policy-bypass test"
+evidenceBasis: "Versioned synthetic workflow, executed Node.js comparison of embedded loop checks and a mandatory gateway with a separate policy decision point, seven adversarial cases, and documented limitations."
+tags:
+  - "AI architecture"
+  - "AI governance"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://github.com/microsoft/agent-governance-toolkit/blob/main/policy-engine/docs/security-model.md"
+  - "https://learn.microsoft.com/en-us/azure/well-architected/ai/application-design"
+  - "https://docs.aws.amazon.com/prescriptive-guidance/latest/govern-architect-agentic-ai/enterprise-architecture.html"
+  - "https://modelcontextprotocol.io/specification/2025-11-25/server/tools"
+  - "https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization"
+  - "https://www.anthropic.com/engineering/building-effective-agents"
+cover: "/blog/when-should-an-ai-workflow-have-a-separate-policy-layer-hero-policy-boundary.webp"
+coverAlt: "Illustration of an AI workflow policy gateway separating model proposals from tool execution"
+draft: false
+---
+
+The dangerous moment isn’t when the model suggests a refund. It’s when a retry worker, parallel branch, or replayed approval turns that suggestion into a different refund.
+
+The comparison below is built around that failure. It’s synthetic, but the trace is executable and deliberately small enough to reproduce.
+
+![Illustration of a policy gateway separating an AI workflow from tool execution](/blog/when-should-an-ai-workflow-have-a-separate-policy-layer-inline-bypass-matrix.webp)
+
+## The short answer: use a separate policy layer when the enforcement topology changes
+
+Use a separate policy layer when policy must govern multiple execution paths, policy ownership is independent, or a bypass can affect money, tenant isolation, sensitive data, or a durable side effect. Keep policy embedded for one controlled path with low-risk actions. The exception is that a separate policy service cannot protect uninstrumented calls or replace backend authorization.
+
+That answer has two parts people often collapse. A policy layer is justified by where decisions must be enforced and what a bypass costs. The word “agent” is not enough.
+
+## What failed in the representative workflow?
+
+The test workflow was a support agent proposing an `issue_refund` call for an invoice. Its versions were `workflow-v1` and `policy-v1`.
+
+The policy allowed refunds up to 100. Larger refunds required an approval tied to the actor, tenant, resource, amount, tool, and policy version. The workflow carried those facts in every test record:
+
+| Field | Synthetic value |
+| --- | --- |
+| Actor | `agent-support-7`, role `support_agent` |
+| Tenant | `tenant-a` |
+| Resource | `invoice-42` in `tenant-a` |
+| Tool | `issue_refund` |
+| Amount | 40, or 120 for approval cases |
+| Workflow version | `workflow-v1` |
+| Policy version | `policy-v1`, then `policy-v2` for the stale-policy case |
+| Approval | Null for low value; exact-bound approval for the control case |
+
+The embedded design checked the call in the agent loop and let the handler trust the cached result. The separate design put a mandatory gateway immediately before execution. The gateway evaluated the exact concrete call, then the backend performed its own authorization.
+
+The embedded design passed the normal call. It failed every adversarial case. That is the result that changes the architecture decision.
+
+## What does a policy layer own, and what does it not own?
+
+A policy decision point should answer whether a particular proposed action is allowed, denied, or escalated. It should not become the agent loop, the model, the tool, the approval UI, or the backend.
+
+| Responsibility | Correct owner | Why it matters |
+| --- | --- | --- |
+| Model proposal | Model and host application | A tool call is a proposal, not authority. Anthropic describes agents as LLMs using tools in an environment and recommends adding complexity only when simpler systems fall short. [Anthropic’s agent guidance](https://www.anthropic.com/engineering/building-effective-agents) |
+| Workflow logic | Orchestrator and durable state | Retries, branching, stopping conditions, and approval state are business flow. Microsoft recommends clear agent boundaries and hybrid designs where deterministic orchestration handles the overall workflow. [Azure’s application design guidance](https://learn.microsoft.com/en-us/azure/well-architected/ai/application-design) |
+| Policy decision | Policy decision point | The policy sees a complete snapshot and returns a verdict for this intervention. The Agent Control Specification describes this as a stateless, deterministic runtime owned separately from the host loop. [ACS security model](https://github.com/microsoft/agent-governance-toolkit/blob/main/policy-engine/docs/security-model.md) |
+| Tool execution | Tool gateway and handler | The gateway should execute only the exact call that was evaluated. MCP represents a call with a tool name and arguments, and warns clients to treat tool annotations as untrusted unless they come from trusted servers. [MCP tools](https://modelcontextprotocol.io/specification/2025-11-25/server/tools) |
+| Backend authorization | The business backend | The backend still checks identity, tenant, resource, and service authority. A policy service can decide, but it does not replace access control, tenant isolation, or credential enforcement. [ACS security model](https://github.com/microsoft/agent-governance-toolkit/blob/main/policy-engine/docs/security-model.md) |
+
+AWS makes the same boundary visible in its enterprise reference architecture by separating model access, secure tool execution with authorization, and knowledge access. [AWS Prescriptive Guidance](https://docs.aws.amazon.com/prescriptive-guidance/latest/govern-architect-agentic-ai/enterprise-architecture.html)
+
+## Which scorecard tells you whether to split the layer?
+
+Score each dimension from 0 to 2. Zero favors an embedded check. Two favors a separate decision point.
+
+| Dimension | 0 points | 1 point | 2 points |
+| --- | --- | --- | --- |
+| Policy change and ownership | Rare changes, same deploy owner | Reviewed separately, released with workflow | Independent owner or frequent policy releases |
+| Enforcement topology | One controlled call path | A few paths | Parallel workers, retries, replay, direct or multi-service paths |
+| Consequence of bypass | Read-only or easily reversible | Recoverable business action | Money, tenant isolation, sensitive data, or durable side effect |
+| Approval and audit | No approval, ordinary logs | Reviewable event log | Approval replay, expiry, or audit evidence is part of the control |
+| Context sensitivity | Static tool permission | User or resource context | Actor, tenant, resource, policy version, and exact arguments all matter |
+
+Use the total as a scope decision, not a compliance score:
+
+- **0-3:** keep the check in application code and keep backend authorization.
+- **4-6:** centralize the policy module and add a gateway seam before adding another service.
+- **7-10:** use a separate policy decision point invoked by a mandatory gateway.
+
+Here’s the veto criterion: if a bypass can cause a costly or irreversible action and the workflow has more than one execution path, an agent-loop-only check is not enough. That criterion is more useful than asking whether the system has one agent or five.
+
+The synthetic refund workflow scored 9/10. It had multiple paths, a money-moving action, approval replay, and context-sensitive decisions. It therefore went to the separate-policy branch.
+
+## What did the bypass test actually show?
+
+The harness compared two designs against the same eight cases. The adversarial cases are T1 through T7.
+
+| ID | Case | Expected | Embedded | Separate gateway plus PDP | Pass condition |
+| --- | --- | --- | --- | --- | --- |
+| T0 | Baseline allowed call | allow | allow | allow | Both allow the normal case |
+| T1 | Direct call, high amount, no approval | deny or escalate | allow | escalate | No direct path executes silently |
+| T2 | Parallel calls, one changed tenant | one allow, one deny | allow, allow | allow, deny | Each concrete call is evaluated |
+| T3 | Retry after role revocation | deny | allow, allow | deny | Retry sees current actor context |
+| T4 | Tenant changed after approval | deny or escalate | allow | escalate | Approval is bound to the reviewed tenant |
+| T5 | Approval replayed for another resource under policy-v2 | deny or escalate | allow | deny | Approval is bound to resource and policy version |
+| T6 | Amount mutated from 40 to 400 after evaluation | deny or escalate | allow | escalate | Evaluated arguments cannot drift |
+| T7 | Raw executor path skips the gateway | deny | allow | deny from backend authorization | The backend rejects calls without gateway authority |
+
+The surprising veto is T7. Adding a policy service did not solve it. The passing architecture had to remove direct executor access and make the gateway mandatory. ACS calls an uninstrumented path outside its guarantee, and it explicitly says backend authorization remains necessary. [ACS security model](https://github.com/microsoft/agent-governance-toolkit/blob/main/policy-engine/docs/security-model.md)
+
+The separate design also follows the control points described by Azure: a gateway can centralize identity-based authorization, user-context propagation, and request filtering. [Azure AI application design](https://learn.microsoft.com/en-us/azure/well-architected/ai/application-design)
+
+## What is the smallest architecture that passed?
+
+For this workflow, it is five components with narrow responsibilities:
+
+1. **Model:** proposes a typed tool call. It has no backend credential.
+2. **Workflow state:** records the run, retry count, actor, tenant, approval state, and workflow version.
+3. **Policy gateway:** canonicalizes the exact tool call, invokes the policy decision point, and rejects unknown or changed context.
+4. **Approval service:** issues an approval bound to actor, tenant, resource, amount, tool, policy version, and an expiry.
+5. **Tool plus backend:** executes only the gateway-approved call, then performs backend authorization again.
+
+The gateway must sit on every path: synchronous calls, parallel workers, retries, replays, and manual recovery. The host must evaluate each concrete parallel invocation rather than evaluating a batch label. That matches the ACS integration invariant for parallel tool calls and approval binding. [ACS security model](https://github.com/microsoft/agent-governance-toolkit/blob/main/policy-engine/docs/security-model.md)
+
+If your workflow has one synchronous path and a reversible read-only action, this is probably too much. Start with a typed policy module next to the workflow and write the same bypass cases before splitting the deployment. The scorecard is meant to prevent policy infrastructure from becoming architecture theater.
+
+## When is an embedded policy layer still the right choice?
+
+Keep policy embedded when all of these are true:
+
+- one application owns the only execution path;
+- the handler receives the current actor and tenant context;
+- retries re-check policy instead of replaying a boolean;
+- approval is not being used as a reusable authorization token;
+- the backend authorizes the resource independently;
+- policy changes ship with the workflow and the bypass cost is low.
+
+That design can be secure. “Separate” is not a synonym for “safe.” It adds a network boundary, availability dependency, deployment surface, and a new integration contract. Microsoft’s guidance also warns that extra agent layers add latency and complicate testing, which is why the decision should follow enforcement topology and failure cost. [Microsoft’s application design guidance](https://learn.microsoft.com/en-us/azure/well-architected/ai/application-design)
+
+In building TryUncle, I have to treat watching a screen and acting in time as a product constraint. That is a useful reminder that approval and policy checks have a latency budget too. The locked fact is about TryUncle’s design, not a benchmark of this policy test. [TryUncle](https://tryuncle.com)
+
+## How should you run the test on your workflow?
+
+Use the same test shape before introducing a policy service:
+
+1. Freeze a policy and workflow version.
+2. Write one normal tool call with actor, tenant, resource, arguments, and approval state.
+3. Record the expected verdict before running the case.
+4. Send the call through the normal loop, then repeat it through every worker, retry, replay, and direct path.
+5. Change exactly one fact after evaluation: tenant, resource, role, policy version, approval, or argument.
+6. Require a fresh decision on the exact call immediately before execution.
+7. Confirm backend authorization independently rejects calls that lack the required service or tenant authority.
+
+The artifact to keep is not a screenshot of a policy dashboard. It is a table with versions, context, tool calls, approvals, expected verdicts, observed verdicts, and the path that enforced each decision.
+
+## What should you do with the result?
+
+If the embedded design passes every adversarial case and your score is 3 or below, keep the policy in application code. Add tests around the invariants you just proved.
+
+If it fails on parallel calls, retries, context changes, approval replay, or direct paths, fix the topology before tuning the model. A separate policy decision point becomes justified when the workflow needs one place to enforce the same decision across those paths.
+
+If you want a broader architecture review, Marius Manolachi helps existing people become capable of building AI products on their own work. Start with the canonical guide on [when to use an AI agent](/blog/when-to-use-an-ai-agent), then compare this test with the guidance on [idempotent tools for AI agents](/blog/how-to-design-idempotent-tools-for-ai-agents) and [AI workflow audit trails](/blog/how-to-add-an-audit-trail-to-an-ai-workflow). You can also see the broader way Marius works on [Learn AI](/learn-ai).
