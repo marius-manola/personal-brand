@@ -1,0 +1,188 @@
+---
+title: 'How to Facilitate an AI Evaluation Workshop With Non-Technical Reviewers'
+date: '2026-09-05'
+updated: '2026-09-05'
+excerpt: 'Run a non-technical AI evaluation workshop with a real work sample, clear vetoes, independent scoring, calibrated disagreement, and a traceable scope decision.'
+answer: 'Facilitate the workshop around one sanitized work sample, a source of truth, two contrasting outputs, and a plain-language rubric. Have reviewers score independently, calibrate disagreements against the source, and record a ship, hold, or reduce-scope decision. The exception is high-risk work, where this exercise is only a precursor to qualified review and stronger controls.'
+targetQuery: 'how to facilitate an AI evaluation workshop with non-technical reviewers'
+queryAliases:
+  - 'AI evaluation workshop for business reviewers'
+  - 'how to run an AI eval workshop'
+  - 'non-technical AI output review workshop'
+intent: 'implementation'
+funnel: 'consideration'
+cluster: 'evaluation'
+parent: '/blog/how-to-evaluate-an-ai-agent'
+contentType: 'decision-tool'
+kind: 'satellite'
+sourceableAtom: 'A bounded workshop packet and pilot decision record show how a polished AI output can be held for contradicting a source fact, while a less polished output is reduced to internal-draft scope when its missing owner and due date are made explicit.'
+evidenceType: 'reusable-artifact-and-learning-exercise'
+evidenceBasis: 'Completed synthetic workshop packet with source of truth, two outputs, plain-language rubric, reviewer role cards, individual scoring round, calibration script, disagreement and adjudication log, and final decision record. Documented self-facilitated pilot on 2026-08-23. Qualitative observation only, with no generalized learner or performance rate.'
+tags:
+  - 'AI evaluation'
+  - 'AI reliability'
+  - 'Facilitation'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-21'
+sources:
+  - 'https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents'
+  - 'https://learn.microsoft.com/en-us/agents/agent-evaluation/evaluation-checklist'
+  - 'https://learn.microsoft.com/en-us/azure/foundry/observability/how-to/human-evaluation'
+  - 'https://www.nist.gov/ai-measurement-and-evaluation'
+  - 'https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence'
+  - 'https://developers.openai.com/api/docs/guides/evals'
+  - 'https://pair.withgoogle.com/guidebook-v2/workshop/Guidebook-Workshop-Facilitator-Guide.pdf'
+  - 'https://mariusmanolachi.com/learn-ai'
+faq:
+  - q: 'How many reviewers should join an AI evaluation workshop?'
+    a: 'Start with two domain lenses on one bounded case, then add reviewers when the decision risk or disagreement pattern requires them. The packet is designed to expose missing criteria before you scale the review operation.'
+  - q: 'Should non-technical reviewers see which model produced each output?'
+    a: 'No. Label outputs A and B for the individual round. Reveal model or prompt details only after reviewers have recorded their evidence and decisions, so the discussion stays on the work and the rubric.'
+cover: '/blog/how-to-facilitate-an-ai-evaluation-workshop-with-non-technical-reviewers-hero.webp'
+coverAlt: 'Illustration of a non-technical AI evaluation workshop turning two outputs into a recorded release decision'
+draft: false
+---
+
+An AI evaluation workshop should end with a product decision, not a room full of opinions.
+
+In the bounded pilot documented for this article, reviewers held a polished output because it called an unresolved renewal “on track.” They allowed a less polished output only as an internal draft because it exposed a missing owner and due date.
+
+When I taught product managers who moved from writing specs to building and shipping products, the recurring failure was not a lack of technical vocabulary. It was that nobody could say what done meant ([Marius’s AI learning path](https://mariusmanolachi.com/learn-ai)). That is the problem this workshop is built to solve.
+
+## Start with one work sample, not an eval lecture
+
+Use one sanitized or synthetic work sample, give reviewers the source of truth, and ask them to compare two outputs against a plain-language rubric. The workshop is successful when reviewers can explain a decision from evidence, not when they can define precision or model grading.
+
+This sequence follows the useful parts of several evaluation guides. Anthropic separates a task, a trial, a grader, a transcript, and an outcome. Microsoft describes a test case as a prompt, an expected response or assertion, acceptance criteria, and a test method. OpenAI’s basic loop is to describe the task, run it with inputs, then analyze and iterate. See [Anthropic’s evaluation definitions](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents), [Microsoft’s evaluation checklist](https://learn.microsoft.com/en-us/agents/agent-evaluation/evaluation-checklist), and [OpenAI’s eval loop](https://developers.openai.com/api/docs/guides/evals).
+
+Your packet needs eight pieces:
+
+1. A synthetic or sanitized work sample.
+2. A source of truth that a domain reviewer can read.
+3. Two contrasting outputs labeled A and B.
+4. A rubric with separate vetoes and quality dimensions.
+5. Role cards that tell reviewers what to notice.
+6. An individual scoring round before discussion.
+7. A calibration script and disagreement log.
+8. A final release decision record.
+
+Keep the decision logic in a small configuration file. It is not an automated judge. It tells the facilitator what to load, what blocks scope, and which evidence to retain.
+
+```yaml
+fixture: renewal-note-synthetic
+source_of_truth: renewal-status-table
+outputs: [A, B]
+vetoes:
+  - id: V1
+    when: output contradicts a source fact
+    decision: hold
+  - id: V2
+    when: output invents a commitment, risk, owner, date, or action
+    decision: hold
+quality_dimensions: [coverage, evidence, actionability, format]
+test:
+  method: independent-score-then-calibrate
+  reviewer_lenses: [customer-success, operations]
+  retain: [source_row, disputed_sentence, score, decision, owner, due_date]
+scope:
+  no_veto: internal_draft
+  missing_owner_or_due_date: reduce_scope
+```
+
+Test the configuration with the two labeled outputs. Hide model and prompt details, have both reviewer lenses score independently, then require each disputed sentence to cite a source row before calibration. The observed output from the 2026-08-23 pilot was `A -> hold` for contradicting Acme's unresolved budget review and `B -> reduce_scope` because its next action had no confirmed owner or due date. The result is bounded to this synthetic fixture.
+
+Keep the task narrow enough that reviewers can finish it in one sitting. If the source of truth is vague, stop. You are not ready to evaluate the AI. You are still discovering the work.
+
+This workshop sits beneath the [AI evaluation pillar](/blog/ai-evaluation-pillar). For the broader release gate, continue to [How to Evaluate an AI Agent](/blog/how-to-evaluate-an-ai-agent); for a single-output practice exercise, use [How to Grade an AI Output Against a Rubric](/blog/how-to-grade-an-ai-output-against-a-rubric).
+
+## Make hidden work knowledge explicit
+
+Turn tacit judgment into two kinds of criteria: vetoes that block release, and quality dimensions that describe how good an acceptable output is. Do not blend them into one five-point score.
+
+Here is the synthetic fixture used in the pilot. It asks an AI system to create a two-line renewal note for four fictional accounts. The source says what is known, what is unresolved, and who owns the next step.
+
+| Source fact | Acceptable language | Forbidden inference |
+| --- | --- | --- |
+| Acme’s budget review is unresolved | “Budget review is unresolved” | “On track for renewal” |
+| Bluebird accepted a product review | “Product review is accepted for September 3” | “Customer is at risk because they have not replied” |
+| Cedar received security documents but has not responded | “Waiting for a response; owner and date need confirmation” | “Security review is complete” |
+| Delta has a healthy account and a scheduled review | “Healthy; review scheduled for September 12 with Omar” | A new commitment not in the source |
+
+The rubric used two vetoes:
+
+- V1: the output contradicts the source of truth.
+- V2: the output invents a commitment, risk signal, owner, date, or action.
+
+Then it scored four dimensions from 0 to 2: coverage, evidence, actionability, and format. A veto meant Hold. Without a veto, the output could be used as an internal draft only when evidence and actionability were at least present enough for a reviewer to see the remaining uncertainty. External sending required a separate approval gate.
+
+This separation matters because “useful next action” cannot repair a false status. It also keeps reviewers from arguing over style when the real issue is authority or truthfulness.
+
+NIST makes the larger point: each AI characteristic needs its own measurements, and context changes how a component should be evaluated. Its Generative AI Profile recommends iterative, documented pre-deployment testing that reflects representative actors, limits, risks, and impacts. Read [NIST’s measurement and evaluation guidance](https://www.nist.gov/ai-measurement-and-evaluation) and the [NIST Generative AI Profile](https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence) before reusing this rubric for higher-risk work.
+
+## Run the scoring round before discussion
+
+Give reviewers the source, the two outputs, and their role cards. Ask them to score alone before anyone explains what the “right” answer is.
+
+The 45-minute version of the packet is:
+
+| Minutes | Activity | Output |
+| ---: | --- | --- |
+| 5 | Frame the task and the decision | Shared scope and risk boundary |
+| 10 | Read the source of truth | Notes about known, unknown, and forbidden claims |
+| 10 | Score A and B independently | Two completed review sheets |
+| 10 | Calibrate disagreements | Rewritten criteria or recorded disagreement |
+| 5 | Adjudicate vetoes and remaining uncertainty | Decision record |
+| 5 | Assign the next repair | Owner, due date, and scope condition |
+
+Use two lenses for a small pilot. The customer-success reviewer checks whether the status and risk language match what an operator could responsibly say. The operations reviewer checks whether someone can act without guessing who does what by when. The facilitator does not score. The facilitator enforces the silent round, asks for source rows, and records the decision.
+
+This structure is consistent with Google’s facilitator guidance, which describes customizable and self-facilitated workshops and recommends splitting individual work from group sharing when useful. It also fits Microsoft’s manual-review workflow: send the test prompt, review the response with human judgment, and record the result. See [Google’s facilitator guide](https://pair.withgoogle.com/guidebook-v2/workshop/Guidebook-Workshop-Facilitator-Guide.pdf) and [Microsoft’s manual evaluation guidance](https://learn.microsoft.com/en-us/agents/agent-evaluation/evaluation-checklist).
+
+Do not start by showing the model name, prompt history, or a technical score. Those details may be useful later. They are not the reviewer’s job in the first round.
+
+## Turn disagreement into a release decision
+
+Resolve disagreement by returning to the source of truth, not by averaging scores. Ask whether the dispute is a veto, a quality preference, or an ambiguous criterion that needs rewriting.
+
+Use this calibration script:
+
+1. “Read the decision first. Do we have a veto, or only a quality preference?”
+2. “Point to the exact source row that supports the disputed sentence.”
+3. “Would two domain reviewers reach the same pass or hold decision from this wording?”
+4. “If the criterion is ambiguous, rewrite it in plain language before rescoring.”
+5. “What must change before the release scope can expand?”
+
+The pilot produced two useful disagreements:
+
+| Dispute | What the reviewers saw | Adjudication |
+| --- | --- | --- |
+| Acme status | One lens treated “on track” as an immediate veto. The other first treated it as a weak quality score because the suggested next action might help. | Veto. The source says the budget decision is unresolved and records no renewal commitment. A useful action does not repair a contradictory status. |
+| Cedar next action | One lens accepted “follow up” as reasonable. The other marked it incomplete. | No veto, but actionability remains partial. The output stays internal-draft only because the owner and due date are not confirmed. |
+
+![Illustration of a disagreement log connecting source evidence, veto classification, adjudication, and a reduce-scope release record](/blog/how-to-facilitate-an-ai-evaluation-workshop-with-non-technical-reviewers-inline-2.webp)
+
+Anthropic recommends reading transcripts and grades to tell a genuine system failure from a task or grader problem, and it describes calibrating model-based graders against human experts. For this workshop, the equivalent is to retain the review sheet, disputed sentence, source row, rewritten criterion, and final decision. Microsoft’s human-evaluation workflow likewise keeps the prompt, response, questions, reviewer answers, and timestamp available for later analysis. See [Anthropic’s guidance on graders and transcript review](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents) and [Microsoft’s human-evaluation record](https://learn.microsoft.com/en-us/azure/foundry/observability/how-to/human-evaluation).
+
+The final record from this fixture was:
+
+- Output A: Hold. It contradicts the source on Acme and invents a risk escalation for Bluebird.
+- Output B: Reduce scope. Allow internal drafts with human approval, but do not send externally.
+- Repair required: add a required owner and due-date field, preserve “unknown” when the source is silent, and attach a source reference to each status.
+
+That is a product decision. “B scored higher” is not.
+
+## Use the pilot as a packet check, not a benchmark
+
+The pilot was self-facilitated on 2026-08-23 with the synthetic fixture, two reviewer lenses, an independent scoring round, calibration, and adjudication. The observation is bounded: the packet made one disagreement visible and turned it into a narrower release scope.
+
+It did not measure reviewer agreement, model accuracy, learner improvement, or production readiness. It also did not prove that the rubric transfers to another domain. The result is evidence that the packet can carry a review conversation and retain a decision for this fixture.
+
+That limitation is a feature. A small workshop should expose missing acceptance criteria before a team pretends it has a trustworthy benchmark. If the exercise produces only unanimous scores and no evidence notes, check whether the rubric is too vague or the outputs are too easy.
+
+## Know when the workshop is only a precursor
+
+Do not use this packet as the only control for medical, legal, financial, safety-critical, privacy-sensitive, or externally consequential work. Add qualified reviewers, stronger evidence requirements, approval controls, and risk-specific tests. NIST explicitly warns that evaluation methods can fail when they do not reflect the deployment context.
+
+Also pause when there is no source of truth, no clear owner of the decision, or no way to observe the outcome. In Anthropic’s terms, a final answer is not the same thing as the outcome in the environment. In Microsoft’s terms, acceptance criteria must say what passes and what does not. If the team cannot write those down, the next workshop is a work-definition session.
+
+If you want to turn this packet into a review practice your team can own, [Marius Manolachi’s AI learning path](/learn-ai) is the next step. The article is complete without it: start with one work sample, keep the first round independent, and leave the room with a decision someone can audit.
