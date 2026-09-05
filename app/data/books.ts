@@ -26,6 +26,14 @@ export const books: Book[] = [
     coverImage: "/beginningofinfinity.jpg"
   },
   {
+    title: "Man's Search for Meaning",
+    author: "Viktor E. Frankl",
+    description: "",
+    category: "Philosophy & Life",
+    link: "https://en.wikipedia.org/wiki/Man%27s_Search_for_Meaning",
+    coverImage: "/mans-search-for-meaning.png"
+  },
+  {
     title: "Hackers & Painters",
     author: "Paul Graham",
     description: "",
@@ -131,4 +139,4 @@ export const books: Book[] = [
   }
 ];
 
-export const categories = Array.from(new Set(books.map(book => book.category))); 
+export const categories = Array.from(new Set(books.map(book => book.category)));
