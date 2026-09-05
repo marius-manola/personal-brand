@@ -1,0 +1,222 @@
+---
+title: "When Should an AI Workflow Own a Decision Versus Prepare One?"
+date: "2026-09-05"
+updated: "2026-09-05"
+excerpt: "A 32-case comparison shows when an AI workflow should prepare evidence, recommend an action, require approval, or execute within policy."
+answer: "An AI workflow should own a decision only when the consequence is low, the scope is narrow, the evidence is machine-checkable, the action is reversible, and a deterministic policy can enforce a safe fallback. Otherwise let it prepare evidence, recommend an action, or wait for an authorized owner. Irreversible, high-impact, and externally binding actions remain human-owned."
+targetQuery: "When should an AI workflow own a decision versus prepare one?"
+queryAliases:
+  - "when should an AI workflow make a decision"
+  - "AI workflow decision authority"
+  - "promote an AI workflow recommendation to autonomous execution"
+intent: "informational"
+funnel: "consideration"
+cluster: "architecture"
+parent: "/blog/when-to-use-an-ai-agent"
+contentType: "decision-tool"
+kind: "satellite"
+sourceableAtom: "A dated 32-case policy harness and worked decision-rights matrix showing where prepare, recommend, approve-then-execute, and bounded autonomous execution fit."
+evidenceType: "reproducible test plus worked decision-rights artifact"
+evidenceBasis: "One dated 2026-08-23 deterministic policy harness evaluated 32 anonymized cases in four consequence classes across four authority modes, then applied the artifact to TryUncle's live screen-annotation decision. No provider API or real side effect was used."
+tags:
+  - "AI architecture"
+  - "AI agents"
+  - "AI governance"
+  - "AI evaluation"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec04-bp02.html"
+  - "https://www.imda.gov.sg/-/media/imda/files/about/emerging-tech-and-research/artificial-intelligence/mgf-for-agentic-ai.pdf"
+  - "https://www.imda.gov.sg/resources/press-releases-factsheets-and-speeches/factsheets/2026/updated-model-ai-governance-framework-for-agentic-ai"
+  - "https://airc.nist.gov/airmf-resources/airmf/appendices/app-c-ai-risk-management-and-human-ai-interaction/"
+  - "https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/"
+  - "https://docs.aws.amazon.com/step-functions/latest/dg/tutorial-human-approval.html"
+faq:
+  - q: "Does a human approval gate make the human the decision owner?"
+    a: "No. The approval gate is a control point. The decision owner is the named person or policy authority accountable for deciding the safe band, evidence requirement, and fallback. A reviewer can approve an action without owning the policy that allowed it."
+  - q: "Can an AI workflow own an irreversible decision?"
+    a: "Usually it should not. An irreversible or high-impact action should at most be recommended or approved through a bound, auditable authorization path. The exception is a separately governed policy decision that has explicitly accepted the consequence, which is uncommon for external, financial, access, deletion, or eligibility actions."
+  - q: "What should an approval packet contain?"
+    a: "Show the exact proposed action, normalized arguments, target, evidence sources, expected consequence, policy tier, expiry, named approver, and safe fallback. The executor must re-check that the approved action still matches the live request before committing it."
+  - q: "When can a team promote a recommendation to bounded autonomy?"
+    a: "Promote it only when the consequence is low, the scope is narrow, the evidence is machine-checkable, the action is reversible or contained, the policy is deterministic, and held-out cases show that the fallback catches ambiguity. Model confidence alone is not a promotion rule."
+cover: "/blog/when-should-an-ai-workflow-own-a-decision-versus-prepare-one-hero.webp"
+coverAlt: "Illustration of an AI workflow branching into preparation, recommendation, approval, and bounded execution"
+draft: false
+---
+
+Most teams ask whether an AI workflow should be autonomous. That is too coarse a question. The same workflow may safely own a low-risk presentation decision, recommend a customer-facing action, and stop before an irreversible change.
+
+I ran a bounded comparison to make that distinction concrete. The result is a decision-rights artifact, not a claim that one model can safely run every task.
+
+![Illustration of an AI workflow branching into four decision-rights states](/blog/when-should-an-ai-workflow-own-a-decision-versus-prepare-one-inline-1.webp)
+
+## Observed results: approval is broad, autonomy is narrow
+
+In the 32-case policy harness, approve-then-execute fit 31 cases. Bounded autonomous execution fit 18, but exceeded the safe authority band in 14. Prepare fit 13, and recommend fit 18.
+
+| Mode | Fit | Under-authorized | Over-authorized | Best use |
+| --- | ---: | ---: | ---: | --- |
+| Prepare | 13/32 | 19 | 0 | Gather and package evidence when a decision owner still needs to frame the choice. |
+| Recommend | 18/32 | 14 | 0 | Select an option and explain it when a human must decide. |
+| Approve-then-execute | 31/32 | 1 | 0 | Commit a consequential action after an authorized person approves the exact proposal. |
+| Bounded autonomous | 18/32 | 0 | 14 | Execute narrow, low-consequence actions inside a deterministic policy band. |
+
+The surprising part is not that approval fits many cases. It is that a single autonomy setting is the wrong abstraction. Read-only work made all four modes safe. High-impact work made bounded autonomy unsafe in every fixture. Reversible internal changes sat between those extremes.
+
+The full case set and raw outcomes are below. The cases are anonymized fixtures, not client records.
+
+## How the comparison was run
+
+I compared four authority modes against 32 fixed, anonymized fixtures: eight read-only cases, eight reversible internal changes, eight external communications, and eight high-impact actions. Each case ran once under each mode, for 128 deterministic case-mode evaluations. A mode fit when it completed the case without exceeding its stated maximum authority. The harness used mocked tools and no-op writes, so no provider API or real side effect was involved.
+
+## What does it mean for a workflow to own a decision?
+
+An AI workflow owns a decision when the runtime, not a person in the loop, is authorized to select and commit an action within a defined policy boundary. The policy owner still owns the boundary.
+
+That distinction matters. NIST describes human-AI configurations from fully manual to fully autonomous and says human roles and responsibilities need to be clearly defined and differentiated. ([NIST AI RMF Appendix C](https://airc.nist.gov/airmf-resources/airmf/appendices/app-c-ai-risk-management-and-human-ai-interaction/)) Ownership is therefore about authority over an effect, not about whether a model generated the text that led to it.
+
+An approval gate is not the same thing as a decision owner. The gate pauses execution. The decision owner defines the consequence class, evidence requirement, safe maximum, and fallback. AWS makes the same separation operational by recommending deterministic risk classification, scoped approval, durable context, timeout behavior, escalation, and approval logs. ([AWS Agentic AI Lens](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec04-bp02.html))
+
+## The four authority states
+
+Use the least authority that still completes the reader's real job.
+
+| State | The workflow may | It may not | Choose it when |
+| --- | --- | --- | --- |
+| Prepare | Retrieve, validate, summarize, compare, and package evidence | Choose or commit the action | The evidence is incomplete, ambiguity is material, or the consequence is high. |
+| Recommend | Choose an option and explain the reasons | Commit the action | The task needs judgment but a named human should own the decision. |
+| Approve-then-execute | Propose one normalized action and execute after affirmative approval | Change the proposal after approval or bypass policy | The action is consequential but a qualified reviewer can assess its exact effect. |
+| Bounded autonomous execution | Execute inside a narrow, deterministic band | Expand scope, cross a privilege boundary, or continue after failed checks | The consequence is low, the action is reversible or contained, and fallback is safe. |
+
+OpenAI describes agents as systems that independently accomplish tasks with a model, tools, and instructions. Its guide also separates data tools from action tools and recommends evaluating accuracy, cost, and latency rather than assuming every task needs the most capable model. ([OpenAI's practical guide to building agents](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/)) That is useful architecture advice, but it does not decide who should own a particular effect. The matrix does.
+
+## When should an AI workflow prepare evidence?
+
+Choose prepare when the workflow can improve the facts without safely choosing the consequence. Preparation is the right endpoint for read-only investigation, ambiguous identity, missing evidence, and decisions where the act of framing the choice belongs to a human.
+
+The preparation packet should contain:
+
+1. The question or trigger that started the run.
+2. The evidence retrieved, with source and timestamp.
+3. The relevant uncertainty or missing field.
+4. The candidate actions, if listing them does not imply a recommendation.
+5. The consequence class, named decision owner, and safe fallback.
+
+In the test, prepare fit all eight read-only cases and four high-impact cases. It was under-authorized for every reversible write because collecting evidence did not complete the requested state change. That is not a model failure. It is an authority boundary doing its job.
+
+Use prepare when the human's valuable work is deciding what the evidence means. Do not use it as a permanent escape hatch for a workflow whose evidence and fallback are already good enough for a narrow action. The cost is hidden queue work and an owner who must repeatedly turn a well-formed packet into a routine commit.
+
+## When should an AI workflow recommend an action?
+
+Choose recommend when the workflow can make a useful judgment, but the consequence should remain with a named human owner. A recommendation must be more than a confidence score. It needs the selected option, the evidence that supports it, the main uncertainty, and the consequence if it is wrong.
+
+Recommendation fit the test's low-stakes customer-email draft and the high-impact cases where a human still needed to approve the effect. It was under-authorized for actions that actually sent messages or changed internal state. It never exceeded the safe band because it could not commit anything.
+
+This mode is especially useful when a product team is learning the shape of the decision. Marius Manolachi teaches product managers who moved from writing specifications to building and shipping products and automating work around them. The recurring lesson is practical: define what done means before arguing about how much autonomy the model deserves. The recommendation is only useful if the team can tell whether the chosen action was acceptable.
+
+## When should an AI workflow use approve-then-execute?
+
+Choose approve-then-execute for a consequential action that is specific enough to review and important enough to require affirmative authority. The approval must bind to the exact action, target, arguments, evidence, and expiry. The executor must re-check those values before the side effect.
+
+AWS Step Functions demonstrates this shape with a task token: the workflow pauses, an approval application presents the request, and the application resumes the task with success or failure. ([AWS Step Functions human approval](https://docs.aws.amazon.com/step-functions/latest/dg/tutorial-human-approval.html)) The implementation can differ, but the boundary should remain outside the model's private reasoning.
+
+The test's approval mode fit seven of eight reversible cases, every external communication case, and every high-impact case. It was under-authorized for one narrow issue-label action whose policy band allowed bounded autonomous execution. That result does not mean every low-risk label needs a person. It means approval is a safe general control with a real throughput cost that this harness did not measure.
+
+Avoid a generic "approve everything" button. AWS warns that routing every action through review creates fatigue and rubber-stamp approvals. Give the reviewer the action, evidence, effect, and consequence, then add timeouts and a safe fallback when the reviewer is unavailable. ([AWS Agentic AI Lens](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec04-bp02.html))
+
+## When can an AI workflow execute within a bounded policy?
+
+Bounded autonomy is justified only when all of these conditions are true:
+
+- The consequence is low and local.
+- The scope is narrow and least-privilege.
+- The evidence is machine-checkable and current.
+- The action is reversible, idempotent, or contained in a safe environment.
+- A deterministic policy, not model confidence, decides eligibility.
+- The action has a timeout, audit event, and safe fallback.
+- The workflow cannot turn the permission into a wider grant.
+
+AWS recommends read-only operations as a baseline for autonomous progress, while low-risk writes and higher-risk operations receive stronger controls. IMDA's current framework uses severity, reversibility, and feasibility of human oversight as factors in assigning different autonomy levels. ([AWS](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec04-bp02.html), [IMDA updated framework factsheet](https://www.imda.gov.sg/resources/press-releases-factsheets-and-speeches/factsheets/2026/updated-model-ai-governance-framework-for-agentic-ai))
+
+In the harness, bounded autonomy fit all read-only cases, six reversible cases, four external cases, and none of the high-impact cases. It over-authorized two reversible internal changes, four external actions, and all eight high-impact actions. The boundary is therefore narrower than "the model seems confident." It is closer to "the runtime can prove this effect is small, scoped, and recoverable."
+
+## The full 32-case fixture and raw outcomes
+
+The minimum and maximum columns define the allowed authority band. `P` means prepare, `R` recommend, `A` approve-then-execute, and `E` bounded autonomous execution. A mode is `fit` only when it is sufficient without exceeding the maximum.
+
+<details>
+<summary>Open the anonymized case set and raw outcomes</summary>
+
+| ID | Class | Case | Band | P | R | A | E |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| RP-01 | Read-only | Summarize current sprint status | P-E | fit | fit | fit | fit |
+| RP-02 | Read-only | Identify duplicate error reports | P-E | fit | fit | fit | fit |
+| RP-03 | Read-only | Extract launch blockers | P-E | fit | fit | fit | fit |
+| RP-04 | Read-only | Compare two design documents | P-E | fit | fit | fit | fit |
+| RP-05 | Read-only | Retrieve latest evaluation result | P-E | fit | fit | fit | fit |
+| RP-06 | Read-only | Draft an incident timeline | P-E | fit | fit | fit | fit |
+| RP-07 | Read-only | List open approvals | P-E | fit | fit | fit | fit |
+| RP-08 | Read-only | Inspect API usage | P-E | fit | fit | fit | fit |
+| RC-01 | Reversible | Add an issue label | E-E | under | under | under | fit |
+| RC-02 | Reversible | Move an issue to review | A-E | under | under | fit | fit |
+| RC-03 | Reversible | Create a proposed-change branch | A-E | under | under | fit | fit |
+| RC-04 | Reversible | Update an internal status with undo | A-E | under | under | fit | fit |
+| RC-05 | Reversible | Archive a duplicate document | A-A | under | under | fit | over |
+| RC-06 | Reversible | Change sandbox configuration | A-E | under | under | fit | fit |
+| RC-07 | Reversible | Add an internal CRM note | A-A | under | under | fit | over |
+| RC-08 | Reversible | Disable a sandbox flag | A-E | under | under | fit | fit |
+| EC-01 | External | Draft a customer email | R-E | under | fit | fit | fit |
+| EC-02 | External | Send an internal reminder | A-E | under | under | fit | fit |
+| EC-03 | External | Send a low-stakes customer update | A-E | under | under | fit | fit |
+| EC-04 | External | Publish a public release note | A-A | under | under | fit | over |
+| EC-05 | External | Send an invoice correction | A-A | under | under | fit | over |
+| EC-06 | External | Reply without a promise | A-E | under | under | fit | fit |
+| EC-07 | External | Send a candidate rejection | A-A | under | under | fit | over |
+| EC-08 | External | Message a regulator or press contact | P-A | fit | fit | fit | over |
+| IH-01 | High-impact | Delete customer data | P-A | fit | fit | fit | over |
+| IH-02 | High-impact | Recommend a large refund | R-A | under | fit | fit | over |
+| IH-03 | High-impact | Change production permissions | P-A | fit | fit | fit | over |
+| IH-04 | High-impact | Publish a pricing change | R-A | under | fit | fit | over |
+| IH-05 | High-impact | Make a material eligibility decision | P-A | fit | fit | fit | over |
+| IH-06 | High-impact | Execute a financial transfer | R-A | under | fit | fit | over |
+| IH-07 | High-impact | Terminate a customer account | R-A | under | fit | fit | over |
+| IH-08 | High-impact | Merge production records without undo | P-A | fit | fit | fit | over |
+
+</details>
+
+This table is deliberately simple enough to reuse. Replace the fixture text with your own anonymized cases, keep the band rule, and record the reason whenever a case moves from recommend to approval or from approval to bounded autonomy.
+
+## Worked decision-rights artifact for TryUncle
+
+Marius Manolachi is building TryUncle, an AI agent that watches the screen and annotates it live. I applied the matrix to one decision in that product workflow: whether the system may render a candidate annotation for the control it believes the user needs.
+
+| Field | Decision |
+| --- | --- |
+| Named decision owner | Marius Manolachi for this worked artifact. Replace this with the actual accountable product owner before production. |
+| Consequence class | Low consequence, user-visible, reversible presentation only. No click, setting change, message, or external record update. |
+| Authority | Bounded autonomous execution for the annotation step only. Recommend if the workflow must choose among materially different user actions. |
+| Evidence packet | Current screen frame, identified application and page, target region, proposed label, timestamp and expiry, ambiguity flag, and annotation-only policy check. |
+| Safe fallback | Do not render the annotation. Keep the diagnostic event for review or ask for clarification through the product's normal interaction. |
+| Promotion rule | Require held-out checks for false targeting, stale frames, user dismissals, and fallback behavior before widening the policy band. |
+
+The product workflow may own this narrow presentation decision while the named product owner still owns the authority boundary. That is the answer to the query in operational form: AI can own a bounded decision without owning the policy that grants the authority.
+
+This is a design artifact applied to a real product workflow, not a claim about TryUncle's current implementation.
+
+## Limitations and what we still do not know
+
+This was a one-pass policy harness, not a live deployment study. The 32 cases are representative fixtures, not a random production sample. The authority bands are explicit policy judgments. The model and runtime are recorded, but no provider API was called, so the test does not measure model accuracy, token cost, human review latency, or real-world failure frequency.
+
+The 31/32 approval result is a property of this matrix. It should not be read as a recommendation to put an approval gate in front of every action. The next test for a real team is to replace the fixtures with anonymized production traces, name the owner for each decision, measure review and correction time, and verify that timeout and fallback paths stop the side effect.
+
+We still do not know how these authority bands behave on a production distribution, how much review time each mode adds, or whether the same boundary holds across models and tools. Those questions need real traces and held-out tests. They are outside this artifact's claim.
+
+IMDA recommends meaningful human checkpoints and lifecycle controls. AWS recommends deterministic risk classification, narrowly scoped trust grants, durable decision context, timeouts, escalation, and approval logs. Those sources support the control design. The measured comparison above is Marius Manolachi's bounded policy artifact. ([IMDA](https://www.imda.gov.sg/resources/press-releases-factsheets-and-speeches/factsheets/2026/updated-model-ai-governance-framework-for-agentic-ai), [AWS](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec04-bp02.html))
+
+## The next useful move
+
+Take one real workflow and write one row for every decision that can change the outside world. Name the owner, consequence, evidence packet, minimum authority, maximum safe authority, and fallback. If you cannot fill one field, keep the workflow in prepare mode until you can.
+
+For the broader architecture context, read [when to use an AI agent](/blog/when-to-use-an-ai-agent) and the [AI agent state machine guide](/blog/how-to-design-an-ai-agent-state-machine). Marius Manolachi helps existing teams become capable of building AI products on their own work through AI consulting and AI tutoring. [Learn about that work](/learn-ai).
