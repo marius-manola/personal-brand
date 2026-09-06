@@ -1,0 +1,141 @@
+---
+title: "AI Product Manager Architecture Tradeoffs to Explain"
+date: "2026-09-06"
+updated: "2026-09-06"
+excerpt: "A practical matrix for comparing model calls, RAG, fixed workflows, and agents, including the questions a PM must take to engineering."
+answer: "An AI product manager should explain the choice as a tradeoff among path flexibility, data freshness, latency, cost, evaluation burden, permissions, failure containment, and fallback. Start with a direct model call for self-contained transformation, add RAG for changing authoritative context, use a fixed workflow for known steps, and reserve agents for open-ended multi-step work. The exception is any action or access boundary that requires engineering review."
+targetQuery: "what architecture tradeoffs should an ai product manager explain without an engineer"
+queryAliases:
+  - "ai architecture tradeoffs for product managers"
+  - "how should a product manager compare rag workflows and agents"
+intent: "informational architecture decision"
+funnel: "capability"
+cluster: "capability"
+parent: "/blog/what-to-learn-before-building-ai-agents"
+contentType: "decision-tool"
+kind: "satellite"
+sourceableAtom: "A worked architecture-review matrix for a read-only internal policy assistant, with a fixed-workflow decision and nine tabletop cases that show when simpler architecture wins and when engineering review is required."
+evidenceType: "reusable decision artifact plus worked decision artifact, supported by primary documentation and one bounded firsthand teaching observation"
+evidenceBasis: "Scenario matrix, explicit assumptions, nine tabletop cases, primary documentation from Google Cloud, Microsoft Azure, OpenAI, and Anthropic, plus locked firsthand observation F-pms."
+tags:
+  - "AI product management"
+  - "AI architecture"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://docs.cloud.google.com/architecture/choose-agentic-ai-architecture-components"
+  - "https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/rag/rag-solution-design-and-evaluation-guide"
+  - "https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/rag/rag-agentic"
+  - "https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/"
+  - "https://www.anthropic.com/engineering/building-effective-agents"
+  - "https://mariusmanolachi.com/learn-ai"
+cover: "/blog/ai-product-manager-architecture-tradeoffs-architecture-tradeoffs-hero.webp"
+coverAlt: "Illustration of four AI architecture paths converging on a product decision review"
+draft: false
+---
+
+When I taught product managers who went from writing specs to building and shipping the product, the hard part was rarely naming the model. It was deciding what the system should be allowed to do when the happy path breaks. That observation is bounded teaching experience, not a measured study, but it points to the right architecture conversation.
+
+This post belongs under [what to learn before building AI agents](/blog/what-to-learn-before-building-ai-agents). It gives you a matrix you can bring into a product review, then shows where the explanation ends and engineering judgment begins.
+
+## What are the four architecture choices?
+
+Start with the least flexible architecture that satisfies the job. A direct model call handles self-contained transformation. RAG adds a designed retrieval step for changing or private context. A fixed LLM workflow makes several steps explicit and testable. An agent lets the model choose tools and next steps at runtime.
+
+That ordering is not a maturity ladder. It is a set of tradeoffs. Anthropic distinguishes workflows, where code orchestrates predefined paths, from agents, where the model dynamically directs process and tool use. It recommends finding the simplest solution and adding complexity only when the task needs it. ([Anthropic](https://www.anthropic.com/engineering/building-effective-agents))
+
+Google Cloud makes the same decision boundary from another angle: agents suit open-ended, multi-step problems, while deterministic work can often use a more efficient and cost-effective approach. ([Google Cloud](https://docs.cloud.google.com/architecture/choose-agentic-ai-architecture-components))
+
+The question for a PM is not “Which architecture is most advanced?” It is “Which uncertainty am I paying to handle?”
+
+If the team has not yet framed the agent question at all, use the site's broader guide on [when to use an AI agent](/blog/when-to-use-an-ai-agent) first. This page starts one step later, with a concrete architecture review.
+
+## Which tradeoffs should a PM put on the review table?
+
+Use this compact matrix before anyone argues for a framework or an agent. The ratings are relative to the bounded scenario below, not universal benchmarks.
+
+| Option | Path flexibility | Freshness | Latency and cost | Evaluation | Permissions and failure containment | Fallback | When it wins | Evidence that changes the choice | PM asks engineering |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Direct model call | Low | Only supplied context | Simplest path; usually lowest overhead | Output checks | Fewest tool boundaries; weak grounding | Ask for context or hand off | Rewrite, classify, or draft from trusted input | Private or changing facts are required | Can the request be answered from supplied context alone? |
+| RAG | Moderate, with a designed search path | Good if the index refreshes and filters correctly | Search plus generation | Retrieval and grounded-answer checks | ACL-aware retrieval required; search failures need branches | Abstain, show safe source, or escalate | Read-only questions usually solved by one collection and one search | Multi-source routing, iterative search, or actions become common | How do freshness, ACL filters, empty results, and timeouts reach the app? |
+| Fixed LLM workflow | Bounded and explicit | Depends on its data step | Predictable number of steps | Each step plus end-to-end contract | Explicit checks make failures easier to contain | Typed error, clarifying question, source, or human | Known sequence with a small set of safe branches | The path cannot be hardcoded or needs dynamic planning | Which step owns authorization, freshness, refusal, timeout, and escalation? |
+| Agent | High | Can choose live sources, but source choice needs control | Variable and usually more expensive | Tool choice, path efficiency, stop rules, and outcomes | Broadest permission surface; needs caps and checkpoints | Stop, hand off, or switch to a safe path | Open-ended multi-step work where flexibility justifies cost | Traces show frequent dynamic routing or action planning | Which tools, identity, limits, stop rule, audit trail, and handoff are required? |
+
+Microsoft describes standard RAG as a fixed sequence of query, search, context assembly, and model call. Its agentic RAG guidance adds runtime source selection, query decomposition, iterative refinement, and action plus retrieval, while warning that each reasoning step adds latency, token use, and complexity. ([standard RAG](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/rag/rag-solution-design-and-evaluation-guide), [agentic RAG](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/rag/rag-agentic))
+
+OpenAI describes an agent in terms of a model, tools, and instructions. That is useful for a PM because each added tool is also a new permission surface, failure mode, and evaluation question. Its guidance pairs guardrails with authentication, authorization, strict access controls, retry limits, and human intervention for failed or high-risk runs. ([OpenAI](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/))
+
+## Worked decision: which architecture fits a policy assistant?
+
+Take this bounded scenario: an internal assistant answers employee questions about HR, travel, and security policies. It returns source references. Version one is read-only. It can ask one clarifying question or escalate, but it cannot change records, send messages, approve requests, or decide for the company.
+
+Assume the policy collections have owners and update timestamps, most questions need one collection and one retrieval pass, the host app passes the employee's identity and group claims, and retrieval can enforce document permissions before content reaches the model. Also assume that engineering will set the actual latency target. These are product assumptions, not claims about every policy system.
+
+Under those assumptions, choose a **fixed LLM workflow with one identity-aware retrieval step**:
+
+`classify scope -> resolve missing context -> retrieve permitted policy content -> check freshness -> generate cited answer -> validate -> answer, abstain, or escalate`
+
+The workflow wins because the path is known, the product is read-only, and the risk is concentrated in freshness, permissions, and abstention. A model-directed loop adds flexibility the scenario has not earned yet. Anthropic's workflow distinction and Microsoft's standard RAG description support this fixed-path reading. ([Anthropic](https://www.anthropic.com/engineering/building-effective-agents), [Microsoft Azure](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/rag/rag-solution-design-and-evaluation-guide))
+
+The simpler options still win in narrower cases. A direct model call is right for “rewrite this approved policy in plain language” when the policy text is already supplied. Standard RAG is right for an ordinary question that one permitted collection resolves. The agent is not wrong. It is unjustified until the evidence shows dynamic routing, iterative search, or action planning is common enough to pay for.
+
+Google Cloud also says that the components an organization chooses affect performance, scalability, cost, and security, and recommends evaluating tools for observability, debuggability, and error handling. Those are engineering checks on the PM's preferred path, not details a PM can safely wave away. ([Google Cloud](https://docs.cloud.google.com/architecture/choose-agentic-ai-architecture-components))
+
+![Illustration of a product manager comparing four AI architecture paths in a review matrix](/blog/ai-product-manager-architecture-tradeoffs-architecture-tradeoffs-matrix.webp)
+
+## How does the choice behave when the happy path breaks?
+
+Run the proposed workflow through these tabletop cases before calling the architecture decision complete.
+
+| Case | Expected behavior | What the PM learns |
+| --- | --- | --- |
+| Ordinary question: “What is the travel reimbursement limit?” | Retrieve permitted current policy content and answer with a source and update context. | One collection and one retrieval pass are enough. |
+| Missing context: “Can I claim this expense?” with no country or employee type | Ask one clarifying question, or provide a scoped answer only if the policy is unambiguous. | A missing field is a workflow branch, not proof that you need an agent. |
+| Stale data: the best document is past its freshness rule | Do not present it as current. Explain the limitation and escalate. | Freshness belongs in the data contract and fallback. |
+| Retrieval failure: search times out | Return an unavailable result, provide a safe known source if appropriate, and escalate. Never answer from model memory. | A named retrieval step gives the failure a contained owner. |
+| Permission failure: a relevant document is found but the employee lacks access | Suppress the content, explain that access could not be verified, and route to the owner. | Permissions must be enforced before generation. |
+| Out of scope: “Give me legal advice about my dismissal.” | Decline the unsupported domain and route to the approved human channel. | Scope can be a deterministic gate before the model. |
+| Repeated side effect: “Submit the travel request again.” | State that version one is read-only and has submitted nothing. Offer the approved manual path. | A side effect request is a product boundary, not an invitation to add a write tool casually. |
+| Conflicting policies | Show the conflict and escalate to the policy owner. Do not choose silently. | Conflict handling needs an acceptance criterion. |
+| Change trigger: questions now require a catalog lookup, policy lookup, and request submission | Reopen the architecture review. Gather traces, tool requirements, identity model, action limits, and approval design. | Evidence of dynamic multi-step work can justify an agent; enthusiasm cannot. |
+
+Microsoft recommends representative test media and test queries for RAG, then separate retrieval evaluation from end-to-end response evaluation. Its guidance names measures such as groundedness, completeness, utilization, and relevancy. You do not need to choose the final metric in a product meeting, but you do need to ask where the representative cases will come from. ([Microsoft Azure](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/rag/rag-solution-design-and-evaluation-guide))
+
+For an agent, add tool-selection accuracy, number of tool calls, iteration limits, cumulative token usage, and stop conditions. Microsoft calls out those extra evaluation dimensions for agentic RAG, while OpenAI recommends escalation when retry or action limits are exceeded and human oversight for sensitive or irreversible actions. ([Microsoft Azure](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/rag/rag-agentic), [OpenAI](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/))
+
+## How can a PM practice the decision without an engineer?
+
+Run the matrix on a second feature and produce a one-page architecture review artifact. The exercise is useful only if the artifact records a choice, its assumptions, and the point where engineering must take over.
+
+1. Choose a new read-only feature, such as an assistant that answers questions about a product catalogue.
+2. Fill the four architecture columns for path flexibility, freshness, latency, cost, evaluation, permissions, failure containment, and fallback.
+3. Select the least flexible option that satisfies the stated assumptions. Write the evidence that would change the choice and one engineering veto question.
+4. Produce the artifact with four parts: chosen architecture, assumptions, failure cases with expected responses, and the engineering handoff.
+
+Use a transfer check before you call the exercise complete: apply the same review to a new scenario without copying the policy-assistant answer. You should be able to explain why a direct model call, RAG, workflow, or agent wins, name the fallback, and identify the permission or side-effect question you cannot answer alone. If you cannot, return to the matrix instead of upgrading the architecture by instinct.
+
+## What should a PM explain, and what must engineering prove?
+
+The PM should own the product tradeoff:
+
+- What path is predictable enough to specify?
+- What data must be current, and what counts as stale?
+- What can the system do when context is missing?
+- Which actions are read-only, reversible, sensitive, or forbidden?
+- What user-visible fallback is acceptable?
+- What evidence would make the team revisit the choice?
+
+Engineering must prove the system can honor the boundary:
+
+1. The identity and authorization flow, including a test that forbidden content never reaches the model.
+2. The freshness representation, index update behavior, and stale-content threshold.
+3. The retrieval timeout and retry contract, including a non-hallucinatory fallback.
+4. A representative test set with policy documents and queries, plus groundedness, completeness, and relevancy checks where applicable.
+5. A trace for each step, with inputs, outputs, failure reason, and escalation reason.
+6. A written trigger for re-evaluating the fixed workflow as multi-source questions or side effects appear.
+
+The unresolved question is concrete: **Can the retrieval layer enforce the employee's document permissions before content is sent to the model, and can the team prove that with a repeatable test?** A PM should frame that question. An engineer must answer it.
+
+Once the architecture is chosen, the next artifact is an evaluation plan. The site's guide on [how to evaluate an AI agent](/blog/how-to-evaluate-an-ai-agent) is useful if the change trigger in case nine is met. For the fixed workflow, keep the same discipline, but evaluate the explicit steps and fallbacks rather than pretending the system is autonomous.
+
+If you want to build this kind of review habit with your team, [learn how Marius Manolachi teaches people to build AI products on their own work](/learn-ai). The matrix is useful even if the answer is “use one model call and stop there.”
