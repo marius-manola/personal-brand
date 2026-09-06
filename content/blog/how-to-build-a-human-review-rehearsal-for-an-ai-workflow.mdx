@@ -1,0 +1,209 @@
+---
+title: "How to Build a Human-Review Rehearsal for an AI Workflow"
+date: "2026-09-06"
+updated: "2026-09-06"
+excerpt: "A provider-free 10-case harness rehearsed reviewer decisions, missed vetoes, stale facts, tool failure, and exact-action drift before a sandbox write."
+answer: "Build a provider-free rehearsal around one reversible workflow action, not around a generic approval button. Author 8-12 cases with exact proposals, evidence packets, reviewer roles, vetoes, and restart rules. Run at least two review passes, hash the approved action, and re-check current facts before execution. The exception is a changed or out-of-scope action: fail closed and escalate or stop, even after approval."
+targetQuery: "How to build a human-review rehearsal for an AI workflow"
+queryAliases:
+  - "AI workflow human review rehearsal"
+  - "how to verify an AI workflow still matches the approved action"
+  - "AI workflow reviewer practice before launch"
+intent: "implementation"
+funnel: "consideration"
+cluster: "implementation"
+parent: "/blog/how-to-scope-an-ai-agent-proof-of-concept"
+contentType: "decision-tool"
+kind: "satellite"
+sourceableAtom: "In a provider-free 10-case rehearsal run with two reviewer roles, three cases executed with an exact approved-action match, three cases produced reviewer disagreement, two support-operator decisions missed a veto, and a post-approval priority change was blocked by an action hash while a naive executor would have run the changed action."
+evidenceType: "reproducible-implementation-artifact"
+evidenceBasis: "A dependency-free Node.js harness was run locally on 2026-08-23 against 10 authored sandbox ticket-update cases and two deterministic reviewer roles. The retained artifact includes raw cases, run metadata, reviewer decisions, a guarded result table, and a naive comparison for the injected action-drift failure."
+tags:
+  - "AI workflows"
+  - "Human review"
+  - "AI reliability"
+author: "Marius Manolachi"
+nextReviewAt: "2027-02-19"
+sources:
+  - "https://academy.openai.com/public/clubs/champions-ecqup/resources/ai-workflow-test-brief-2026-08-13"
+  - "https://github.com/openai/openai-agents-python/blob/main/docs/human_in_the_loop.md"
+  - "https://www.ai.gov.au/sites/default/files/2026-05/Guidance-for-AI-adoption-implementation-guidance_0_0.pdf"
+  - "https://data.consilium.europa.eu/doc/document/ST-12549-2022-INIT/en/pdf"
+  - "https://docs.oracle.com/en/cloud/paas/application-integration/human-loop/using-human-loop-oracle-integration-3.pdf"
+faq:
+  - q: "Does a human-review rehearsal replace production monitoring?"
+    a: "No. It tests the action contract and reviewer control before launch. Production monitoring still has to test real inputs, latency, cost, tool health, user outcomes, and failures the authored cases did not predict."
+  - q: "Can I use an agent framework for the rehearsal?"
+    a: "Yes, for pause and resume mechanics. Keep the cases, reviewer records, action binding, and release decision in your own artifact so framework behavior is not mistaken for reviewer evidence."
+cover: "/blog/how-to-build-a-human-review-rehearsal-for-an-ai-workflow-hero.webp"
+coverAlt: "Illustration of a human-review rehearsal packet moving from authored cases through two review passes to a guarded sandbox action"
+draft: false
+---
+
+An approval button can look healthy while the workflow underneath is untested. The reviewer may miss a veto, approve an action that changes before execution, or continue after the evidence has gone stale.
+
+I built a provider-free rehearsal for a sandbox ticket-update workflow and ran 10 authored cases through two reviewer roles. Three cases executed with an exact action match. Seven were blocked or escalated. The run recorded three disagreements, two missed vetoes, and one changed-priority injection that a guarded executor stopped while a naive executor would have run.
+
+That is the useful output of a rehearsal. It does not tell you that real reviewers are reliable. It tells you whether your packet can expose the ways the review can fail.
+
+## Start with one reversible action
+
+Choose one workflow effect that matters enough to review but is safe to replay. In the harness, the effect is a sandbox `update_ticket` action that changes a ticket status, priority, and saved draft reply. It never sends a message or touches a real system of record.
+
+This boundary matters. The [OpenAI Academy controlled-test brief](https://academy.openai.com/public/clubs/champions-ecqup/resources/ai-workflow-test-brief-2026-08-13) asks teams to name approved inputs, permitted writes, excluded data, required approval, reviewers, escalation owners, and continue, pause, and stop rules. The Australian government's implementation guidance likewise calls for clear acceptance criteria, pre-deployment testing, and documented tests and outcomes ([pre-deployment testing guidance](https://www.ai.gov.au/sites/default/files/2026-05/Guidance-for-AI-adoption-implementation-guidance_0_0.pdf)).
+
+Use this decision rule:
+
+> Rehearse an action when its effect is consequential enough to need authority, reversible enough to replay safely, and specific enough to compare before and after review.
+
+Do not start with a vague goal such as “review the agent.” Start with an effect:
+
+| Workflow fixture | Proposed effect | Why it is suitable for rehearsal |
+| --- | --- | --- |
+| Sandbox support queue | Set ticket status and save a draft reply | The action is structured, observable, and reversible |
+| Approval packet | Approve, edit, reject, or escalate one proposal | The decision can be recorded without a live side effect |
+| Final executor | Apply only the exact approved action | Hash and state checks can fail closed |
+
+The Council text for the proposed EU AI Act describes human oversight as a way to enable intervention and interpretation, and its real-world testing provisions include qualified oversight and reversibility. That is a design principle here, not a current legal conclusion or compliance assessment ([Council text, Article 14](https://data.consilium.europa.eu/doc/document/ST-12549-2022-INIT/en/pdf)).
+
+## Put the whole decision in the case packet
+
+Every case needs more than an input and an expected answer. Give the reviewer enough material to decide whether this exact action may proceed.
+
+| Field | What to record |
+| --- | --- |
+| `id` | Stable case identifier that survives reruns |
+| `request` | The user's request as the workflow receives it |
+| `proposedAction` | Exact tool, target, status, parameters, and expected effect |
+| `evidencePacket` | Facts, versions, permissions, and source references shown to the reviewer |
+| `reviewerRole` | The accountable role for the operational and risk decisions |
+| `expectedDecision` | `approve`, `edit`, `reject`, or `escalate` |
+| `vetoCondition` | A condition that must stop the action even if the proposal looks useful |
+| `restartStopRule` | What evidence permits a restart, and what ends the rehearsal |
+| `injection` | A named stale fact, tool failure, reviewer miss, or action mutation to exercise |
+
+The exact action is the centre of the packet. “Approve the ticket update” is too broad. “Set T-101 to `pending-review`, keep priority `normal`, and save this exact draft reply” is reviewable.
+
+The two roles in my fixture were deliberately narrow:
+
+- The support operator checked ticket identity, operational completeness, and whether the draft matched the supplied context.
+- The risk owner checked policy scope, authority, reversibility, and veto conditions.
+
+When the roles disagreed, the harness resolved to the more conservative decision. Oracle's human-in-the-loop documentation describes both tiered approvals and parallel approvals, including independent reviews that must all complete before a workflow proceeds ([Oracle approval patterns](https://docs.oracle.com/en/cloud/paas/application-integration/human-loop/using-human-loop-oracle-integration-3.pdf)). The important part is not copying Oracle's product shape. It is making the review topology explicit.
+
+## Author cases around decision changes
+
+Use 8-12 cases for a first rehearsal. The number is a practical fixture size, not a coverage statistic. Each row should represent a decision that could change the workflow's route or its real-world effect.
+
+The retained run used these 10 cases:
+
+| Case | Failure family | Expected decision | What the case tests |
+| --- | --- | --- | --- |
+| C01 | Normal approval | approve | Both roles can approve a bounded, evidenced draft |
+| C02 | Missing context | edit | The workflow replaces an unsupported claim with a request for evidence |
+| C03 | Ambiguous request | escalate | The operator cannot choose among multiple plausible remedies |
+| C04 | Unsafe or out of scope | reject | Account deletion is outside the sandbox workflow |
+| C05 | Stale facts | approve, then block | The policy version changes after review |
+| C06 | Changed parameters | approve, then block | Priority changes from normal to urgent after approval |
+| C07 | Tool failure | approve, then escalate | A timeout prevents verified post-write state |
+| C08 | Required escalation | escalate | A policy exception has no delegated authority |
+| C09 | Reviewer disagreement | escalate | An optimistic approval meets a risk-owner escalation |
+| C10 | Edited approval | edit | The edited reply is re-hashed before execution |
+
+This is where the rehearsal becomes more useful than a checklist. The cases are not only about what the model might say. They exercise the reviewer's evidence, the policy veto, the runtime state, and the restart path.
+
+When I taught product managers who went from writing specs to building and shipping the product, and automating work around it, I kept seeing the same early problem: nobody had made “done” observable. That locked observation from [Marius Manolachi's teaching work](/learn-ai) is why this harness starts with an exact action and a final-state check. A reviewer cannot reliably approve a moving target.
+
+## Run two review passes before the executor
+
+Run the case packet through at least two roles or two separated passes. Keep their decisions independent until resolution.
+
+The harness uses this sequence:
+
+1. Load the authored case and freeze the proposed action.
+2. Give the same evidence packet to the support operator and risk owner.
+3. Record each decision, reason, disagreement, and missed veto.
+4. Apply an edit only as a new action proposal, then calculate a new hash.
+5. Resolve the route. A reject or escalation cannot become an approval because the other role was optimistic.
+6. Re-check current facts, action hash, authorization, and tool health.
+7. Execute only when the decision and all veto checks still pass.
+
+The core guard is small enough to keep beside the workflow code:
+
+```js
+const approvedHash = hash(reviewedAction);
+
+if (currentPolicyVersion !== reviewedPolicyVersion) {
+  return stop("stale evidence");
+}
+
+if (hash(currentAction) !== approvedHash) {
+  return stop("approved action changed");
+}
+
+if (!toolIsHealthy || decision === "reject" || decision === "escalate") {
+  return stop("not executable");
+}
+
+return execute(currentAction);
+```
+
+This is not a security boundary by itself. The executor still needs real authorization, scoped credentials, idempotency, logging, and a verified post-action state. The hash answers one narrow question: is the action being executed the action that was reviewed?
+
+## Read the result as a control test
+
+The guarded run produced this result:
+
+| Measure | Observed result |
+| --- | ---: |
+| Authored cases | 10 |
+| Reviewer decisions | 20 |
+| Exact-match executions | 3 |
+| Blocked or escalated paths | 7 |
+| Reviewer disagreements | 3 cases: C03, C04, C09 |
+| Missed vetoes | 2, both by the support-operator fixture on C04 and C09 |
+| Action-drift blocks | 1, C06 |
+
+The successful path is C01. Both roles approved the bounded update, the sandbox tool executed it, and the final action matched the approved proposal. C02 and C10 also executed after an explicit edit and a new action hash.
+
+The representative failure is C06. Both roles approved priority `normal`. The injected runtime mutation changed it to `urgent`. The guarded executor returned `blocked_action_drift` and performed no action. The naive comparison returned `executed_changed_action` with `matchesApproved: false`.
+
+That comparison is the sourceable result. A reviewer decision is not enough if the executor does not bind the decision to the exact parameters.
+
+![Illustration of an approved normal-priority action changing to urgent and being stopped by an exact-action hash check](/blog/how-to-build-a-human-review-rehearsal-for-an-ai-workflow-action-drift-failure.webp)
+
+The other useful failure is C04. The support-operator fixture approved an out-of-scope deletion request, while the risk-owner fixture rejected it. The disagreement was retained, the missed veto was recorded, and the conservative resolver rejected the action. This does not show that support operators are unsafe. It shows that a second review role and an explicit veto can expose a failure that a single optimistic reviewer would hide.
+
+## Use pause and resume mechanics for state, not proof
+
+An agent framework can pause a run while a reviewer decides and resume it later. OpenAI's Agents SDK documents approval-required tools, interruptions, serialized `RunState`, and resuming the original run after approval or rejection ([Agents SDK human-in-the-loop](https://github.com/openai/openai-agents-python/blob/main/docs/human_in_the_loop.md)).
+
+That is useful plumbing. It is not evidence that your reviewers made good decisions.
+
+Keep the rehearsal artifact provider-free until the case contract works. Then map the same fields to the runtime's pause state:
+
+- the paused run ID maps to the case ID;
+- the serialized proposal maps to the approved action hash;
+- the reviewer record maps to the decision and role;
+- the resume path rechecks current facts before execution;
+- a rejection, expiry, stale version, or tool failure maps to stop or escalation.
+
+If the framework's state format changes, the case packet and decision records should still make sense. That separation keeps a library upgrade from becoming a false release signal.
+
+## Know what the rehearsal cannot prove
+
+This artifact tests control behavior in a bounded fixture. It does not test the production distribution, real reviewer workload, queue latency, cost, external delivery, or whether users receive a better outcome.
+
+It also does not estimate reviewer accuracy. The two roles and their misses are scripted decisions chosen to exercise the harness. The correct claim is that the harness recorded three disagreements and blocked the injected drift. The incorrect claim would be that real human reviewers miss vetoes 20 percent of the time.
+
+Before a controlled exposure, add real evidence for:
+
+- privacy-safe traces that show how requests are actually phrased;
+- verified final state, not only the workflow's response;
+- reviewer time, queue age, and escalation capacity;
+- tool errors, retries, latency, and cost;
+- new failures promoted into permanent cases.
+
+The existing [AI feature testing guide](/blog/how-to-test-an-ai-feature-before-production-data) covers the broader authored-case loop. The [human-in-the-loop approval guide](/blog/human-in-the-loop-ai-agents) covers the live action boundary. This page belongs between them: rehearse the people, evidence, vetoes, and exact action before the approval gate touches live data. It also sits under the assigned [AI proof-of-concept scoping guide](/blog/how-to-scope-an-ai-agent-proof-of-concept).
+
+If the harness cannot show an exact successful path and a deliberate failure path, keep the workflow in rehearsal. The goal is not a perfect score. The goal is to make the reviewer decision and the action it authorizes observable before the system has the power to surprise you.
