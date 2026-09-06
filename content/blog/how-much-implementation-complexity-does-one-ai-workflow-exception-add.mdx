@@ -1,0 +1,194 @@
+---
+title: "How Much Implementation Complexity Does One AI Workflow Exception Add?"
+date: '2026-09-06'
+updated: '2026-09-06'
+excerpt: 'A deterministic fixture measures the code, state, persistence, test, telemetry, retry, and approval work added by three AI workflow exceptions.'
+answer: 'One exception does not have a stable implementation multiplier. In my deterministic fixture, adding one exception changed 36 to 44 workflow lines and 7 configuration units, plus 2 to 3 states, 2 to 4 transitions, 3 persisted fields, 2 to 3 tests, and 2 to 3 telemetry fields. Approval escalation added the most transitions; invalid output added a clarification path. Shared infrastructure can reduce the marginal delta.'
+targetQuery: 'how much implementation complexity does one exception add to an ai workflow'
+queryAliases:
+  - 'AI workflow exception complexity'
+  - 'AI workflow edge case implementation cost'
+  - 'how much work does one AI workflow exception add'
+intent: 'implementation estimation'
+funnel: 'consideration'
+cluster: 'implementation'
+parent: '/blog/how-to-scope-an-ai-agent-proof-of-concept'
+contentType: 'decision-tool'
+kind: 'satellite'
+sourceableAtom: 'In a provider-free deterministic fixture, one exception added 36-44 changed workflow lines, 7 changed configuration units, 2-3 states, 2-4 transitions, 3 persisted fields, 2-3 additional test cases, and 2-3 telemetry fields, with the delta varying by exception class.'
+evidenceType: 'measured experiment and reproducible implementation artifact'
+evidenceBasis: 'A provider-free Python standard-library fixture was run on 2026-08-23 with a constant task, run interface, input, tool name, and local runtime. Baseline and three exception variants produced raw JSON, unified diffs, and the measurement table in the repository-backed fixture.'
+tags:
+  - 'AI workflows'
+  - 'AI implementation'
+  - 'AI reliability'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-21'
+sources:
+  - 'https://docs.aws.amazon.com/step-functions/latest/dg/concepts-error-handling.html'
+  - 'https://docs.aws.amazon.com/step-functions/latest/dg/test-state-isolation.html'
+  - 'https://openai.github.io/openai-agents-js/guides/human-in-the-loop/'
+  - 'https://docs.temporal.io/workflows'
+  - 'https://academic.oup.com/comjnl/article/44/6/569/348286'
+faq:
+  - q: 'Is one exception always worth 36 to 44 lines of code?'
+    a: 'No. That range belongs to this fixture and its counting rules. Shared retry, validation, approval, persistence, or telemetry infrastructure can make the marginal change smaller, while a real integration can make it larger.'
+  - q: 'Which AI workflow exception adds the most implementation work?'
+    a: 'There is no universal winner. In this fixture, approval escalation added the most transitions and test cases, while transient failure and invalid output each changed 44 workflow lines.'
+  - q: 'Should every AI workflow exception create a human queue?'
+    a: 'No. The transient variant failed after bounded retry, invalid output paused for clarification, and policy escalation paused for approval. Queue a person only when a person must resolve uncertainty or authority.'
+cover: '/blog/how-much-implementation-complexity-does-one-ai-workflow-exception-add-exception-complexity-hero.webp'
+coverAlt: 'Illustration of a measured AI workflow exception diff across states, persistence, tests, and human review'
+draft: false
+---
+
+I built a small workflow that turns an input request into a planned `write_summary` tool action. Then I added one exception at a time.
+
+The result was larger than “add an `if` statement,” but it wasn’t a fixed multiplier either. The work moved across several surfaces at once.
+
+![Illustration of a baseline AI workflow branching into three measured exception variants](/blog/how-much-implementation-complexity-does-one-ai-workflow-exception-add-exception-complexity-rubric.webp)
+
+## How much did one exception add in the fixture?
+
+In this fixture, one exception added 36 to 44 changed workflow lines and 7 changed configuration units. It also added 2 to 3 states, 2 to 4 transitions, 3 persisted fields, 2 to 3 test cases, and 2 to 3 telemetry fields.
+
+| Version | Changed workflow lines | Config units | States added | Transitions added | Persisted fields added | Test cases added | Telemetry fields added |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Baseline | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| Transient tool failure | 44 | 7 | 2 | 3 | 3 | 2 | 2 |
+| Invalid or ambiguous model output | 44 | 7 | 2 | 2 | 3 | 2 | 2 |
+| Approval or business-policy escalation | 41 | 7 | 3 | 4 | 3 | 3 | 3 |
+
+This table is the original result. It is not a general estimate of engineering hours, and it is not a claim that production workflows will fall inside this range. It is the measured delta for a controlled fixture, with the raw variants and runner available in the repository-backed artifact.
+
+The first useful planning answer is therefore: budget an exception by surface, not by branch count. A branch can require a new state, a persisted checkpoint, a test that forces the branch, and a recovery or review rule even when the branch itself is short.
+
+## What counted as implementation complexity?
+
+I held the task, input, tool name, interface, interpreter, and local runtime constant. The baseline accepts `summarize invoice 42`, creates a plan for `record-1`, writes a result, and emits three trace events.
+
+The runner compares each variant with that baseline. Its counting rules are deliberately plain:
+
+1. `changed_lines` is added diff lines plus deleted diff lines in `workflow.py`. A modified line counts once as deleted and once as added.
+2. `config_units` is the number of changed or added leaf key paths in `config.json`.
+3. States and transitions are explicit metadata in each versioned module.
+4. Persisted fields, test cases, and telemetry fields are set differences against the baseline.
+5. Retry, idempotency, and human-queue behavior stay categorical. I don’t turn unlike policies into a fake single score.
+
+This choice follows the way workflow systems expose the problem. AWS Step Functions documents error names, retries, catchers, attempt limits, backoff, and fallback transitions as separate controls, and describes retries as state transitions. ([AWS error handling](https://docs.aws.amazon.com/step-functions/latest/dg/concepts-error-handling.html))
+
+AWS also documents isolated state testing with mocked integrations and controlled retry or error scenarios. That is why an exception test is counted separately from the happy-path test instead of being treated as incidental coverage. ([AWS TestState API](https://docs.aws.amazon.com/step-functions/latest/dg/test-state-isolation.html))
+
+## What did a transient tool failure add?
+
+A transient tool failure added a retry state, a terminal failure state, attempt tracking, an idempotency key, an error field, two tests, and two telemetry fields. In the run, one simulated `tool_unavailable` error recovered on the next attempt. Two consecutive failures ended in `failed` after bounded retry.
+
+| Surface | Added in the fixture | Why it exists |
+| --- | --- | --- |
+| State | `tool_retry_wait`, `failed` | The run must represent waiting and exhaustion instead of pretending the tool call was one uninterrupted step. |
+| Transitions | `planned > tool_retry_wait > completed` and `tool_retry_wait > failed` | The retry and terminal paths need explicit legal destinations. |
+| Persistence | `attempt`, `idempotency_key`, `last_error` | A restarted or retried run needs to know what happened and whether repeating the action is safe. |
+| Tests | recovery, exhaustion | Both the useful recovery and the stop condition can regress independently. |
+| Telemetry | `attempt`, `error_code` | Operators need to distinguish a normal completion from a recovered or exhausted run. |
+
+The fixture reuses `run-001:write_summary` as the idempotency key across attempts. That is a small rule in code, but it changes the contract of the tool call. A retry can now encounter a side effect that may already have happened, so the implementation must carry an identity that the tool can use to deduplicate or verify the action.
+
+This is also why “just retry it” is incomplete advice. A retry policy needs an error class, a bound, a wait policy in a real runtime, and a terminal behavior. The AWS documentation exposes those knobs directly through `ErrorEquals`, `MaxAttempts`, `IntervalSeconds`, and backoff settings. ([AWS retry fields](https://docs.aws.amazon.com/step-functions/latest/dg/concepts-error-handling.html))
+
+The exception is a good candidate for automated recovery when the failure is transient and the action is safe to repeat. It should stop or escalate when the tool has an unknown side-effect status, when the error is validation-related, or when the retry budget is exhausted.
+
+## What did invalid or ambiguous model output add?
+
+Invalid or ambiguous output added a validation failure state, a clarification state, raw model output, a validation error, a clarification ID, two tests, and two telemetry fields. The key behavior was not retry. The key behavior was refusing to start the tool side effect until the missing `target` was resolved.
+
+| Surface | Added in the fixture | Observed behavior |
+| --- | --- | --- |
+| State | `invalid_model_output`, `awaiting_clarification` | The run paused instead of writing a result. |
+| Transitions | `planned > invalid_model_output > awaiting_clarification` | The invalid branch became visible and testable. |
+| Persistence | `raw_model_output`, `validation_error`, `clarification_id` | A reviewer or later step can see what failed and what question owns the pause. |
+| Tests | invalid output, ambiguous output | Both cases reached `awaiting_clarification`. |
+| Telemetry | `output_valid`, `validation_error` | A fluent but unusable response is distinguishable from a tool outage. |
+| Retry rule | Do not retry the same invalid output | Repeating an unchanged output does not resolve the missing field. |
+
+The distinction matters because a model response can be syntactically parseable and still be unusable for the next action. A schema check changes the control flow. It also changes what the system must preserve: the raw response, the validation reason, and the human or system action that can resolve it.
+
+This variant has no idempotency key in the fixture because no side effect starts before validation passes. That is a deliberate boundary, not an omission. If a real workflow validates after a tool call, it would need a different measurement for already-started effects.
+
+The source-level change tied with transient failure at 44 changed lines, but the control-flow change was smaller by one transition and the recovery mechanism was different. That is the reason line count alone is a poor scope estimate.
+
+## What did approval or business-policy escalation add?
+
+Approval escalation added the most transitions in this fixture: four, plus three states, three persisted fields, three additional tests, and three telemetry fields. The workflow paused before the side effect, resumed only for the matching approval ID, and ended in `rejected` when the decision was negative.
+
+| Surface | Added in the fixture | Observed behavior |
+| --- | --- | --- |
+| States | `awaiting_approval`, `approved`, `rejected` | The workflow represented pause, permission to continue, and refusal. |
+| Transitions | `planned > awaiting_approval`, then approved or rejected, plus `approved > completed` | The policy path added more legal outcomes than the other variants. |
+| Persistence | `approval_request`, `approval_decision`, `approved_at` | Resume can be tied to the specific request and decision. |
+| Tests | pause, approved resume, rejected stop | The human path has more than one outcome. |
+| Telemetry | `policy_rule`, `approval_id`, `decision` | The queue and operator can identify why the run paused and what happened next. |
+| Queue behavior | Pause before side effect, resume on matching approval | The human is resolving authority, not repairing a transient error. |
+
+This shape matches the approval flow described in the [OpenAI Agents SDK human-in-the-loop guide](https://openai.github.io/openai-agents-js/guides/human-in-the-loop/). The guide pauses execution before an approved tool runs, returns an interruption, stores an approval or rejection in run state, and resumes from that state. It also documents serializing paused state for longer approval times.
+
+That source defines why the fixture counts approval identity, decision, and resume behavior separately. The measured numbers are still mine, from this fixture. The documentation explains the implementation surface; it does not supply the result table.
+
+If your policy only changes display text, this variant is too large for your case. If the policy changes who may authorize a side effect, when the request expires, or which version of the workflow may resume, the fixture’s three-field approval record is a lower bound on the surfaces you should inspect, not a production specification.
+
+## How should you estimate one exception in a real workflow?
+
+Start with the existing workflow, then ask what the system must know after the exception occurs. A practical estimate has five passes:
+
+1. Freeze the baseline. Record the current states, transitions, persisted fields, tests, telemetry, retry rule, idempotency rule, and human ownership.
+2. Name one exception precisely. “The tool fails” is too broad. Use “the tool returns `tool_unavailable` once,” “the model omits `target`,” or “the action matches the sensitive policy.”
+3. Define the stop condition before the recovery path. Decide whether the run retries, pauses, asks for clarification, rejects, dead-letters, or fails closed.
+4. Add the smallest complete record. Include the fields required to resume, explain, deduplicate, approve, reject, or prove that no side effect happened.
+5. Add tests for every new outcome, then add telemetry that lets an operator distinguish those outcomes in production.
+
+Use this scope sheet in a design review:
+
+| Surface | Baseline | One-exception question |
+| --- | --- | --- |
+| States | What states exist now? | Where does the run wait, recover, reject, or stop? |
+| Transitions | Which moves are legal? | Which new moves are legal, and which must be forbidden? |
+| Persistence | What survives a restart? | What must survive the pause, retry, or human handoff? |
+| Tests | Which outcomes are covered? | What forces the exception and proves the stop condition? |
+| Telemetry | What can an operator see? | Which field distinguishes this exception from a normal failure? |
+| Retry and idempotency | What repeats safely? | What is bounded, and how is duplicate side effect avoided? |
+| Human ownership | Who handles unresolved work? | Does a person clarify, approve, reject, or never enter the path? |
+
+The [AI agent proof-of-concept scoping guide](/blog/how-to-scope-an-ai-agent-proof-of-concept) is the right place to connect this measurement to the rest of an implementation plan. For the mechanics, compare it with [How to Design an AI Agent State Machine](/blog/how-to-design-an-ai-agent-state-machine) and [How to Build a Queue-Backed AI Workflow](/blog/how-to-build-a-queue-backed-ai-workflow). Those articles cover design and execution patterns. This experiment supplies the marginal-scope artifact.
+
+## What does durable execution change about the estimate?
+
+Durable execution can shrink the amount of custom recovery code you write, but it does not make the exception disappear. It moves some of the work into workflow definitions, versioning rules, event history, activity contracts, or platform configuration.
+
+Temporal describes a workflow as code that produces a workflow execution, records commands and events in an event history, and replays that history to rebuild the same state. It also identifies API calls, database queries, LLM invocations, and file I/O as external work handled by activities. ([Temporal workflow documentation](https://docs.temporal.io/workflows))
+
+That is a useful architecture trade. If a platform already supplies durable retry, pause, and resume behavior, your changed application lines may be lower than 41. But your estimate should still include the workflow definition, configuration units, persisted data contract, versioning and replay tests, telemetry, and operator behavior. The implementation surface moved. It did not become zero.
+
+This is also why the experiment keeps persistence in the table even though the local code is tiny. A resumed run needs a trustworthy record of what happened. The platform may own the storage, but your application still owns the meaning of the stored fields.
+
+## Where does this measurement stop?
+
+This experiment does not support a universal complexity multiplier. It uses one provider-free Python fixture, one tool, one input, and one simple persisted record. Its line counts depend on how the baseline is decomposed and on the chosen measurement rubric.
+
+It does not measure engineering hours, cloud cost, queue throughput, model quality, network latency, database contention, reviewer response time, authentication, authorization, or real queue operations. The approval case does not implement a production identity system. The invalid-output case uses one missing field to represent invalid and ambiguous output. A real workflow may need separate repair, clarification, abstention, and audit paths.
+
+Shared infrastructure could reduce the marginal change. A sensitive payment workflow could add more work than this fixture because its authority and side-effect guarantees are stronger. The result is bounded evidence for an estimation conversation, not a promise about your codebase.
+
+The broader lesson is simple: exception work becomes visible when you count the state that must survive, the transition that must be legal, the test that must force it, the telemetry that must explain it, and the person or policy that owns the unresolved case.
+
+## How can you reproduce the result?
+
+The artifact uses only the Python standard library and has no provider calls:
+
+```bash
+python3 fixture/run_experiment.py
+```
+
+The command prints raw JSON, the compact measurement table, and complete unified diffs for `transient_tool_failure`, `invalid_model_output`, and `approval_escalation` against `baseline`. The fixture README records the counting rules, constant interfaces, version list, and limitations.
+
+If you are estimating a real workflow, copy the rubric first. Run the happy path. Add one named exception. Then publish the diff, not just the final diagram. That makes the scope reviewable by the people who will own retries, persistence, tests, telemetry, and human handling after the demo ends.
+
+If you want help turning that review into a bounded implementation plan, [Marius Manolachi's AI consulting and tutoring work](/learn-ai) is the next step.
