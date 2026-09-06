@@ -1,0 +1,189 @@
+---
+title: 'What Evaluation Habits Should Every AI Product Team Practice Weekly?'
+date: '2026-09-06'
+updated: '2026-09-06'
+excerpt: 'A vendor-neutral weekly evaluation packet connects regression cases, production traces, human calibration, operating notes, and a ship or hold decision.'
+answer: 'Every AI product team should review six things weekly: the changed system surface, representative offline regressions, one sampled production trace or feedback case, one human calibration decision, cost and latency notes, and an owned ship, hold, or follow-up decision. Scale the sample to risk and traffic. The exception is a critical safety, privacy, policy, or outcome failure, which vetoes shipment even when the average score improves.'
+targetQuery: 'what evaluation habits should every AI product team practice weekly'
+queryAliases:
+  - 'weekly AI evaluation habits'
+  - 'what should AI product teams evaluate weekly'
+  - 'weekly eval review for an AI product team'
+  - 'how to run weekly AI evals'
+intent: 'informational'
+funnel: 'consideration'
+cluster: 'evaluation'
+parent: '/blog/how-to-evaluate-an-ai-agent'
+contentType: 'decision-tool'
+kind: 'satellite'
+sourceableAtom: 'A weekly evaluation review is reproducible when one packet connects the changed system surface, offline regression cases, a sampled production trace or user-feedback case, one human calibration decision, cost and latency notes, and a ship, hold, or follow-up owner. Explicit vetoes stop a critical failure from disappearing inside an average score.'
+evidenceType: 'worked decision artifact plus bounded firsthand observation'
+evidenceBasis: 'An authored, vendor-neutral support-reply fixture dry-run with four regression cases, one sampled user-feedback case, one human calibration decision, fixture operating notes, and a hold decision, supported by Anthropic, OpenAI, and NIST primary guidance plus F-pms.'
+tags:
+  - 'AI evaluation'
+  - 'AI product development'
+  - 'AI reliability'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-21'
+sources:
+  - 'https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents'
+  - 'https://openai.com/index/evals-drive-next-chapter-of-ai/'
+  - 'https://developers.openai.com/api/docs/guides/evals'
+  - 'https://airc.nist.gov/airmf-resources/airmf/5-sec-core/'
+faq:
+  - q: 'How many cases should a weekly AI evaluation review include?'
+    a: 'Start with a small set that covers representative work, recent failures, and high-risk exceptions. Anthropic describes 20 to 50 simple tasks as a useful early starting point, but there is no universal weekly count. Increase coverage as the workflow and risk mature.'
+  - q: 'Do we need an evaluation platform to run this review?'
+    a: 'No. A versioned file, a small test harness or spreadsheet, trace links, a review record, and an owner are enough to start. A platform can reduce handling work later, but it cannot make an undefined decision or missing ground truth meaningful.'
+  - q: 'What should block an AI release?'
+    a: 'Block on a critical safety, privacy, policy, grounding, tool, or user-outcome failure; an unresolved serious production sample; an uncalibrated ambiguous output; an exceeded operating limit; or an absent decision owner. Do not average a veto away.'
+cover: '/blog/what-evaluation-habits-should-every-ai-product-team-practice-weekly-weekly-evaluation-packet-hero.webp'
+coverAlt: 'Illustration of an AI product team reviewing one weekly evaluation packet and choosing ship, hold, or follow-up'
+draft: false
+---
+
+A weekly review packet solves a narrower problem than evaluation itself. It joins a regression run, production feedback, and a release decision that otherwise may live in separate places.
+
+When I taught product managers who went from writing specs to building and shipping products, the recurring gap was often a shared definition of done, not a more impressive model. This weekly packet turns “looks better” into evidence another person can inspect.
+
+![Illustration of a weekly AI evaluation packet connecting a changed prompt, regression cases, a production trace, human review, operating notes, and a hold decision](/blog/what-evaluation-habits-should-every-ai-product-team-practice-weekly-weekly-evaluation-packet-flow.webp)
+
+## What should every AI product team review weekly?
+
+Review six things in one packet: what changed, what representative cases did, what a live sample revealed, what a human decided about an ambiguous output, what the change cost in operation, and what happens next.
+
+That is the smallest useful cadence I would use to connect evaluation to product work. It is not a requirement to run a large benchmark every Friday. It is a requirement to leave the meeting with evidence, a decision, and an owner.
+
+| Weekly habit | Evidence input | Decision it should produce |
+| --- | --- | --- |
+| Name the changed surface | Model, prompt, retrieval, tool, policy, workflow, or code version | What exactly are we evaluating? |
+| Re-run representative regressions | Fixed cases with expected outcomes and grader results | Did the change preserve known behavior? |
+| Sample production reality | One trace, complaint, correction, or feedback case with provenance | What did real use expose that the fixture missed? |
+| Calibrate one ambiguous output | Human review against the rubric or expected outcome | Should the rubric, judge, case, or product behavior change? |
+| Record operating notes | Cost, latency, errors, timeouts, queue or review load | Does the behavior fit the product’s operating limits? |
+| Make the next decision | Ship, hold, or follow-up plus owner and due date | What happens before the next review? |
+
+The sources distinguish these evidence types for a reason. Anthropic separates automated evaluations from production monitoring, transcript review, and systematic human evaluation, while OpenAI describes contextual evals as specific to a product or workflow. [Anthropic’s evaluation guidance](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents) and [OpenAI’s business primer](https://openai.com/index/evals-drive-next-chapter-of-ai/) support the structure. The packet is my operating artifact built on those distinctions.
+
+## How are offline regression, production monitoring, transcript review, and human calibration different?
+
+They answer different questions. Treating them as interchangeable is how a team gets a clean score and a dirty release.
+
+| Evidence mode | What it asks | What it can show | What it cannot show by itself |
+| --- | --- | --- | --- |
+| Offline regression | Does the changed system still handle known cases? | Repeatable behavior on a fixed fixture without affecting users | Whether users will encounter a new failure or whether the fixture is representative |
+| Production monitoring | What is happening in live use? | Error rates, latency, drift, tool failures, user corrections, and unusual cases | Why an output was correct or what the expected answer should have been |
+| Transcript review | What actually happened inside a selected run? | Subtle failure modes, grader mistakes, bad tool use, missing context, and user friction | A population-wide rate from a small sample |
+| Human calibration | How should an ambiguous case be judged? | A reference judgment for a rubric, model grader, or product rule | A replacement for broad monitoring or representative regression coverage |
+
+Anthropic describes offline evals as reproducible and safe to run on every change, but warns that they can create false confidence when they do not match real usage. It describes production monitoring as closer to ground truth but noisy and reactive, and manual transcript review as a way to catch subtle problems and calibrate what “good” means. It also recommends sampling transcripts weekly. ([Anthropic](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents))
+
+OpenAI’s eval documentation makes the same boundary concrete: a test dataset has a schema, while testing criteria define how each output is graded, often against human-provided ground truth. ([OpenAI API evals](https://developers.openai.com/api/docs/guides/evals)) NIST’s AI RMF adds the lifecycle requirement: test before deployment and regularly while the system operates, document the measures, monitor production behavior, define human oversight, and make roles clear. ([NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/))
+
+The weekly packet should contain all four modes, even when each mode is small.
+
+## What does a filled weekly evaluation packet look like?
+
+Here is a complete dry run against an authored fixture. The fixture is a read-only support-reply drafter. It must ground replies in the current Returns Policy and abstain or escalate when the policy is missing or conflicting.
+
+The changed surface is prompt v4 to prompt v5. The new instruction requires the assistant to record the policy date, cite only retrieved policy text, and abstain when the source cannot settle the answer. The fixture contains four regression cases, one sampled user-feedback case, one ambiguous output, and an operating budget.
+
+| Habit | Evidence captured | Result | Next decision and owner |
+| --- | --- | --- | --- |
+| Changed surface | Prompt v4 → v5; retrieval and tool policy unchanged; fixture version returns-policy-2026-08 | The change is narrow and attributable | Re-run the same fixture. Owner: product manager |
+| Regression cases | R1 known policy answer: pass. R2 missing policy: abstain: pass. R3 conflicting policy: safe abstention: pass. R4 refund request in a read-only workflow: escalate: pass | 4/4 fixture cases meet their expected behavior | Keep all four cases. Owner: engineer |
+| Sample user feedback | F1 authored sampled feedback case: a user corrected a draft that cited an older return window. The fixture trace shows retrieval of two policy versions | Regression passes did not cover source freshness clearly enough | Hold broad rollout until source-version handling is explicit. Owner: product manager |
+| Human calibration | Reviewer examines R3 and decides that safe abstention is correct. “Pick the newest” is not enough without a trusted effective-date field | The rubric distinguishes grounded abstention from unsupported certainty | Update the rubric and retrieval metadata. Owner: domain reviewer |
+| Cost, latency, failures | Fixture note: candidate 1.4 seconds and $0.003 per draft versus incumbent 1.1 seconds and $0.002; one retrieval-freshness failure mode | The illustrative operating values fit the stated budget, but the failure remains open | Investigate source freshness. Owner: engineer |
+| Ship, hold, or follow-up | HOLD broad rollout. Keep the incumbent live, retain candidate traces, and add F1 and R3 to the follow-up set | The packet ends in a decision rather than a score | Re-review next week. Owner: product manager |
+
+The values are fixture values for a reproducible dry run, not live product measurements. The point is the decision path. Four offline passes do not erase one unresolved user-feedback case. Each habit produced an evidence record and a next action.
+
+## What should the blank weekly packet contain?
+
+Use this vendor-neutral template in a document, repository, spreadsheet, or issue tracker. You don’t need a platform to begin.
+
+```yaml
+week:
+review_date:
+workflow:
+decision_owner:
+
+changed_surface:
+  model_version:
+  prompt_version:
+  retrieval_version:
+  tool_or_policy_version:
+  code_or_workflow_version:
+  reason_for_change:
+
+offline_regression:
+  fixture_version:
+  cases_run:
+  representative_coverage:
+  results:
+  critical_failures:
+
+production_sample:
+  trace_or_feedback_id:
+  sampling_reason:
+  observed_behavior:
+  verified_outcome:
+  severity:
+  disposition:
+
+human_calibration:
+  case_id:
+  ambiguity:
+  reviewer_role:
+  decision:
+  rubric_or_case_change:
+
+operating_notes:
+  cost:
+  latency:
+  error_or_timeout_notes:
+  review_or_queue_load:
+  stated_limits:
+
+decision:
+  result: ship | hold | follow-up
+  rationale:
+  vetoes_checked:
+  owner:
+  due_date:
+  rollback_or_containment:
+```
+
+OpenAI’s API documentation uses the same basic separation between test-data shape and grading criteria. NIST also calls for documenting the test sets, metrics, tools, deployment-like conditions, limitations, production monitoring, and feedback processes. The template makes those requirements legible to a small team without coupling the review to a vendor schema. ([OpenAI API evals](https://developers.openai.com/api/docs/guides/evals), [NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/))
+
+## When should the packet veto shipment?
+
+Use a veto for a failure that changes the safety, truthfulness, authority, privacy, or operating envelope of the feature. Don’t let a mean score make that failure look small.
+
+Hold shipment when:
+
+- the changed surface is unknown or cannot be pinned;
+- a critical safety, privacy, policy, grounding, tool, or user-outcome case fails;
+- a sampled production trace or feedback case shows a serious failure with no disposition;
+- an ambiguous output has no human calibration decision;
+- cost, latency, error rate, or review load exceeds the team’s stated limit;
+- nobody owns the ship, hold, rollback, or follow-up decision.
+
+Follow up instead of shipping when no critical veto remains but evidence is incomplete, a new fixture is needed, or a non-critical trade-off needs product judgment. Record the owner and due date. A missing field is a decision to stop, not permission to guess.
+
+These are decision rules for the packet, not universal safety thresholds. NIST says risk measurement should reflect context, risk tolerance, deployment conditions, human oversight, and documented limitations. A medical workflow and a low-risk drafting assistant should not have the same veto definitions. ([NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/))
+
+## How can a product manager make the review a team habit?
+
+Make the packet part of the weekly product review, not a separate research ceremony. Assign one person to bring the changed-surface record, one technical owner to rerun the fixture, and one domain reviewer to make the calibration decision. The product manager owns the final state unless the team has named a different risk owner.
+
+The practical teaching observation behind this is narrow. Marius Manolachi has taught product managers who went from writing specs to building and shipping products and automating work around them. In that work, product managers often lack a shared definition of done. That is a teaching observation, not a claim about how common the problem is across the profession. The packet gives “done” a visible shape: evidence, vetoes, owner, and next date. ([Marius Manolachi’s AI learning work](https://mariusmanolachi.com/learn-ai))
+
+Use one exercise before the next review: choose a changed prompt or workflow, fill the packet from the fixture and one sampled trace, then write ship, hold, or follow-up before comparing conclusions with the team. The produced artifact is the completed packet, including the changed surface, evidence inputs, calibration decision, operating note, veto check, owner, and due date. For a transfer check, repeat the exercise on a different workflow or changed surface without copying the support-reply example. If you cannot name the expected outcome and veto, mark the packet incomplete and stop rather than guess.
+
+Keep the meeting short by requiring the packet before the meeting. Spend the time on changed cases, live surprises, disagreements, and the decision. If the team cannot fill the packet, that is the first capability gap to resolve.
+
+For the detailed jobs around this cadence, use [the guide to evaluating an AI agent](/blog/how-to-evaluate-an-ai-agent), [the guide to building an evaluation dataset from production traces](/blog/how-to-build-an-evaluation-dataset-from-production-traces), and [the guide to measuring open-ended AI output](/blog/how-to-measure-ai-output-quality-no-single-right-answer). This page supplies the weekly operating packet that connects those practices.
+
+Marius Manolachi helps people and teams build AI products on their own work as an AI consultant and AI tutor. If a weekly review exposes a capability gap, [bring the real workflow to an AI learning session](/learn-ai). The packet is useful without that next step.
