@@ -1,0 +1,164 @@
+---
+title: "When Should an AI Workflow Split Extraction From Decision Support?"
+date: "2026-09-08"
+updated: "2026-09-08"
+excerpt: "A reproducible six-record test shows when typed extraction and policy-bound decisions justify an extra workflow stage."
+answer: >-
+  Split extraction from decision support when an ambiguous field can change a consequential action, when reviewers need source-level provenance, or when several policies will reuse the same extracted record. Keep the workflow combined for descriptive, reversible, low-consequence outputs that retain evidence references. The principal exception is cost-sensitive, low-risk work where the split adds latency without improving the measured rubric.
+targetQuery: "when should an ai workflow split extraction from decision support"
+queryAliases:
+  - "when to split extraction from decision support"
+  - "split extraction and decision support workflow"
+  - "separate ai extraction from recommendations"
+intent: "commercial-decision"
+funnel: "architecture evaluation"
+cluster: "architecture"
+parent: "/blog/when-to-use-an-ai-agent"
+contentType: "decision-tool"
+kind: "satellite"
+sourceableAtom: "In a deterministic six-record comparison, splitting typed extraction from policy-bound decision support improved field checks from 29/36 to 36/36, decision-quality points from 2/12 to 12/12, and traceable decisions from 0/6 to 6/6, at the cost of one extra sequential call in the scenario model."
+evidenceType: "reproducible architecture comparison plus worked decision artifact"
+evidenceBasis: "Local deterministic control-flow experiment with a dated six-record fixture, field registry, combined baseline, split pipeline, explicit rubric, raw aggregate results, failure traces, and transparent cost and latency calculations in the job evidence directory."
+tags:
+  - "AI workflows"
+  - "Architecture"
+  - "Evaluation"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://www.anthropic.com/engineering/building-effective-agents"
+  - "https://claude.com/blog/common-workflow-patterns-for-ai-agents-and-when-to-use-them"
+  - "https://aws.amazon.com/blogs/machine-learning/from-pdfs-to-insights-architecting-an-intelligent-document-processing-pipeline-with-aws-generative-ai-services/"
+  - "https://airc.nist.gov/airmf-resources/airmf/5-sec-core/"
+  - "https://arxiv.org/abs/2608.12670"
+faq:
+  - q: "Does splitting extraction from decision support always improve accuracy?"
+    a: "No. This local test shows a control and traceability advantage on six mixed, ambiguity-sensitive records. It is not a commercial-model benchmark, and a well-designed single call may perform better on a low-risk descriptive task."
+  - q: "Is a separate decision stage the same as a separate policy service?"
+    a: "No. A split stage can remain in one workflow and still enforce a typed handoff. Make it a separate service only when ownership, reuse, access control, or independent release cadence justify that boundary."
+  - q: "What should the extraction stage return?"
+    a: "Return source-copy fields, bounded interpretations, explicit nulls, and evidence references. Keep recommendations and actions in a separate object that cites those fields."
+cover: "/blog/when-should-an-ai-workflow-split-extraction-from-decision-support-hero-extraction-decision-boundary.webp"
+coverAlt: "Illustration of an AI workflow separating extracted evidence from a policy-bound decision stage"
+draft: false
+---
+
+The dangerous output is often not malformed JSON. It is a plausible recommendation that quietly changes what the source said.
+
+I built a small control-flow test to make that boundary visible. It compares one loose call that extracts and recommends together with a typed extraction stage followed by a policy stage that can abstain.
+
+## The measured result supports splitting consequential decisions
+
+On six mixed records, the split pipeline improved every decision metric in the fixture. It added one sequential model call in the declared scenario calculation.
+
+| Pipeline | Field checks | Decision-quality points | Traceable decisions | Scenario latency | Scenario cost units |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Combined extraction plus decision | 29/36 | 2/12 | 0/6 | 650 ms | 1.62 |
+| Split extraction then decision support | 36/36 | 12/12 | 6/6 | 1,300 ms | 2.16 |
+
+These are results from a deterministic local architecture test, not a model benchmark. The latency and cost columns are transparent scenario calculations, not a provider invoice. The raw table and rerun command are in the accompanying evidence artifact.
+
+The bounded finding is simple: split the stages when ambiguity can change a consequential action or when provenance must survive review. Keep them combined when the output is descriptive, reversible, and low consequence.
+
+## Classify each output before choosing the pipeline
+
+The split decision starts at the field level, not the agent level. Put every output into one of three classes.
+
+| Output class | Examples | Contract | Decision implication |
+| --- | --- | --- | --- |
+| Source-copy | ID, date, amount, named entity | Exact value or explicit null, with a source span | Extract and validate deterministically where possible |
+| Bounded interpretation | Status, ambiguity, confidence band | Closed vocabulary, negation handling, evidence span | Extract separately when it can alter action |
+| Decision support | Recommendation, action, escalation, rationale | Policy version, rubric, evidence references, approval boundary | Keep behind a decision gate |
+
+An evidence reference is not a fourth kind of meaning. It is the link that lets a reviewer check the first three classes against the source.
+
+![Diagram showing extracted fields and evidence references flowing into bounded interpretation, then a policy decision and human review gate](/blog/when-should-an-ai-workflow-split-extraction-from-decision-support-field-to-decision-review-gate.webp)
+
+Here is the minimum handoff shape used in the test:
+
+```json
+{
+  "extracted": {
+    "status": "reported",
+    "ambiguity": "high",
+    "evidence_fields": ["status", "ambiguity"]
+  },
+  "decision": {
+    "recommendation": "review_refund",
+    "action": "do_not_refund_until_confirmed",
+    "evidence_fields": ["status", "ambiguity"]
+  }
+}
+```
+
+The decision object can be wrong. That is why it must not overwrite the extracted object. The reviewer should be able to inspect both.
+
+AWS describes a similar layered document-processing shape: input processing, extraction and storage, intelligence, and agentic coordination. That is a useful architecture reference, but the local test adds a field-level decision rule and a measured comparison. [AWS's document-processing architecture](https://aws.amazon.com/blogs/machine-learning/from-pdfs-to-insights-architecting-an-intelligent-document-processing-pipeline-with-aws-generative-ai-services/) also describes validation, metadata, and error routing as part of the workflow.
+
+## Split when the recommendation has a veto condition
+
+Use the following decision matrix before adding orchestration.
+
+| Question | If yes | If no |
+| --- | --- | --- |
+| Can a wrong recommendation move money, change access, affect security, alter a contract, or affect a customer? | Split or add a hard policy gate | Continue |
+| Can an ambiguous interpretation change the recommended action? | Split | Continue |
+| Must a reviewer inspect source evidence separately from the recommendation? | Split | Continue |
+| Will multiple policies reuse the extracted record? | Split extraction from policy-specific decisions | Continue |
+| Is the output a reversible description with no approval consequence? | Combined is usually sufficient | Measure the next condition |
+
+The principal exception is a low-risk workflow where the split adds a second call but does not improve the rubric or the reviewer’s ability to trace the answer. Anthropic's guidance makes the same trade-off from a broader angle: workflows add structure and predictability, but extra complexity should earn its place through better outcomes. [Anthropic's agent guidance](https://www.anthropic.com/engineering/building-effective-agents) recommends starting with the simplest solution and increasing complexity only when needed. [Claude's workflow guidance](https://claude.com/blog/common-workflow-patterns-for-ai-agents-and-when-to-use-them) similarly recommends a sequential pattern when stages have real dependencies, not when the decomposition is artificial.
+
+## The test fixture exposes where the combined call fails
+
+The six records were designed to mix safe extraction with ambiguous, consequential recommendations:
+
+1. An approved invoice that should be paid.
+2. A reported duplicate charge where the ledger shows only one settled charge.
+3. Possible phishing with an unconfirmed compromise.
+4. An auto-renewal with no owner approval to cancel.
+5. A service degradation whose affected scope is unknown.
+6. A termination clause with no approved termination request.
+
+The combined call got the easy invoice right. It failed on the boundary cases:
+
+| Record | Combined output | Split output | Failure |
+| --- | --- | --- | --- |
+| Duplicate charge | Refund | Review, do not refund until confirmed | A report became a fact |
+| Possible phishing | Suspend account | Escalate, preserve logs, verify | A possibility became a commitment |
+| Auto-renewal | Cancel | Review cancellation | A deadline became authorization |
+| Unknown incident scope | Declare P1 | Gather scope first | Severity outran evidence |
+| Unapproved termination | Terminate | Legal review, do not terminate | Contract capability became approval |
+
+The combined output was valid-looking, but every decision lacked evidence references. The split output cited the fields it consumed for all six records.
+
+This is why I treat decision support as a distinct product surface. When I taught product managers to move from writing specs to building and shipping products, the recurring failure was not usually the model. It was that nobody could say what “done” meant. The same problem appears here as an undefined boundary between “the source says” and “we should act.”
+
+## Keep the decision stage small and reviewable
+
+The split does not require a multi-agent system. It can be two functions in one worker, two prompts in one request path, or two services owned by different teams. The boundary matters more than the branding.
+
+Use this procedure:
+
+1. List every output field the workflow currently returns.
+2. Label each field source-copy, bounded interpretation, or decision support.
+3. Add explicit nulls and evidence references to the extraction schema.
+4. Write the decision rubric before writing the recommendation prompt.
+5. Make ambiguous interpretations route to review, escalation, or safe non-action.
+6. Run the same dated fixture through the combined and split paths.
+7. Compare field accuracy, decision quality, traceability, latency, cost, and failure cases.
+8. Keep the split only if the improvement clears the risk and operating-cost threshold your team has set.
+
+For a wider implementation, the extraction output can feed a [source-evidence workflow](/blog/how-to-attach-source-evidence-to-ai-workflow-outputs), while the rubric can follow the scoring discipline in [how to grade an AI output against a rubric](/blog/how-to-grade-an-ai-output-against-a-rubric). The parent decision guide is [When Should You Use an AI Agent?](/blog/when-to-use-an-ai-agent).
+
+## What this result does not prove
+
+The fixture is synthetic and intentionally small. It has no external model call, no human raters, no production distribution, and no claim that every model will show the same error pattern. The combined baseline is a deliberately loose contract, so a stronger single-call design may narrow the gap.
+
+The cost and latency figures are also not a procurement quote. The run records 650 ms for one call and 1,300 ms for two sequential calls as a scenario assumption. It prices tokens in normalized units so the arithmetic is visible. Before launch, replace both with the selected provider’s dated token counts and p50/p95 measurements.
+
+NIST's AI Risk Management Framework calls for documented roles, oversight, repeatable evaluation, and recorded limits. That is the standard the experiment is trying to meet at small scale, not a claim that six records establish production safety. [NIST's AI RMF core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/) is the right reference for extending the fixture into a real evaluation plan.
+
+The applied ITSM example points in the same direction. A 2026 paper describes transforming heterogeneous ticket exports into decision-support artifacts and evaluates interpretability, actionability, trust, and likelihood of use with stakeholder raters. [The ITSM study](https://arxiv.org/abs/2608.12670) is evidence that the decision artifact deserves evaluation by people who will use it. It is not evidence that this split wins every workflow.
+
+If your workflow only summarizes a low-risk record, keep the stages together and measure it. If it recommends an action that someone must defend, approve, or undo, separate the evidence from the decision before adding autonomy.
