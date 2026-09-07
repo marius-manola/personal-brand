@@ -1,0 +1,194 @@
+---
+title: "What Should an AI Evaluator Do Without an LLM Judge?"
+date: "2026-09-07"
+updated: "2026-09-07"
+excerpt: "A nine-case fixture shows when code, references, trajectories, latency, approval checks, and human review can replace an LLM judge at release."
+answer: "Use deterministic checks as the release gate for claims that can be written as predicates: schema, exact fields, references, tool trajectory, latency, and approval. Send semantically ambiguous cases to a small blind human queue. Use an LLM judge only as calibrated, sampled triage for open-ended quality. The exception is a workflow whose success cannot be observed without interpretation."
+targetQuery: "What should an AI evaluator do without relying on an LLM judge?"
+queryAliases:
+  - "AI evaluator without an LLM judge"
+  - "How to evaluate AI without an LLM judge"
+  - "Deterministic AI evaluator"
+intent: "informational / decision"
+funnel: "consideration"
+cluster: "evaluation"
+parent: "/blog/how-to-evaluate-an-ai-agent"
+contentType: "decision-tool"
+kind: "satellite"
+sourceableAtom: "In a dated nine-case screen-guidance fixture, a combined deterministic gate caught 6 of 7 task failures with one semantic false positive, while exact reference comparison had both a false negative and a false positive and an answer-surface proxy passed all 9."
+evidenceType: "reproducible test harness with a worked decision artifact and one bounded firsthand observation"
+evidenceBasis: "Fixture v2026-08-23.1 with 9 raw cases, schema and string checks, reference comparison, trajectory assertions, latency and approval checks, two blind adjudications, evaluator code, raw results, false-positive and false-negative lists, and a decision matrix. The workflow is situated by Marius Manolachi's locked F-tryuncle observation."
+tags:
+  - "AI evaluation"
+  - "AI reliability"
+  - "AI agents"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://docs.langchain.com/langsmith/evaluation-concepts?mode=ui"
+  - "https://developers.openai.com/api/reference/resources/graders"
+  - "https://arxiv.org/abs/2410.13341"
+  - "https://arxiv.org/abs/2410.20266"
+  - "https://aclanthology.org/2025.findings-acl.306.pdf"
+  - "https://tryuncle.com"
+cover: "/blog/what-should-an-ai-evaluator-do-without-an-llm-judge-hero.webp"
+coverAlt: "Illustration of an AI evaluator separating deterministic release checks from human review"
+draft: false
+---
+
+An evaluator can be independent of an LLM judge without being simplistic. I ran a small fixture for a screen-guidance workflow and gave each evaluator type the same nine cases. The result was clear: code earned authority over objective claims, while references and model-like answer scoring were useful for finding cases to inspect.
+
+[TryUncle](https://tryuncle.com) is an AI agent that watches the screen and annotates it live. That makes latency and human approval product constraints, not details to add after the quality score. The fixture keeps those constraints visible.
+
+Here is the observed result from version `2026-08-23.1`:
+
+| Evaluator | Passes | False positives | False negatives | Decision |
+| --- | ---: | --- | --- | --- |
+| Schema and string checks | 7/9 | C02, C03, C06, C07, C08 | None | Structure only |
+| Reference comparison | 2/9 | C07 | C05 | Triage |
+| Tool and trajectory assertions | 4/9 | C06, C09 | None | Gate tool and page claims |
+| Latency and approval checks | 6/9 | C02, C06, C07, C09 | None | Gate stated operating limits |
+| Combined deterministic gate | 3/9 | C06 | None | Release gate for objective claims |
+| Answer-surface proxy | 9/9 | C02, C03, C04, C06, C07, C08, C09 | None | Triage only |
+
+The combined gate caught 6 of the 7 task failures. It let one semantic omission through. That is enough to define the boundary: deterministic checks can own release decisions only for claims they actually observe.
+
+![Illustration of evaluator lanes separating release gates from human triage](/blog/what-should-an-ai-evaluator-do-without-an-llm-judge-inline-1.webp)
+
+The [versioned fixture and runner](./fixture/README.md) contain the raw cases, evaluator code, adjudication method, and result file. The broader [How to evaluate an AI agent](/blog/how-to-evaluate-an-ai-agent) guide is the canonical parent for this cluster. This page answers the narrower question of evaluator authority.
+
+## The release gate should be deterministic first
+
+Use code as the release gate whenever the success claim can be written as a predicate over the output or trace. Add a human exception queue for the claims that still require interpretation. An LLM judge is optional triage, not the default authority.
+
+This split matches the basic distinction in [LangSmith's evaluation concepts](https://docs.langchain.com/langsmith/evaluation-concepts?mode=ui): code evaluators are deterministic functions for checks such as structure, compilation, and exact classification, while human and LLM-as-judge evaluators address less formalized quality. The same documentation separates offline datasets with references from online runs without references, which is useful when deciding what evidence is available.
+
+The decision rule is short:
+
+1. Write the success claim as a predicate if you can.
+2. Give that predicate a release veto when its condition is critical.
+3. Compare against a reference when a stable expected value exists.
+4. Inspect the tool trajectory when the path matters, not only the final message.
+5. Send unresolved semantic cases to blind human review.
+6. Use a model judge only after it has been compared with human labels and only for the dimensions code cannot express cleanly.
+
+Do not average these into one score. A correct-looking instruction cannot cancel an approval bypass.
+
+## What should the evaluator check?
+
+Start with the workflow contract, then attach the cheapest trustworthy evaluator to each claim.
+
+| Claim about the workflow | Check | Release authority | Why |
+| --- | --- | --- | --- |
+| The response is parseable and complete | Required fields, types, allowed values, non-empty strings | Deterministic code | There is one valid schema |
+| The response names the expected result | Exact or normalized reference comparison | Deterministic code when the reference is authoritative | The target is known |
+| The agent used the right tool and page | Tool name, target, order, screen-page match | Deterministic trajectory assertion | The trace contains the evidence |
+| The agent stayed within limits | Latency, retries, tokens, or cost threshold | Deterministic assertion | A product limit is a boundary, not a preference |
+| The agent asked before a state change | Approval event and approval value | Deterministic veto | A missing approval is a policy failure |
+| Two wordings are both acceptable | Blind human adjudication | Human decision for the sample | Meaning is not always an exact string |
+| Tone or open-ended helpfulness is good | Calibrated model judge or human review | Triage until calibrated | The criterion is interpretive |
+
+[OpenAI's grader reference](https://developers.openai.com/api/reference/resources/graders) exposes the same useful building blocks: string checks, text similarity, Python graders, score-model graders, and multi-graders. The implementation choice is less important than assigning each grader a claim it can observe.
+
+## What did the worked fixture reveal?
+
+The fixture describes a screen-watching tutor. Each case includes a user request, screen page, visible controls, expected action and approval label, structured output, tool trace, target controls, and latency. The run uses nine cases:
+
+- C01 is a clear pass.
+- C02 points to the wrong control.
+- C03 closes a project without requesting approval.
+- C04 uses a stale page and breaches the latency limit.
+- C05 uses natural wording that a human accepts.
+- C06 omits a visible navigation step that a human rejects.
+- C07 reaches the right final instruction with the wrong tool order.
+- C08 combines a state-changing action with a latency and approval breach.
+- C09 omits a required schema field.
+
+The combined deterministic gate is the conjunction of schema and string checks, trajectory assertions, and latency and approval assertions. It passes C01, C05, and C06. Human review marks C05 pass and C06 fail. That gives the gate one false positive, but it catches every objective violation in the fixture.
+
+The result is more useful than a single accuracy number because it tells you what to repair. C06 needs a semantic completeness rule or a human exception path. C03 needs an approval veto. C07 needs trajectory coverage. C09 needs a schema test. Each failure points to a different evaluator change.
+
+## Why exact references are not enough
+
+Reference comparison is strong when the reference is the source of truth. It is too strict when multiple phrasings satisfy the task, and it is too weak when the reference omits an operational constraint.
+
+C05 is the false negative. The expected reference phrase was `Inspector > Text > Font`, but the output said, “Open Inspector, then choose Text and Font.” A human could accept the latter because it names the same visible path. An exact comparison rejects it.
+
+C03 is the opposite failure. The output names the correct action and matches the reference phrase, but it says approval is not required before closing the project. A reference check passes the answer content while missing the policy condition. The trajectory and approval evaluators reject it.
+
+That is why a reference evaluator belongs in the offline comparison layer, not above the task contract. Keep the reference, but also store the conditions that make the action safe.
+
+## When does human review belong in the loop?
+
+Use human review for a small, blind calibration set whenever the evaluator must choose between meanings that deterministic checks cannot separate. Keep the reviewer away from the expected label during the decision. Show the request, screen state, output, and rubric. Then convert stable decisions into new predicates or references.
+
+The two-case set is deliberately small. C05 tests an acceptable wording variant. C06 tests a concise but incomplete instruction. It does not establish reviewer agreement or a population error rate. It only shows where the code needs a human boundary.
+
+This matters more in expert work. One study found subject-matter experts agreed with LLM judges on overall preference 68% of the time in dietetics and 64% in mental health. That is not evidence that LLM judges are useless. It is evidence that a judge should not silently become the authority for knowledge-specific decisions. See [the study's abstract](https://arxiv.org/abs/2410.20266).
+
+The [rubric guide](/blog/how-to-grade-an-ai-output-against-a-rubric) is useful when you need to define that human review packet. It should state the source of truth, acceptable outcome, failure cost, and what the reviewer must do with a disagreement.
+
+## What is the narrow role of an LLM judge?
+
+An LLM judge can help rank, cluster, or explain open-ended failures after the deterministic checks have run. It should not be the only release veto when the workflow has observable state, tool use, limits, or approvals.
+
+The caution is not just philosophical. A 2026 revision of a theoretical and empirical study found that when the judge is no more accurate than the evaluated model, debiasing cannot reduce the required ground-truth labels by more than half, with smaller savings in practice. Another ACL 2025 study found that fine-tuned judge models can look strong in-domain while underperforming on generalizability, fairness, and adaptability. ([Dorner, Nastl, and Hardt](https://arxiv.org/abs/2410.13341); [Huang et al.](https://aclanthology.org/2025.findings-acl.306.pdf))
+
+If you use one, write down its authority before you see its score:
+
+- It may label tone, clarity, or open-ended usefulness for triage.
+- It may not override a failed schema, tool, approval, or latency check.
+- It must be sampled against blind human labels.
+- Its prompt, model version, sampling settings, and calibration set belong in the fixture.
+- Its output should explain which criterion failed, not hide the decision inside a single number.
+
+The answer-surface proxy in this fixture makes the failure easy to see. It passes all nine cases because every output looks ready and contains an instruction. That is useful as a warning, not as a production judge.
+
+## How should latency and approval change the evaluator?
+
+Treat latency and approval as acceptance criteria when the user interacts with the workflow in time. Do not add them to a dashboard after the agent has already been designed.
+
+In a screen-watching workflow, the evaluator needs at least these trace fields:
+
+```json
+{
+  "screen_page": "Edit",
+  "tools": ["screen_pointer"],
+  "targets": ["Crop"],
+  "approval_requested": false,
+  "latency_ms": 420
+}
+```
+
+The fixture uses 1,500 ms as an illustrative limit. C04 and C08 breach it. C03 and C08 also attempt a state-changing action without approval. The number is not a general UX law. Replace it with the limit your product can defend, then make the assertion executable.
+
+This is the bounded product observation from TryUncle: when an agent watches the screen and annotates live, the user experiences timing and approval as part of the feature. An evaluator that checks only the final sentence is measuring the wrong object.
+
+## A release-versus-triage matrix you can reuse
+
+| Evaluator | Release gate? | Use it for | Veto or escalation |
+| --- | --- | --- | --- |
+| Schema and string checks | Yes, for format claims | Required fields, types, exact labels, forbidden strings | Fail immediately on violation |
+| Reference comparison | Sometimes | Known labels, expected state, exact content | Escalate acceptable variants instead of auto-failing them |
+| Trajectory assertions | Yes, for tool and action claims | Tool, target, order, page, and state transition | Fail critical mismatches |
+| Latency and approval checks | Yes, when stated in the product contract | Timing, retries, approval, and budget | Treat breaches as product failures |
+| Blind human review | Yes for the sampled exception set | Ambiguous meaning and expert judgment | Add a regression case after adjudication |
+| LLM judge | No by default | Sampled triage, clustering, open-ended language quality | Calibrate against human labels and keep the raw disagreement |
+
+The matrix is the practical answer to the query. Do not ask, “Which evaluator is best?” Ask, “Which claim is being made, and which evaluator can observe it without guessing?”
+
+## The minimum adoption sequence
+
+Take one workflow and do this before changing the model:
+
+1. Freeze the task contract, expected outputs, trace fields, limits, and approval rules.
+2. Save nine to twenty representative cases, including at least one known failure and one ambiguity.
+3. Implement deterministic schema, state, tool, trajectory, latency, and approval checks.
+4. Add reference comparisons only where the reference is authoritative.
+5. Create a blind human set for semantic cases and record false positives and false negatives.
+6. Write the release matrix before looking at the results.
+7. Use an LLM judge only for the residual dimensions, and keep it in triage until calibration shows it deserves more authority.
+
+The fixture is intentionally small. Its value is not the number nine. Its value is that every passing or failing result maps to a claim, an evaluator, and a decision.
+
+If your team is choosing between a new evaluator and a better workflow contract, start with the contract. A judge cannot rescue an acceptance condition nobody has written down. If you want help turning a real workflow into this kind of runnable decision artifact, Marius Manolachi's [AI consulting and tutoring work](/learn-ai) is the next step.
