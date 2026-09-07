@@ -1,0 +1,180 @@
+---
+title: "Why AI Architecture Fails When the Source of Truth Changes"
+date: "2026-09-07"
+updated: "2026-09-07"
+excerpt: "A runnable fixture shows how an ownership switch turns stale retrieval into wrong AI answers, citations, and tool decisions."
+answer: "An AI architecture fails when its reads, retrieval index, citations, or tools are coupled to a producer instead of an owned contract. When authority changes, direct reads can return stale facts or break on a renamed field. Use a canonical projection for controlled migration, and add contract-gated versioned reads when a wrong answer could trigger a consequential action."
+targetQuery: "Why does an AI architecture fail when the source of truth changes?"
+queryAliases:
+  - "AI source of truth change failure"
+  - "AI architecture data ownership change"
+  - "RAG source of truth migration"
+intent: "informational diagnostic"
+funnel: "problem-aware"
+cluster: "architecture"
+parent: "/blog/when-to-use-an-ai-agent"
+contentType: "decision-tool"
+kind: "satellite"
+sourceableAtom: "In this fixture, switching authority from Commerce to Policy made the direct reader return 30 days and choose approve_refund when the expected Policy value was 14 days; a canonical projection stayed correct through the known rename, while a contract gate rejected the breaking version without making a stale decision."
+evidenceType: "reproducible failure reproduction with a worked decision artifact"
+evidenceBasis: "A dependency-free Python fixture with two source systems, old and new snapshots, three contract states, retrieval indexes, two repeated workflow cases, raw JSON output, a dependency graph, and a decision matrix."
+tags: ["AI architecture", "data contracts", "RAG"]
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://docs.cloud.google.com/architecture/data-mesh?hl=en"
+  - "https://docs.aws.amazon.com/prescriptive-guidance/latest/strategy-data-mesh/introduction.html"
+  - "https://docs.confluent.io/platform/current/schema-registry/fundamentals/data-contracts.html"
+  - "https://docs.confluent.io/platform/current/schema-registry/fundamentals/schema-evolution.html"
+  - "https://avro.apache.org/docs/1.7.5/spec.html"
+faq:
+  - q: "Is adding a field always a breaking schema change?"
+    a: "No. In this fixture, adding approval_required with a default is backward-compatible because the old shape can still be read. Compatibility depends on the format, reader, writer, and default rules."
+  - q: "Should a contract gate reject every breaking change?"
+    a: "It should reject an unapproved breaking change on a consequential path. After a reviewed migration adapter and contract version are released, the gate can allow the new version explicitly."
+cover: "/blog/why-does-an-ai-architecture-fail-when-the-source-of-truth-changes-hero.webp"
+coverAlt: "Illustration of an AI architecture splitting when its source of truth changes"
+draft: false
+---
+
+The dangerous moment isn’t when a source system goes offline. It’s when it keeps answering, just with yesterday’s owner or yesterday’s field name.
+
+In the fixture for this post, a source-of-truth cutover made a direct reader return 30 refund days when the new authority said 14. That stale fact changed the workflow’s tool choice and citation. A canonical projection kept the answer correct, while a contract gate stopped an unapproved breaking version.
+
+## What failed in the fixture?
+
+The first failure was not generation. It was an ownership mismatch upstream of generation.
+
+I built two source systems for one order:
+
+- Commerce, owned by `order-service`, said the refund window was 30 days.
+- Policy, owned by `risk-policy`, said it was 14 days.
+
+Commerce was authoritative in v1. Policy became authoritative in v2. The same two cases ran in all three states: “What is the refund window?” and “Is approval required?” The workflow returned an answer, a citation identifier, and a tool decision.
+
+The fixture’s result table is the sourceable artifact. It contains all 18 runs, including raw expected values, observed values, citations, tools, outcomes, and failure classes. These are measured results of this fixture only.
+
+| State | Direct reads | Canonical projection | Contract-gated reads |
+| --- | --- | --- | --- |
+| Baseline v1 | 2/2 pass | 2/2 pass | 2/2 pass |
+| Authority cutover v2 | 2 stale-owner failures | 2/2 pass | 2/2 pass |
+| Breaking rename v3 | 2 schema errors | 2/2 pass | 2 fail-closed outcomes |
+
+The cutover’s first wrong behavior was concrete. The direct reader cited `commerce-v1-stale-index`, returned 30 instead of 14, and chose `approve_refund` for an order 20 days old. The expected tool was `escalate_refund`. For the second case, it returned `approval_required: false` and chose `skip_approval` when Policy required approval.
+
+The breaking change produced a different failure. The direct reader still expected `refund_days`, but Policy v3 exposed `refund_window_days`. It abstained with `schema_error`. The canonical projection translated the known rename. The contract-gated reader rejected v3 before it could make a decision.
+
+This is the failure trace, including the repair and its verification:
+
+| Boundary | Reproduction | Diagnosis | Repair | Verification |
+| --- | --- | --- | --- | --- |
+| Owner and index | Run the two cases in `cutover-v2` with `direct-read`. | The index still cites Commerce after Policy becomes authoritative, so both answers use stale ownership. | Rebuild through the canonical projection or the contract-gated path using the Policy owner and contract. | Both repaired strategies pass 2/2 cases; direct reads show the two `stale_owner_and_citation` failures. |
+| Field contract | Run `breaking-v3`, where `refund_days` becomes `refund_window_days`. | The direct reader has no mapping for the renamed field and returns `schema_error`. | Map the known rename into canonical `refund_days`, and reject an unapproved contract before action. | Canonical projection passes 2/2; contract gating returns `PASS_FAIL_CLOSED` for both cases. |
+
+The verification is a rerun of the same cases, not a claim that the repair works for every schema change. The raw JSON records the observed answer, citation, tool, outcome, and failure class for all 18 fixture runs.
+
+![Illustration of an AI workflow blast radius from source ownership to retrieval, citation, and tool choice](/blog/why-does-an-ai-architecture-fail-when-the-source-of-truth-changes-blast-radius.webp)
+
+You can run the [fixture over HTTPS](https://mariusmanolachi.com/artifacts/ai-source-of-truth-change-fixture/) or inspect its local copy in the job artifact. It uses Python’s standard library, fixed JSON, and no model API.
+
+## Why does changing the owner change an AI answer?
+
+Because ownership defines which value is authoritative, while the AI system often stores an older answer in several places.
+
+The architecture may contain all of these dependencies:
+
+1. A source reader points at a system and field.
+2. An index stores a searchable representation and source identifier.
+3. A workflow turns retrieved fields into an answer or tool call.
+4. The output carries a citation that tells a reviewer where the answer came from.
+
+If the owner changes, each dependency needs a new answer to the question “which value wins?” A database connection alone can’t answer it.
+
+This is the practical part of [AWS data-mesh guidance](https://docs.aws.amazon.com/prescriptive-guidance/latest/strategy-data-mesh/introduction.html). AWS describes domain ownership, data as a product, a self-service platform, and federated governance as core principles. [Google Cloud’s data-mesh guidance](https://docs.cloud.google.com/architecture/data-mesh?hl=en) describes data products as owned by the teams that best understand the data and gives a data product owner responsibility for definitions, policies, business decisions, and lifecycle. Those are architecture responsibilities, not labels for a catalog.
+
+In my fixture, the ownership metadata changed from `order-service` to `risk-policy`, but the direct reader and its index did not. The result was a valid-looking answer from the wrong owner. Retrieval did exactly what it was built to do.
+
+That’s why a citation can be wrong even when it is technically present. A citation proves where the retrieved text came from. It does not prove that the cited source still owns the decision.
+
+I’ve seen a related version of this in teaching. When I taught product managers who moved from writing specifications to building and shipping products, the hard part was rarely the model. The hard part was defining what “done” meant. A source-of-truth migration needs the same discipline: define the acceptable answer, citation, and action before changing the data owner.
+
+For a broader architecture comparison, see [when to use an AI agent](/blog/when-to-use-an-ai-agent). If your immediate question is whether a knowledge task should use retrieval or SQL, compare the [RAG versus SQL decision](/blog/should-i-use-rag-or-sql-for-internal-business-questions).
+
+## What does a backward-compatible change protect?
+
+A backward-compatible change protects readers from a known shape change. It does not decide which domain owns the meaning.
+
+In v2, Policy added `approval_required: true` and kept `refund_days`. The old contract could still read the existing field. The new field had a default in the versioned contract, so a reader handling the old shape had a defined value.
+
+[Confluent’s schema-evolution guidance](https://docs.confluent.io/platform/current/schema-registry/fundamentals/schema-evolution.html) defines backward compatibility as a new schema being able to read data produced with the last schema. Its [data-contract documentation](https://docs.confluent.io/platform/current/schema-registry/fundamentals/data-contracts.html) also describes contracts as more than field structure. They can include integrity constraints, metadata, policies, and versioned migration rules. The upstream component enforces the contract, while the downstream component can assume the received data conforms to it.
+
+[Apache Avro’s schema-resolution specification](https://avro.apache.org/docs/1.7.5/spec.html) makes the reader and writer distinction explicit. The writer’s schema describes what was written. The reader’s schema describes what the application expects. A missing field can be resolved when the reader supplies a default. Without that default, resolution signals an error.
+
+The implication for AI systems is narrow but useful:
+
+> A compatible schema can keep a parser alive. It cannot make a stale source authoritative.
+
+The fixture shows both parts. The canonical and contract-gated readers handled v2 because their dependency boundary included the Policy owner and the new contract. The direct reader failed because its index still represented Commerce. Compatibility fixed shape evolution, not ownership drift.
+
+This is also why [tool schema drift prevention](/blog/how-to-prevent-ai-agent-tool-schema-drift) is related but not identical. A tool contract protects the boundary between a workflow and a tool. This failure clinic protects the boundary between a changing business source and the workflow’s evidence.
+
+## What should happen when the field rename is breaking?
+
+The system should stop before it produces a consequential answer, unless an approved adapter and versioned contract explicitly handle the change.
+
+The v3 fixture renamed `refund_days` to `refund_window_days`. That is a breaking change for a reader compiled against the old field. Direct reads raised a schema error. The contract-gated strategy returned `PASS_FAIL_CLOSED`, meaning it abstained because v3 was not approved. That is a successful safety outcome, not a successful answer.
+
+The canonical projection passed because it had an explicit migration rule:
+
+```text
+policy v2: refund_days -> canonical refund_days
+policy v3: refund_window_days -> canonical refund_days
+```
+
+That mapping is safe only for the change it names. It does not grant permission for an unreviewed semantic change, such as switching from calendar days to business days or changing whether approval applies before or after the refund window.
+
+[Confluent’s compatibility documentation](https://docs.confluent.io/platform/current/schema-registry/fundamentals/schema-evolution.html) distinguishes backward, forward, full, and transitive modes. The exact choice depends on the format and reader lifecycle. Treat the fixture’s v2 and v3 labels as a worked example, not a universal compatibility policy.
+
+## Which architecture should you choose?
+
+Use direct reads only when one domain owns the value, the source contract is stable, and a stale or malformed result cannot trigger a consequential action. Otherwise, put a boundary between the AI workflow and the source.
+
+| Option | Choose it when | What it protects | What it does not protect |
+| --- | --- | --- | --- |
+| Direct read | One stable owner and low consequence | Simplicity and low latency | Owner changes, stale indexes, field renames, citation freshness |
+| Canonical projection | Multiple consumers or a planned source cutover | One internal shape, source normalization, explicit migrations | Unknown semantic changes without a new adapter |
+| Contract-gated versioned read | Tool calls, approvals, citations, or other high-consequence outputs | Version acceptance, fail-closed behavior, auditable migration | It cannot invent a migration for an unmodeled change |
+
+My default is a canonical projection plus contract gating for any workflow that can approve, write, escalate, or make a source-backed claim that someone will rely on. The projection absorbs known representation changes. The gate prevents an unknown contract from quietly becoming evidence.
+
+The smallest useful decision rule is:
+
+```text
+If the source has one stable owner and the workflow is read-only:
+    direct read can be enough.
+If ownership or representation can change:
+    project into a canonical contract.
+If the workflow can cause an action or must cite evidence:
+    gate the contract and abstain on unapproved breaking changes.
+```
+
+## How do you reproduce the failure?
+
+Run the same cases across the same states. If you change the questions between versions, you can’t see the blast radius.
+
+1. Download or serve the fixture directory at its HTTPS path.
+2. Run `python3 run.py`.
+3. Open `outputs/result-table.md` for the readable matrix.
+4. Open `outputs/raw-run.json` for each observed answer, citation, tool, and failure class.
+5. Read `dependency-graph.md` and compare the direct reader’s dependency with the canonical and gated paths.
+6. Change one source field or owner, rerun the command, and add a case before changing the workflow rules.
+
+The fixture’s source snapshots and contracts are intentionally small enough to review in one sitting. The value is not realism. The value is preserving the same input cases while one architectural assumption changes.
+
+## What are the limits of this result?
+
+This is a reproducible failure reproduction, not a performance study. The index uses token overlap rather than embeddings. The workflow is a deterministic rule-based stand-in, so it says nothing about any model’s accuracy, latency, or tendency to hallucinate. It has one order, two cases, two source systems, and three contract states.
+
+The canonical projection also knows the v3 rename in advance. An unknown semantic change still needs the domain owner, a migration rule, a contract review, and new regression cases. The artifact demonstrates the boundary that makes that work visible. It doesn’t remove the work.
+
+If you’re designing an AI workflow now, add the source owner, contract version, index version, citation source, and action decision to the same test record. Then switch the owner in the fixture before you switch it in production. That is when the architecture becomes testable.
