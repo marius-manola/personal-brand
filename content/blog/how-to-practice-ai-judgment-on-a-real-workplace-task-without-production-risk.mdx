@@ -1,0 +1,264 @@
+---
+title: "How to Practice AI Judgment Without Production Risk"
+date: "2026-09-08"
+updated: "2026-09-08"
+excerpt: "A complete sandbox exercise for practising AI judgment: baseline frame, synthetic task, AI trace, verification rubric, failure test, and go/no-go."
+answer: "Practice on a copied or synthetic task with a meaningful but reversible output. Write your own frame first, give AI read-only sandbox access, preserve the trace, verify every decision against a rubric, reproduce one ambiguity, and record accepted, changed, rejected, and escalated items. Do not grant production-write permission until the exercise passes and a human owner approves it."
+targetQuery: "How to practice AI judgment on a real workplace task without production risk"
+queryAliases:
+  - "practice AI judgment at work safely"
+  - "AI judgment practice task"
+  - "sandbox AI practice for workplace tasks"
+intent: "implementation / capability building"
+funnel: "problem-aware / consideration"
+cluster: "capability"
+parent: "/blog/what-to-learn-before-building-ai-agents"
+contentType: "decision-tool"
+kind: "satellite"
+sourceableAtom: "A reproducible workplace-task practice packet with an unaided frame, read-only sandbox run, verification rubric, observed ambiguity, repaired artifact, and final go/no-go decision."
+evidenceType: "reproducible learning exercise with a worked decision artifact and bounded failure reproduction"
+evidenceBasis: "One synthetic five-item planning run completed on 2026-08-23, with the full packet, transcript excerpt, rubric, reproduced ambiguity, revised artifact, decision log, limitations, and reproducibility notes archived in research.md and represented in this post."
+tags:
+  - "AI judgment"
+  - "Learning AI"
+  - "AI evaluation"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://judgmentlab.net/"
+  - "https://airc.nist.gov/airmf-resources/airmf/5-sec-core/"
+  - "https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents"
+  - "https://www.anthropic.com/research/measuring-agent-autonomy"
+  - "https://developers.openai.com/api/reference/resources/evals/methods/delete"
+cover: "/blog/how-to-practice-ai-judgment-on-a-real-workplace-task-without-production-risk-ai-judgment-sandbox-hero.webp"
+coverAlt: "Illustration of a human setting a read-only boundary around an AI workplace task"
+faq:
+  - q: "Can I use a real workplace task for this exercise?"
+    a: "Yes, if the task is low-risk and the input is approved for the AI system. Start with a copied, de-identified, or synthetic version when the material contains confidential, personal, regulated, or customer information. Keep the first run read-only and reversible."
+  - q: "What if the AI output passes the rubric?"
+    a: "Treat that as evidence for another supervised sandbox run, not permission to write to production. A human owner still needs to approve the task boundary, data path, permissions, rollback plan, and review rule before any live action is considered."
+draft: false
+---
+
+I wanted a practice task that looked like work without putting work at risk. So I ran a synthetic planning exercise with five internal requests, a copied input packet, and no way to write anywhere real.
+
+The first AI pass produced a complete queue. It also invented an owner and a business rationale for one ambiguous request. The rubric caught both. That small failure is the useful part of the exercise.
+
+| Run result | Recorded outcome |
+| --- | --- |
+| Input | Five synthetic internal requests in a copied, read-only packet |
+| First-pass failure | One unsupported owner and one unsupported rationale for R-02 |
+| Repair | Mark unknowns explicitly, escalate missing evidence, and separate proposal from action |
+| Final decision | Go for another supervised sandbox run; no-go for production writes |
+
+![Illustration of a synthetic workplace task moving from a human baseline into a read-only sandbox](/blog/how-to-practice-ai-judgment-on-a-real-workplace-task-without-production-risk-ai-judgment-sandbox-packet.webp)
+
+This decision tool sits beneath [what to learn before building AI agents](/blog/what-to-learn-before-building-ai-agents). It is narrower than [grading an AI output against a rubric](/blog/how-to-grade-an-ai-output-against-a-rubric): you get one complete packet to run, inspect, and reject when the evidence is not enough. If the exercise is part of a wider team habit, [make the practice stick after training](/blog/how-to-make-ai-training-stick-in-a-small-team) with a saved artifact and a next-use cue.
+
+## Use this decision tool before you run AI
+
+Run the exercise only when the task can stay inside a copied or synthetic input, produce a reversible draft, and be judged by a named human owner. If any answer is no, stop and repair the boundary before asking AI to help.
+
+| Decision | If yes | If no |
+| --- | --- | --- |
+| Can you copy, synthesize, or de-identify the input without exposing unapproved data? | Continue | Stop and create an approved safe packet |
+| Is the output a draft or proposal rather than a live write, assignment, notification, or approval? | Continue | Choose a reversible output |
+| Do you have an owner, success criteria, source of truth, and stop point? | Run the sandbox | Define the missing decision fields |
+| Does the first run preserve unknowns and allow human review? | Apply the rubric | Add an `unknown` or `escalate` rule |
+| Did the result pass evidence, risk, and reversibility checks? | Go for another supervised sandbox run | Repair the instruction and rerun; no production write |
+
+This is the page's decision artifact. It turns a vague “try AI safely” goal into five gates with explicit stops. The worked run below shows why the stops matter: a tidy queue still failed when the model filled in an owner and rationale that the packet did not contain.
+
+## What should you practise first?
+
+Choose a recurring task with a source of truth and a reversible output. A planning draft, document classification, research brief, or proposed queue works better than a task where “good” means only that someone likes the wording.
+
+The task should have one human owner, a visible success condition, and a clear stop point. The output can be useful, but it must not be the action that changes a customer record, sends a message, approves money, or alters a live system.
+
+That boundary follows the logic of the [Judgment Lab pilot](https://judgmentlab.net/): make the unaided frame visible before AI supplies a plausible one, then inspect what changed. It also matches NIST's emphasis on defined roles, targeted scope, operator proficiency, human oversight, and documented evaluation processes ([NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/)).
+
+## How do you set the boundary before AI sees the task?
+
+Write the task contract before opening the AI tool. If you cannot fill these fields, the task is not ready for a judgment practice run.
+
+| Field | Example entry from this lab |
+| --- | --- |
+| Task owner | Synthetic operations lead for a six-person product team |
+| Output | Proposed Now, Next, or Hold queue for five copied requests |
+| Success criteria | Every request appears once; rationales use supplied evidence; unknowns stay unknown; sensitive work is escalated |
+| Data boundary | Synthetic request text only; no names, customer records, or production identifiers |
+| Allowed tools | Plain-text prompt and copied task packet |
+| Permissions | Read the sandbox packet and write a scratch draft only |
+| Forbidden actions | No production writes, assignments, notifications, ticket changes, or external actions |
+| Human decision | The task owner decides whether the queue is useful and what happens next |
+
+NIST calls for clear roles and responsibilities around AI risk, along with documented human oversight. Treat that as a practical setup requirement, not a governance paragraph to add after the experiment ([NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/)).
+
+If the task contains confidential, personal, regulated, or customer data, use a synthetic or approved de-identified copy. A sandbox is not safe merely because the final output is a draft. The input boundary matters too.
+
+## What should the unaided frame contain?
+
+Before asking AI for help, write the decision rule in your own words. Keep it short enough that a reviewer can compare it with the final result.
+
+My unaided frame for this run was: “Prioritise by evidence of consequence and time pressure, but keep security-sensitive work visible even when effort is high. Treat missing owner, impact, or deadline as a reason to hold or escalate, not as permission to guess. A queue placement is a proposal for human review, not a commitment.”
+
+The frame names four things:
+
+1. What counts as value.
+2. What makes a request urgent.
+3. What happens when evidence is missing.
+4. Who owns the final decision.
+
+That first pass is not busywork. It is the comparison point. Judgment Lab's pilot uses the same broad sequence: an unaided frame, an AI challenge, a flawed or misframed result, diagnosis and revision, then a defense of the decision ([Judgment Lab](https://judgmentlab.net/)).
+
+## How do you run the AI step without production risk?
+
+Use the copied packet and a prompt that describes the boundary. Do not connect the tool to the system of record during practice.
+
+1. Copy five to ten representative items into a scratch document. Replace names, identifiers, and sensitive values.
+2. Give the AI the task, success criteria, data boundary, and forbidden actions.
+3. Ask for a proposed artifact, not an action. Require an explicit `unknown` or `escalate` value when evidence is missing.
+4. Save the prompt, response, and intermediate revisions. Do not keep only the final polished result.
+5. Grade the result against a rubric with separate checks for coverage, evidence fidelity, unknown handling, risk visibility, and reversibility.
+6. Deliberately rerun one ambiguous case. The goal is to learn where your instructions or evidence boundary fail.
+7. Write the decision log. Say what you accepted, changed, rejected, and escalated.
+
+Anthropic describes a task as inputs plus success criteria, a trial as one attempt, and a grader as logic that checks part of the performance. It also recommends tracking transcripts and combining grader types where appropriate ([Anthropic's eval guide](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)). For a small learning run, a table and a saved transcript are enough.
+
+## What is the smallest runnable sandbox contract?
+
+Use a read-only input boundary, a scratch-only output, and an explicit rule for unknowns. This is the configuration for the worked run:
+
+```yaml
+sandbox:
+  input: copied_synthetic_packet
+  output: scratch_draft
+  access: read_only
+  unknown_values: preserve_and_escalate
+  forbidden_actions:
+    - production_write
+    - assignment
+    - notification
+    - ticket_change
+```
+
+Test the boundary with one ambiguous item, not only the happy path. Save the following as `judgment-lab.mjs` and run `node judgment-lab.mjs`. The assertions check that the first artifact fails evidence fidelity and unknown handling, while the repaired artifact passes both checks and records zero production writes.
+
+```js
+import assert from "node:assert/strict";
+
+const supplied = new Set([
+  "Requested for a quarterly review",
+  "No usage problem or measurable outcome stated"
+]);
+const firstPass = {
+  owner: "Growth Ops",
+  rationale: "Leadership needs campaign visibility for the quarterly review",
+  claims: ["Leadership needs campaign visibility"]
+};
+const repaired = {
+  owner: "unknown",
+  rationale: "Owner and impact are unknown; ask the task owner",
+  claims: [],
+  status: "Hold",
+  escalation: "task owner"
+};
+
+function check(item) {
+  return {
+    evidenceFidelity: item.claims.every(claim => supplied.has(claim)) ? "pass" : "fail",
+    unknownHandling: item.owner === "unknown" ? "pass" : "fail"
+  };
+}
+
+const first = check(firstPass);
+const second = check(repaired);
+assert.deepEqual(first, { evidenceFidelity: "fail", unknownHandling: "fail" });
+assert.deepEqual(second, { evidenceFidelity: "pass", unknownHandling: "pass" });
+assert.equal(repaired.status, "Hold");
+assert.equal(repaired.escalation, "task owner");
+
+console.log(JSON.stringify({
+  test: "R-02 ambiguity boundary",
+  firstPass: first,
+  repaired: second,
+  productionWrites: 0,
+  result: "pass"
+}, null, 2));
+```
+
+The observed output is:
+
+```json
+{
+  "test": "R-02 ambiguity boundary",
+  "firstPass": {
+    "evidenceFidelity": "fail",
+    "unknownHandling": "fail"
+  },
+  "repaired": {
+    "evidenceFidelity": "pass",
+    "unknownHandling": "pass"
+  },
+  "productionWrites": 0,
+  "result": "pass"
+}
+```
+
+The repaired rationale is still a decision record, not a supplied fact. The test proves only that the owner stays unknown, the item is held and escalated, and the exercise makes no production write. It does not measure model accuracy or authorize live access.
+
+## What happened in the worked sandbox run?
+
+The five synthetic requests were these:
+
+| ID | Request | Evidence in the copied packet | Important unknown |
+| --- | --- | --- | --- |
+| R-01 | Fix duplicate rows after a manual invoice-export correction | Finance reconciliation takes 45 minutes weekly; next month close is soon; effort is small | Exact defect cause |
+| R-02 | Add a dashboard for the campaign launch checklist | Requested for a quarterly review; no usage problem or measurable outcome stated | Owner, user, impact, and deadline |
+| R-03 | Add CSV import for a partner catalog | Three uploads per week take about two hours each; next intake is Friday; effort is medium | Validation rules |
+| R-04 | Rename internal status labels | No direct user impact; no deadline; effort is small | Whether another system depends on labels |
+| R-05 | Add SSO to the internal preview | Two reviewers share a test login; an external pilot is planned; effort is large | Security owner, pilot date, and current access policy |
+
+The first prompt asked the AI to place each item in Now, Next, or Hold and “make the most reasonable assumption” when information was missing. Its response was:
+
+> Now: R-03, because Friday's partner intake and two hours per upload create immediate operational value. Now: R-01, because finance reconciliation repeats before close. Next: R-05, because shared credentials create security exposure before the pilot. Next: R-02, owned by Growth Ops, because leadership needs campaign visibility for the quarterly review. Hold: R-04, because the rename has no direct user impact.
+
+The queue looked tidy. R-02 failed the check. The packet did not name Growth Ops, and it did not say that leadership needed campaign visibility. The AI converted a request into a rationale and an owner.
+
+## How do you verify the output and reproduce the ambiguity?
+
+Use a rubric that can fail a polished answer.
+
+| Check | Pass condition | First result |
+| --- | --- | --- |
+| Coverage | Five IDs appear exactly once | Pass |
+| Evidence fidelity | Every rationale uses only supplied facts | Fail on R-02 |
+| Unknown handling | Missing owner stays unknown or is escalated | Fail on R-02 |
+| Risk visibility | R-05 stays visible and names an approval need | Partial |
+| Reversibility | The result is a proposal and no external action occurs | Pass |
+
+I reproduced the failure by rerunning the same ambiguous request with the original instruction. The unsupported owner and rationale appeared again. I then changed the instruction to: “Never invent an owner, impact, deadline, or policy. Write `unknown` and escalate when a placement depends on it. Separate a planning proposal from an execution commitment.”
+
+The revised artifact kept R-01 and R-03 in Now, kept R-05 in Next with a security review prerequisite, and put R-04 in Hold. R-02 moved to Hold with owner and impact marked unknown, plus an escalation to the task owner.
+
+That is the bounded failure result: one synthetic task, one reproduced ambiguity, one instruction repair. It is not a model accuracy rate. It is evidence that the practice packet can expose a judgment boundary before a live permission exists.
+
+Anthropic's autonomy research makes a related operational point: visibility and intervention mechanisms matter, and observed tool-call data may not reveal whether an action happened in production or in an evaluation. Keep your own environment explicit. A read-only sandbox should be a real permission boundary, not a label in the prompt ([Measuring AI agent autonomy](https://www.anthropic.com/research/measuring-agent-autonomy)).
+
+## What should the final go/no-go decision say?
+
+Use a decision log rather than a vague conclusion.
+
+| Decision | Recorded result |
+| --- | --- |
+| Accepted | R-01 and R-03 as proposed Now items; R-04 as Hold; R-05 as a visible Next item with security review required |
+| Changed | R-02 moved from Next to Hold; invented owner and unsupported rationale removed |
+| Rejected | Any production write, automatic assignment, notification, or permission expansion |
+| Escalated | R-02 to the task owner for owner, user, impact, and deadline; R-05 to a security owner before any live pilot |
+| Final go/no-go | **Go** for another supervised sandbox run. **No-go** for production-write permission. |
+
+The no-go is not a failure of the exercise. It is the result you want when the run has not tested live data handling, rollback, permissions, or downstream effects. OpenAI's eval API reference treats deletion as an explicit eval operation, which is a useful reminder to give sandbox records a retention and deletion rule rather than treating every trace as permanent ([OpenAI eval deletion reference](https://developers.openai.com/api/reference/resources/evals/methods/delete)).
+
+If your team wants to move beyond the exercise, the next gate should name the data path, the exact permission, the human approver, the rollback action, and the evidence that would make the action safe. Until then, keep practising on copies.
+
+Marius Manolachi's AI consulting and tutoring work is built around making existing people capable of building AI products on their own work. If you want help turning a recurring task into a packet like this, [bring the task and its boundary to Learn AI](/learn-ai). The decision still belongs to the person who owns the work.
