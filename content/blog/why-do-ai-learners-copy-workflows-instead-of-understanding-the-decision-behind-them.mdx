@@ -1,0 +1,213 @@
+---
+title: "Why Do AI Learners Copy Workflows Instead of Understanding the Decision?"
+date: "2026-09-08"
+updated: "2026-09-08"
+excerpt: "A copied AI workflow can pass its demo and fail as soon as one constraint changes. Use this two-case exercise to find the hidden decision."
+answer: "AI learners copy workflows because a complete example lowers the mental effort of getting started, and visible steps feel like progress. That is useful for novices, but it is not proof of understanding. Understanding appears when the learner can explain the data boundary, consequence boundary, and definition of done on a changed case. The exception is early practice, when worked examples should still provide strong guidance."
+targetQuery: "why do ai learners copy workflows instead of understanding the decision behind them?"
+queryAliases:
+  - "why do ai learners copy tutorials"
+  - "why copying ai workflows does not transfer"
+intent: "informational"
+funnel: "capability"
+cluster: "capability"
+parent: "/blog/what-to-learn-before-building-ai-agents"
+contentType: "decision-tool"
+kind: "satellite"
+sourceableAtom: "In a deterministic two-case AI workflow packet, a copied recipe passes the original low-risk case but fails the changed case at the first routing decision."
+evidenceType: "reproducible failure reproduction and learning exercise"
+evidenceBasis: "A manually checkable two-case packet with a workflow contract, learner answer sheet, answer key, copied-procedure failure trace, smallest repair, and rerun results."
+tags:
+  - "AI learning"
+  - "workflow capability"
+author: "Marius Manolachi"
+nextReviewAt: "2027-02-23"
+sources:
+  - "https://link.springer.com/article/10.1007/s10648-025-10071-x"
+  - "https://link.springer.com/article/10.1007/s10648-026-10169-w"
+  - "https://link.springer.com/article/10.1007/s10459-017-9774-1"
+  - "https://doi.org/10.1016/j.learninstruc.2007.03.003"
+  - "https://www.microsoft.com/en-us/research/wp-content/uploads/2024/07/VLHCC__Robin__AI_assisted_Code_Debugging-14.pdf"
+faq:
+  - q: "Is copying an AI workflow ever a good way to learn?"
+    a: "Yes. A worked example reduces unnecessary search for a novice. Treat it as scaffolding, then explain the decisions and test a changed case before calling the skill learned."
+  - q: "What should change in a transfer case?"
+    a: "Change a constraint that could alter the method, such as data sensitivity, consequence level, source of truth, or approval requirement, while keeping the visible task structure similar."
+  - q: "When should guidance fade?"
+    a: "Fade step-by-step guidance after the learner can explain and apply the decision boundary. Replace full recipes with a contract, a changed case, and a request for justification."
+cover: "/blog/why-do-ai-learners-copy-workflows-instead-of-understanding-the-decision-behind-them-hero.webp"
+coverAlt: "Illustration of an AI learner comparing a copied workflow with a changed transfer case"
+draft: false
+---
+
+A person can produce a convincing AI demo and still be unable to say what would make the same workflow unsafe. The sequence is visible. The judgment is not.
+
+This decision tool tests that gap with one original case, one changed case, one copied recipe, and one small repair. The result is deliberately modest. It shows what a procedure can hide. It does not claim to measure how common the failure is.
+
+## The copied recipe passes the first case and fails the changed case
+
+The packet produced one clean distinction: the copied workflow passed Case A, then failed Case B at the first routing decision. The repair did not rewrite the extraction step. It made the data and consequence boundaries explicit.
+
+| Run | Case | Copied recipe | First invalid decision | Repaired recipe |
+| --- | --- | --- | --- | --- |
+| 1 | A, approved internal launch retro, low consequence | Pass | None | Pass |
+| 2 | B, confidential customer escalation, high consequence | Fail | Route raw text to an external model | Pass after restricted route or redaction, draft-only output, and human review |
+
+The important observation is not that Case B is harder. It is that the task still looks similar. Both cases ask for an action, an owner, and a due signal. The changed constraint sits outside the copied sequence.
+
+![Illustration of a two-case AI workflow transfer test with one copied path and one changed boundary](/blog/why-do-ai-learners-copy-workflows-instead-of-understanding-the-decision-behind-them-transfer-case.webp)
+
+## Why do learners copy the steps in the first place?
+
+Because copying is a rational way to reduce the initial search problem. A worked example shows the problem, the steps, and the solution. For a novice, that removes a lot of unnecessary decisions from working memory and helps form a usable procedure. Reviews of example-based learning describe this as especially helpful early in learning, while warning that the benefit changes as prior knowledge grows. [Dieterich, Rumann, and Rodemer summarize this evidence](https://link.springer.com/article/10.1007/s10648-025-10071-x).
+
+The trap is treating a reduced search problem as if it were the whole skill. A tutorial can answer “what happened here?” without answering “which condition made this method appropriate?” If the learner never has to name that condition, the method is stored as a sequence detached from its boundary.
+
+That is why a working demo can feel like learning. The learner gets a visible reward, and the workflow gets a visible output. Neither proves that the learner could choose the method again.
+
+When I taught product managers who moved from writing specifications to building and shipping, the recurring failure was usually an undefined “done,” not the model. That is a bounded teaching observation from Marius Manolachi’s work, not a prevalence claim. In a copied AI workflow, “done” often quietly means “the model returned something.” In a real workflow, done may mean “a human approved the draft,” “the source was checked,” or “the action was safely committed.”
+
+## What decision does the copied recipe hide?
+
+The hidden decision is usually a boundary, not a prompt trick. In this packet, four values are fixed by the copied recipe:
+
+```text
+route = external-model-allowed
+pii = none
+mode = auto-send
+review = false
+done = owner receives the extracted action
+```
+
+Those values are reasonable for Case A. They are not general rules. They are decisions that happened to be correct under one set of constraints.
+
+The workflow contract makes the hidden choices inspectable:
+
+1. Extract one action, one owner, and one due signal.
+2. Choose the model route from data class and consent.
+3. Choose automatic or draft-only output from consequence level.
+4. Define done as an observable state outside the model.
+
+The copied procedure shows step 1. Understanding requires the learner to choose steps 2 through 4.
+
+This distinction also appears in AI-assisted debugging. In the ROBIN study, the authors describe assistants that can leap to action with insufficient context and make implicit assumptions. Their within-subjects study of 16 industry professionals reports better localization and resolution when the assistant gathered context and guided investigation. That is evidence about an AI debugging interaction, not evidence that AI learners generally behave one way. It supports the narrower design lesson: a workflow should expose investigation and context decisions instead of hiding them behind a final answer. [Bajpai et al. report the study and its limits here](https://www.microsoft.com/en-us/research/wp-content/uploads/2024/07/VLHCC__Robin__AI_assisted_Code_Debugging-14.pdf).
+
+## Can you solve the transfer case without the answer key?
+
+Pause here if you want the exercise. For each case, answer five questions before reading the key:
+
+1. What is the first decision that could change if one constraint changes?
+2. What data may leave the current boundary, if any?
+3. What is the consequence of a wrong output?
+4. What may happen automatically, and what requires approval?
+5. What observable state means done?
+
+### Case A: the original
+
+Input: “Internal launch retro: move the onboarding checklist review to Priya by Friday. No customer data.” The data class is internal-low-risk. Consent is approved. The consequence level is low.
+
+Expected answer:
+
+| Decision | Answer |
+| --- | --- |
+| Route | External model is allowed under this contract |
+| Data boundary | No redaction is required because the case contains no customer data |
+| Automation | The extracted action may be auto-sent |
+| Review | Not required for this low-consequence case |
+| Done | Priya receives the extracted action |
+
+The copied recipe passes because its fixed assumptions match the case.
+
+### Case B: the transfer case
+
+Input: “Customer escalation: pause the account while legal reviews the disputed renewal. Contact: Ana Popescu, ana@example.com.” The data class is confidential-customer. Consent is not established. The consequence level is high.
+
+Expected answer:
+
+| Decision | Answer |
+| --- | --- |
+| Route | Use a restricted route or redact before external model use |
+| Data boundary | Redact the contact detail before any route that is not approved for it |
+| Automation | Produce a draft only |
+| Review | A human must approve the draft before any account action or message |
+| Done | An approved draft and audit record exist |
+
+The copied recipe fails before extraction. It assumes that the route from Case A is still valid. That is the first invalid decision, so repairing the prompt would miss the real failure.
+
+## What is the smallest repair?
+
+Add two gates before the copied steps:
+
+```text
+if data is not approved internal low-risk data:
+    use a restricted route or redact before model use
+
+if consequence is high:
+    produce a draft and require human approval
+```
+
+Then keep the useful part of the original procedure: extract the action, owner, and due signal. The repaired workflow passes both cases:
+
+| Case | Route | Mode | Review | Done | Result |
+| --- | --- | --- | --- | --- | --- |
+| A | External model allowed | Auto-send | No | Owner receives action | Pass |
+| B | Restricted or redacted | Draft only | Yes | Approved draft and audit record | Pass |
+
+This is the smallest repair because the extraction method did not need to change. The decision boundary did.
+
+## Why does explaining the “why” improve transfer?
+
+The answer is not that rationale automatically makes every tutorial effective. The better claim is narrower: explanations can connect a procedure to the conditions that make it appropriate.
+
+In a simulation-based procedural-skills study, integrated instruction combined the same step-by-step “how” guidance with conceptual “why” explanations. The integrated group showed improved conceptual knowledge, and conceptual knowledge mediated positive indirect effects on retention and transfer, although the study found no total group effect. That is a useful warning against overselling rationale. It helps explain why a learner should be asked to justify a boundary, but it is not proof that every rationale prompt improves performance. [Cheung and colleagues describe the design and result](https://link.springer.com/article/10.1007/s10459-017-9774-1).
+
+The packet therefore asks “why this route?” and “why this definition of done?” It does not ask the learner to explain every line of a prompt. The explanation has to attach to a decision that changes the method.
+
+Research on process-oriented and product-oriented worked examples makes the same distinction useful for troubleshooting transfer. A product example shows what the answer looks like. A process example exposes how the answer was reached. [van Gog, Paas, and van Merriënboer studied these sequences in relation to troubleshooting transfer efficiency](https://doi.org/10.1016/j.learninstruc.2007.03.003). For AI workflows, the hidden process includes routing, abstention, approval, and completion criteria.
+
+## Why must the second case vary the constraint?
+
+Because repetition can prove recognition without proving abstraction. If the second case changes only the names, the learner can match it to the first case. A useful transfer case preserves the visible task but changes a condition that could alter the method.
+
+Good changes include:
+
+- public data becomes confidential data;
+- a reversible draft becomes a consequential action;
+- a trusted source becomes an unverified source;
+- a human-reviewed output becomes an auto-committed output;
+- a complete input becomes an ambiguous input.
+
+The change must be substantive, not decorative. In a 2026 two-experiment study, Cao and Carvalho found that varied items particularly supported generalization when learners had to induce underlying rules. Their result is not an AI-workflow benchmark, but it gives a sound instructional reason to vary the case when the goal is transfer. [See the study’s abstract and limitations](https://link.springer.com/article/10.1007/s10648-026-10169-w).
+
+## How should guidance fade as the learner improves?
+
+Start with a full worked example when the learner is genuinely new. Then remove the parts that no longer need to be carried for them.
+
+| Learner state | Give the learner | Ask for |
+| --- | --- | --- |
+| New to the workflow | Full steps, visible fields, and a completed example | Identify what each step does |
+| Can reproduce one case | The contract and a partially completed case | Explain the route, consequence, and done decisions |
+| Can justify a changed case | A new case with no recipe | Choose the method, state the boundary, and name the failure state |
+| Working independently | A small set of varied cases and an answer key after submission | Transfer, abstention, and repair |
+
+This is guidance fading, not abandonment. Worked examples are useful early because they reduce unnecessary search. As prior knowledge grows, the same detail can become redundant, and independent problem-solving becomes more useful. [The 2025 systematic review describes this expertise reversal and the need to account for cognitive load and prior knowledge](https://link.springer.com/article/10.1007/s10648-025-10071-x).
+
+Prompts should also be sized to the learner. Asking a novice to diagnose five interacting failures at once can create overload. Ask for the first decision, the reason, and the smallest repair. The review of erroneous examples finds that prompts to identify, explain, correct, or reflect can deepen learning, but the effect depends on the prompt and the learner’s prior knowledge.
+
+## What does this exercise not prove?
+
+It does not prove that all AI learners copy workflows, that one transfer case measures competence, or that the repair will improve retention. The packet has two authored cases, a simplified contract, and a deterministic checker. It is a learning exercise and a diagnostic artifact.
+
+It also does not replace real privacy, security, legal, or approval policies. The words “restricted,” “redact,” and “human review” are placeholders for the rules of the workflow you actually own. A team must specify which model routes are approved, which data classes are allowed, and what evidence makes an action complete.
+
+The useful claim is smaller: if a learner can only reproduce Case A, you have evidence of procedure recognition. If they can justify the route, consequence boundary, review state, and done state in Case B, you have stronger evidence of decision knowledge.
+
+## What should you do with your next AI tutorial?
+
+Keep the tutorial. Add the missing test.
+
+After the worked example, write a one-page contract with the inputs, route decision, automation boundary, review condition, and definition of done. Then create a second case that changes one meaningful constraint. Ask the learner to answer the five questions before showing the solution.
+
+If the learner fails, do not immediately add more steps. Record the first invalid decision. Repair that boundary. Rerun the original and changed cases. That tells you whether the learner understood the method or only remembered the path.
+
+For broader practice, use [what to learn before building AI agents](/blog/what-to-learn-before-building-ai-agents), [the guide to making AI training stick in a small team](/blog/how-to-make-ai-training-stick-in-a-small-team), and [the guide to using AI to learn a technical skill](/blog/how-to-use-ai-to-learn-a-technical-skill). The next step for a team is not another tutorial. It is a changed case with an answer key.
