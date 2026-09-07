@@ -1,0 +1,194 @@
+---
+title: "Implementation Evidence to Collect Before Expanding an AI Workflow"
+date: "2026-09-08"
+updated: "2026-09-08"
+excerpt: "A redacted evidence pack shows what a team should measure, preserve, and veto before expanding an AI workflow beyond its pilot."
+answer: "Before expanding an AI workflow, collect a dated evidence pack that compares the business-as-usual baseline with representative and held-out cases, records end-to-end completion, correction effort, latency, cost, and failure classes, and proves permissions, approval, fallback, rollback, and ownership. Expand only when quality and controls pass. If model configuration, operating telemetry, or a critical failure path is missing, revise or stop, even after a successful pilot."
+targetQuery: "What implementation evidence should a team collect before expanding an AI workflow?"
+queryAliases:
+  - "what evidence should a team collect before scaling an AI workflow"
+  - "AI workflow pilot expansion evidence"
+  - "what to measure before expanding an AI workflow"
+intent: "implementation expansion decision"
+funnel: "consideration"
+cluster: "implementation"
+parent: "/blog/how-to-scope-an-ai-agent-proof-of-concept"
+contentType: "decision-tool"
+kind: "satellite"
+sourceableAtom: "Evidence Pack v1.1 shows that 7/8 representative cases can pass first run and a corrected failure can pass replay while the expansion decision still remains REVISE when held-out cases, model identity, correction-time instrumentation, and production cost and latency evidence are missing."
+evidenceType: "original reusable artifact plus a bounded worked decision test"
+evidenceBasis: "Evidence Pack v1.1 was recorded on 2026-08-23 for a bounded, low-risk product-feedback routing workflow. It publishes the workflow boundary, baseline definition, eight representative rows, two held-out expected outcomes, rubric, original and corrected outputs, one observed failure class, correction steps, replay-harness latency, direct local cost, permission and approval checks, manual-review fallback, rollback dry run, owners, redactions, and staged vetoes. The replay used Node.js v24.11.1 against a frozen redacted output fixture and made no live model call, so provider/model identity and production cost and latency remain explicit vetoes."
+tags:
+  - "AI implementation"
+  - "AI evaluation"
+  - "AI workflows"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://www.digital.gov.au/policy/ai/AI-POC-to-scale/overview"
+  - "https://www.gov.uk/government/publications/the-magenta-book/guidance-on-the-impact-evaluation-of-ai-interventions-html"
+  - "https://www.nist.gov/publications/challenges-monitoring-deployed-ai-systems-center-ai-standards-and-innovation"
+  - "https://www.nist.gov/publications/assessing-risks-and-impacts-ai-aria-pilot-evaluation-report"
+  - "https://airc.nist.gov/airmf-resources/airmf/"
+  - "https://mariusmanolachi.com/learn-ai"
+faq:
+  - q: "Can a successful AI pilot justify expansion by itself?"
+    a: "No. A successful pilot result is one field in the evidence pack. Expansion also needs representative and held-out cases, operating cost and latency, control tests, an owner-run fallback, and a recorded decision with vetoes."
+  - q: "What should a team do when production cost or latency is missing?"
+    a: "Return REVISE. Instrument the end-to-end workflow, including model calls, review time, retries, and the final result. Do not treat a local replay or a free sandbox run as production economics."
+  - q: "What is the difference between a held-out case and a failure case?"
+    a: "A held-out case is reserved before the decision and tests whether the evidence generalizes beyond the examples used to tune the workflow. A failure case is a preserved observed miss that explains what must be corrected or contained."
+cover: "/blog/what-implementation-evidence-before-expanding-ai-workflow-hero.webp"
+coverAlt: "Illustration of an AI workflow evidence pack with a baseline, held-out cases, a preserved failure, and a revise decision"
+draft: false
+---
+
+The pilot can look excellent and still be unready for expansion. A handful of successful examples tells you that the workflow can work. It does not tell you whether the team can measure it, contain a failure, or afford it when the inputs and operating conditions change.
+
+When I teach product managers to move from writing specs to building and shipping, I keep seeing the same missing piece: nobody can define what done means. For an AI workflow, “done” has to include the evidence that lets someone else say continue, revise, or stop ([Marius Manolachi's AI learning work](https://mariusmanolachi.com/learn-ai)).
+
+## Observed results changed the decision
+
+Collect enough evidence to make the expansion decision falsifiable, then let vetoes override an attractive pilot score. The observed result in Evidence Pack v1.1 was 7 of 8 representative cases passing on the first run. The one critical failure passed after a rule correction, and the manual-review fallback produced zero unreviewed writes. The decision was still `REVISE`.
+
+![Illustration of a redacted AI workflow evidence pack showing baseline, cases, controls, and a REVISE decision](/blog/what-implementation-evidence-before-expanding-ai-workflow-inline-01.webp)
+
+Here is the result another team can reuse:
+
+| Evidence field | Version 1.1 record | Expansion consequence |
+| --- | --- | --- |
+| Workflow boundary | Route a sanitized product-feedback note to category, severity, and next action | Read-only proposal, not autonomous support or record changes |
+| Business-as-usual baseline | Manual routing with no dated evaluation set, rubric, owner-run replay, or rollback rehearsal | The pilot cannot be compared with a proven operating baseline yet |
+| Representative cases | 8 cases covering bugs, features, how-to questions, severity levels, and action paths | 7/8 passed first run, or 87.5% exact match |
+| Held-out cases | 2 reserved expected outcomes for mixed-signal and feature-request cases | Not run, so generalization evidence is incomplete |
+| Failure class | One semantic misclassification: import corruption was labelled a feature request | Preserve the original output and inspect the rule, rather than overwrite it |
+| Correction effort | One failed row inspected, one rule changed, one row replayed | The correction path works, but human minutes were not instrumented |
+| Latency and cost | Replay harness measured 0.05 ms baseline and 0.21 ms corrected replay; direct local cost was EUR 0.00 | These are not model or production measurements, so the scale gate stays open |
+| Controls and owner | Read-only boundary, critical-case escalation, manual-review fallback, rollback dry run, operations owner, product owner | Control rehearsal passed for the fixture |
+| Decision | `REVISE` | Add missing configuration, held-out results, correction timing, production latency, and production cost before expansion |
+
+The local timings measure tuple replay and scoring in Node.js v24.11.1. They do not measure a model, a provider, network time, human review, or user-facing latency. That distinction is part of the result. A number that looks precise but measures the wrong layer is not useful expansion evidence.
+
+## What to record before comparing the pilot with business as usual
+
+Start with the boundary and the baseline. The baseline must describe the work people do now, the outcome they produce, the time and correction effort it consumes, and the conditions under which the process stops or escalates. If business as usual is vague, a faster AI path can appear better simply because the comparison omitted the hard work.
+
+The UK Government’s AI impact-evaluation guidance says to define evaluation early, describe the comparison group, and document precisely what business as usual consists of when it is the comparator ([Guidance on the Impact Evaluation of AI Interventions](https://www.gov.uk/government/publications/the-magenta-book/guidance-on-the-impact-evaluation-of-ai-interventions-html)). For a small workflow, that does not always mean running an experiment. It does mean writing down what the AI path is being compared with.
+
+Use this minimum baseline record:
+
+| Baseline field | Question to answer |
+| --- | --- |
+| Trigger and boundary | What enters the workflow, and what is explicitly outside it? |
+| Current path | What does the operator do today, including lookup, review, correction, and escalation? |
+| Outcome | What final state counts as complete? |
+| Effort | How long does completion and correction take, and who does it? |
+| Exceptions | Which inputs are ambiguous, risky, incomplete, or out of scope? |
+| Control | Which actions require approval, and what is the safe fallback? |
+| Owner | Who can change the workflow, review a failure, and stop it? |
+| Measurement date | When was the baseline observed, and what changed afterward? |
+
+The Australian Government’s scale guidance frames the transition as proof of concept, pilot, then production, with systematic evaluation at each stage and considerations spanning business alignment, solution design, data, technology, people, governance, and operations ([Guidance for AI Proof of Concept to Scale](https://www.digital.gov.au/policy/ai/AI-POC-to-scale/overview)). Your baseline is the record that lets those dimensions refer to one workflow rather than a presentation about AI in general.
+
+## Method and sample
+
+The method was a fixed, low-risk replay that checked the whole workflow, not only the model’s text. The observed sample was eight representative product-feedback notes, with two held-out expected outcomes reserved before the decision. Evidence Pack v1.1 used an exact-match rubric for category, severity, next action, and the critical-case stop rule.
+
+The representative set included:
+
+| Case | Expected output | First-run output | Result |
+| --- | --- | --- | --- |
+| Export loses timezone | bug, high, escalate | bug, high, escalate | pass |
+| Dark-mode request | feature, low, backlog | feature, low, backlog | pass |
+| Invoice total becomes 0 after import | bug, critical, stop | feature, critical, stop | fail |
+| Question about changing timezone | how-to, low, answer | how-to, low, answer | pass |
+| Renewal reminders sent twice | bug, high, stop | bug, high, stop | pass |
+| Weekly unpaid-invoice view | feature, medium, backlog | feature, medium, backlog | pass |
+| CSV import rejects comma decimals | bug, high, escalate | bug, high, escalate | pass |
+| Question about notification settings | how-to, low, answer | how-to, low, answer | pass |
+
+The held-out cases were not quietly scored after the result looked good. They remain visible as missing evidence:
+
+- `H-01`: an import error mixed with a dashboard request. Expected outcome: `bug, critical, stop`.
+- `H-02`: a request for a weekly unpaid-invoice export. Expected outcome: `feature, medium, backlog`.
+
+The frozen fixture did not retain a provider or model identifier, and the v1.1 replay made no live model call. That is not a detail to smooth over in the article. It is a configuration failure in the expansion pack. A team should record the model or endpoint, prompt or policy version, tool and permission configuration, retrieval or context version, and test date before it treats a result as portable.
+
+NIST’s AI RMF describes a voluntary structure for incorporating trustworthiness into AI design, development, use, and evaluation, organized through Govern, Map, Measure, and Manage ([NIST AI Risk Management Framework](https://airc.nist.gov/airmf-resources/airmf/)). The practical translation here is simple: map the workflow and its actors, measure the result and operating constraints, govern who can approve or stop it, and manage the failures that measurement exposes.
+
+## The failure that changed the decision
+
+Preserve the first failure. Do not replace it with the corrected output and report only the final pass rate.
+
+Case 03 contained a numeric data-integrity symptom: an invoice total became zero after import. The first output called it a feature request, although it kept the critical severity and stop action. That is a semantic classification failure. It matters because a downstream queue could treat the label as a product backlog item even though the safety action happened to stop the case.
+
+The repair was deliberately small: change the route rule so numeric corruption in an import or export path is a bug requiring stop or escalation, then replay the same case. The corrected output passed. The pack records three correction steps: inspect the input and output, change the rule, replay the failure.
+
+That is useful evidence, but it is not proof of a reliable workflow. It shows that one failure can be diagnosed and repaired in the bounded fixture. It does not show how often the failure occurs, how long correction takes in a real queue, or whether a different model will make the same mistake.
+
+NIST AI 800-4 makes the same distinction at system level. It says controlled pre-deployment evaluation is limited and should be complemented by repeated testing, evaluation, validation, and verification after deployment. Its monitoring categories include functionality, operations, human factors, security, compliance, and large-scale impacts ([Challenges to the Monitoring of Deployed AI Systems](https://www.nist.gov/publications/challenges-monitoring-deployed-ai-systems-center-ai-standards-and-innovation)). A preserved failure is the bridge between those phases. It tells you what to add to the next test and what to watch after exposure increases.
+
+For each failure, retain:
+
+1. The original input, redacted where necessary.
+2. The expected outcome and the rubric rule that defines it.
+3. The original output and the first point at which it failed.
+4. The correction or containment action.
+5. The replay result, owner, date, and remaining uncertainty.
+
+## Turn the record into a staged expansion gate
+
+Use `GO`, `REVISE`, and `STOP` as decisions with conditions, not as labels attached to a blended score.
+
+| Stage | Evidence required | Stop condition |
+| --- | --- | --- |
+| Internal shadow | Boundary, baseline, versioned configuration, representative cases, rubric, owner, and fallback | The team cannot define the final state or name who can stop the route |
+| Limited read-only canary | Held-out cases scored, critical cases stop or escalate, end-to-end latency and cost measured, correction effort sampled | A permission or approval control fails, or a critical case can produce an unreviewed write |
+| Wider supervised rollout | Repeated samples by input class, failure taxonomy, queue and review capacity, rollback drill, incident owner, post-deployment monitoring | Failure rate or correction load breaches the agreed threshold, or the fallback cannot keep up |
+| Production expansion | Business-as-usual comparison, operating and business outcomes, review cadence, change log, and decommission path | The workflow cannot explain whether it is still helping, safe, affordable, and owned |
+
+The thresholds should be set by the workflow owner before seeing the next result. Some rules are hard vetoes:
+
+- no unreviewed write when the boundary is read-only;
+- no bypass of approval or permission checks;
+- no expansion while model or configuration identity is missing;
+- no expansion while production cost and latency are unknown when they affect the business case;
+- no expansion while held-out cases remain unrun;
+- no expansion when the named owner cannot invoke fallback, preserve a failure, or record the next decision.
+
+Other measures can be negotiated against the baseline. For example, a team may accept a slower AI path if it removes enough correction work, or accept a lower first-pass rate if every uncertain case abstains and review capacity is available. That trade-off is only visible when completion, correction, latency, cost, and failure class sit in the same record.
+
+The Australian guidance supports this staged shape, including safe rollback, ongoing testing and monitoring, incident resolution, and lifecycle owners. The UK guidance adds an important caution: evaluation should remain flexible as an intervention changes and should consider unintended effects and differences between groups. For a low-risk internal route, “groups” may begin as input classes, business units, or exception types. Do not assume the happy path represents all use.
+
+## How the artifact maps to public guidance
+
+The evidence pack is useful because it joins guidance that is often read separately.
+
+| Pack field | Australian Government | UK impact evaluation | NIST pre and post deployment |
+| --- | --- | --- | --- |
+| Boundary, owner, and controls | Business alignment, people, governance, and operations across the scale path | Stakeholder involvement and a specified intervention | Govern and Map the actors, risks, and system context |
+| Baseline and business as usual | Readiness for moving beyond an isolated experiment | Precisely define the comparison group and business as usual | Establish baselines and deviation thresholds for monitoring |
+| Representative and held-out cases | Test behavior, safety, robustness, reliability, and unintended consequences | Use comparison and remain flexible as implementation changes | Repeat evaluation and feed post-deployment findings back into testing |
+| Human correction and failure preservation | Human-centred design, safe rollback, and incident resolution | Understand how and why outcomes happen | Human factors, security, compliance, and feedback loops |
+| End-to-end operating evidence | Integrate, deploy, monitor, and decommission with owners | Evaluate during and after rollout | Functionality and operational monitoring after deployment |
+| Decision and stop conditions | Proof of concept, pilot, production with appropriate governance | Proportionate evaluation based on risk and learning | Measure real-world behavior, then improve pre-deployment tests |
+
+NIST ARIA adds a useful boundary. Its pilot procedure describes model testing, red teaming, and field testing, with dialogue annotation and tester questionnaires ([ARIA Pilot Evaluation Report](https://www.nist.gov/publications/assessing-risks-and-impacts-ai-aria-pilot-evaluation-report)). Evidence Pack v1.1 covers a bounded model-output replay and a control rehearsal. It does not provide red-team evidence or field evidence. That missing layer is another reason the correct result is `REVISE`, not `GO`.
+
+The pack is therefore not a new compliance standard. It is a reusable implementation record that makes the official guidance actionable for one workflow. The sources tell you which questions matter. The artifact shows what happened when those questions were put next to a real decision.
+
+## Limitations and what we still do not know
+
+The limitations are material: the result is intentionally narrow, and several operating questions remain unanswered.
+
+The rows are authored and sanitized. They do not establish production accuracy, customer impact, adoption, business value, or prevalence of any failure class. The replay timing is not model latency. The EUR 0.00 direct cost is not a production cost estimate. The rollback is a dry run against a read-only fixture, not a live side-effect rollback. The one operator record does not prove that another team can run the pack without training.
+
+It also does not prove that the workflow should be expanded after the missing fields are filled. It proves what the next decision requires. A completed pack can still return `STOP` if the workflow crosses a permission boundary, creates an unverified side effect, or leaves the owner unable to contain failures.
+
+That is the useful standard. The evidence pack should narrow uncertainty until the owner can defend a staged `GO`, name the exact work needed for `REVISE`, or stop the route without losing the failure record.
+
+## Next step: run the pack on one low-risk workflow
+
+Choose one workflow that can remain read-only or human-approved while you measure it. Define business as usual before looking at the pilot score. Freeze the configuration. Reserve held-out cases. Test the fallback. Keep the first failure. Then ask the owner to make the decision from the record.
+
+If the process boundary itself is still unclear, start with [How to Tell If a Business Process Is Ready for AI Automation](/blog/how-to-tell-if-a-business-process-is-ready-for-ai-automation). Before running the pack, use [How to Scope an AI Agent Proof of Concept](/blog/how-to-scope-an-ai-agent-proof-of-concept) to define the bounded pilot. If you need a per-system release gate as well, use [How to Evaluate an AI Agent](/blog/how-to-evaluate-an-ai-agent). Keep this evidence pack beside the pilot review. The work is complete when the team can run the test and defend the decision without relying on the person who built the demo.
