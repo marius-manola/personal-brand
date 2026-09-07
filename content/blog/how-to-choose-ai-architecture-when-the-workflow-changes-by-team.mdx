@@ -1,0 +1,210 @@
+---
+title: "How to Choose AI Architecture When the Workflow Changes by Team"
+date: "2026-09-08"
+updated: "2026-09-08"
+excerpt: "A worked matrix for choosing RAG, workflow, single-agent, or multi-agent architecture when ownership, approval, and execution paths change."
+answer: "Choose the simplest architecture that fits the team’s actual path and authority: direct model/RAG for predictable read-only knowledge, a deterministic workflow for cross-system work with approval, and multi-agent orchestration only when open-ended execution crosses distinct owners or permission domains. The main exception is a single agent, which can be the better bridge when one team still owns the whole job."
+targetQuery: "How to choose AI architecture when the workflow changes by team"
+queryAliases:
+  - "choose AI architecture when teams change"
+  - "RAG vs workflow vs agent for different teams"
+  - "how team ownership changes AI architecture"
+intent: "informational decision"
+funnel: "consideration"
+cluster: "architecture"
+parent: "/blog/when-to-use-an-ai-agent"
+contentType: "decision-tool"
+kind: "satellite"
+sourceableAtom: "The same AI job moves from direct model/RAG, to a deterministic workflow with approval, to multi-agent orchestration when team ownership changes the path, authority, and permissions."
+evidenceType: "worked decision artifact plus reproducible comparison and bounded firsthand observation"
+evidenceBasis: "Qualitative matrix run as a documented trace walkthrough using three team variants, primary architecture guidance, F-pms, and F-tryuncle. No rates or benchmark results are claimed."
+tags:
+  - "AI architecture"
+  - "AI workflows"
+author: "Marius Manolachi"
+nextReviewAt: "2027-02-23"
+sources:
+  - "https://docs.cloud.google.com/architecture/choose-design-pattern-agentic-ai-system"
+  - "https://architect.salesforce.com/docs/architect/decision-guides/guide/determining-agentic-vs-traditional-workflow-automation.html"
+  - "https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/"
+  - "https://www.anthropic.com/engineering/building-effective-agents"
+  - "https://learn.microsoft.com/en-us/microsoft-copilot-studio/guidance/agent-design-canvas-framework"
+  - "https://tryuncle.com"
+  - "https://mariusmanolachi.com/learn-ai"
+faq:
+  - q: "Can a deterministic workflow still use an LLM?"
+    a: "Yes. The workflow can use an LLM for extraction, classification, or drafting while code owns sequence, validation, approval state, write permissions, and recovery."
+  - q: "When should a single agent become a multi-agent system?"
+    a: "Split only when distinct domains, permissions, ownership, or specialized reasoning create a real boundary that one agent cannot maintain clearly. Otherwise, keep one agent and improve its tools and instructions."
+  - q: "Does human approval mean the system is not agentic?"
+    a: "No. Human approval is an architecture boundary. An agent can investigate or prepare an action, then pause until a person approves the exact proposal."
+cover: "/blog/how-to-choose-ai-architecture-when-the-workflow-changes-by-team-ai-architecture-team-change-hero.webp"
+coverAlt: "Illustration of one AI job changing architecture as team ownership and approval constraints change"
+draft: false
+---
+
+The same AI job can need three different architectures after a team changes. A knowledge team may need retrieval and a clean answer. An operations team may need a workflow that cannot write until a person approves. A product team may need several specialists because the path changes with every case.
+
+I use the matrix below to make that change visible. It compares the same job across the same dimensions, then records what wins, what gets rejected, and what stops the design.
+
+**Sourceable finding:** when the team changes, architecture should change only when the path, authority, approval, or ownership changes. The framework is a consequence of those constraints, not the starting point.
+
+This is a satellite in the [When to Use an AI Agent](/blog/when-to-use-an-ai-agent) cluster. The narrower choice between one agent and several is covered in [Single AI Agent Instead of Multiple Agents](/blog/single-ai-agent-instead-of-multiple-agents).
+
+![Illustration of an AI architecture decision matrix showing one job moving from retrieval to an approval workflow to specialist orchestration as team constraints change](/blog/how-to-choose-ai-architecture-when-the-workflow-changes-by-team-ai-architecture-decision-matrix.webp)
+
+## Start with the team’s constraints, not the framework
+
+Start by describing who owns the work, what the system may do, and whether the next step is known before the request arrives. Those three facts usually narrow the architecture faster than a framework comparison.
+
+Google Cloud recommends assessing task characteristics, latency, cost, and human involvement, then revisiting the decision as requirements change. Salesforce makes a similar distinction through execution path, goal complexity, and input modality. Its guidance starts with traditional automation when the path is fully specifiable, rather than adding an agent to perform a deterministic sequence. ([Google Cloud architecture guidance](https://docs.cloud.google.com/architecture/choose-design-pattern-agentic-ai-system), [Salesforce architecture decision guide](https://architect.salesforce.com/docs/architect/decision-guides/guide/determining-agentic-vs-traditional-workflow-automation.html))
+
+For this article, the job stays constant:
+
+> Turn a team request into a grounded answer or next action.
+
+Only the team variant changes. The matrix uses these four candidates:
+
+- **Direct model/RAG:** one model call, optionally preceded by retrieval, with no model-directed tool loop.
+- **Deterministic workflow:** code owns the sequence and branches; model calls can perform bounded interpretation inside it.
+- **Single agent:** one model chooses tools and the next step within a bounded tool set.
+- **Multi-agent orchestration:** a coordinator or handoff graph routes work among specialists with separate contexts or permissions.
+
+The labels below are qualitative fit judgments from a documented trace walkthrough. They are not a benchmark, and they contain no invented accuracy, cost, or latency rates.
+
+## The decision matrix for three team variants
+
+The winner changes because the team changes the execution path and the authority boundary. The same architecture is not the default for all three rows.
+
+| Team variant | Path variability | Unstructured input | Tools | Action authority | Approval | Latency | Cost | Observability | Recovery | Winner |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Predictable knowledge workflow | Low | Curated documents plus a question | Retrieval only | Read-only answer | Not required | Interactive | Low | Answer plus sources | Retry retrieval or abstain | Direct model/RAG |
+| Cross-system workflow with human approval | Medium, with known branches and exceptions | Email or transcript plus records | Policy, CRM, ticketing, proposal, approval | Prepare a proposed write, never commit alone | Required before write or external message | Seconds to minutes can be acceptable | Medium | Step, state, actor, proposal version | Resume from a named state | Deterministic workflow with model/RAG steps |
+| Open-ended workflow with changing execution path | High | Tickets, docs, analytics, code, conversation | Several read tools and bounded proposal tools | Read and propose; human owns release | Required for the final proposal or patch | Minutes can be acceptable | Higher | Joined coordinator, handoff, and tool traces | Checkpoints and partial results | Multi-agent orchestration, conditionally |
+
+The important row is the last one. Multi-agent is not selected because it is more advanced. It is selected because the work crosses real boundaries. If one team owns all the tools and can keep one context coherent, a single agent may still be the better bridge.
+
+## Variant 1: predictable knowledge work belongs to direct model/RAG
+
+Choose direct model/RAG when the team owns a stable knowledge source, the output is read-only, and the answer path does not need runtime planning. Retrieval supplies the evidence. The model turns that evidence into a useful response.
+
+### Reproducible trace
+
+Use this input:
+
+> What is the approved refund window for plan X? Cite the policy section and say when the policy was last updated.
+
+The expected trace is short:
+
+1. Retrieve the relevant policy section.
+2. Check that the section is available to this user and has a visible update date.
+3. Answer with the window, citation, and a limitation if the source is missing or contradictory.
+
+That is a retrieval problem with a formatting step. It is not a planning problem.
+
+| Dimension | Direct model/RAG | Deterministic workflow | Single agent | Multi-agent |
+| --- | --- | --- | --- | --- |
+| Path, tools, and authority | Best fit for one retrieval path and read-only access | Conditional if source checks must be explicit | Poor fit because the agent must choose no meaningful action | Poor fit because there are no specialist boundaries |
+| Approval, latency, and cost | Best fit when no approval is required and the response is interactive | Conditional, with extra state | Poor fit because a loop adds overhead | Poor fit because several traces add overhead |
+| Observability and recovery | Answer, source, retrieval result, then abstain or retry | Stronger state recovery than needed | Tool-loop recovery is unnecessary | Handoff recovery is unnecessary |
+
+**Rejected option:** a single agent. A tool-using loop adds failure modes without solving a variable path. OpenAI recommends maximizing a single agent before splitting, but that does not mean starting with an agent when a direct model and retrieval answer the job. ([OpenAI’s practical agent guide](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/))
+
+**Veto:** do not ship direct model/RAG as the action layer if the knowledge source is contradictory, the user’s permissions cannot be enforced, or the request has become a write. Microsoft identifies stale or contradictory knowledge and unclear permission boundaries as design risks. ([Microsoft’s agent design framework](https://learn.microsoft.com/en-us/microsoft-copilot-studio/guidance/agent-design-canvas-framework))
+
+## Variant 2: cross-system work belongs to a deterministic workflow
+
+Choose a deterministic workflow when the team must cross systems, preserve transaction order, and pause for human approval. The model can read an email, extract fields, classify an exception, or draft a proposal. Code should own the state transition that allows a write.
+
+### Reproducible trace
+
+Use this input:
+
+> Refund the last invoice if the customer qualifies. Read the email, check the policy and CRM, draft the proposed action, and do not commit until a manager approves.
+
+The trace is:
+
+1. Extract the customer and invoice identifiers from the message.
+2. Validate those identifiers against the CRM.
+3. Retrieve the current refund policy.
+4. Compare the policy and record state, then draft a proposed action.
+5. Store the proposal, source versions, and approver requirement.
+6. Wait for the named manager to approve that exact proposal.
+7. Commit the write or send the external message only after approval.
+
+The model is useful inside steps three and four. It should not silently own steps six and seven.
+
+| Dimension | Direct model/RAG | Deterministic workflow | Single agent | Multi-agent |
+| --- | --- | --- | --- | --- |
+| Path, tools, and authority | Poor fit for ordered transaction state | Best fit for known branches and typed tools | Conditional, but the loop must not bypass state | Conditional, but adds distributed coordination |
+| Unstructured input | Can interpret the email but cannot safely complete the process | Best fit when extraction is followed by validation | Conditional | Conditional |
+| Approval and observability | Vetoed if approval is required | Best fit: approval is a state with actor and proposal version | Poor fit without a hard approval gate | Poor fit without a shared approval policy |
+| Latency, cost, and recovery | Fast and cheap for a read-only answer | Conditional cost for explicit state, audit, and retries | Conditional | Usually poor fit unless ownership truly differs |
+
+**Rejected option:** a single agent with CRM write access. The concern is not that an agent can never call a write tool. The concern is that a conversational loop makes approval easy to describe and easy to bypass unless approval is a typed state transition. Microsoft recommends defining what can happen autonomously, what needs approval, and how actions are logged and audited. ([Microsoft’s agent design framework](https://learn.microsoft.com/en-us/microsoft-copilot-studio/guidance/agent-design-canvas-framework))
+
+**Veto:** stop if the approval record cannot be bound to the exact proposal, source versions, actor, and action. A human-in-the-loop label is not enough. The system must be able to prove what the person approved.
+
+## Variant 3: changing paths can justify multi-agent orchestration
+
+Choose multi-agent orchestration only when the job is open-ended and the team has real boundaries: different systems, different permissions, different owners, or genuinely specialized reasoning. Keep a coordinator, bounded handoffs, a shared run record, and a human-owned stopping condition.
+
+### Reproducible trace
+
+Use this input:
+
+> Investigate why activation fell for a new cohort and propose the smallest safe product change. Use whatever evidence is needed, show the path, and stop with a reviewable proposal.
+
+One documented trace might be:
+
+1. A coordinator classifies the request and defines the required deliverable.
+2. An analytics specialist reads the relevant metrics.
+3. A documentation specialist checks release notes and known constraints.
+4. A code specialist locates the relevant implementation path without merging changes.
+5. The coordinator joins the findings and produces a proposal with evidence, uncertainty, and a review request.
+6. A product or engineering owner decides whether the proposal is done, changes the scope, or rejects it.
+
+The route can change by case. The point of the coordinator is not to make the system sound sophisticated. It is to keep distinct contexts and permissions from collapsing into one giant prompt.
+
+| Dimension | Direct model/RAG | Deterministic workflow | Single agent | Multi-agent |
+| --- | --- | --- | --- | --- |
+| Path and input | Poor fit when the path is unknown and inputs are mixed | Poor fit if branches cannot be specified in advance | Best bridge when one team owns every context | Best fit when specialist boundaries are real |
+| Tools and authority | Retrieval only | Conditional for known branches | Conditional with one owner and least privilege | Best fit when permissions differ by specialist |
+| Approval and latency | Advice only | Conditional | Conditional | Conditional: human review still owns the proposal |
+| Cost and observability | Low cost, thin investigation trace | Predictable but brittle under new branches | Simpler joined trace | Higher cost and distributed traces require deliberate joining |
+| Recovery | Weak after exploration | Weak when the route is unknown | Checkpoints can work | Best fit only when partial results and stop conditions persist |
+
+**Rejected option:** one giant agent that can query analytics, read product documents, inspect code, and propose changes under one identity. OpenAI recommends splitting only when complexity, tool overload, or distinct responsibilities justify it. Microsoft similarly names distinct domains, ownership, and permissions as reasons to use multiple agents, while warning that over-delegation creates sprawl. ([OpenAI’s practical agent guide](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/), [Microsoft’s agent design framework](https://learn.microsoft.com/en-us/microsoft-copilot-studio/guidance/agent-design-canvas-framework))
+
+**Veto:** do not build the multi-agent version until someone can define done, name each owner, specify the handoff input and output, review the final proposal, and recover a partial run. When I taught product managers to move from writing specs to building and shipping, the missing piece was usually a definition of done, not a better model. That is a qualitative teaching observation from F-pms, not a measured rate.
+
+Anthropic draws the same practical boundary in different words: workflows use predefined code paths, while agents dynamically direct their process and tools. It recommends the simplest solution that fits because agency trades latency and cost for flexibility. ([Anthropic’s guide to building effective agents](https://www.anthropic.com/engineering/building-effective-agents))
+
+## Treat latency and human approval as product constraints
+
+Latency and approval are not infrastructure details to add after choosing the architecture. They define what the user can tolerate and what the system is allowed to finish.
+
+In a bounded example from my work, I’m building TryUncle as an AI agent that watches the screen and annotates it live. Its public product description is candid about variable response time and about the human remaining responsible for every edit. That makes two constraints explicit: a live assistant must fit the user’s turn-taking rhythm, and assistance must stop short of silently changing the work. This observation is about TryUncle’s product boundary, not a general performance claim. ([TryUncle](https://tryuncle.com))
+
+Use the same test in your workflow:
+
+- If the user is waiting in an interactive loop, prefer fewer model calls and a narrower path.
+- If a person must approve an action, model that approval as a state, not a sentence in a prompt.
+- If the team accepts minutes rather than seconds, you can spend more time on retrieval, parallel work, or review, but you still need a stop condition.
+- If the system can act, separate “prepare” from “commit” and make the authority boundary visible.
+
+## How to rerun the matrix when the team changes
+
+Re-run the comparison whenever ownership, data access, approval, latency, or the definition of done changes.
+
+1. Write the job in one sentence. Keep it unchanged while you compare variants.
+2. Name the team that owns the source of truth, each system, the final decision, and the recovery process.
+3. Draw the trace for one representative request. Mark every place where the path can branch.
+4. Record whether the system may answer, prepare, write, send, merge, or deploy. Treat each as a separate authority level.
+5. Score the four architecture candidates qualitatively on the nine matrix dimensions.
+6. Write one rejected option and one veto. If you cannot write the veto, the design is not ready.
+7. Re-run after the first real exception. A workflow can move from direct model/RAG to deterministic orchestration when a write or approval appears. A single agent can move to multi-agent when ownership or permissions split.
+
+This procedure keeps the decision tied to the team’s work. It also gives the next engineer a reason for the architecture, not just a diagram to maintain.
+
+If you want to turn the matrix into a working team exercise, bring one real request, its current trace, and the proposed definition of done to [Marius Manolachi’s AI consulting and tutoring work](/learn-ai). The useful output is a changed architecture and a team that can explain why it changed.
