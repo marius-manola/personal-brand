@@ -1,0 +1,192 @@
+---
+title: "Why Does an AI Opportunity Look Valuable Until Exceptions Cost More?"
+date: "2026-09-09"
+updated: "2026-09-09"
+excerpt: "A reproducible worksheet for pricing human exception work, calculating gross versus net AI value, and deciding when to go, narrow, or reject."
+answer: "An AI opportunity stops looking valuable when the cost of human exceptions, correction, escalation, monitoring, integration, and downside consumes its gross labor savings. Price those fields per period, then compute the exception-rate break-even. Go below a planning threshold, narrow or redesign near it, and reject when net benefit is zero or negative, unless scope changes."
+targetQuery: "why does an ai opportunity look valuable until you price exception handling"
+queryAliases:
+  - "AI opportunity exception-rate break-even"
+  - "how to price exception handling in an AI opportunity"
+  - "gross versus net value of AI automation"
+intent: "diagnostic commercial decision"
+funnel: "consideration"
+cluster: "opportunity"
+parent: "/blog/how-to-prioritize-ai-use-cases-in-a-small-business"
+contentType: "decision-tool"
+kind: "satellite"
+sourceableAtom: "An exception-adjusted AI opportunity worksheet with a worked $7,200 gross benefit, $1,030 fixed cost, $12.50 exception cost, 61.7% break-even exception rate, and reproducible GO/NARROW/REJECT outputs."
+evidenceType: "primary-source-backed decision artifact plus worked commercial model"
+evidenceBasis: "NIST AI RMF guidance for human intervention, oversight, monitoring, overrides, escalation records, and go/no-go decisions; Raghu et al. for instance-level algorithm/human triage; Anthropic first-party engineering guidance for production evaluation, stopping conditions, and periodic human review; locked entity fact F-pms for a bounded workflow-definition observation."
+tags:
+  - "AI opportunities"
+  - "AI workflow economics"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://airc.nist.gov/airmf-resources/airmf/3-sec-characteristics/"
+  - "https://airc.nist.gov/docs/AI_RMF_Playbook.pdf"
+  - "https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents"
+  - "https://www.anthropic.com/engineering/building-effective-agents"
+  - "https://arxiv.org/abs/1903.12220"
+faq:
+  - q: "What is the exception-rate break-even?"
+    a: "It is the exception rate at which gross benefit minus exception cost, fixed operating cost, and risk-adjusted downside equals zero. Recalculate it whenever the workflow, reviewer cost, or risk assumptions change."
+  - q: "What if a human must redo the full baseline task after an exception?"
+    a: "Add the retained baseline work as another exception cost. The simple worksheet is optimistic if an exception consumes nearly as much time as the original manual process."
+cover: "/blog/why-ai-opportunity-look-valuable-until-exception-handling-hero-exception-adjusted-value.webp"
+coverAlt: "Illustration of an AI opportunity losing gross savings through a human exception path"
+draft: false
+---
+
+The attractive number is usually the first number: eligible volume multiplied by minutes saved. Then someone asks who reviews the failures, corrects the output, handles the escalation, watches the system, and pays for the integration.
+
+That second calculation is where many AI opportunities change shape.
+
+## The result: a positive gross benefit can still be the wrong scope
+
+Price exception handling before you approve the opportunity. In the worked example below, the workflow creates $7,200 of gross monthly labor value, but the acceptable operating scope depends on whether exceptions stay below a calculated threshold.
+
+| Hypothetical profile | Exception rate | Exceptions/month | Exception cost | Net benefit/month | Decision |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Low exception burden | 5% | 40 | $500 | $5,670 | GO |
+| Medium exception burden | 52% | 416 | $5,200 | $970 | NARROW or REDESIGN |
+| High exception burden | 75% | 600 | $7,500 | -$1,330 | REJECT at this scope |
+
+These are illustrative scenarios, not observed field results. The same worksheet produces all three decisions. The threshold is **61.7% exceptions among automated items** under the stated assumptions. An 80%-of-threshold planning limit is 49.4%, which gives the team room for estimation error.
+
+The useful conclusion is not “automate below 61.7%.” It is “make the exception rate and the cost of one exception explicit before calling the opportunity valuable.”
+
+## How do you reproduce, diagnose, repair, and verify the failure?
+
+Reproduce the failure by running the same opportunity through the gross-value calculation and then adding the human exception path. The trace below uses the illustrative high-burden profile, so it is a model check, not a production result.
+
+```text
+inputs: V=1000, A=0.80, B=12, L=0.75, R=6, C=8, M=180, I=600, D=250, X=0.75
+automated items: 1000 * 0.80 = 800
+gross benefit: 1000 * 0.80 * 12 * 0.75 = $7,200
+exceptions: 800 * 0.75 = 600
+exception cost: 600 * ((6 * 0.75) + 8) = $7,500
+fixed cost: 180 + 600 + 250 = $1,030
+net benefit: 7,200 - 7,500 - 1,030 = -$1,330
+```
+
+The diagnosis is a scope-model failure. The first pass prices minutes avoided on the normal path, but treats review, correction, escalation, monitoring, and downside as free or unspecified. The root cause is not the negative result itself. It is that the workflow was approved before an exception had a definition, owner, and cost.
+
+Repair the model by defining one eligible item, measuring baseline and exception work, assigning a human owner to each return path, and entering those observations into `X`, `R`, `C`, and `D`. If a failed item repeats most of the original task, add that retained work instead of hiding it inside a low exception rate. Then apply the scope rule: go below 80% of break-even when the risk gate passes, narrow or redesign between that planning limit and break-even, and reject the current scope at or above break-even.
+
+Verify the repair by recalculating the low, medium, and high profiles and checking the exact break-even point. The expected outputs are GO at 5% with $5,670 net benefit, NARROW or REDESIGN at 52% with $970, REJECT at 75% with -$1,330, and zero net benefit at 61.7% before rounding. If the trace does not reproduce those outputs, check the period, coverage denominator, exception definition, and fixed-cost inputs before using the worksheet in an approval decision.
+
+## What belongs in the exception-adjusted worksheet?
+
+Use one period, usually a month, and enter the fields below. The model is only as good as the workflow definition behind each input.
+
+| Field | Symbol | What to enter |
+| --- | --- | --- |
+| Eligible volume | `V` | Items that are genuinely in scope during the period |
+| Baseline handling time | `B` | Minutes a person spends on one eligible item today |
+| Automation coverage | `A` | Share of eligible items sent through the automated path |
+| Exception rate | `X` | Share of automated items requiring human review or intervention |
+| Labor value per minute | `L` | Approved cost basis for one minute of the work |
+| Reviewer minutes per exception | `R` | Average human review time for one exception |
+| Correction and escalation cost | `C` | Non-review cost of correcting, escalating, or re-routing one exception |
+| Model/tool cost | `M` | Usage, licenses, infrastructure, and other period costs |
+| Integration and monitoring effort | `I` | Amortized build, maintenance, instrumentation, and monitoring effort for the period |
+| Risk-adjusted downside | `D` | Probability-weighted expected cost of residual errors or incidents for the period |
+
+That last field is not a prediction of losses. It is a place to expose a downside assumption that would otherwise remain invisible. If the workflow has a risk that cannot be priced credibly, treat that as a reason to narrow the scope or stop the commercial case.
+
+The formulas are:
+
+```text
+automated items = V * A
+gross benefit = V * A * B * L
+exception cost per exception = (R * L) + C
+exception cost = V * A * X * ((R * L) + C)
+fixed cost = M + I + D
+net benefit = gross benefit - exception cost - fixed cost
+break-even exception rate = (gross benefit - fixed cost) / (V * A * ((R * L) + C))
+```
+
+This version assumes the gross benefit is the value of baseline minutes avoided on automated items. If a failed item still requires most of the original manual work, add that retained work to `C` or create a separate exception-cost field. Otherwise the model will flatter the opportunity.
+
+## How does the worked commercial model reach 61.7%?
+
+The numbers below are deliberately plain so another product lead can replace them.
+
+| Input | Illustrative monthly value |
+| --- | ---: |
+| Eligible volume | 1,000 items |
+| Baseline handling time | 12 minutes/item |
+| Automation coverage | 80% |
+| Labor value | $0.75/minute, or $45/hour |
+| Reviewer time | 6 minutes/exception |
+| Correction and escalation cost | $8/exception |
+| Model/tool cost | $180 |
+| Integration and monitoring effort | $600 |
+| Risk-adjusted downside | $250 |
+
+The workflow sends 800 items through the automated path. At 12 minutes each, that exposes 9,600 baseline minutes, or 160 hours, to automation. At $0.75 per minute, gross benefit is $7,200.
+
+One exception costs `$6 * $0.75 + $8 = $12.50`. Fixed period cost is `$180 + $600 + $250 = $1,030`.
+
+So the break-even rate is:
+
+```text
+(7200 - 1030) / (1000 * 0.8 * 12.5)
+= 6170 / 10000
+= 0.617, or 61.7%
+```
+
+At 61.7%, the net benefit is zero. Below it, the financial model is positive. Above it, the exception burden consumes more value than the model creates. Neither result settles safety, legal, privacy, or ownership questions. Those remain gates.
+
+The medium profile is the uncomfortable one. At 52% exceptions, the worksheet still reports $970 of monthly net benefit, but 416 interventions are now part of the operating design. That is a good reason to narrow eligibility, route easy cases first, or redesign the handoff before expanding volume.
+
+## Why is exception work part of the opportunity, not a footnote?
+
+Because the system is not only making predictions. It is deciding which instances receive automation and which instances return to people.
+
+Raghu and colleagues frame automation as a triage problem, not just a comparison between algorithmic and human accuracy. Their framework says the allocation decision should account for algorithmic and human error instance by instance. That is the reason this worksheet separates eligible volume, coverage, and exceptions instead of treating “80% automated” as a complete result. ([The Algorithmic Automation Problem](https://arxiv.org/abs/1903.12220))
+
+NIST's AI RMF materials make the operating burden explicit. They describe human judgment in setting context-specific metrics and thresholds, the possible need for human intervention when an AI system cannot detect or correct errors, and ongoing testing or monitoring for deployed reliability. The Playbook also asks teams to define and assess human oversight, instrument histories and audit logs, measure overrides and reported errors, and track policy exceptions, escalations, and go/no-go decisions. ([NIST AI Risks and Trustworthiness](https://airc.nist.gov/airmf-resources/airmf/3-sec-characteristics/), [NIST AI RMF Playbook](https://airc.nist.gov/docs/AI_RMF_Playbook.pdf))
+
+Those requirements do not prescribe a price. They tell you which work must have an owner. The worksheet turns that ownership into an explicit commercial assumption.
+
+## What should you do when the exception rate approaches the threshold?
+
+Use a three-way rule. It is a planning rule for this artifact, not a universal risk standard.
+
+| Condition | Decision | Action |
+| --- | --- | --- |
+| `X < 80% of break-even` and the risk gate passes | GO | Pilot the defined scope, instrument exceptions, and keep a review budget |
+| `80% of break-even <= X < break-even` | NARROW or REDESIGN | Restrict the eligible cases, route predictable cases first, improve input quality, or make the human handoff cheaper |
+| `X >= break-even`, or the risk gate fails | REJECT at this scope | Do not defend the current business case. Change the workflow, authority, or risk boundary before recalculating |
+
+The risk gate matters because positive net benefit does not make a consequential workflow acceptable. NIST describes trustworthiness as a context-dependent balance of characteristics, and Anthropic recommends adding agentic complexity only when it demonstrably improves outcomes. A narrow, predictable workflow can be a better opportunity than a more autonomous version with higher gross coverage and a crowded review queue. ([NIST AI Risks and Trustworthiness](https://airc.nist.gov/airmf-resources/airmf/3-sec-characteristics/), [Building effective agents](https://www.anthropic.com/engineering/building-effective-agents))
+
+![Illustration of low, medium, and high AI workflow exception burdens leading to different scope decisions](/blog/why-ai-opportunity-look-valuable-until-exception-handling-exception-threshold-decision.webp)
+
+The threshold is also a diagnostic. If a small increase in `X` flips the decision, do not argue about the decimal. Improve the measurement, reduce the exception cost, or narrow the cases before making a larger commitment.
+
+## How do you replace illustrative inputs with evidence?
+
+Do this before presenting the opportunity as a funding request.
+
+1. **Define one eligible item.** Write down the trigger, the expected output, the allowed action, and the conditions that return control to a person. If two operators would disagree about whether an item is eligible, the volume is not ready for the worksheet.
+2. **Sample the current workflow.** Record baseline handling minutes and the reasons work leaves the normal path. Keep the exception categories separate. “Needs review” is not an explanation.
+3. **Run a bounded rehearsal.** Use representative cases and log automated coverage, reviewer minutes, corrections, escalations, and the final human decision. Keep model output, human changes, and the final outcome distinguishable.
+4. **Instrument production.** Track exceptions, overrides, reported errors, response time, and escalations. NIST explicitly recommends histories, audit logs, downstream override statistics, and documented go/no-go decisions. ([NIST AI RMF Playbook](https://airc.nist.gov/docs/AI_RMF_Playbook.pdf))
+5. **Evaluate and review periodically.** Anthropic's first-party guidance describes automated evals, production monitoring, user feedback, transcript review, and systematic human evaluation as complementary signals. It recommends periodic human review for calibration because no single evaluation layer catches every failure. ([Demystifying evals for AI agents](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents))
+6. **Recalculate after a workflow change.** A new model, policy, input source, reviewer rubric, or escalation path can change `A`, `X`, `R`, `C`, or `D`. The old business case does not automatically survive the new workflow.
+
+This is where a clean approval boundary matters. Anthropic's agent guidance says systems can pause for human feedback at checkpoints or blockers and should have stopping conditions, such as a maximum number of iterations. An exception is not a vague fallback message. It is a defined state with a human owner and a cost. ([Building effective agents](https://www.anthropic.com/engineering/building-effective-agents))
+
+When I taught product managers to move from writing specs to building and shipping, the failure was usually not the model. It was that nobody could say what “done” meant. That is a bounded teaching observation, not a client ROI result, but it changes how I define the worksheet: approval criteria and the human-owned end state come before the savings calculation. ([Marius Manolachi's AI learning work](https://mariusmanolachi.com/learn-ai))
+
+## The commercial decision is a scope decision
+
+An AI opportunity can have real gross value and still be a poor project at its proposed scope. The fix is often not “never automate.” It is to automate a narrower class of cases, price the human path honestly, and measure the exception rate as part of the product.
+
+Use [how to prioritize AI use cases in a small business](/blog/how-to-prioritize-ai-use-cases-in-a-small-business) to define the candidate workflow, then use this worksheet before you fund a build. If the human approval path is the real design constraint, compare it with [when an AI implementation should stop and return work to a human](/blog/when-should-an-ai-implementation-stop-and-return-work-to-a-human). For a broader view of how exceptions change the opportunity, see [why an AI opportunity disappears after mapping the real workflow](/blog/why-does-an-ai-opportunity-disappear-after-mapping-the-real-workflow).
+
+For this example, the decision is simple: GO at 5%, NARROW or REDESIGN at 52%, and REJECT the current scope at 75%. Replace the illustrative values with observed workflow evidence before you call the opportunity valuable.
