@@ -20,6 +20,9 @@ const nextConfig = {
     ignoreBuildErrors: process.env.NEXT_DIST_DIR === '.next-content-studio-build',
   },
   images: {
+    // Serve image files directly so rendering does not depend on a hosted
+    // image optimizer's quota. Blog assets are already compressed WebP files.
+    unoptimized: true,
     formats: ['image/avif', 'image/webp'],
     deviceSizes: [640, 750, 828, 1080, 1200, 1600],
     imageSizes: [256, 384],
