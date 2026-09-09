@@ -1,0 +1,186 @@
+---
+title: "How to Map Decision Boundaries Before Designing an AI Workflow"
+date: "2026-09-09"
+updated: "2026-09-09"
+excerpt: "A worked decision-boundary map and fail-closed validator for deciding what an AI workflow may observe, propose, route, or execute."
+answer: "Map the workflow from trigger to terminal state before choosing an agent or orchestration tool. For every consequential decision, name the accountable owner, AI permission, side effect, evidence, approval scope, escalation, recovery, and audit record. The exception is a decision with no real owner or terminal state: keep it human-owned or reject the workflow."
+targetQuery: "how to map decision boundaries before designing an ai workflow"
+queryAliases:
+  - "map AI workflow decision boundaries"
+  - "AI workflow authority map"
+  - "AI workflow decision rights table"
+intent: "informational / implementation"
+funnel: "consideration"
+cluster: "architecture"
+parent: "/blog/ai-workflow-architecture"
+contentType: "implementation-lab"
+kind: "satellite"
+sourceableAtom: "A completed decision-boundary map for an internal product-feedback workflow, plus a validator that rejects missing authority, evidence, approval scope, or terminal handling."
+evidenceType: "reusable-artifact"
+evidenceBasis: "A seven-row map from internal product feedback to a reviewed draft issue was validated in memory on 2026-08-23 with Node v20.11.0. The base map passed. Four deliberate mutations for missing owner, evidence, approval scope, and terminal handling were rejected. No production system or external side effect was used."
+tags:
+  - "AI architecture"
+  - "AI workflows"
+  - "Human oversight"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://airc.nist.gov/airmf-resources/airmf/5-sec-core/"
+  - "https://airc.nist.gov/airmf-resources/airmf/appendices/app-c-ai-risk-management-and-human-ai-interaction/"
+  - "https://docs.cloud.google.com/architecture/choose-design-pattern-agentic-ai-system?authuser=19&hl=en"
+  - "https://learn.microsoft.com/mt-mt/agent-framework/workflows/human-in-the-loop"
+  - "https://docs.cloud.google.com/architecture/multiagent-ai-system?hl=en"
+faq:
+  - q: "Should every AI workflow decision require human approval?"
+    a: "No. Classify each decision by consequence, reversibility, authority, and ambiguity. Let the AI observe, propose, or route when the effect is bounded. Require approval for a consequential side effect, and keep the decision human-owned when the authority, evidence, or recovery path is unclear."
+  - q: "What should happen when nobody owns a workflow decision?"
+    a: "Do not infer an owner from a job title or let the model choose one. Route the run to escalation or keep the step human-only until an accountable owner accepts the decision, its evidence, its scope, and its recovery path."
+cover: "/blog/how-to-map-decision-boundaries-before-designing-an-ai-workflow-decision-boundary-hero.webp"
+coverAlt: "Illustration of an AI workflow decision map connecting a trigger, authority boundary, approval checkpoint, recovery path, and terminal state"
+draft: false
+---
+
+The architecture discussion usually starts too late. A team has already chosen an agent, a workflow engine, or a vendor before it has agreed who may make each decision.
+
+I start with the decision boundary. In my work teaching product managers to move from writing specs to building and shipping products, the difficult question is often not “Which model should we use?” It is “What proves that this step is done, and who is allowed to say so?” That teaching context is part of [Marius Manolachi's AI learning work](https://mariusmanolachi.com/learn-ai), not a production benchmark.
+
+Here is the artifact I would put in front of the team first: a completed map for a small internal workflow, followed by a validator that rejects four common silent gaps.
+
+## The result: a decision-boundary map that fails closed
+
+Use a decision-boundary map before selecting workflow components. It should trace one workflow from trigger to terminal state and make every authority, effect, and stop condition visible. This applies NIST's context-and-governance emphasis to a smaller pre-build artifact, rather than pretending the table is a NIST checklist ([NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/), [NIST Appendix C](https://airc.nist.gov/airmf-resources/airmf/appendices/app-c-ai-risk-management-and-human-ai-interaction/)).
+
+The representative workflow is deliberately narrow: an internal product-feedback submission becomes a reviewed Draft issue in an internal backlog. It is non-regulated. The AI cannot publish work, change priority autonomously, change permissions, or contact an external party.
+
+The base map passed validation. Removing an owner, evidence, approval scope, or terminal state caused rejection every time.
+
+![Illustration of a completed decision-boundary table with owner, AI permission, evidence, approval, escalation, recovery, and terminal state columns](/blog/how-to-map-decision-boundaries-before-designing-an-ai-workflow-decision-boundary-table.webp)
+
+## The worked map from trigger to terminal state
+
+The map below is the reusable artifact. The owner is an accountable human role, not the model and not the workflow engine. “AI permission” describes the maximum authority for that row.
+
+| Step and decision | Decision owner | AI permission | Exact side effect | Evidence shown to reviewer | Approval expiry or scope | Escalation path | Rollback or recovery | Audit record |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `intake`: accept a submission | Product operations lead | Observe | Create an append-only run record | Authenticated submitter, input reference, received time | None | Missing requester or malformed payload -> `escalated` | Replay by `run_id` after payload repair | `intake.accepted` with actor and input hash |
+| `classify`: choose category and draft priority | Product operations lead | Propose | Store proposal in run state, with no backlog write | Request text, source IDs, confidence, ambiguity flags | Proposal only, no execution | Ambiguous category or no source -> `needs_clarification` | Replace proposal and preserve its prior version | `classification.proposed` with model and prompt versions |
+| `route`: select a queue | Product operations lead | Route | Select one allowlisted backlog queue | Category, queue-policy version, matched queue | `run_id`; routing only | No unique queue -> `escalated` | Reroute before issue creation | `route.selected` |
+| `draft_issue`: create a reviewed draft | Product operations lead | Act with approval | Create one issue in `Draft` status in the internal backlog | Source reference, title, body, labels, duplicate candidates, priority rationale | Exact payload digest, project, and `run_id`; 30 minutes; single use | Missing, expired, or changed approval -> `escalated` | Cancel or delete only the created draft by `issue_id` | `issue.create.attempt`, `approved`, or `rejected` |
+| `apply_label`: add a low-impact label | Product operations lead | Act autonomously | Apply one allowlisted non-priority label to the created draft | Allowlist version, `issue_id`, label | `run_id` and `issue_id`; no human approval | Label not allowlisted or issue changed -> `escalated` | Remove the label by `issue_id` | `label.added` or `label.removed` |
+| `notify`: tell the internal owner | Product operations lead | Act autonomously | Send one internal notification containing the issue link | Created `issue_id`, canonical link, notification key | `run_id` and `issue_id`; idempotent key | Delivery failure -> `failed` | Retry with the same notification key | `notification.sent` or `notification.failed` |
+| `finalize`: decide whether the run is complete | Product operations lead | Observe | Set exactly one terminal run state | Step statuses, `issue_id` if created, escalation reason if not | None | Incomplete path -> `escalated` | Replay from the last non-terminal step | `run.terminal` |
+
+The normal path is:
+
+`received -> proposed -> routed -> awaiting approval -> draft_created -> labeled -> notified -> completed`
+
+The terminal exception states are `needs_clarification`, `escalated`, `rejected`, and `failed`. `draft_created` is an intermediate state, not a claim that the whole workflow finished.
+
+The exact values are example judgments. A real team must replace “Product operations lead,” the 30-minute expiry, the allowlisted labels, and the recovery operations with controls it can actually enforce.
+
+## How to choose the AI permission for each decision
+
+Classify the decision before you classify the architecture. The question is not whether the workflow is an “agent.” The question is what effect this one row may cause.
+
+| Permission | Use it when | Do not use it when |
+| --- | --- | --- |
+| Observe | The AI may read bounded context or record a run fact | Reading the source itself crosses an unresolved data boundary |
+| Propose | A person or deterministic policy must decide whether the suggestion is acceptable | The proposal could be mistaken for an executed action |
+| Route | The AI may choose from a fixed set of destinations | The route changes authority, policy, or a consequential record |
+| Act with approval | The side effect is consequential but can be made exact, reviewed, and recovered | The reviewer cannot see the actual payload or approval cannot expire |
+| Act autonomously | The effect is low consequence, allowlisted, idempotent, and reversible | It affects money, permissions, external recipients, sensitive data, or an unclear target |
+
+This separation follows the direction of the primary guidance. NIST says human roles and responsibilities should be clearly defined and differentiated, and that human-AI configurations range from fully manual to fully autonomous ([NIST Appendix C](https://airc.nist.gov/airmf-resources/airmf/appendices/app-c-ai-risk-management-and-human-ai-interaction/)). Google Cloud recommends a human checkpoint for subjective judgment or final approval of critical actions, while noting that predictable, structured work may not need an agentic solution at all ([Google Cloud's design-pattern guide](https://docs.cloud.google.com/architecture/choose-design-pattern-agentic-ai-system?authuser=19&hl=en)).
+
+For the approval row, show the exact normalized action, not a transcript. Microsoft models this as a typed request and response: the workflow pauses, emits an external request, and resumes after a response. Its checkpoint guidance also preserves pending requests when work is restored ([Microsoft Agent Framework human-in-the-loop](https://learn.microsoft.com/mt-mt/agent-framework/workflows/human-in-the-loop)).
+
+## The validator that catches silent gaps
+
+The validator does not judge whether the workflow is wise. It checks whether the map is complete enough to route safely. Run it before discussing an agent framework or granting a write tool.
+
+```js
+function validate(map) {
+  const errors = [];
+  const required = ["owner", "evidence", "approvalScope", "sideEffect", "escalation", "recovery", "audit"];
+
+  if (!map.terminalStates?.length) errors.push("terminal handling missing");
+
+  for (const row of map.rows) {
+    for (const field of required) {
+      if (!row[field]) errors.push(`${row.id}: ${field} missing`);
+    }
+    if (row.mode === "act_with_approval" && !row.approvalScope) {
+      errors.push(`${row.id}: approval scope required`);
+    }
+    if (row.mode === "act_with_approval" && !row.escalation.includes("approval")) {
+      errors.push(`${row.id}: approval escalation required`);
+    }
+  }
+  return errors;
+}
+
+const mutations = [
+  ["missing owner", m => delete m.rows.find(r => r.id === "draft_issue").owner],
+  ["missing evidence", m => delete m.rows.find(r => r.id === "classify").evidence],
+  ["missing approval scope", m => delete m.rows.find(r => r.id === "draft_issue").approvalScope],
+  ["missing terminal state", m => { m.terminalStates = []; }]
+];
+
+const mapFromTheTable = {
+  terminalStates: ["completed", "needs_clarification", "escalated", "rejected", "failed"],
+  rows: [
+    ["intake", "observe"], ["classify", "propose"], ["route", "route"],
+    ["draft_issue", "act_with_approval"], ["apply_label", "act_autonomously"],
+    ["notify", "act_autonomously"], ["finalize", "observe"]
+  ].map(([id, mode]) => ({
+    id, mode,
+    owner: "Product operations lead",
+    evidence: "recorded evidence",
+    approvalScope: mode === "act_with_approval" ? "exact payload, 30 min, single use" : "bounded to this run",
+    sideEffect: "explicit side effect",
+    escalation: mode === "act_with_approval" ? "missing approval -> escalated" : "invalid condition -> escalated",
+    recovery: "named recovery action",
+    audit: "named audit event"
+  }))
+};
+
+for (const [name, mutate] of mutations) {
+  const copy = structuredClone(mapFromTheTable);
+  mutate(copy);
+  console.log(name, validate(copy));
+}
+```
+
+I ran the completed table in memory with this validator on Node v20.11.0. The base map returned `[]`. The four mutation results were:
+
+| Mutation | Observed result |
+| --- | --- |
+| Remove `draft_issue.owner` | Rejected: `draft_issue: owner missing` |
+| Remove `classify.evidence` | Rejected: `classify: evidence missing` |
+| Remove `draft_issue.approvalScope` | Rejected: missing approval scope and approval scope required |
+| Remove all terminal states | Rejected: `terminal handling missing` |
+
+![Illustration of four incomplete AI workflow decision maps being rejected or routed to escalation by a fail-closed validator](/blog/how-to-map-decision-boundaries-before-designing-an-ai-workflow-decision-boundary-fail-closed.webp)
+
+The code uses `mapFromTheTable` as the serialized version of the completed table. That name is intentional: the table is the artifact, and the validator is the check you can run against your own JSON export. The result is not a production test and does not show that a real backlog integration is safe.
+
+## What the four failures reveal
+
+Each missing field represents a different way for architecture to hide an unresolved decision.
+
+1. **No owner means no authority.** A model can propose a route, but it cannot invent the person accountable for accepting the consequences.
+2. **No evidence means no review.** A reviewer can click approve without knowing which source, target, or policy produced the proposal.
+3. **No approval scope means approval can drift.** A broad approval may be reused for a changed payload, a different issue, or a later retry.
+4. **No terminal state means the workflow has no definition of done.** A success message can replace a completed record, an explicit escalation, or a failed outcome.
+
+Google's multi-agent guidance puts human oversight, carefully defined autonomy, and observability together. It specifically recommends the ability to monitor, override, and pause business-critical flows ([Google Cloud's multi-agent AI system guidance](https://docs.cloud.google.com/architecture/multiagent-ai-system?hl=en)). The validator turns those broad controls into a pre-build question: can a reviewer identify who owns this decision, what they can see, what the workflow may do next, and how the run ends?
+
+## When this map is not enough
+
+This map is a starting boundary, not a compliance review or a security design. Stop and widen the review when the workflow involves regulated decisions, sensitive personal data, financial transfers, access changes, destructive deletion, external commitments, multiple tenants, or an irreversible effect. Those cases may need specialist policy owners, stronger authentication, separation of duties, retention rules, independent testing, or a human-only path.
+
+Also stop if the recovery operation is only “try again.” A retry is not a rollback. For an external write, name the created object, expected version, idempotency key, and compensating action. If the team cannot name those things, keep the AI in observe or propose mode.
+
+The next step is small: take one real workflow, copy the table, and ask the people who own the work to fill every blank. If a field stays blank, that is an architecture finding. It is not an invitation for the model to guess.
+
+For the broader architecture context, connect this worksheet to the [AI workflow architecture guide](/blog/ai-workflow-architecture). If the team has already reached runtime approval design, use the [human-in-the-loop approval guide](/blog/human-in-the-loop-ai-agents) and the [AI agent state-machine guide](/blog/how-to-design-an-ai-agent-state-machine) next. The worksheet itself is enough to begin without choosing a vendor or hiring an implementation team.
