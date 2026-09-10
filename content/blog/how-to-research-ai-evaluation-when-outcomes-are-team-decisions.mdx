@@ -1,0 +1,181 @@
+---
+title: 'How to Research AI Evaluation When Outcomes Are Team Decisions'
+date: '2026-09-10'
+updated: '2026-09-10'
+excerpt: 'Research team-decision AI evaluation with a bounded packet that separates output scores, disagreement, outcome evidence, and the final GO, HOLD, or STOP call.'
+answer: 'Research team-decision AI evaluation as two linked records: a blinded review of the same cases and a separate decision-owner record that accepts or rejects AI assistance. Freeze the task set, system, rubric, and outcome rule; log scores, disagreement, order effects, overrides, and final disposition. A deterministic rehearsal can validate the packet, but it cannot prove that human-with-AI teams outperform human-only teams.'
+targetQuery: 'how to research AI evaluation when outcomes are team decisions'
+queryAliases:
+  - 'team decision AI evaluation research'
+  - 'how to separate output scores from release decisions'
+  - 'how to choose a GO HOLD STOP decision for AI evaluation'
+intent: 'informational'
+funnel: 'consideration'
+cluster: 'evaluation'
+parent: '/blog/ai-evaluation-practice'
+contentType: 'original-research'
+kind: 'flagship'
+sourceableAtom: 'A reproducible eight-case packet separates output-level reviewer judgments from a release disposition. Across 24 initial judgments it records 17 A labels, 3 B labels, 3 ties, and 1 abstention, plus five disagreement rows and two order reversals in four swap checks. The packet ends in STOP for model choice because domain outcome evidence is absent.'
+evidenceType: 'reproducible evaluation packet rehearsal plus worked team disposition artifact'
+evidenceBasis: 'Local deterministic fixture run on 2026-08-23 with 8 cases, 3 independent blinded reviewers, 4 order-swap checks, 5 disagreement rows, and a documented STOP disposition for model choice; the packet is a rehearsal, not field evidence.'
+tags:
+  - 'AI evaluation'
+  - 'AI reliability'
+  - 'team decisions'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-21'
+sources:
+  - 'https://pubmed.ncbi.nlm.nih.gov/40961147/'
+  - 'https://doi.org/10.1145/3772318.3790785'
+  - 'https://airc.nist.gov/airmf-resources/playbook/measure/'
+  - 'https://www.nist.gov/publications/ai-use-taxonomy-human-centered-approach'
+  - 'https://arxiv.org/abs/2310.02108'
+faq:
+  - q: 'Can output-level agreement justify a release decision by itself?'
+    a: 'No. Agreement can show that reviewers saw outputs similarly, but the release record still needs a declared task outcome, an accountable owner, and a rule for disagreement, abstention, and missing evidence.'
+  - q: 'Can a deterministic rehearsal replace a live human-with-AI study?'
+    a: 'No. It can test the packet, blinding boundary, logging fields, and decision rule. It cannot estimate production performance or compare human-only and human-with-AI teams.'
+cover: '/blog/how-to-research-ai-evaluation-when-outcomes-are-team-decisions-hero.webp'
+coverAlt: 'Illustration of a team evaluation packet separating output judgments from a release decision'
+draft: false
+---
+
+When an AI system helps a team make a decision, a good output score can still leave the real question unanswered: did the team make the right call on the task? The fix is to keep two records separate from the start. One records what reviewers thought of the output. The other records what the accountable owner decided and whether the task outcome supported that decision.
+
+The packet on this page is deliberately bounded. It contains an observed eight-case rehearsal with blinded reviewer labels, disagreement and order checks, and a worked STOP decision. It does not pretend to be a recruited product-team study.
+
+Use it with the [AI evaluation practice hub](/blog/ai-evaluation-practice) and the [evaluation dataset guide](/blog/how-to-build-an-evaluation-dataset-from-production-traces) when you move from a scorecard to an outcome-labeled case set.
+
+## Separate output quality from the team decision
+
+Treat output quality and team decision quality as linked measurements, not one score. Review the output independently, then record the team's final choice against an outcome label and a named owner.
+
+| Record | What it captures | What it cannot prove alone |
+| --- | --- | --- |
+| Output review | Whether a response follows the rubric, with reviewer rationale, tie, or abstention | Whether the downstream task succeeded |
+| Team decision | The decision, owner, rationale, override, and escalation | Whether the decision was correct without an outcome label |
+| Task outcome | The state that actually followed, or a bounded proxy defined before the run | Why a reviewer or team chose the option |
+
+NIST's measurement guidance says that evaluation methods and metrics should fit the system's purpose and use context, and that unmeasured risks should be documented ([NIST AI RMF Measure](https://airc.nist.gov/airmf-resources/playbook/measure/)). NIST's human-centered AI taxonomy also puts human goals and outcomes in the description of the activity, not only the model technique ([AI Use Taxonomy](https://www.nist.gov/publications/ai-use-taxonomy-human-centered-approach)).
+
+For a purely informational task with no downstream decision, output review may be enough. Once a team approves, rejects, escalates, or ships something, the decision and its outcome need their own fields.
+
+## Method and sample: what the bounded packet actually tests
+
+The local rehearsal freezes a small response-comparison packet so the evaluation process can be inspected without confusing fixture behavior with vendor-model behavior.
+
+![Illustration of a held-out task set flowing through human-only review, disagreement logging, and a decision-owner disposition](/blog/how-to-research-ai-evaluation-when-outcomes-are-team-decisions-method.webp)
+
+The packet uses two fixed response variants, `alpha-v1` and `beta-v1`, on eight tasks:
+
+- approval ownership;
+- customer escalation handoff;
+- incident summarization;
+- automation risk classification;
+- acceptance checks for an AI feature;
+- source-supported claim checking;
+- workflow choice under a changing policy;
+- reviewer instruction design.
+
+Each task has a stated criterion. Three independent reviewers see blinded response pairs and record `A`, `B`, `tie`, or `abstain`. Four tasks are reviewed again after response order is swapped. The packet preserves the raw labels before aggregation.
+
+The decision protocol adds a separate owner record:
+
+1. Name the evaluation lead as accountable owner.
+2. Keep the output label, reviewer rationale, task outcome, and final decision in separate columns.
+3. Record disagreement, abstention, override, and response order.
+4. Apply the outcome rule before looking at a preferred model.
+5. Use `GO`, `HOLD`, or `STOP` and write the reason in one sentence.
+
+This is a human-only blinded output review layer, not a live human-with-AI team condition. The distinction matters. A human-decision study can compare human-alone and human-with-AI conditions when recommendations and final decisions are controlled separately ([human-AI decision study](https://pubmed.ncbi.nlm.nih.gov/40961147/)). This packet only tests whether the records and gate can keep those conditions distinct.
+
+## Observed results: where output judgments disagreed
+
+The output record looked favorable to `alpha-v1`, but it did not support choosing a model because the packet contained no domain outcome labels.
+
+| Observed surface | Sample | Result | Decision meaning |
+| --- | ---: | --- | --- |
+| Blinded output judgments | 8 tasks x 3 reviewers = 24 | A: 17, B: 3, tie: 3, abstain: 1 | A had more labels, but labels are not task outcomes |
+| Disagreement log | 8 task rows | 5 rows with reviewer variation: T02, T03, T04, T05, T07 | Aggregation did not erase the disagreement record |
+| Order-swap check | 4 repeated rows | 2 reversals: T05 and T07 | Presentation order was a release risk to inspect |
+| Decision record | 1 owner decision | STOP model choice; GO to collect outcome evidence and rerun | The gate rejected an unsupported release call |
+
+The result table is the page's sourceable atom. It shows why an output-level count can be insufficient even when one response variant receives most labels. The packet is not a benchmark, and the counts do not establish that either variant is better in production.
+
+The same problem appears in human-AI research. A controlled study may measure accuracy, appropriate reliance, and cognitive load, but those measures need a defined task and condition rather than a generic quality score ([CHI 2026 study](https://doi.org/10.1145/3772318.3790785)).
+
+## The disagreement log is a result, not cleanup
+
+Keep disagreement visible because it tells the decision owner where the rubric, case, or recommendation is not stable enough for aggregation.
+
+![Illustration of a de-identified reviewer disagreement and order-swap log with rationale, abstention, and outcome fields](/blog/how-to-research-ai-evaluation-when-outcomes-are-team-decisions-disagreement-artifact.webp)
+
+The five logged rows were:
+
+| Task | Reviewer pattern | Packet treatment |
+| --- | --- | --- |
+| T02 | A, B, A | Retain the minority B label and inspect the escalation criterion |
+| T03 | tie, tie, B | Retain the tie majority and the B disagreement |
+| T04 | A, abstain, A | Retain the abstention instead of treating it as a negative label |
+| T05 | A, A, tie | Retain the tie and inspect whether the criterion permits a clear winner |
+| T07 | A, A, B | Retain the B disagreement and compare the two workflow rationales |
+
+Pairwise agreement was uneven: R01 and R02 agreed on 6 of 7 comparable rows, R01 and R03 on 5 of 8, and R02 and R03 on 3 of 7. Those are packet observations, not reliability estimates for a wider reviewer population.
+
+The order check added a second warning. Of four repeated rows, T05 and T07 reversed the recorded choice after the response order changed. The packet therefore stops the model choice even though the aggregate label count favors A. If the order check had not been run, the decision owner would have missed a visible source of instability.
+
+If reviewers disagree because the task itself is underspecified, fix the task or rubric before comparing systems. If they disagree because the outcome is genuinely uncertain, keep the uncertainty and define the escalation path.
+
+## Use a decision-owner rule for GO, HOLD, or STOP
+
+The decision owner should apply a predeclared rule that can reject a favorable output score. The rule belongs in the packet before the final labels are summarized.
+
+![Illustration of a team AI evaluation decision tree ending in GO, HOLD, or STOP with missing outcome evidence as a hard veto](/blog/how-to-research-ai-evaluation-when-outcomes-are-team-decisions-decision-artifact.webp)
+
+| Disposition | Minimum condition | Veto or follow-up |
+| --- | --- | --- |
+| GO | Outcome evidence supports the selected option, reviewer disagreement is resolved or bounded, and the owner signs the record | Any missing outcome field or unsafe unresolved disagreement blocks GO |
+| HOLD | Output and outcome signals disagree, or a named follow-up can close a specific evidence gap | Set the owner, missing field, and next review date |
+| STOP | The packet cannot establish the task outcome, the system violates a hard constraint, or the disagreement is unsafe to aggregate | Do not choose a model for release |
+
+Worked decision record from this packet:
+
+| Field | Recorded value |
+| --- | --- |
+| Decision owner | Evaluation lead |
+| Decision | Select a response variant for domain use |
+| Output evidence | 17 A labels, 3 B labels, 3 ties, 1 abstention |
+| Outcome evidence | Missing |
+| Disagreement and order checks | Five disagreement rows; two reversals in four swaps |
+| Final disposition | STOP model choice; GO to collect domain outcome evidence and rerun |
+
+This record is intentionally conservative. It does not turn disagreement into a failure rate, and it does not turn missing outcomes into a model win. It makes the next action explicit.
+
+## What to record in a live human-only versus AI-assisted study
+
+A live comparison needs the same packet plus two controlled conditions. The human-only team should make the decision without an AI recommendation. The AI-assisted team should receive the pinned recommendation under the same case, time, permission, and escalation rules. Both conditions need the same outcome label.
+
+Use this field list:
+
+1. `case_id`, task input, task version, and edge-case category.
+2. Model name and version, prompt version, tool list, permissions, date, and sampling rule.
+3. Human-only reviewer records before aggregation.
+4. AI-assisted reviewer records before aggregation.
+5. Output score, rationale, abstention, disagreement, and override for each reviewer.
+6. Final team decision, decision owner, escalation, time, cost, and latency when relevant.
+7. Outcome label or bounded proxy defined before the run.
+8. GO, HOLD, or STOP disposition with the exact veto or evidence that cleared it.
+
+Human-with-AI and human-alone research is meaningful only when the conditions and final decisions are distinguishable. A study of appropriate reliance connects the advice a person receives with later decisions and team performance, which is why the packet should preserve advice exposure and the final outcome separately ([appropriate-reliance study](https://arxiv.org/abs/2310.02108)).
+
+The local rehearsal stops before this live comparison. It proves that the packet can hold the distinction. It does not supply the missing human-with-AI result.
+
+## Limitations: what this packet does not prove
+
+This packet proves a recording and decision procedure, not a production performance claim or a general human-AI effect.
+
+The sample is eight tasks and three expert-keyed reviewers. The response variants are frozen test doubles, not current vendor models. There are no recruited product teams, real customer outcomes, latency measurements, cost measurements, tool permissions, or learning measures. The order-swap check has four rows, so its two reversals are a warning inside this packet, not a population estimate.
+
+The task set also has no real outcome labels. That absence is why the decision record says STOP for model choice. A live release study needs representative cases, a pinned configuration, independent records, both conditions, outcome labels, a decision owner, and limits written before the result is read.
+
+For help turning a real workflow trace into an outcome-labeled packet, the next step is [Marius Manolachi's AI consulting and tutoring work](/learn-ai). Bring the case set and the decision rule. The article is complete without that step.
