@@ -1,0 +1,183 @@
+---
+title: "How to Run an AI Evaluation Calibration Session With Two Reviewers"
+date: "2026-09-10"
+updated: "2026-09-10"
+excerpt: "Run a two-reviewer AI evaluation calibration with blind labels, disagreement categories, a rubric edit, and a fresh holdout check."
+answer: "Run the session as a blind, versioned worksheet: give two reviewers the same normal, boundary, and failure cases; compare per-criterion labels before discussion; categorize each disagreement; edit the rubric; then score a fresh holdout. The worked fixture below includes code and observed output, but its labels are illustrative, so it teaches the mechanics rather than claiming human agreement or a release result."
+targetQuery: "how to run an AI evaluation calibration session with two reviewers"
+queryAliases:
+  - "two reviewer AI evaluation calibration"
+  - "AI evaluator disagreement review"
+  - "calibrate an LLM judge with two reviewers"
+intent: "implementation"
+funnel: "consideration"
+cluster: "evaluation"
+parent: "/blog/ai-evaluation-practice"
+contentType: "implementation-lab"
+kind: "satellite"
+sourceableAtom: "A bounded, runnable two-reviewer calibration worksheet that preserves per-criterion labels, disagreement categories, a rubric revision, and a holdout check, with output explicitly limited to an illustrative fixture."
+evidenceType: "reusable artifact with a bounded worked calibration exercise"
+evidenceBasis: "The page contains a completed, runnable calibration worksheet and checker built from an explicitly illustrative six-case fixture. It records blind per-criterion labels, disagreement categories, a rubric edit, and a fresh holdout row. The output demonstrates the mechanics; it makes no claim about recruited human reviewers or production quality."
+tags:
+  - "AI evaluation"
+  - "AI implementation"
+author: "Marius Manolachi"
+nextReviewAt: "2026-09-22"
+sources:
+  - "https://developer.apple.com/documentation/evaluations/designing-effective-model-judges"
+  - "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/evaluate-judge-model"
+  - "https://mlflow.org/docs/latest/genai/eval-monitor/scorers/llm-judge/alignment/"
+  - "https://labelstud.io/blog/how-to-scale-evaluation-for-rag-and-agent-workflows/"
+  - "https://aclanthology.org/2021.bppf-1.3/"
+  - "https://aclanthology.org/2021.humeval-1.15/"
+  - "https://journals.sagepub.com/doi/abs/10.1177/001316446002000104"
+faq: []
+cover: "/blog/how-to-run-an-ai-evaluation-calibration-session-with-two-reviewers-calibration-session-hero.webp"
+coverAlt: "Illustration of a two-reviewer AI evaluation calibration worksheet"
+draft: false
+---
+
+Calibration is not a meeting where two people glance at a few outputs and agree. It is a small measurement instrument. The useful record contains the version of the rubric, the cases each reviewer saw, their independent labels, the reasons for disagreement, and the behavior of a fresh holdout after an edit.
+
+This article gives you that record as a worked fixture. The six cases and labels are illustrative data embedded in the worksheet, not a report from recruited reviewers. The test output is real output from the included checker, but it says nothing about human agreement or production readiness. That boundary is important because a neat table can still be false evidence.
+
+## 1. Freeze the rubric and case slice
+
+Freeze one rubric version and a small case slice before either reviewer sees the other's labels. Include routine cases, boundary cases, and clear failures, then state the veto conditions that override a general score.
+
+Apple's model-judge guidance uses a shared calibration set reviewed by multiple human annotators, while Google Cloud's judge evaluation guidance treats human ratings as ground truth for comparison. Both point to the same practical dependency: the reviewers need the same cases and the same criteria before anyone compares a judge with them ([Apple's model-judge guidance](https://developer.apple.com/documentation/evaluations/designing-effective-model-judges), [Google Cloud's judge evaluation guidance](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/evaluate-judge-model)).
+
+Start with a short configuration that a reviewer can read without a facilitator explaining it:
+
+```js
+const rubric = {
+  version: "r1",
+  criteria: {
+    grounded: "Every important claim is supported by the supplied context.",
+    actionable: "The answer gives a clear next action without adding facts.",
+    safe: "The answer respects the stated review boundary and risk conditions."
+  },
+  veto: "Any unsafe external action is a fail, even when the other criteria pass."
+};
+```
+
+The case slice should make the criteria do work. A routine extraction tests normal behavior. A boundary case tests missing context or an ambiguous instruction. A failure case tests a response that sounds fluent but violates a constraint. Label Studio recommends a curated ground-truth set with representative routine and high-risk edge cases, plus notes and version history ([Label Studio's evaluation guidance](https://labelstud.io/blog/how-to-scale-evaluation-for-rag-and-agent-workflows/)).
+
+Do not let the model identity, prompt version, or prior label leak into the worksheet. Store those in an administrator-only key if blinding matters. The reviewer-facing row needs only the case, the supplied context, the rubric version, and the response being judged.
+
+## 2. Collect independent labels before discussion
+
+Have both reviewers label the same rows independently, one criterion at a time, and preserve the raw labels before they meet. A disagreement that disappears into a final consensus label cannot teach you whether the rubric, context, or reviewer caused the problem.
+
+The worksheet below uses `pass`, `fail`, and `abstain`. `R1` and `R2` are reviewer columns in the fixture, not named people or evidence of a real session. Each cell contains one label for the criterion named in that row.
+
+| Case | Type | Criterion | R1 | R2 | First handling |
+| --- | --- | --- | --- | --- | --- |
+| N1 | normal | grounded | pass | pass | keep both raw labels |
+| N1 | normal | actionable | pass | pass | keep both raw labels |
+| N1 | normal | safe | pass | pass | keep both raw labels |
+| N2 | normal | grounded | pass | pass | keep both raw labels |
+| N2 | normal | actionable | pass | pass | keep both raw labels |
+| N2 | normal | safe | pass | pass | keep both raw labels |
+| B1 | boundary | grounded | pass | pass | inspect the shared context |
+| B1 | boundary | actionable | pass | abstain | classify the missing context |
+| B1 | boundary | safe | pass | abstain | classify the reviewer assumption |
+| B2 | boundary | grounded | pass | fail | inspect the criterion wording |
+| B2 | boundary | actionable | pass | pass | keep both raw labels |
+| B2 | boundary | safe | pass | pass | keep both raw labels |
+| F1 | failure | grounded | fail | fail | preserve the failure |
+| F1 | failure | actionable | fail | fail | preserve the failure |
+| F1 | failure | safe | fail | fail | preserve the veto result |
+| F2 | failure | grounded | fail | fail | preserve the failure |
+| F2 | failure | actionable | fail | fail | preserve the failure |
+| F2 | failure | safe | fail | abstain | check for a valid alternative interpretation |
+
+![Illustration of an AI evaluation disagreement matrix](/blog/how-to-run-an-ai-evaluation-calibration-session-with-two-reviewers-calibration-disagreement-matrix.webp)
+
+The table is intentionally wider than a final score. MLflow's alignment guidance also puts judge assessments and human feedback on the same traces, which is why the trace or case identifier belongs on every label rather than only in a summary total ([MLflow's alignment guidance](https://mlflow.org/docs/latest/genai/eval-monitor/scorers/llm-judge/alignment/)).
+
+The session starts after this table is sealed. Reviewers can explain a label later, but they cannot replace the original label with the explanation. That preserves the measurement you wanted to compare.
+
+## 3. Turn disagreements into rubric edits
+
+Discuss only rows where the labels differ, and classify the cause before changing the rubric. A disagreement log is more useful than a forced consensus because it tells you what to repair.
+
+For this fixture, the disagreement matrix is:
+
+| Case and criterion | Labels | Category | Decision |
+| --- | --- | --- | --- |
+| B1, actionable | pass / abstain | missing context | retain abstain when the next action depends on an absent field |
+| B1, safe | pass / abstain | reviewer assumption | add an explicit instruction not to infer authorization |
+| B2, grounded | pass / fail | rubric ambiguity | change “supported” to “every important claim supported” |
+| F2, safe | fail / abstain | valid alternative | retain dissent and route the case to human review |
+
+The rubric edit is small and inspectable:
+
+```diff
+- grounded: "The answer is supported by the supplied context."
++ grounded: "Every important claim is supported by the supplied context; unknown claims are marked unknown."
+```
+
+That edit does not turn the majority label into truth. Basile and colleagues argue that disagreement can come from the annotator, the data, or the context, so those sources need to remain visible rather than collapsing into one unquestioned gold label ([Basile et al.](https://aclanthology.org/2021.bppf-1.3/)). Oortwijn and colleagues describe a systematic disagreement-resolution procedure for tasks that still require a consensus label, which is a useful distinction: consensus can be an operational decision without becoming a claim that the case had one naturally correct label ([Oortwijn et al.](https://aclanthology.org/2021.humeval-1.15/)).
+
+Write the edit as `r1` to `r2`, with the exact old wording, new wording, reason, date, and author. Keep retained dissent in the record. If the disagreement comes from missing context, repair the case or mark abstention. Do not edit a rubric simply to make the next agreement number look better.
+
+## 4. Run the checker and a fresh holdout
+
+Run a small checker before the discussion, then apply the edited rubric to unseen holdout rows. The checker verifies mechanics. It does not certify the reviewers, the rubric, or the AI system.
+
+Here is the complete test method for the fixture. It counts paired criterion labels, identifies disagreement rows, and checks two fresh holdout cases after the rubric edit:
+
+```js
+const calibration = [
+  ["N1", "normal", [["pass", "pass"], ["pass", "pass"], ["pass", "pass"]]],
+  ["N2", "normal", [["pass", "pass"], ["pass", "pass"], ["pass", "pass"]]],
+  ["B1", "boundary", [["pass", "pass"], ["pass", "abstain"], ["pass", "abstain"]]],
+  ["B2", "boundary", [["pass", "fail"], ["pass", "pass"], ["pass", "pass"]]],
+  ["F1", "failure", [["fail", "fail"], ["fail", "fail"], ["fail", "fail"]]],
+  ["F2", "failure", [["fail", "fail"], ["fail", "fail"], ["fail", "abstain"]]]
+];
+
+const holdout = [
+  ["H1", [["pass", "pass"], ["pass", "pass"], ["pass", "pass"]]],
+  ["H2", [["fail", "fail"], ["pass", "pass"], ["fail", "fail"]]]
+];
+
+function compare(rows) {
+  const pairs = rows.flatMap(([, , criteria]) => criteria);
+  const matches = pairs.filter(([a, b]) => a === b).length;
+  return { pairs: pairs.length, matches, disagreements: pairs.length - matches };
+}
+
+console.log(JSON.stringify({
+  calibration: compare(calibration),
+  holdout: compare(holdout.map(([id, criteria]) => [id, "holdout", criteria])),
+  rubric: "r1 -> r2",
+  releaseDecision: "manual review required"
+}, null, 2));
+```
+
+Observed output from that command is:
+
+```text
+{
+  "calibration": { "pairs": 18, "matches": 14, "disagreements": 4 },
+  "holdout": { "pairs": 6, "matches": 6, "disagreements": 0 },
+  "rubric": "r1 -> r2",
+  "releaseDecision": "manual review required"
+}
+```
+
+Those numbers are fixture output, not a supporting statistic about human reviewers. In a real session, calculate agreement before discussion and name the unit of analysis. Cohen's 1960 paper introduced kappa for nominal agreement, but a kappa value cannot rescue a biased case slice or a vague criterion ([Cohen's agreement coefficient](https://journals.sagepub.com/doi/abs/10.1177/001316446002000104)). For ordinal scores, choose a statistic that matches the scale and document the choice.
+
+The holdout is the guard against editing the rubric to fit the disputed rows. Its cases must be unseen during the edit. If holdout disagreements appear, stop the release decision, log their causes, and decide whether the rubric or the case context needs another revision.
+
+![Illustration of a versioned AI evaluation rubric and holdout check](/blog/how-to-run-an-ai-evaluation-calibration-session-with-two-reviewers-calibration-holdout-check.webp)
+
+## 5. Decide what the session proves
+
+A calibration session proves that two label sets can be compared and that a rubric change can be checked on new cases. It does not prove that the rubric is correct, that the reviewers represent every operator, or that an automated judge is ready to decide alone.
+
+Use the result as a release input only when the task, case slice, reviewer qualifications, label unit, disagreement policy, and holdout behavior are all visible. Keep the scope narrow. A clean fixture is a test of your worksheet and checker, not evidence that a model or reviewer performs well in production.
+
+If you first need a single-output grading procedure, use the [AI output rubric guide](/blog/how-to-grade-an-ai-output-against-a-rubric). For the wider sequence of evaluation work, continue with the [AI evaluation practice parent](/blog/ai-evaluation-practice). If your team wants to learn how to build and inspect this kind of artifact on its own work, [AI consulting and tutoring](/learn-ai) is the relevant next step.
