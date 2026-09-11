@@ -1,0 +1,191 @@
+---
+title: "Why AI Prototypes Fail When the Workflow Has Multiple Owners"
+date: "2026-09-11"
+updated: "2026-09-11"
+excerpt: "A reproducible four-case fixture shows why an AI prototype can pass its task while ownership, authority, or source-of-truth conflicts stop the workflow."
+answer: "AI prototypes fail with multiple workflow owners when the model can produce a recommendation but no single role can authorize the next consequential action. In a four-case fixture, one accountable owner passed the same AI step, while split ownership failed on an unassigned approval, conflicting source values, or an exception owner without authority. Read-only outputs are the main exception."
+targetQuery: "why AI prototypes fail when the workflow has multiple owners"
+queryAliases:
+  - "ai prototype multiple owners"
+  - "ai workflow ownership failure"
+  - "ai pilot fails at organizational handoff"
+intent: "informational diagnostic and architecture decision"
+funnel: "architecture"
+cluster: "architecture"
+parent: "/blog/ai-architecture-tradeoffs"
+contentType: "failure-clinic"
+kind: "satellite"
+sourceableAtom: "In the retained four-case fixture, the same deterministic AI recommendation passes with one accountable owner and fails in each multi-owner variant: an unassigned approval, conflicting source values, and an exception owner without authority to authorize the next action."
+evidenceType: "reproducible failure reproduction plus worked authority-and-boundary decision artifact"
+evidenceBasis: "Dated deterministic fixture, JSON configuration, raw run log, repair-verification log, workflow graph, owner and authority matrix, source-of-truth table, handoff contract, failure traces, repaired-case retests, and stated limitations."
+tags:
+  - "AI architecture"
+  - "workflow design"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://airc.nist.gov/airmf-resources/airmf/5-sec-core/"
+  - "https://airc.nist.gov/airmf-resources/airmf/appendices/app-c-ai-risk-management-and-human-ai-interaction/"
+  - "https://www.gov.uk/government/publications/introduction-to-ai-assurance/introduction-to-ai-assurance"
+  - "https://link.springer.com/article/10.1007/s43681-026-01147-7"
+  - "https://arxiv.org/abs/2605.23179"
+  - "https://www.techtarget.com/enterprise-software/feature/The-AI-pilot-passed-the-test-but-the-workflow-failed"
+faq:
+  - q: "Does multiple ownership always make an AI workflow fail?"
+    a: "No. Multiple teams can work safely when one role owns the decision, the source of truth is explicit, and exception routing ends with someone who can authorize the next action. The fixture shows a failure mechanism, not a universal failure rate."
+  - q: "What should a team assign before connecting an AI step to a workflow?"
+    a: "Assign the outcome owner, approval owner, next-action authority, source-of-truth owner for each decision field, and exception owner. If any one is blank, stop the workflow at that boundary instead of treating a model recommendation as permission to proceed."
+cover: "/blog/why-ai-prototypes-fail-when-workflow-has-multiple-owners-multi-owner-authority-boundary-hero.webp"
+coverAlt: "Illustration of an AI workflow splitting between two owners at an approval boundary"
+draft: false
+---
+
+When I teach product managers to move from writing specs to building and shipping, the failure is rarely just the model. The harder question is who can say the work is done when it crosses a team boundary. [That is the capability I help teams build](https://mariusmanolachi.com/learn-ai).
+
+This article isolates that question with a small fixture. The AI step stays the same. Only the ownership and authority around it change.
+
+![Illustration of an AI workflow splitting between two owners at an approval boundary](/blog/why-ai-prototypes-fail-when-workflow-has-multiple-owners-multi-owner-authority-matrix.webp)
+
+## The observed failure: the AI step passes, but the decision cannot move
+
+The prototype fails when its output is treated as the decision, even though the output is only a recommendation. The failure begins at the first handoff where the next action has no clearly authorized owner.
+
+The fixture uses a service-credit workflow:
+
+```text
+request -> AI extracts and recommends -> owner review -> approval -> ledger write -> outcome recorded
+```
+
+The AI stub returns the same result in every case: approve a credit of 50 for a standard reason. The run changes only the organizational configuration.
+
+| Case | Ownership configuration | Result | First failure or completion |
+| --- | --- | --- | --- |
+| C1 | Revenue Operations owns review, approval, exception authority, and ledger write | PASS | The credit is approved and recorded |
+| C2 | Customer Support owns the customer outcome, Finance owns the ledger, approval is unassigned | FAIL | `UNASSIGNED_APPROVAL` |
+| C3 | Support and Finance share the outcome, CRM says 100, Billing Ledger says 0 | FAIL | `CONFLICTING_SOURCE_OF_TRUTH` |
+| C4 | Finance can write the ledger, Compliance interprets the exception, neither can authorize the complete next action | FAIL | `EXCEPTION_AUTHORITY_GAP` |
+
+This is the sourceable result: one accountable owner passed the unchanged AI step; every multi-owner variant stopped at an authority boundary. It is a fixture result, not a production benchmark and not a claim about any client.
+
+The diagnosis is the first unmet handoff contract, not a vague lack of ownership. The model produces the same recommendation, but the workflow cannot prove who may approve it, which value controls the decision, or who can authorize an exception.
+
+## Why ownership changes the architecture
+
+An AI step can be modular while the decision around it remains integrated. NIST's AI Risk Management Framework describes governance as a cross-cutting function and calls for documented roles, responsibilities, lines of communication, and differentiated human-AI oversight roles. Its Map function also asks teams to establish context, document how outputs may be used and overseen, and define human-oversight processes. [NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/) supports the design of the fixture's matrix, not the result observed in the fixture.
+
+The UK government's AI assurance guidance makes the same operational point in a different way. It calls for clear lines of accountability across the AI lifecycle, a named person responsible for data management, governance milestones, and escalation routes that empower staff to flag concerns. It also treats the broader operational context as part of assurance, including the systems that support decisions and the balance of liabilities between users and organizations. [Introduction to AI assurance](https://www.gov.uk/government/publications/introduction-to-ai-assurance/introduction-to-ai-assurance)
+
+NIST's [human-AI interaction appendix](https://airc.nist.gov/airmf-resources/airmf/appendices/app-c-ai-risk-management-and-human-ai-interaction/) makes the distinction explicit: roles and responsibilities in decision making and AI oversight should be defined and differentiated. That is why the fixture separates review, approval, next-action authority, and exception authority instead of collapsing them into one “human in the loop” field.
+
+The accountability-boundaries paper gives the architecture language for this problem: technical interfaces can become modular even when outputs still require evidence, review, signoff, or assignable responsibility. Its proposed boundary factors include verification cost and responsibility transferability. [Redrawing the AI Map](https://arxiv.org/abs/2605.23179)
+
+A recent [pilot-to-workflow analysis](https://www.techtarget.com/enterprise-software/feature/The-AI-pilot-passed-the-test-but-the-workflow-failed) describes the same gap at a broader level: a controlled agent task can pass while the surrounding organization has not mapped ownership, handoffs, exceptions, or human review. The fixture here makes that gap testable.
+
+So the question is not, “Can the AI produce the answer?” It is, “Can a named role verify the answer and authorize the next action with the information and power required to do so?”
+
+## The authority artifact to complete before the handoff
+
+Write the owner matrix before adding another tool, agent, or model. The relevant distinction is not who touches the workflow. It is who owns the outcome and who can authorize the next state.
+
+| Role | Owns | Can review | Can approve | Can perform next action | Can authorize exception |
+| --- | --- | --- | --- | --- | --- |
+| Revenue Operations | Credit decision and ledger write | Yes | Yes | Yes | Yes |
+| Customer Support | Customer communication | Yes | No | No | No |
+| Finance | Ledger accuracy | Yes | Yes | Yes | No |
+| Compliance | Policy interpretation | Yes | No | No | No |
+
+The fixture passes only when the handoff contains every field below:
+
+```text
+request_id
+ai_recommendation
+amount
+source_snapshot
+outcome_owner
+approval_owner
+exception_owner
+next_action
+authority_check
+```
+
+Use this decision rule:
+
+> If the next consequential action has no named approval owner with authority to perform or authorize it, the workflow fails readiness at that boundary, regardless of model quality.
+
+That rule is an operational interpretation of the sourced governance principles plus the fixture's observed stop condition. It is not a new requirement from NIST or the UK guidance.
+
+## What the three multi-owner failures mean
+
+### An unassigned approval is not shared accountability
+
+In C2, Support and Finance both own part of the outcome. That sounds collaborative, but the handoff has no approval owner. The workflow can route the recommendation to both teams forever without producing an accountable decision.
+
+Repair it by naming one approval owner. Keep the other team as a reviewer, data owner, or executor if needed. “Both teams approve” is a different design, and it needs an explicit quorum rule, timeout, rejection path, and authority for what happens when the votes disagree.
+
+### Conflicting values need a resolution rule, not a better prompt
+
+In C3, the CRM and Billing Ledger disagree about `credit_amount`. The AI step still returns a valid recommendation. That does not make either value authoritative.
+
+Declare one system of record for each decision field. The fixture declares Billing Ledger as authoritative for posted credits and Customer Support as the owner of customer identity in the CRM. If the systems disagree, stop and route a data reconciliation case. Do not ask the model to choose silently.
+
+This is where the UK guidance's emphasis on clear data accountabilities and transparent data processes becomes concrete. The source-of-truth table is part of the workflow contract, not documentation added after an incident.
+
+### An exception owner must have power over the next state
+
+In C4, Compliance can interpret the policy exception, but the matrix gives Compliance no authority to approve or write the credit. Finance can write the ledger, but the matrix gives Finance no authority to authorize the exception. The exception has an owner in conversation, but no owner in the state machine.
+
+The human-oversight research makes this distinction important. It describes meaningful oversight as the capacity to understand, evaluate, contest, and override outputs, while warning that a checkpoint without evaluative agency can become a rubber stamp. It also notes that meaningful oversight assumes sufficient context and institutional authority. [Designing meaningful human oversight in AI](https://link.springer.com/article/10.1007/s43681-026-01147-7)
+
+Repair the case in one of two ways:
+
+1. Give the exception owner authority to authorize the next action, with a bounded policy and audit trail.
+2. Give the exception owner a guaranteed route to a named decision owner who can authorize or reject the next action.
+
+“Escalate to Compliance” is not a complete exception path if Compliance cannot decide what happens next.
+
+## Verification: retest the repaired boundary
+
+The repair is credible only when the same fixture clears each original stop after one targeted change. The retest keeps the deterministic AI output and the original multi-owner outcome configuration, then changes only the failed authority or source-of-truth condition.
+
+| Failed case | Smallest repair retested | Observed verification result |
+| --- | --- | --- |
+| C2 `UNASSIGNED_APPROVAL` | Assign Finance as the approval owner | PASS: approval authority verified, ledger write completed, outcome recorded |
+| C3 `CONFLICTING_SOURCE_OF_TRUTH` | Remove the conflicting CRM value and retain Billing Ledger as the declared source | PASS: approval authority verified, ledger write completed, outcome recorded |
+| C4 `EXCEPTION_AUTHORITY_GAP` | Route approval and exception authority to Revenue Operations | PASS: approval authority verified, ledger write completed, outcome recorded |
+
+The verification run is retained in `repair-verification.log` and was executed with `python3 -B fixture.py --verify-repairs`. All three repaired cases returned `actual=PASS`, with the same `recommendation=approve amount=50` trace as the failure run. The result verifies that each named boundary repair clears this fixture's stop rule. It does not verify a real organization's policy, permissions, or production safety.
+
+If your policy requires two approvals, do not copy the Finance repair as a universal answer. Add a quorum rule, disagreement path, timeout, and final next-action authority, then rerun the control and failure cases.
+
+## How to use the fixture on your prototype
+
+Run the same four cases against your actual workflow, even if the AI step is still a mock.
+
+1. Draw the graph from request to recorded outcome. Mark every human and system boundary.
+2. Put one row in the authority matrix for every role that owns an outcome, reviews evidence, approves a transition, writes a system, or handles an exception.
+3. Declare one source of truth for every field that can change the decision. Add a reconciliation route for conflicts.
+4. Make the handoff payload carry owner, approval, exception, next action, and authority-check fields.
+5. Run a clean single-owner control, then remove or split one decision right at a time.
+6. Record the first stop, not only the final failure. The first stop tells you which boundary is architectural.
+
+The fixture is intentionally small. It tests organizational decision rights before you spend time tuning prompts or adding orchestration. Start with the broader [AI architecture trade-offs guide](/blog/ai-architecture-tradeoffs), then use the existing [multi-agent handoff guide](/blog/design-multi-agent-handoffs) when the problem is lost context, the [workflow readiness guide](/blog/how-to-tell-if-a-business-process-is-ready-for-ai-automation) when the process itself is unstable, the [least-privilege guide](/blog/give-ai-agent-least-privilege-tool-access) when the agent has too much access, and the [AI evaluation guide](/blog/how-to-evaluate-an-ai-agent) when you need release evidence for model behavior. This article answers a different question: who owns the decision when the workflow crosses teams?
+
+## The exception: read-only recommendations can tolerate split ownership
+
+Multiple owners are not automatically a defect. If the AI produces a read-only draft that changes no system, triggers no external commitment, and has no time-critical consequence, the workflow may safely route the draft to several teams for discussion. The main risk is then coordination cost, not an unauthorized action.
+
+The boundary changes as soon as someone relies on the output to write a record, send a commitment, deny a request, move money, or close a case. At that point, assign authority for the transition. Human presence alone is not enough.
+
+## What to do before you call the prototype ready
+
+Do not promote the prototype because its model answer looks correct. Promote it only after the control case and the boundary cases tell the same story:
+
+- one accountable role can approve the clean path;
+- every consequential field has one declared source of truth;
+- every approval owner can authorize the next action;
+- every exception owner can decide or route to someone who can;
+- the handoff payload preserves those decisions for replay and review.
+
+If your prototype fails one of these checks, the next fix is organizational and architectural. It may still need better model behavior later. But the model cannot supply authority that the workflow has not assigned.
+
+If you are moving a prototype toward production, [bring one workflow and its authority matrix to Marius Manolachi](https://mariusmanolachi.com/learn-ai). The useful starting point is the decision boundary, not another demo.
