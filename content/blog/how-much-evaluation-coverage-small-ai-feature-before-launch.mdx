@@ -1,0 +1,154 @@
+---
+title: "How Much Evaluation Coverage Does a Small AI Feature Need Before Launch?"
+date: "2026-09-12"
+updated: "2026-09-12"
+excerpt: "A small AI feature does not need a magic test count. It needs evidence for every promised behavior, risky boundary, and regression before launch."
+answer: "A small AI feature needs enough evaluation coverage to test every promised behavior, at least one representative variation, each material failure or abstention path, and a baseline for regression. A compact suite can be enough for a low-risk, read-only feature when those cases pass and monitoring is ready. Actions, sensitive data, or high-impact decisions need broader testing, human approval, and staged release."
+targetQuery: "how much evaluation coverage does a small ai feature need before launch"
+queryAliases:
+  - "how to audit missing behaviors before launching an ai feature"
+  - "how much testing is enough before launching an ai feature"
+  - "small ai feature evaluation coverage"
+intent: informational
+funnel: evaluation
+cluster: evaluation
+parent: "/blog/ai-evaluation-pillar"
+contentType: failure-clinic
+kind: satellite
+sourceableAtom: "A reproducible six-dimension coverage audit shows how a two-case happy-path suite can report 100% case completion while covering only 1 of 6 release dimensions (17%); an eight-case repair covers all six dimensions, but execution quality still has to pass."
+evidenceType: failure-clinic
+evidenceBasis: "Deterministic worked reproduction in research.md, bounded by current GitLab, Microsoft, Anthropic, OpenAI, and NIST guidance."
+tags:
+  - AI evaluation
+  - AI product development
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://docs.gitlab.com/development/ai_features/ai_evaluation_guidelines/"
+  - "https://learn.microsoft.com/en-us/agents/agent-evaluation/evaluation-checklist"
+  - "https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents"
+  - "https://developers.openai.com/api/docs/guides/evals"
+  - "https://airc.nist.gov/airmf-resources/airmf/5-sec-core/"
+  - "https://mariusmanolachi.com/learn-ai"
+cover: "/blog/how-much-evaluation-coverage-small-ai-feature-before-launch-hero.webp"
+coverAlt: "Illustration of a small AI feature evaluation coverage card with six release dimensions"
+draft: false
+---
+
+A small feature can have a small evaluation suite. The dangerous part is deciding that “small” means two happy-path examples.
+
+When I taught product managers to move from writing specs to building and shipping, the recurring failure was that nobody could say what done meant. The same failure appears in AI evaluation: a team counts test cases instead of defining the behavior the release must cover. [Marius Manolachi's AI learning work](/learn-ai) treats that definition as part of building, not paperwork added at the end.
+
+![Illustration of a coverage card separating happy-path case completion from release-dimension coverage](/blog/how-much-evaluation-coverage-small-ai-feature-before-launch-coverage-audit.webp)
+
+## The answer is coverage of behaviors, not a fixed number
+
+For a low-risk, read-only feature, start with one evaluation case for every key scenario, then add representative variations, boundary cases, failure paths, and a regression baseline. Launch only when the cases pass their acceptance criteria. There is no honest universal number because the needed coverage grows with the feature's promises and the cost of being wrong.
+
+Microsoft's evaluation checklist gives the most useful starting rule for a small team: begin with one test prompt for each key scenario, then iterate as the team learns more. GitLab similarly separates the dataset, the target, and the metrics, and recommends examples for typical usage, edge cases, and error conditions. ([Microsoft Learn](https://learn.microsoft.com/en-us/agents/agent-evaluation/evaluation-checklist), [GitLab](https://docs.gitlab.com/development/ai_features/ai_evaluation_guidelines/))
+
+The number is a consequence of the map. If the feature has four distinct promises, two important boundaries, and one failure mode that requires a safe handoff, a two-case suite is not small. It is incomplete.
+
+## How 100% coverage can still mean 17%
+
+The failure is easy to reproduce. Take a suite with two clear, successful inputs. Both cases run. Both pass. The dashboard reports 2 out of 2, or 100%.
+
+Now ask whether the suite covers six release dimensions:
+
+| Release dimension | Happy-path suite | Why it matters |
+| --- | --- | --- |
+| Core success | Covered | Does the feature do the promised job on a normal input? |
+| Common variation | Missing | Does it survive a different phrasing, format, or valid input shape? |
+| Boundary or abstention | Missing | Does it refuse, ask, or route when the request is outside scope? |
+| Dependency failure | Missing | Does it fail safely when retrieval, a tool, or an upstream service is unavailable? |
+| Side-effect safety | Missing | Does it avoid an incorrect write, disclosure, or irreversible action? |
+| Regression baseline | Missing | Can the team detect that a later change broke a behavior that used to work? |
+
+The suite has 100% case completion but only 1 of 6 release dimensions covered, or 17%. That is the sourceable result from the worked audit documented for this post. It is not a model benchmark. It is a warning about what a pass rate does not tell you.
+
+The failure trace is a coverage trace, not a model transcript:
+
+| Trace step | Recorded result | What the result leaves unknown |
+| --- | --- | --- |
+| Run case 1 | `core-success`, pass | Whether any other promised behavior works |
+| Run case 2 | `core-success`, pass | Whether variation, boundaries, failures, actions, or regressions are covered |
+| Count cases | `2/2`, or 100% | Whether the release dimensions are covered |
+| Check dimensions | `1/6`, or 17% | Which missing behavior should be repaired first |
+
+That trace is the diagnosis: the suite measured completion of its own list, while the launch decision needed coverage of the feature's behavior.
+
+The repaired card adds six dimension labels across eight cases, including two core examples and a second variation. It reaches 6 of 6 dimensions, or 100% dimension coverage. That still does not mean the AI passed. It means the team has finally asked the questions a launch decision needs.
+
+## What the smallest credible coverage card contains
+
+Use six rows as a planning surface, not as a universal quota. Each row needs a concrete test, an acceptance rule, and an owner who can explain why the rule matches the feature's promise.
+
+| Row | Minimum question | Example acceptance rule |
+| --- | --- | --- |
+| Core success | Does the feature complete the intended job? | Required fields are present and the answer stays within the task scope. |
+| Common variation | Does a normal but differently shaped input work? | The same business outcome is produced for a realistic alternate phrasing or format. |
+| Boundary or abstention | What should happen when the feature cannot answer safely? | It asks for missing information, declines, or routes to a person instead of guessing. |
+| Dependency failure | What happens when a tool, source, or service fails? | The user sees an honest failure state and no false completion is recorded. |
+| Side-effect safety | What must never happen automatically? | No write or external action occurs without the required permission and approval. |
+| Regression baseline | What must remain true after a prompt, model, or integration change? | The previously accepted cases are rerun and a failure blocks release or triggers review. |
+
+This combines the practical categories in Microsoft's checklist with GitLab's emphasis on typical, edge, and error examples. It also reflects Anthropic's distinction between capability evaluations, which ask what the system can do, and regression evaluations, which protect behavior that already worked. ([Anthropic](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents))
+
+For open-ended output, the acceptance rule may be a rubric or a human comparison rather than an exact answer. For extraction, use field-level checks. For a tool-using feature, check both the response and the resulting state. Anthropic distinguishes a transcript from the final outcome for exactly this reason: “completed” in the text is not proof that the intended state exists. ([Anthropic](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents))
+
+## How to diagnose a weak suite before launch
+
+Run this short repair loop before arguing about sample size.
+
+1. **Write the promises.** List what the feature claims to do, what it must not do, and what it should do when it lacks enough information.
+2. **Turn each promise into a scenario.** Microsoft recommends starting with one prompt for each key scenario. Do not merge two different outcomes just because they use the same prompt format. ([Microsoft Learn](https://learn.microsoft.com/en-us/agents/agent-evaluation/evaluation-checklist))
+3. **Add the six coverage rows.** Mark each row covered, missing, or not applicable. “Not applicable” needs a reason. A feature that never takes an action can mark side-effect safety as out of scope, but a feature that writes to a CRM cannot.
+4. **Define acceptance before running.** GitLab recommends clear metrics and thresholds where possible. For subjective work, record the rubric and who can judge it. ([GitLab](https://docs.gitlab.com/development/ai_features/ai_evaluation_guidelines/))
+5. **Run more than one trial when variation matters.** Anthropic notes that model outputs vary between trials. A single pass can show that one run worked, not that the behavior is reliable. ([Anthropic](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents))
+6. **Record the failure as a case.** OpenAI describes the loop as describing the task, running test inputs, analyzing results, and iterating. A failure that disappears into a chat transcript cannot protect the next release. ([OpenAI](https://developers.openai.com/api/docs/guides/evals))
+
+If the suite has no explicit boundary or regression rows, the repair is not “run the existing cases again.” Add the missing behaviors first.
+
+## How to verify the repaired card
+
+Verify the repair in two passes: rerun the dimension calculation, then inspect each case's acceptance result. The worked audit's retest produced this output:
+
+| Suite | Case completion | Release-dimension coverage | Missing dimensions |
+| --- | --- | --- | --- |
+| Original happy-path suite | 2/2, 100% | 1/6, 17% | 5 |
+| Repaired coverage card | 8/8, 100% | 6/6, 100% | 0 |
+
+The retest confirms that the coverage map was repaired. It does not confirm model quality, output consistency, latency, cost, or safe operation. Those checks still need their own acceptance evidence before launch.
+
+## When a compact suite is not enough
+
+The six-row card is a starting gate for a small feature, not permission to ship a risky system with six examples.
+
+Broaden the evidence and slow the release when the feature:
+
+- writes, deletes, sends, purchases, or changes records;
+- handles personal, confidential, or regulated information;
+- makes or strongly influences a high-impact decision;
+- has a large or changing user population;
+- depends on several tools, handoffs, or external sources;
+- cannot recover cleanly from an incorrect result.
+
+NIST's AI Risk Management Framework calls for risk-tolerances, documented limitations, human oversight, deployment-like evaluation conditions, production monitoring, and safe failure. The practical implication is simple: the more expensive the error, the less useful a tiny offline pass rate becomes as the only launch evidence. ([NIST AI RMF](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/))
+
+For an action-taking feature, require an approval gate or a reversible first release even when the offline cases look good. If the feature cannot show what it did, why it did it, and how a person can stop or correct it, the missing evidence is operational, not numerical.
+
+## What a defensible launch decision looks like
+
+Use the following decision rule after the coverage card has been executed:
+
+| Decision | Conditions |
+| --- | --- |
+| Launch to a bounded audience | Every applicable coverage row exists, acceptance criteria pass, risky actions are gated, and monitoring can detect the main failure modes. |
+| Hold and repair | A promised behavior, boundary, dependency failure, or regression case is missing, or the team cannot explain a failed result. |
+| No-go | The feature can cause material harm and there is no credible human oversight, safe failure path, or deployment-like evidence. |
+
+The result table is intentionally conditional. Coverage answers “did we test the important behaviors?” It does not answer “did the feature perform well enough?” The latter requires the acceptance results, the risk context, and a release plan.
+
+If you need the broader launch packet, start with the [AI evaluation pillar](/blog/ai-evaluation-pillar), then use [How to Evaluate an AI Agent](/blog/how-to-evaluate-an-ai-agent) for a fuller release gate and [How Many Examples Are Enough to Catch an AI Prompt Regression?](/blog/how-many-examples-enough-catch-ai-prompt-regression) for the narrower regression question.
+
+The useful stopping point is not a round number. It is a coverage card with no unexplained blank row, acceptance results you can defend, and a failure path that does not depend on the model claiming it succeeded. If your team wants help turning a real workflow into that card, [Marius Manolachi's AI consulting and tutoring work](/learn-ai) is the next step.
