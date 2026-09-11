@@ -1,0 +1,221 @@
+---
+title: 'How to Draw an AI Workflow Boundary Around Systems of Record'
+date: '2026-09-11'
+updated: '2026-09-11'
+excerpt: 'A worked boundary diagram, ownership worksheet, and seven contract tests for keeping AI workflows outside systems of record.'
+answer: 'Draw the boundary so the AI layer can read and transform approved context, propose consequential actions, and write only through a task-shaped adapter into the authoritative system of record. Require identity, validation, audit, idempotency, and fallback rules for every action. The exception is a prohibited direct write, which must be blocked before any backend call.'
+targetQuery: 'How to draw an AI workflow boundary around systems of record'
+queryAliases:
+  - 'AI workflow boundary around systems of record'
+  - 'AI system of record boundary'
+  - 'how to keep an AI agent from becoming the system of record'
+intent: 'implementation'
+funnel: 'consideration'
+cluster: 'architecture'
+parent: '/blog/ai-architecture-tradeoffs'
+contentType: 'implementation-lab'
+kind: 'satellite'
+sourceableAtom: 'A frozen, reproducible boundary worksheet and seven-case contract-test matrix that assigns ownership, AI access mode, identity, approval, validation, audit, retry, and fallback for each datum and action.'
+evidenceType: 'worked decision artifact'
+evidenceBasis: 'Versioned boundary artifact v1.0 embedded in this article: diagram, JSON worksheet, mocked CRM and billing interfaces, seven deterministic Node.js contract tests, observed outputs, audit log, recovery queue, worked decision record, and limitations.'
+tags:
+  - 'AI architecture'
+  - 'AI implementation'
+  - 'Systems integration'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-21'
+sources:
+  - 'https://docs.aws.amazon.com/prescriptive-guidance/latest/govern-architect-agentic-ai/enterprise-architecture.html'
+  - 'https://docs.cloud.google.com/architecture/agenticai-orchestrate-access-disparate-systems?hl=en'
+  - 'https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/ai-agent-design-patterns'
+  - 'https://airc.nist.gov/airmf-resources/airmf/5-sec-core/'
+  - 'https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/'
+faq:
+  - q: 'Can an AI workflow write to a CRM or ERP?'
+    a: 'Yes, if the write is a named business operation through an adapter, uses the right identity, validates in the system of record, emits an audit event, and has an explicit approval rule. A direct database write should remain prohibited when it bypasses those controls.'
+  - q: 'What should happen when the system of record is unavailable?'
+    a: 'Stop the dependent action, record the unavailable-backend event, persist a retry key and recovery owner, and tell the operator that the business state was not changed. Do not let the AI layer invent a successful local copy.'
+  - q: 'Do I need MCP to draw this boundary?'
+    a: 'No. MCP can standardize a tool surface, but the boundary is an ownership and authorization decision. A direct API, queue, event handler, or legacy adapter can implement the same contract if it preserves validation, identity, audit, and recovery.'
+cover: '/blog/how-to-draw-an-ai-workflow-boundary-around-systems-of-record-ai-workflow-sor-boundary-hero.webp'
+coverAlt: 'Illustration of an AI workflow boundary separating an agent from CRM and billing systems of record'
+draft: false
+---
+
+The dangerous moment is not when an AI workflow reads a CRM. It is when the workflow starts keeping a more convenient copy of the CRM state, or when a tool call can change a record without anyone being able to say who authorized it.
+
+When I taught product managers who moved from writing specs to building and shipping the product, the recurring gap was a missing definition of done. A successful tool response has the same trap. It is evidence that a call returned, not proof that the business outcome happened.
+
+## The boundary rule
+
+Keep the AI layer outside the system of record. Let it read approved context, transform it, and propose consequential actions. Let it write only through a named adapter operation that validates and commits in the authoritative system.
+
+This is the artifact's central decision rule:
+
+> If the AI cannot name the authoritative owner, identity, validation location, audit event, retry key, and fallback owner for an action, the action is not ready to run.
+
+AWS separates model access, tools, and knowledge access in its enterprise agent architecture and treats authorization and observability as cross-layer concerns ([AWS Prescriptive Guidance](https://docs.aws.amazon.com/prescriptive-guidance/latest/govern-architect-agentic-ai/enterprise-architecture.html)). Google Cloud makes the same boundary concrete by placing backend-specific tool servers between an orchestrator and disparate systems, describing them as an anti-corruption layer ([Google Cloud Architecture Center](https://docs.cloud.google.com/architecture/agenticai-orchestrate-access-disparate-systems?hl=en)).
+
+The point is ownership. The model can hold working context. It must not become the authoritative owner of a customer, order, invoice, entitlement, or case merely because copying that state makes the prompt easier.
+
+## What the worked artifact proved
+
+I froze one representative workflow with a CRM case, a billing refund, a policy boundary, and two mocked systems. The deterministic run covered seven decisions:
+
+| Test | Path | Expected and observed result |
+| --- | --- | --- |
+| T1 | Read case context | `ok`; CRM remains the owner |
+| T2 | Propose refund without approval | `awaiting_approval`; billing is unchanged |
+| T3 | Set case review state through CRM adapter | `committed`; CRM case becomes `awaiting_review` |
+| T4 | Direct SQL write | `blocked`; no backend call |
+| T5 | Read billing while billing is unavailable | `deferred`; recovery item queued for `integration-operator` |
+| T6 | Approved refund with idempotency key | `committed`; billing stores refund `R-001` |
+| T7 | Repeat T6 with the same key | `committed`; existing `R-001` returned with `replay: true` |
+
+Observed output: **7 tests, 7 passes, 0 failures.** The final authoritative state was CRM case `C-100 = awaiting_review` and billing refund `R-001` in the billing mock. The recovery queue held the unavailable billing read. This is the sourceable result of the page, not a claim about a production system.
+
+The frozen run also emitted this compact output and audit log:
+
+```json
+{
+  "tests": {"count": 7, "passed": 7, "failed": 0},
+  "authoritativeState": {"crm": "C-100:awaiting_review", "billing": "R-001"},
+  "recoveryQueue": [{"operation": "get_billing_status", "owner": "integration-operator", "retryKey": "billing-status-1"}],
+  "auditEvents": [
+    "read_completed",
+    "approval_requested",
+    "write_committed:crm:C-100",
+    "policy_blocked:direct_sql_write",
+    "backend_unavailable:billing",
+    "write_committed:billing:R-001"
+  ],
+  "replay": "same refund key returned R-001"
+}
+```
+
+![Illustration of an AI workflow boundary separating read, propose, write, and prohibited paths around CRM and billing systems](/blog/how-to-draw-an-ai-workflow-boundary-around-systems-of-record-ai-workflow-boundary-paths.webp)
+
+## Draw the boundary before choosing a connector
+
+Start with ownership and action modes. Connector choice comes after that map.
+
+```text
+user or event
+    |
+    v
+AI workflow: read -> transform -> propose
+    |
+    v
+policy and identity boundary
+    |                    \
+    | read                \ approval required for sensitive action
+    v                      v
+CRM and billing adapters <- human approval checkpoint
+    |
+    v
+authoritative systems of record
+    |
+    +--> validation in owning system
+    +--> audit event
+    +--> idempotent retry or recovery queue
+```
+
+The adapter is not a pass-through proxy. It is where the workflow turns a model-selected intent into a small, typed business operation. Google Cloud's reference design uses backend-specific MCP servers for this isolation, but the same idea works with an API, queue consumer, event handler, or legacy adapter ([Google Cloud Architecture Center](https://docs.cloud.google.com/architecture/agenticai-orchestrate-access-disparate-systems?hl=en)).
+
+Microsoft's guidance adds an important detail: scope mandatory human review to sensitive tool invocations, persist state at the checkpoint, and resume after approval without replaying earlier work ([Microsoft AI agent orchestration patterns](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/ai-agent-design-patterns)). That is narrower and more useful than stopping every low-risk read for a person.
+
+## Fill one row for every datum and action
+
+Do not write “the agent can update the customer.” Split that sentence into records and operations. Here is the machine-readable worksheet from artifact version `1.0`:
+
+```json
+{
+  "workflow": "case-review-and-refund",
+  "version": "1.0",
+  "rows": [
+    {"name":"case_id","kind":"datum","authoritativeOwner":"crm","aiAccessMode":"read","identity":"agent-read","approval":"none","validationLocation":"crm","auditEvent":"read_completed","retry":"safe_read_with_backoff","fallbackOwner":"support-operator"},
+    {"name":"case_status","kind":"datum","authoritativeOwner":"crm","aiAccessMode":"read","identity":"agent-read","approval":"none","validationLocation":"crm","auditEvent":"read_completed","retry":"safe_read_with_backoff","fallbackOwner":"support-operator"},
+    {"name":"refund_amount","kind":"datum","authoritativeOwner":"billing","aiAccessMode":"read","identity":"agent-read","approval":"none","validationLocation":"billing","auditEvent":"read_completed","retry":"safe_read_with_backoff","fallbackOwner":"billing-operator"},
+    {"name":"case_review_state","kind":"action","authoritativeOwner":"crm","aiAccessMode":"write","identity":"agent-write","approval":"none","validationLocation":"crm","auditEvent":"write_committed","retry":"idempotency_key:case-{case_id}-review","fallbackOwner":"support-operator"},
+    {"name":"refund","kind":"action","authoritativeOwner":"billing","aiAccessMode":"propose","identity":"agent-propose","approval":"required","validationLocation":"billing","auditEvent":"approval_requested,write_committed","retry":"idempotency_key:refund-{case_id}-{amount}","fallbackOwner":"billing-operator"},
+    {"name":"direct_sql_write","kind":"action","authoritativeOwner":"crm","aiAccessMode":"prohibited","identity":"none","approval":"never","validationLocation":"policy_boundary","auditEvent":"policy_blocked","retry":"never","fallbackOwner":"integration-operator"}
+  ]
+}
+```
+
+The important field is not `aiAccessMode` by itself. It is the combination. A `write` without an identity is not a permission. A `propose` without an approval owner is not human oversight. A retry rule without an idempotency key is a duplicate-record risk.
+
+NIST's AI RMF asks teams to document roles, distinguish human-AI responsibilities, run repeatable evaluations, and document limitations and failure handling ([NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/)). This worksheet turns those governance requirements into fields an engineer can review in a pull request.
+
+![Illustration of a machine-readable AI workflow worksheet with ownership, identity, approval, validation, audit, retry, and fallback fields](/blog/how-to-draw-an-ai-workflow-boundary-around-systems-of-record-ai-workflow-boundary-worksheet.webp)
+
+## Expose task-shaped interfaces, not storage access
+
+The mock interfaces were deliberately small:
+
+```text
+crm.get_case_context(case_id)
+  mode: read
+  identity: agent-read
+  returns: case_id, status, owner
+
+crm.set_case_review_state(case_id, status, idempotency_key)
+  mode: write
+  identity: agent-write
+  validates: status in {awaiting_review, closed}
+  commits: CRM case state
+
+billing.propose_refund(case_id, amount, idempotency_key)
+  mode: propose
+  identity: agent-propose
+  requires: approval token
+  commits: billing refund after approval
+
+sql.write(table, values)
+  mode: prohibited
+  result: policy_blocked
+```
+
+The direct SQL operation exists in the test fixture so the policy has something concrete to reject. It never reaches the CRM mock. A real implementation should enforce that property in the adapter and credentials, not only in a system prompt.
+
+AWS's enterprise guidance assigns authorization to the tools component, while Google recommends dedicated identities for services and structured logs for distributed workflows ([AWS Prescriptive Guidance](https://docs.aws.amazon.com/prescriptive-guidance/latest/govern-architect-agentic-ai/enterprise-architecture.html), [Google Cloud Architecture Center](https://docs.cloud.google.com/architecture/agenticai-orchestrate-access-disparate-systems?hl=en)). The worksheet makes those concerns visible at operation level.
+
+## Make retries part of the ownership decision
+
+Retry rules belong beside the owner because a retry can create business state. In the artifact, a repeated refund request carries `refund-C-100-25`. The billing mock returns the original `R-001` instead of creating a second refund. AWS describes the same principle: an idempotent operation can be retransmitted without additional side effects when the caller reuses the same request identity ([AWS Builders' Library](https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/)).
+
+When the backend is unavailable, the workflow does not write a local “refund completed” record. It emits `backend_unavailable`, persists the operation and retry key, assigns `integration-operator`, and returns `deferred`. The next owner can retry or cancel. The AI layer remains a work coordinator, not a second system of record.
+
+## Turn the worksheet into contract tests
+
+Run these tests before adding a new tool or permission:
+
+1. **Read-only path:** use a known case ID and assert that the result includes current CRM state and no write event.
+2. **Proposal path:** call the sensitive operation without approval and assert `awaiting_approval` plus no billing mutation.
+3. **Permitted write path:** call the named CRM operation with an allowed state and assert the changed state exists in CRM.
+4. **Prohibited write path:** attempt direct storage mutation and assert `blocked` before the backend receives a call.
+5. **Unavailable backend:** disable the owning backend and assert a deferred result, audit event, retry key, and named fallback owner.
+6. **Approval commit:** approve the same proposal and assert the billing system owns the new refund.
+7. **Idempotent replay:** repeat the approved request with the same key and assert the original refund is returned.
+
+The contract is stronger than a screenshot of a successful demo because it checks ownership and absence of side effects. Microsoft recommends testable interfaces and integration tests for orchestrated workflows, while NIST calls for documented test sets, tools, metrics, and limitations ([Microsoft AI agent orchestration patterns](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/ai-agent-design-patterns), [NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/)).
+
+## The worked decision record
+
+**Decision:** Keep case state in CRM and refund state in billing. Allow the AI workflow to read both, set a CRM case to `awaiting_review` through a named adapter operation, and propose refunds that pause for approval. Prohibit direct SQL writes and local authoritative copies.
+
+**Why:** The workflow needs interpretation and coordination, but the existing systems already own validation, identity, and business state. The adapter gives the AI useful operations without making the model responsible for persistence.
+
+**Rejected alternative:** Let the AI service maintain a convenience `case_context` database and write back to CRM later. That would create two owners, make freshness ambiguous, and make a retry or outage look like a business update when no authoritative record changed.
+
+**Change trigger:** Reopen this decision if CRM or billing changes its API, validation rules, identity model, event delivery, or ownership of the underlying record. Re-run the matrix after each change.
+
+For a broader comparison of AI architecture choices, use the [AI architecture tradeoffs parent](/blog/ai-architecture-tradeoffs). For the integration mechanics, see [how to integrate an AI agent with existing business systems](/blog/how-to-integrate-an-ai-agent-with-existing-business-systems) and [how to design idempotent tools for AI agents](/blog/how-to-design-idempotent-tools-for-ai-agents).
+
+## What this artifact does not prove
+
+This is a reproducible design exercise, not a client outcome. The mocks do not represent a real CRM, ERP, billing platform, identity provider, network, or production workload. The seven passing tests do not establish a production reliability rate. They show that the stated policy decisions are executable and observable in this fixture.
+
+Before production, add real authorization tests, concurrent approval tests, timeout and partial-failure tests, schema-compatibility tests, privacy review, data-retention review, and an operator rehearsal for recovery. If the team cannot name who owns the fallback queue, stop at read or propose mode.
+
+The practical next step is small: choose one workflow, name each authoritative owner, fill the worksheet, and make the first prohibited action fail in a test before you give the AI another tool.
