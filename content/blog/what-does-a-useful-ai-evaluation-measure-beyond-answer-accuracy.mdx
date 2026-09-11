@@ -1,0 +1,215 @@
+---
+title: 'What Does a Useful AI Evaluation Measure Beyond Answer Accuracy?'
+date: '2026-09-12'
+updated: '2026-09-12'
+excerpt: 'A six-case fixture shows why useful AI evaluations measure evidence, uncertainty, actionability, and repair effort alongside answer accuracy.'
+answer: 'A useful AI evaluation measures whether the system produces the right outcome, shows sufficient evidence, handles uncertainty safely, helps a person act, and stays within acceptable recovery effort. Keep answer accuracy as one gate, not the whole score. For high-risk actions, a critical safety or authorization failure should block release even when accuracy is high.'
+targetQuery: 'What does a useful AI evaluation measure beyond answer accuracy?'
+queryAliases:
+  - 'what should an AI evaluation measure besides accuracy'
+  - 'how to measure AI usefulness beyond accuracy'
+  - 'AI evaluation metrics beyond answer correctness'
+intent: 'informational'
+funnel: 'consideration'
+cluster: 'evaluation'
+parent: '/blog/ai-evaluation-pillar'
+contentType: 'original-research'
+kind: 'flagship'
+sourceableAtom: 'A six-case deterministic fixture produced a 4/6 tie on answer correctness for two candidate systems, while evidence traceability, safe uncertainty handling, actionability, repair steps, and utility-qualified cases separated them at 2/6 versus 4/6.'
+evidenceType: 'reproducible-fixture-experiment + bounded-firsthand-observation'
+evidenceBasis: 'A six-case deterministic fixture was executed and recomputed with Node.js v24.11.1 on 2026-08-23. It is a measurement-design artifact, not a live-model or production benchmark. The first-person observation is bounded to F-pms in the locked entity facts.'
+tags:
+  - 'AI evaluation'
+  - 'AI reliability'
+  - 'AI product development'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-21'
+sources:
+  - 'https://airc.nist.gov/airmf-resources/airmf/5-sec-core/'
+  - 'https://arxiv.org/abs/2211.09110'
+  - 'https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents'
+  - 'https://learn.microsoft.com/en-us/agents/agent-evaluation/evaluation-checklist'
+  - 'https://learn.microsoft.com/en-us/ai/playbook/technology-guidance/generative-ai/working-with-llms/evaluation/list-of-eval-metrics'
+cover: '/blog/what-does-a-useful-ai-evaluation-measure-beyond-answer-accuracy-hero.webp'
+coverAlt: 'Illustration of two AI systems tied on answer accuracy but separated by evidence, safety, actionability, and repair effort'
+draft: false
+---
+
+An accuracy score can tell you that an answer matches an expected answer. It cannot tell you whether the system showed its evidence, recognized missing information, or left a person with work they can safely finish.
+
+When I taught product managers who went from writing specs to building and shipping products, I kept seeing the same measurement problem: the team could describe the output, but not what “done” meant for the user. The model was not always the first problem. The evaluation contract was.
+
+This page sits under the [AI evaluation pillar](/blog/ai-evaluation-pillar). Its useful finding is small and concrete.
+
+## The result: accuracy ties, utility does not
+
+In a six-case deterministic fixture, two candidate systems both scored 4/6 on answer correctness. Candidate B passed the broader utility gate because it exposed evidence, handled uncertainty safely, and required fewer repairs.
+
+| Signal | Candidate A: answer-first | Candidate B: evidence-aware |
+| --- | ---: | ---: |
+| Answer correctness | 4/6 | 4/6 |
+| Evidence traceability | 3/6 | 6/6 |
+| Safe uncertainty handling | 3/6 | 6/6 |
+| Actionability | 4/6 | 5/6 |
+| Repair steps | 12 | 4 |
+| Utility-qualified cases | 2/6 | 4/6 |
+| Fixture release decision | Fail | Pass |
+
+The release rule was: correctness at least 4/6, evidence at least 5/6, safe handling 6/6, actionability at least 4/6, repair steps at most 6, and zero critical safety failures. These thresholds are a worked rule for this fixture, not a universal industry standard.
+
+![Illustration of two evaluation scorecards with equal answer accuracy and different evidence, safety, actionability, and repair results](/blog/what-does-a-useful-ai-evaluation-measure-beyond-answer-accuracy-utility-scorecard.webp)
+
+The sourceable atom is the counterexample itself: equal answer accuracy did not produce an equal release decision. The complete rows, scoring rule, reproduction steps, and limitations appear in the method section below.
+
+## What should a useful AI evaluation measure?
+
+A useful evaluation measures the user's intended outcome, the evidence behind the output, the system's behavior when evidence is missing, the next action it enables, and the work needed to recover from a failure.
+
+Accuracy stays in the set. It just stops pretending to be the set.
+
+### 1. Outcome correctness
+
+Ask whether the intended result happened, not only whether the final sentence resembles a reference answer.
+
+For an information assistant, outcome correctness may mean that the answer contains the required decision and no prohibited claim. For a workflow, it may mean that the right record, file, or approved draft exists in the expected state. Anthropic separates the transcript of an agent run from the outcome in the environment, because a system can claim success without producing the underlying result ([Anthropic's agent evaluation guide](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)).
+
+Use this measure when the task has a checkable finish line. If it does not, define the smallest observable next state before choosing a score.
+
+### 2. Evidence traceability
+
+Ask whether a reviewer can trace each material claim or extracted field to the source that supports it.
+
+Evidence traceability is different from fluency and different from citation count. A response with three links can still fail if the links do not support its key decision. A response with one source can pass if the source is authoritative and every material claim stays inside its boundary.
+
+Microsoft's evaluation guidance separates retrieval and citation behavior from other architecture tests. Its metric guidance also treats factual consistency and relevance as distinct constructs, while warning that reference-free metrics have limitations ([Microsoft's evaluation metrics guidance](https://learn.microsoft.com/en-us/ai/playbook/technology-guidance/generative-ai/working-with-llms/evaluation/list-of-eval-metrics)).
+
+Record evidence as a case-level check:
+
+```text
+evidence_pass = every material claim has a supporting source or an explicit unknown
+```
+
+The principal exception is a creative task where the output is not making factual claims. Even then, measure whether the output respects the brief, constraints, and ownership of any supplied material.
+
+### 3. Safe uncertainty handling
+
+Ask what the system does when the input is incomplete, contradictory, outside scope, or too risky to answer directly.
+
+Useful behavior may be a clarifying question, a bounded refusal, a safe handoff, or a statement of what is unknown. A confident guess can be wrong even when its prose is accurate on ordinary cases.
+
+NIST's AI Risk Management Framework says measurement should be tied to context and trustworthiness, and that systems should be tested before deployment and regularly in operation. It also calls out safe failure, robustness, security, privacy, fairness, and human oversight as distinct areas to evaluate ([NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/)).
+
+Treat critical safety or authorization failures as vetoes. Do not let ten harmless passes average away one unsafe action.
+
+### 4. Actionability
+
+Ask whether a person can take the correct next step from the output without reconstructing the missing work.
+
+Actionability is not the same as tone. A concise answer can be actionable. A detailed answer can still leave the user unsure what to do, what to verify, or when to escalate.
+
+For each case, define the next acceptable state. Examples include “the operator can approve or reject the draft,” “the user knows which field to provide,” or “the reviewer can locate the source passage.” Then score whether the output reaches that state.
+
+This measure is where the reader's real job enters the evaluation. If the system is meant to support a decision, an answer that merely sounds correct is incomplete evidence.
+
+### 5. Recovery effort
+
+Ask how much human work remains after the model produces its first output.
+
+Count correction steps, review time, escalation work, retries, or rejected drafts. Choose the unit that matches the workflow and record it separately from model latency. Microsoft's metric guidance notes that functional correctness does not cover maintainability, readability, or efficiency. That is the same measurement lesson in a different form: a passing output can still impose material downstream work ([Microsoft's evaluation metrics guidance](https://learn.microsoft.com/en-us/ai/playbook/technology-guidance/generative-ai/working-with-llms/evaluation/list-of-eval-metrics)).
+
+The fixture uses repair steps because they are easy to reproduce. A production team might record active reviewer minutes, number of corrections, or the percentage of cases escalated. Do not convert repair steps into money until you have a defensible time or cost observation.
+
+![Illustration of an AI output moving through source verification, uncertainty handling, human action, and recovery checkpoints](/blog/what-does-a-useful-ai-evaluation-measure-beyond-answer-accuracy-evaluation-contract.webp)
+
+## How do you keep the scorecard small enough to run?
+
+Start with one outcome check, two trust checks, one operator check, and one recovery measure. Add dimensions only when they can change a decision.
+
+| Measure | Smallest useful question | Typical grader | Release treatment |
+| --- | --- | --- | --- |
+| Outcome | Did the intended result happen? | State check, test, or reviewer | Threshold |
+| Evidence | Can each material claim be supported? | Source check or domain reviewer | Threshold |
+| Uncertainty | Did the system abstain, clarify, or escalate when required? | Rule plus reviewer | Often a veto |
+| Actionability | Can the person take the next correct step? | Task rubric or user outcome | Threshold |
+| Recovery | How much work remains after the output? | Time, edits, retries, or escalations | Budget or comparison |
+
+This is a measurement contract, not a universal score. Write the case-level pass conditions before you write a judge prompt. A model judge can help with bounded criteria, but its score is another measurement that needs calibration. Microsoft recommends human verification for LLM-based evaluation, and Anthropic separates the task, trial, grader, transcript, and outcome so a team can see which part produced the verdict ([Microsoft's evaluation metrics guidance](https://learn.microsoft.com/en-us/ai/playbook/technology-guidance/generative-ai/working-with-llms/evaluation/list-of-eval-metrics), [Anthropic's agent evaluation guide](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)).
+
+The [AI agent release gate](/blog/how-to-evaluate-an-ai-agent) goes deeper on traces, tool actions, integrity, limits, and stability. Use this smaller contract when the immediate question is whether an output helps a person complete a job.
+
+## How can you reproduce the fixture?
+
+Use six cases that force the evaluator to see more than a happy-path answer. The case shape matters more than the particular domain.
+
+| Case | Stressor | What a useful system must do |
+| --- | --- | --- |
+| C01 | Complete evidence | Answer and point to the supporting evidence. |
+| C02 | Conflicting sources | Surface the conflict and avoid silently choosing one. |
+| C03 | Missing required field | Ask for the missing input or state that the answer is unavailable. |
+| C04 | Time-sensitive policy | Identify the current source and avoid an unsupported definitive claim. |
+| C05 | Sensitive action | Respect the authority boundary and route for approval when required. |
+| C06 | Out-of-scope request | Decline or redirect without inventing a result. |
+
+Then run the same five checks against each output:
+
+1. Compare the result with the case's expected outcome.
+2. Inspect whether the evidence supports the material claims.
+3. Check whether uncertainty and authority were handled safely.
+4. Check whether the output enables the defined next action.
+5. Count the corrections needed to make the output acceptable.
+
+HELM's research makes the broader case for multi-metric evaluation by measuring accuracy alongside calibration, robustness, fairness, bias, toxicity, and efficiency. Microsoft's checklist similarly separates foundational, robustness, architecture, and edge-case suites ([HELM](https://arxiv.org/abs/2211.09110), [Microsoft's agent evaluation checklist](https://learn.microsoft.com/en-us/agents/agent-evaluation/evaluation-checklist)). The fixture is a small operational version of that idea, narrowed to one reader decision.
+
+![Illustration of six evaluation cases branching into outcome, evidence, safety, actionability, and recovery checks](/blog/what-does-a-useful-ai-evaluation-measure-beyond-answer-accuracy-fixture-cases.webp)
+
+## When is answer accuracy enough?
+
+Accuracy may be enough when the task has a low-risk, fully observable outcome, a stable reference answer, no meaningful human follow-up, and no material consequence from a wrong or overconfident response.
+
+Even then, verify that the accuracy test represents the real input distribution. A tidy test set can make a system look better than it is. Microsoft recommends repeated runs because probabilistic systems can vary, and its checklist expands beyond foundational cases into robustness and edge cases ([Microsoft's agent evaluation checklist](https://learn.microsoft.com/en-us/agents/agent-evaluation/evaluation-checklist)).
+
+Accuracy is not enough when any of these are true:
+
+- the answer triggers a side effect;
+- the system must cite or retrieve evidence;
+- the input may be incomplete or conflicting;
+- a human must review, correct, or approve the output;
+- the user needs a next action, not just information;
+- a single unsafe or unauthorized case is unacceptable;
+- latency, cost, or retry behavior can erase the value of automation.
+
+In those cases, a higher accuracy score can still be a worse release if it creates more correction work or hides more dangerous failures.
+
+## What does the evaluation record need to preserve?
+
+Preserve the case, system configuration, output, graders, evidence, and decision that followed. Without those links, a score becomes hard to interpret when the model, prompt, retrieval index, or policy changes.
+
+At minimum, keep:
+
+```yaml
+case_id: stable-case-id
+system_version: model-prompt-retrieval-and-code-version
+input: approved-fixture-or-redacted-production-case
+expected_outcome: observable-finish-condition
+output: raw-model-output
+evidence: source-ids-or-explicit-unknown
+checks:
+  correctness: pass-or-fail
+  evidence: pass-or-fail
+  uncertainty: pass-or-fail
+  actionability: pass-or-fail
+repair_steps: integer
+critical_failure: true-or-false
+reviewer_notes: why-the-verdict-was-reached
+final_decision: ship-hold-or-narrow
+```
+
+Anthropic's evaluation definitions are useful here because they keep the trial and its environment outcome separate. NIST likewise emphasizes documented, repeatable evaluation and the limits of generalizing beyond the conditions tested. The record is what lets a team explain whether a score changed because the model improved or because the case, source, or grader changed.
+
+## The practical answer
+
+Measure answer accuracy, but make it share the release decision with evidence, safe uncertainty handling, actionability, and recovery effort. Add robustness, privacy, fairness, latency, cost, and other dimensions when the workflow's risks or value make them relevant.
+
+The six-case fixture does not prove which model to buy. It proves a more useful thing: accuracy can tie while the work left for a person, and the risk carried by the system, diverge sharply.
+
+If a team cannot agree on the expected outcome, the forbidden behavior, and the acceptable recovery effort, it is not ready to debate model scores. It needs a clearer definition of done. If you need help teaching an existing team to build that contract around its own workflow, [Marius Manolachi's AI consulting and tutoring](/learn-ai) is the relevant next step.
