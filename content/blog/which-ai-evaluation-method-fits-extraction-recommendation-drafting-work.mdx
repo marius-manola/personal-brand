@@ -1,0 +1,171 @@
+---
+title: "Which AI Evaluation Method Fits Extraction, Recommendation, and Drafting"
+date: "2026-09-12"
+updated: "2026-09-12"
+excerpt: "Choose deterministic checks for extraction, pairwise comparison for recommendation, and rubric scoring for drafting, with human calibration when stakes demand it."
+answer: "Use deterministic field or schema checks for extraction, pairwise comparison for recommendation, and a pointwise rubric for drafting. Add source and outcome checks to all three, and calibrate human or model judgments when quality is subjective. The exception is high-consequence work: a qualified human must own the final decision even when automated scores look good."
+targetQuery: "which ai evaluation method fits extraction recommendation and drafting work"
+queryAliases:
+  - "AI evaluation method for extraction"
+  - "AI evaluation method for recommendations"
+  - "AI evaluation method for drafting"
+  - "how to choose an AI evaluation method"
+intent: "informational / decision"
+funnel: "consideration"
+cluster: "evaluation"
+parent: "/blog/ai-evaluation-pillar"
+contentType: "decision-tool"
+kind: "satellite"
+sourceableAtom: "A reusable task-to-method chooser with a 0-2 scorecard and three worked decisions: deterministic checks first for structured extraction, pairwise comparison plus human calibration for recommendations, and pointwise rubric scoring plus source checks for drafting. The thresholds are editorial starting points, not empirical performance claims."
+evidenceType: "reusable-decision-artifact"
+evidenceBasis: "A reproducible scorecard and worked decision table derived from five verified primary sources. No model run, benchmark, or user study was performed; the scores are editorial starting points and the limitations are documented in research.md."
+tags:
+  - "AI evaluation"
+  - "AI reliability"
+  - "Decision tools"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://developers.openai.com/api/reference/resources/graders"
+  - "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/eval-python-sdk/view-evaluation"
+  - "https://www.nist.gov/publications/evaluation-machine-generated-reports"
+  - "https://arxiv.org/abs/2406.03248"
+  - "https://www.nist.gov/news-events/news/2026/02/new-report-expanding-ai-evaluation-toolbox-statistical-models"
+cover: "/blog/which-ai-evaluation-method-fits-extraction-recommendation-drafting-work-hero.webp"
+coverAlt: "Illustration of three AI evaluation paths for extraction, recommendation, and drafting"
+draft: false
+---
+
+The wrong evaluation method can make a weak workflow look measurable. A parser can pass a language-quality rubric while dropping a required field. A recommendation can win a preference test while violating policy. A draft can sound polished while missing the evidence that makes it safe to send.
+
+This decision tool sits under the [AI evaluation pillar](/blog/ai-evaluation-pillar). It gives you a starting method, the check to add next, and the failure that should veto a pass.
+
+## The short answer: match the method to the output contract
+
+Use deterministic checks for structured extraction, pairwise comparison for choosing between recommendations, and a pointwise rubric for drafting. Add source and outcome checks wherever they are available. Use human calibration when judgment is subjective. For high-consequence work, a qualified human owns the final decision.
+
+| Work type | Start with | Add | Do not let the method hide |
+| --- | --- | --- | --- |
+| Extraction into a known schema | Deterministic field, type, and required-field checks | Reference comparison or targeted semantic review | Missing fields, invalid types, or unsupported values |
+| Recommendation from a shortlist | Pairwise comparison against the current baseline | Human-calibrated review and an outcome or acceptance check | Policy violations or a recommendation that nobody can justify |
+| Drafting a policy, summary, or response | Pointwise rubric for required facts, completeness, grounding, and audience fit | Deterministic source checks and a human sample | Unsupported claims, missing warnings, or failed escalation rules |
+
+The table is the result of the reusable chooser documented below. It is an editorial decision artifact, not a benchmark. The underlying primitives are visible in current evaluation documentation: exact and similarity checks, code graders, score graders, pointwise scores, pairwise choices, and row-level evaluation results ([OpenAI's grader reference](https://developers.openai.com/api/reference/resources/graders), [Google Cloud's evaluation documentation](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/eval-python-sdk/view-evaluation)).
+
+![Illustration of a decision tree mapping extraction, recommendation, and drafting work to evaluation methods](/blog/which-ai-evaluation-method-fits-extraction-recommendation-drafting-work-method-chooser.webp)
+
+## How to choose a method for a new task
+
+Score the task properties before selecting a metric. Give each candidate method 0, 1, or 2 points, then choose the highest scorer as the primary signal. A score of 2 means the method strongly matches the task, 1 means it is useful as a secondary signal, and 0 means it is the wrong first instrument.
+
+| Task property | Deterministic check | Pointwise rubric | Pairwise comparison | Human calibration | Outcome check |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| The output has a schema, finite labels, or required fields | 2 | 0 | 0 | 0 | 1 |
+| Several answers can be valid while criteria remain explicit | 0 | 2 | 1 | 1 | 1 |
+| The decision is which of two candidates is better | 0 | 1 | 2 | 1 | 1 |
+| Quality depends on audience preference or domain judgment | 0 | 1 | 2 | 2 | 1 |
+| A downstream state or user action can be checked | 1 | 0 | 0 | 0 | 2 |
+| Error has material safety, policy, privacy, or financial consequence | 1 | 1 | 1 | 2 | 2 |
+
+Apply four rules:
+
+1. Pick the highest-scoring method as the primary signal.
+2. Add every method scoring 2 in a different column when it checks a different construct. A recommendation, for example, may need pairwise preference plus a human-calibrated sample.
+3. Treat the consequence row as a veto condition. Do not average an unsafe or unsupported result away.
+4. If the top two methods tie, run both on a small calibration sample and inspect disagreements before setting a release threshold.
+
+These values are starting thresholds for choosing an instrument, not pass rates for a model. NIST's current evaluation work makes the same distinction at a broader level: evaluators need to define the target measure and its uncertainty rather than assume one universal accuracy formula ([NIST's statistical-model report](https://www.nist.gov/news-events/news/2026/02/new-report-expanding-ai-evaluation-toolbox-statistical-models)).
+
+## Extraction needs deterministic checks first
+
+For extraction, start with checks against the output contract: required fields exist, types are valid, values obey allowed formats, and source text supports the populated fields. Use a language judge only for the part that cannot be expressed as a deterministic assertion.
+
+This fits extraction because the intended output is usually a record, not a paragraph. If the field is `invoice_total`, you can inspect presence, numeric type, currency, and agreement with the source. If the field is `issue_summary`, exact matching may be too strict, so use a rubric or semantic comparison as a secondary check.
+
+OpenAI's current grader reference documents string checks, text-similarity graders, Python graders, score-model graders, and multi-graders that combine results. That gives you a practical layering rule: let code handle the contract, then use a softer judge only where valid variation makes code insufficient ([OpenAI's grader reference](https://developers.openai.com/api/reference/resources/graders)).
+
+### Worked decision
+
+Suppose a workflow extracts five fields from an invoice. The task has a schema and required fields, so deterministic checking scores 2. It also has a downstream record that can be checked, so outcome checking scores 2. A pointwise rubric scores 0 because a general quality score would be less precise than field assertions.
+
+The primary evaluation is therefore:
+
+1. Validate the schema and types.
+2. Check required-field presence.
+3. Compare constrained fields with a trusted reference or source span.
+4. Check the saved record, not only the generated JSON.
+5. Route ambiguous fields to review instead of letting a fluent explanation compensate for missing data.
+
+The exception is genuinely open extraction. A contract such as “write a short description of the incident” allows valid variation. Keep deterministic checks for required entities or forbidden claims, then add a pointwise rubric for completeness and grounding.
+
+## Recommendation needs comparison, then calibration
+
+For recommendation work, use pairwise comparison when the immediate decision is “is the new recommendation better than the current baseline?” Add human calibration and an outcome check when preference, policy, or domain judgment matters.
+
+Pairwise evaluation answers a relative question. It does not claim that either option is good in absolute terms. The comparison should be blind to the system identity where practical, include a tie option, and record the reason for the choice. If the recommendation has a hard constraint, check that constraint separately instead of asking a judge to absorb it into a vague preference score.
+
+Google Cloud's evaluation documentation distinguishes pairwise results, including candidate, baseline, tie, and win-rate fields, from pointwise scores and computation-based metrics ([Google Cloud's pairwise evaluation reference](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/eval-python-sdk/view-evaluation)). A recommendation test can therefore report both relative preference and rule compliance.
+
+The supplied study on recommendation explanations is a useful boundary case. It treats explanation quality as subjective, compares LLM evaluations with user feedback and third-party annotations, and reports that combining human labels and heterogeneous evaluators improved accuracy or stability in that study. That supports calibration as part of the method, not as proof that an LLM judge is automatically reliable for every recommendation domain ([the recommendation-explanation study](https://arxiv.org/abs/2406.03248)).
+
+### Worked decision
+
+Suppose a system recommends one of three training resources for a new team member. The product decision is whether the new prompt beats the existing prompt. Pairwise comparison scores 2 because there is a baseline. Human calibration scores 2 because the recommendation depends on learner context and domain judgment. Outcome checking scores 1 at first because acceptance or completion data will arrive later.
+
+The evaluation should report:
+
+- candidate win, baseline win, and tie rates;
+- the reasons reviewers selected one option;
+- a separate check for forbidden or unsupported recommendations;
+- a later acceptance, completion, or correction signal;
+- disagreements between the automated judge and the calibrated human sample.
+
+The principal exception is high-consequence recommendation. If the output affects a medical, legal, financial, employment, access, or safety decision, pairwise preference is not the release authority. It is evidence for a qualified reviewer who owns the decision.
+
+## Drafting needs a pointwise rubric and evidence checks
+
+For drafting, use a pointwise rubric when several outputs can be acceptable but each must satisfy explicit criteria. Score completeness, factual support, required elements, audience fit, and prohibited content separately. Add deterministic source or citation checks whenever the draft makes claims that can be traced to source material.
+
+Drafting is not one problem. A customer reply, a policy brief, and a research report have different failure costs. A single “writing quality” score hides the difference between clear wording and a missing obligation.
+
+NIST's framework for machine-generated reports says generated reports should be complete, accurate, and verifiable. Its proposed checks include required information nuggets and mapping claims to their source documents. That is a strong design pattern for drafting evaluation: turn the brief into required content, then inspect whether the claims are supported ([NIST's report-evaluation framework](https://www.nist.gov/publications/evaluation-machine-generated-reports)).
+
+Google Cloud's documentation shows how pointwise evaluation can preserve both row-level scores and explanations, with binary, Likert, or floating-point scales, alongside aggregate results. Use that structure to inspect disagreements rather than keeping only a mean score ([Google Cloud's pointwise evaluation reference](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/eval-python-sdk/view-evaluation)).
+
+### Worked decision
+
+Suppose a workflow drafts an exception note for an operations manager. A pointwise rubric scores 2 because multiple phrasings are valid and the criteria are explicit. Human calibration scores 2 because the acceptable level of risk and clarity depends on the domain. Deterministic checking scores 1 because required phrases, source links, and forbidden claims can still be checked.
+
+The rubric should ask:
+
+1. Does the draft state the governing rule?
+2. Does it identify the evidence for the exception?
+3. Does it mark what the source does not answer?
+4. Does it recommend approval, rejection, or escalation only when the evidence supports that action?
+5. Does it include every required warning and avoid unsupported claims?
+
+The draft passes only when the required evidence and veto checks pass. A high prose score cannot repair a missing warning. If the actual decision is which of two drafts an editor should choose, add pairwise comparison after the pointwise rubric, because the question has changed from “how good is this draft?” to “which candidate is better?”
+
+## When should one task use more than one method?
+
+Use more than one method when the methods observe different constructs: contract compliance, relative preference, subjective quality, or downstream success. Do not stack methods just to create a larger number.
+
+| Signal | What it answers | Best use |
+| --- | --- | --- |
+| Deterministic check | Did a defined condition hold? | Schema, fields, source links, policy rules, state changes |
+| Pointwise rubric | How well did this output meet explicit criteria? | Drafting and open-ended quality |
+| Pairwise comparison | Which candidate is better for this case? | Recommendation or choosing between versions |
+| Human calibration | Does the judge match informed domain judgment? | Subjective, high-risk, or disputed criteria |
+| Outcome check | Did the user or system reach the intended next state? | Real workflow success |
+
+The [AI agent release gate](/blog/how-to-evaluate-an-ai-agent) goes deeper on separating outcomes, actions, integrity, limits, and stability. For an exercise in building a rubric from a real work sample, use [this grading guide](/blog/how-to-grade-an-ai-output-against-a-rubric). For open-ended measurement contracts, see [the guide to AI output quality](/blog/how-to-measure-ai-output-quality-no-single-right-answer).
+
+The main failure is using a method that answers a nearby question. A pairwise win rate does not prove absolute quality. A pointwise score does not prove that a user completed the task. A deterministic schema pass does not prove that the extracted value is correct. Keep the signals separate so the release decision stays legible.
+
+## What this evaluation chooser cannot prove
+
+It cannot tell you a universal sample size, guarantee a judge's accuracy, or certify a workflow as safe. The scorecard chooses an instrument. It does not replace a task definition, representative cases, human ownership, or production feedback.
+
+NIST's statistical guidance distinguishes performance on a fixed benchmark from performance generalized to a broader question population. That distinction matters here. A method can be appropriate while the test set is narrow, stale, or unrepresentative. Record the population, the evaluation date, the source version, and the uncertainty you can defend ([NIST's statistical-model report](https://www.nist.gov/news-events/news/2026/02/new-report-expanding-ai-evaluation-toolbox-statistical-models)).
+
+Use this artifact to make the first choice explicit. Then write the pass rule, run the smallest calibration sample that can expose disagreement, and keep the failed cases. If your team needs help turning a real workflow into an owned evaluation contract, [Marius Manolachi's AI consulting and tutoring work](/learn-ai) is the relevant next step.
