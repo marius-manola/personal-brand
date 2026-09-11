@@ -1,0 +1,182 @@
+---
+title: "Which AI Evaluation Habit Catches User Corrections Before Launch?"
+date: "2026-09-11"
+updated: "2026-09-11"
+excerpt: "A six-case replay shows how turning user corrections into regression cases catches failures a generic output check passes before launch."
+answer: "Turn every meaningful user correction into a retained regression case before changing the prompt, model, or workflow. Store the original input, the failed output, the correction, and a testable acceptance condition, then replay it at the release gate. The exception is a correction too ambiguous to encode safely, which needs human review instead of a brittle assertion."
+targetQuery: "Which AI evaluation habit catches user corrections before launch?"
+queryAliases:
+  - "how to catch user corrections in AI evaluation"
+  - "how to replay a corrected user interaction before release"
+  - "AI evaluation habit before launch"
+intent: "implementation"
+funnel: "consideration"
+cluster: "evaluation"
+parent: "/blog/ai-evaluation-pillar"
+contentType: "original-research"
+kind: "flagship"
+sourceableAtom: "In a six-case controlled replay, a generic non-empty-output gate passed all six cases, while a correction-derived regression check caught all three intentionally regressed cases and passed all three controls; the article publishes the case schema and runner so the result can be reproduced."
+evidenceType: "reproducible-artifact"
+evidenceBasis: "A six-case deterministic correction-replay fixture, with JSONL-shaped records, a generic baseline evaluator, correction-derived assertions, observed output, and limitations documented in research.md."
+tags:
+  - "AI evaluation"
+  - "AI reliability"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://openai.com/index/deployment-simulation/"
+  - "https://github.com/openai/evals"
+  - "https://github.com/openai/evals/blob/main/docs/build-eval.md"
+  - "https://docs.langchain.com/langsmith/online-evaluations-llm-as-judge"
+  - "https://arxiv.org/abs/2605.06856"
+  - "https://mariusmanolachi.com/learn-ai"
+cover: "/blog/which-ai-evaluation-habit-catches-user-corrections-before-launch-img-hero.webp"
+coverAlt: "Illustration of a user correction becoming a regression case before an AI launch"
+draft: false
+---
+
+I built a tiny correction-replay fixture because a user correction is easy to treat as a one-off prompt fix. The result was sharper: a generic output check passed all six records, while a correction-derived check caught all three intentionally regressed records.
+
+That makes the habit simple. Keep the correction, turn it into an acceptance condition, and run it before the next release.
+
+![Illustration of a user correction becoming a regression case before an AI launch](/blog/which-ai-evaluation-habit-catches-user-corrections-before-launch-img-hero.webp)
+
+## What habit catches user corrections before launch?
+
+Turn each meaningful user correction into a retained regression case before changing the prompt, model, or workflow.
+
+The case should preserve four things:
+
+1. The original input and relevant context.
+2. The output the system produced.
+3. The user's correction or the result they expected instead.
+4. A testable acceptance condition that explains what “fixed” means.
+
+This is a narrower practice than “collect feedback.” Feedback disappears into a ticket or a prompt edit. A correction case stays in the release suite and gets replayed whenever the system changes.
+
+OpenAI's Evals documentation describes an eval as a dataset plus an evaluation class, and its build guide uses JSONL records for data points. That is enough structure for a correction case. You do not need a new evaluation platform to begin ([OpenAI Evals](https://github.com/openai/evals), [OpenAI's build-eval guide](https://github.com/openai/evals/blob/main/docs/build-eval.md)).
+
+## What did the correction-replay test catch?
+
+In the controlled fixture, the generic evaluator passed every record. The correction-derived evaluator caught every intentionally regressed record and passed every control.
+
+| Evaluator | Passed | Failed | What it saw |
+| --- | ---: | ---: | --- |
+| Generic non-empty-output gate | 6/6 | 0 | Every response contained text, so every response passed. |
+| Correction-derived replay assertions | 3/6 | 3 | Three outputs violated the requirement captured from a correction. |
+
+The three injected regressions were deliberately small:
+
+- The output routed a request to a queue but did not escalate to a human reviewer.
+- The output rounded an invoice total instead of preserving `1,237.40 EUR`.
+- The output stated a policy conclusion without citing the policy paragraph.
+
+The three controls contained the required behavior. The complete records, runner, and output are in the companion research artifact for this page. The result is evidence that the habit works on this fixture. It is not a production catch rate.
+
+![Illustration of an evaluation table separating a generic pass from correction-derived failures](/blog/which-ai-evaluation-habit-catches-user-corrections-before-launch-img-inline-1.webp)
+
+## What should a correction case store?
+
+Store the smallest record that lets another person understand the failure and rerun the check without reopening the original conversation.
+
+```json
+{
+  "id": "corr-02",
+  "input": "Extract the invoice total for approval.",
+  "context": "The source document shows 1,237.40 EUR.",
+  "model_output": "The invoice total is approximately 1,240 EUR.",
+  "user_correction": "Keep the exact amount from the document.",
+  "acceptance": {
+    "type": "exact_value",
+    "value": "1,237.40 EUR"
+  },
+  "severity": "release-blocking",
+  "source": "user correction"
+}
+```
+
+The `acceptance` field matters more than the label `user_correction`. A free-text complaint can describe what felt wrong, but the evaluator needs a condition it can check.
+
+Use a structured assertion when the correction concerns a state, value, permission, or required action. Use a bounded language rubric when the correction concerns meaning or completeness. Send the case to a human reviewer when the correction expresses a preference that the product has not defined as a requirement.
+
+That distinction prevents a common repair from becoming a new failure. If a user says “make this less abrupt,” you do not yet have a safe exact-match test. You have a candidate case that needs a rubric and reviewer calibration.
+
+## Why does a normal eval miss the correction?
+
+A normal eval misses it when the rubric measures the output surface but the correction describes a task condition.
+
+An output can be valid JSON, contain every requested section, and still violate the condition that made the result usable. A non-empty check cannot see a missing escalation. A field-presence check cannot see a rounded amount. A fluency judge cannot know that a citation was required unless the requirement is in its input.
+
+The current evaluation tooling points toward this separation. LangSmith documents online evaluators that can filter for runs where a user left feedback indicating the response was unsatisfactory, then sample or backfill those runs for evaluation ([LangSmith online evaluators](https://docs.langchain.com/langsmith/online-evaluations-llm-as-judge)). The useful habit is to make the next step explicit: do not stop at filtering the run. Convert the correction into a case that can fail a future release.
+
+The distinction also appears in broader research and deployment practice. OpenAI describes deployment simulation as replaying realistic prior conversations with a candidate model before release, then checking predictions against later deployment traffic. The method is a complement to targeted evaluations and red-teaming, not a replacement for them ([OpenAI's deployment simulation](https://openai.com/index/deployment-simulation/)). A correction case is the small-team version of the same idea: replay a context that mattered, with the failure condition made visible.
+
+The arXiv paper in the supplied research package makes the related problem explicit: benchmark performance can diverge from real-world utility, so evaluation should connect system behavior to stakeholder outcomes over time ([Benchmarked Yet Not Measured](https://arxiv.org/abs/2605.06856)). A user correction is not a complete utility measure, but it is a concrete signal that the current acceptance condition did not match the user's task.
+
+![Illustration of a workflow connecting user feedback, an acceptance condition, and a release test](/blog/which-ai-evaluation-habit-catches-user-corrections-before-launch-img-inline-2.webp)
+
+## How do you run the habit in a real workflow?
+
+Run the conversion at the moment a correction is reviewed, not during a rushed release meeting.
+
+1. **Capture the context.** Save the input, relevant retrieved facts, tool results, model version, prompt version, and output. If the correction came from a multi-turn session, keep the turns that made the correction intelligible.
+2. **Write the correction plainly.** Record what the user changed, rejected, added, or asked the system to do differently. Do not replace the user's wording with a guessed technical diagnosis yet.
+3. **Name the acceptance condition.** Write the smallest observable condition that would make the corrected result acceptable. “Keep exact amount” is better than “improve extraction.”
+4. **Choose the cheapest valid grader.** Use code for exact values, state changes, permissions, required tools, or required escalations. Use a model grader for bounded meaning when a human can explain the rubric. Use a person for ambiguous or high-impact judgment.
+5. **Label severity.** A correction that can cause an unsafe action, privacy issue, wrong record update, or irreversible decision should block launch until the case passes. A style preference may be monitored without blocking.
+6. **Replay the case.** Run it against the current production version and the candidate version. Keep the old result, new result, grader, and release decision together.
+7. **Review the case after the workflow changes.** A correction can become stale when the source of truth, product policy, or user role changes. Retire it only with a reason and a replacement check if the risk still exists.
+
+OpenAI's build-eval guide describes the same basic lifecycle at a different scale: format the data, register the eval, and run it. The habit adds one operational rule: a user correction is a new data point, not merely a conversation to delete after the prompt is edited ([OpenAI's build-eval guide](https://github.com/openai/evals/blob/main/docs/build-eval.md)).
+
+## When should a correction not become an automatic blocker?
+
+Do not turn every correction into a brittle exact-match assertion. Block release only when the correction expresses a defined requirement with material consequences.
+
+| Correction shape | First grader | Release treatment |
+| --- | --- | --- |
+| Exact value, schema, state, permission, or required escalation | Deterministic check | Block if the requirement is critical; otherwise record a regression failure. |
+| Meaning, completeness, or grounded explanation | Bounded model rubric calibrated against human labels | Block when the rubric is stable and the risk justifies it; sample human review while calibrating. |
+| Preference such as tone or formatting | Human review or a small quality sample | Do not block until the team defines what acceptable means. |
+| High-impact or disputed decision | Qualified human reviewer plus deterministic safety checks | Keep human approval as the release condition. |
+
+LangSmith's documentation describes LLM-as-a-judge as a scalable substitute for human-like judgment, while also exposing filters, sampling, and spend controls. That makes it useful for triage and scale, not a reason to remove human calibration where the requirement is disputed ([LangSmith](https://docs.langchain.com/langsmith/online-evaluations-llm-as-judge)).
+
+Marius Manolachi has taught product managers who moved from writing specs to building and shipping products. In that work, the recurring failure was an undefined “done,” not a measured failure rate ([Marius Manolachi's AI teaching work](https://mariusmanolachi.com/learn-ai)). A correction case forces the team to define done at the point where the gap becomes visible.
+
+## What should the launch gate do with a failed correction case?
+
+Treat a failed critical correction case as a release hold until the team either repairs the system or deliberately narrows the workflow's authority.
+
+The release record should answer four questions:
+
+- What changed: prompt, model, tool, retrieval source, policy, or UI?
+- Which correction cases were replayed?
+- Which cases failed, and what user or system condition did each failure represent?
+- Did the team repair the behavior, change the acceptance condition with an owner, or reduce the system's allowed action?
+
+Do not average a critical failure into a high overall pass rate. A system that gets nine routine cases right and still sends one unapproved external message has not earned permission for that action. The exact veto threshold is a product decision, but the correction case should make the decision visible.
+
+For a small team, the minimum release report can be a table:
+
+| Case | Severity | Baseline | Candidate | Decision |
+| --- | --- | --- | --- | --- |
+| corr-01 | release-blocking | fail | pass | Continue review |
+| corr-02 | release-blocking | fail | pass | Continue review |
+| corr-03 | monitor | fail | pass | Ship if other gates pass |
+
+The table is more useful than a single score because it preserves the reason behind the correction. It also gives the next reviewer a starting point when the system changes again.
+
+![Illustration of a pre-launch release gate holding a candidate until correction cases pass](/blog/which-ai-evaluation-habit-catches-user-corrections-before-launch-img-inline-3.webp)
+
+## What does this test not prove?
+
+It does not prove that correction replay finds every failure, that six cases are enough for a release, or that exact assertions are suitable for open-ended work.
+
+The fixture used hand-authored records and a deliberately weak baseline. Its value is inspectability. You can see each failed requirement, run the same logic, and replace the toy assertions with checks connected to your own system.
+
+Broader replay methods also have limits. OpenAI's deployment simulation notes that rare behaviors may not appear in a sampled run and that simulation remains complementary to adversarial and targeted testing ([OpenAI's deployment simulation](https://openai.com/index/deployment-simulation/)). Correction replay has the same shape of limitation. It protects against remembered failures. It does not discover every unimagined one.
+
+Start with the corrections that would make a user reject, redo, or distrust the work. Keep the case. Define “done.” Run it before launch.
+
+If your team needs to turn this habit into a broader release gate, start with [the AI evaluation pillar](/blog/ai-evaluation-pillar) and [the practical AI agent release gate](/blog/how-to-evaluate-an-ai-agent). If the missing piece is team capability rather than a tool, Marius Manolachi's [AI learning work](https://mariusmanolachi.com/learn-ai) is the relevant next step.
