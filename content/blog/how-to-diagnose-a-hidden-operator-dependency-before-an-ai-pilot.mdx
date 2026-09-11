@@ -1,0 +1,137 @@
+---
+title: "How to Diagnose Hidden Operator Dependency Before an AI Pilot"
+date: "2026-09-12"
+updated: "2026-09-12"
+excerpt: "An AI opportunity can depend on one operator's hidden judgment. Trace the dependency, repair it, and test whether the workflow is ready."
+answer: >-
+  Diagnose a hidden operator dependency by removing the best operator from one ordinary case and one exception before funding the pilot. If the backup cannot define the task boundary, choose the documented exception path, identify the source of truth, or judge the result, repair that dependency first. Low-risk drafting is the main exception when a clear review rubric is enough.
+targetQuery: "how to diagnose a hidden operator dependency before an ai pilot"
+queryAliases: []
+intent: "informational"
+funnel: "consideration"
+cluster: "opportunity"
+parent: "/blog/how-to-prioritize-ai-use-cases-in-a-small-business"
+contentType: "failure-clinic"
+kind: "satellite"
+sourceableAtom: "The operator-availability failure trace shows that an AI opportunity is not ready for automation when one unavailable operator is still the only person who can define intent, exceptions, source-of-truth authority, and acceptance."
+evidenceType: "reproducible-failure-trace"
+evidenceBasis: "A reproducible diagnostic artifact verified against NIST AI risk guidance, official transition and knowledge-transfer guidance, and Marius Manolachi's locked teaching observation F-pms."
+tags: ["AI opportunities", "Workflow ownership", "Team capability"]
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://airc.nist.gov/airmf-resources/airmf/5-sec-core/"
+  - "https://airc.nist.gov/airmf-resources/airmf/appendices/app-c-ai-risk-management-and-human-ai-interaction/"
+  - "https://www.energy.gov/cmei/femp/articles/award-winning-federal-energy-and-water-management-champions-share-experience-and"
+  - "https://projectdelivery.gov.uk/teal-book/home/part-f-solution-delivery/chapter-36-transition-into-use/"
+  - "https://gds-way.digital.cabinet-office.gov.uk/standards/architecture-decisions.html"
+faq:
+  - q: "Does the best operator need to be available for every AI workflow?"
+    a: "No. Low-risk drafting can work with a general review rubric. The dependency matters when the operator is the only person who can define exceptions, authority, escalation, or acceptance."
+  - q: "Can documentation replace the best operator's judgment?"
+    a: "Documentation can make judgment transferable, but it does not replace it automatically. Test the handoff with a backup operator on an ordinary case and an exception before automating."
+cover: "/blog/how-to-diagnose-a-hidden-operator-dependency-before-an-ai-pilot-operator-availability-failure-hero.webp"
+coverAlt: "Illustration of an AI workflow losing its operating context when its best operator is unavailable"
+draft: false
+---
+
+When I teach product managers to move from writing specifications to building and shipping the product, the recurring failure is rarely the model. It is the missing definition of done. [That teaching work](https://mariusmanolachi.com/learn-ai) is the useful lens here: an AI opportunity can look obvious while its real operating rules live in one person's head.
+
+The first question is not “Can the model do this?” It is “Can someone else safely run and judge this when the best operator is unavailable?”
+
+### The sourceable result
+
+The operator-availability failure trace is a small diagnostic you can run before funding a pilot:
+
+| Step | If the best operator is absent | What it means |
+| --- | --- | --- |
+| Define the work | Nobody can state the boundary of a good result. | The opportunity has value, but no task contract. |
+| Handle an exception | The backup can follow the happy path but cannot decide what changes it. | Judgment is concentrated in the operator. |
+| Check authority | Nobody knows which source is authoritative or what the AI may change. | The workflow has an implicit source of truth. |
+| Accept the result | Nobody can approve release or own unresolved cases. | The workflow has no operating owner. |
+
+If the trace stops at any row, the opportunity is not ready for automation. It may still be worth pursuing. The immediate repair is to reduce the dependency, not to add a more capable model.
+
+![Illustration of an AI workflow handoff failing when the backup operator meets an exception](/blog/how-to-diagnose-a-hidden-operator-dependency-before-an-ai-pilot-operator-handoff-verification.webp)
+
+## Why the model is usually not the first failure
+
+The missing operator takes more than task steps away. They take away context, exceptions, authority, and the judgment that tells everyone else when an output is usable.
+
+NIST’s AI Risk Management Framework treats context, documented roles, operator proficiency, human oversight, and an initial go/no-go decision as part of responsible AI work. Its guidance connects technical design to organizational practices and says documentation can improve human review and accountability. [NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/) supports the point directly.
+
+NIST also warns that turning human decision practices into measurable quantities can remove necessary context. That is exactly what happens when a team observes the best operator's visible steps but fails to capture the reasons behind them. The prototype learns the surface pattern. The operator was carrying the hidden boundary. [NIST’s human-AI interaction guidance](https://airc.nist.gov/airmf-resources/airmf/appendices/app-c-ai-risk-management-and-human-ai-interaction/) makes this distinction explicit.
+
+That produces a misleading demo. The AI can produce an answer, classification, or draft. The team still cannot say whether the output is acceptable, what to do with the exception, or who has authority to act. The system looks technically alive and operationally dead.
+
+## What disappears when the operator is unavailable
+
+Treat the operator as a bundle of decisions, not a job title. Before building, ask what disappears when that person cannot answer a question.
+
+| Hidden dependency | The question the backup must answer | Failure signal |
+| --- | --- | --- |
+| Intent | What is this task trying to achieve, and what is explicitly out of scope? | The backup optimizes for a proxy such as speed or completeness. |
+| Exceptions | Which unusual cases change the next action? | The backup sends every uncertain case through the same path. |
+| Source of truth | Which record, policy, or person wins when information conflicts? | The AI produces a plausible answer from the wrong source. |
+| Authority | What may the workflow read, draft, change, send, or escalate? | Review becomes an informal permission check. |
+| Acceptance | What makes the result good enough to use? | The team reports output quality without a decision rule. |
+
+The fourth and fifth rows are where many opportunities quietly fail. A replacement operator can often describe the process. They cannot approve the result because approval criteria and authority were never made explicit.
+
+This is also why a handover is not a document dump. The UK Government’s transition guidance calls for controlled verification, a readiness review, operator training before handover, and an “as built” reference point. [The transition guidance](https://projectdelivery.gov.uk/teal-book/home/part-f-solution-delivery/chapter-36-transition-into-use/) treats transfer as an operating test, not as the moment someone shares a folder.
+
+## How to reproduce the failure before you build
+
+Run this as a short failure clinic. Do not ask the best operator to narrate every detail while you take notes. Remove them from the next review and see where the workflow actually stops.
+
+1. **Write the opportunity in one sentence.** Name the input, the intended outcome, and the proposed AI contribution. Avoid “automate operations.” Write something a backup operator can attempt.
+2. **Choose one ordinary case and one exception.** The exception matters because it reveals the judgment the happy path hides.
+3. **Give both cases to the backup operator.** The best operator cannot coach, approve, or rescue the run. The backup can use the documented material that would exist in the proposed workflow.
+4. **Record the first blocked decision.** Was the problem intent, exception handling, source authority, permissions, or acceptance? Record the first one, not every complaint.
+5. **Ask for the next action.** The backup must either complete, reject, or escalate the case. “I would ask the expert” is a valid failure signal. It means the opportunity still depends on that expert.
+
+The output is not a score. It is a trace with one repair target. This keeps the team from buying a large implementation to solve an unspecified ownership problem.
+
+## How to repair the opportunity
+
+The repair is usually a smaller workflow slice with explicit ownership. Use this order:
+
+1. **Move from automation to decision support.** Let the AI prepare a draft, extract evidence, or surface a recommendation. Keep the final action with a named operator while the team learns the boundary.
+2. **Write the task contract.** State the input, intended result, exclusions, stop conditions, and acceptable uncertainty. If the team cannot write this, the task is not ready for autonomous action.
+3. **Capture exceptions as actions.** “Handle edge cases” is not a rule. For each known exception, state whether the workflow continues, asks for information, routes to a person, or stops.
+4. **Name the source of truth.** Record which system or document has authority, how conflicts are resolved, and what evidence must accompany the output. GDS guidance makes the same underlying point about preserving decision context for teams after the original contributors are gone. [The GDS Way](https://gds-way.digital.cabinet-office.gov.uk/standards/architecture-decisions.html) recommends recording the reasoning behind choices so later teams can act with the missing context.
+5. **Assign four roles.** Name the primary operator, backup operator, reviewer, and escalation owner. One person may hold more than one role in a small team, but the roles must still be visible.
+6. **Repeat the handoff test.** Use the same ordinary case and exception. Do not change the test because the first run was uncomfortable.
+
+The Department of Energy describes a similar continuity repair for operational work: document the requirements needed for continuous operations and cross-train competent employees when staffing changes are a risk. [Its lessons-learned account](https://www.energy.gov/cmei/femp/articles/award-winning-federal-energy-and-water-management-champions-share-experience-and) is not an AI study, but the operational lesson transfers cleanly. A system cannot remain usable if its operating knowledge leaves with one person.
+
+## What counts as verification
+
+The opportunity is ready for a bounded pilot when the backup operator can do four things without live intervention from the best operator:
+
+| Verification | Pass condition |
+| --- | --- |
+| Run the normal case | The backup completes the intended workflow slice. |
+| Reject or escalate an exception | The backup can identify the exception and choose the documented next action. |
+| Check authority | The backup can name the authoritative source and explain what the AI is allowed to do. |
+| Judge the result | The backup can approve, reject, or request revision using the written acceptance rule. |
+
+This is a practical release gate, not a universal standard. It is deliberately stricter for workflows that update records, send commitments, or make consequential decisions. For low-risk drafting, a general review rubric may be enough, provided someone owns the review and the output is not treated as an approved action.
+
+The UK transition guidance also recommends controlled verification and a readiness review before a solution is formally handed over. That is the right shape for an AI pilot: test the operating handoff before declaring that the prototype works.
+
+## When the diagnosis is wrong
+
+Operator absence is not always a blocker.
+
+- **Low-risk drafting:** If a person can review the result against a clear rubric and errors are cheap to reverse, the best operator may not be needed for every run.
+- **Stable, deterministic work:** If the process is already explicit, the source of truth is clear, and exceptions are rare and documented, the operator may be replaceable without a discovery phase.
+- **A deliberate expert service:** Sometimes the value depends on the expert and should stay that way. AI can prepare the case for the expert instead of pretending to replace the expertise.
+
+The exception is not “the model is accurate enough.” The exception is that the workflow has a safe review and recovery path that does not require one unavailable person.
+
+## The decision to make now
+
+If the best operator is unavailable and the backup cannot define intent, handle an exception, identify authority, or judge the result, stop treating the opportunity as an automation candidate. Treat it as an observation or decision-support candidate until the handoff test passes.
+
+Use the [AI use-case prioritization guide](/blog/how-to-prioritize-ai-use-cases-in-a-small-business) to compare its value with other opportunities. If the dependency spans several teams, the next useful question is [why an AI prototype fails when a workflow has multiple owners](/blog/why-ai-prototypes-fail-when-workflow-has-multiple-owners). If your team wants help running the trace as a working session, [Marius Manolachi’s AI learning work](https://mariusmanolachi.com/learn-ai) is the relevant next step. Bring one workflow, one ordinary case, and one exception.
