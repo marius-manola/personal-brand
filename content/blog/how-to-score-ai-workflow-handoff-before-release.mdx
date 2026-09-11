@@ -1,0 +1,140 @@
+---
+title: "How to Score an AI Workflow Handoff Before Release"
+date: "2026-09-11"
+updated: "2026-09-11"
+excerpt: "Use this eight-check handoff scorecard to decide whether an AI workflow boundary is ready for release or still missing state, ownership, and outcome evidence."
+answer: "Score an AI workflow handoff as its own release boundary: verify the transfer event, objective, current state, constraints, owner, next action, open questions, receiver acceptance, and final outcome. Release at 7 of 8 checks with no veto failure. If the workflow has no handoff or downstream action, a worker-only eval can be enough."
+targetQuery: "how to score an ai workflow handoff before release"
+queryAliases:
+  - "AI workflow handoff scorecard"
+  - "how to tell if an AI handoff is release ready"
+  - "what should an AI workflow handoff test check"
+intent: "decision"
+funnel: "consideration"
+cluster: "evaluation"
+parent: "/blog/ai-evaluation-pillar"
+contentType: "decision-tool"
+kind: "satellite"
+sourceableAtom: "A reproducible handoff coverage scorecard with eight boundary checks, veto conditions, and a 7/8 release threshold for deciding when passing local tests are not enough."
+evidenceType: "reproducible decision artifact"
+evidenceBasis: "A scorecard that can be rerun against a frozen handoff case using the transfer event, crossed context, receiver input, and final task state, with an explicit worked logic case and limitations documented in research.md."
+tags:
+  - "AI evaluation"
+  - "AI workflows"
+  - "Handoffs"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents"
+  - "https://openai.github.io/openai-agents-python/testing/"
+  - "https://openai.github.io/openai-agents-python/handoffs/"
+  - "https://github.com/microsoft/ai-agent-eval-scenario-library/blob/main/capability-scenarios/graceful-failure-and-escalation.md"
+  - "https://handover.sh/benchmark"
+  - "https://mariusmanolachi.com/learn-ai"
+cover: "/blog/how-to-score-ai-workflow-handoff-before-release-handoff-coverage-hero.webp"
+coverAlt: "Illustration of an AI test suite passing while a handoff loses state, ownership, and the next action"
+draft: false
+---
+
+The sender returns the expected object. The receiver accepts the object. The workflow still stops because nobody checked what had to cross the boundary.
+
+That boundary is where state, authority, ownership, and unfinished decisions become someone else's problem. The local tests can all be green while the handoff is unusable.
+
+Use this scoring rule: a workflow handoff is not ready for release when its tests prove local outputs but cannot prove the current state, relevant constraints, owner, next action, unresolved questions, and final outcome. Score the boundary separately.
+
+## Score the boundary separately
+
+A handoff is not just a successful function call. It is a transfer of control that must leave the next worker able to continue the same task safely.
+
+[Anthropic's evaluation guidance](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents) separates the transcript of a trial from its outcome in the environment. A final message can say that work is complete while the actual state remains unchanged. The same distinction applies one step earlier: a sender can produce valid handoff-shaped data while the receiver still lacks what it needs to act.
+
+The OpenAI Agents SDK represents a handoff as a tool. Its documentation also separates model-generated handoff metadata from application state and filtered conversation history ([OpenAI's handoff documentation](https://openai.github.io/openai-agents-python/handoffs/)). Those are different failure surfaces:
+
+- The wrong destination can be selected.
+- The right destination can receive the wrong or incomplete payload.
+- A history filter can remove a constraint or prior decision.
+- The receiver can produce a valid response without changing the required downstream state.
+
+That is why a sender test and a receiver test are necessary but not sufficient. They test two local surfaces. The handoff test must test the seam.
+
+## Handoff coverage scorecard
+
+Score each row only when an observable record proves it. A plausible response earns no point by itself.
+
+| Boundary check | Pass evidence | Veto |
+| --- | --- | --- |
+| Handoff event and destination | The expected handoff or escalation occurred, and the destination is recorded. | Yes |
+| Objective and acceptance condition | The receiver can tell what “done” means for this case. | No |
+| Current state | The record says what is complete, pending, blocked, or changed. | Yes |
+| Decisions, evidence, and constraints | Relevant source evidence, approvals, authority, and forbidden actions crossed with the work. | Yes when relevant information is missing |
+| Owner and next action | One owner and one actionable continuation step are explicit. | Yes |
+| Open questions and escalation route | Unresolved ambiguity is preserved, or the case proves there is none and defines the route for resolution. | Yes when ambiguity exists |
+| Receiver acceptance | The receiving worker can parse and use the handoff without silently changing authority or scope. | No |
+| Final outcome | The downstream state, deliverable, approval, or escalation result is checked after the receiver acts. | Yes |
+
+Apply this release rule:
+
+- **Ready:** 7 or 8 checks pass and no veto fails.
+- **Repair:** 5 or 6 checks pass and no veto fails.
+- **Fail:** 0 to 4 checks pass, or any veto fails.
+
+“No open question” is a pass only when the fixture explicitly proves that no unresolved ambiguity exists. If a check does not apply, record why instead of silently removing it from the denominator.
+
+This scorecard is the article's reusable artifact. It is a release heuristic, not an industry standard or a measured benchmark.
+
+![Illustration of a handoff coverage scorecard separating local test passes from boundary evidence and final outcome](/blog/how-to-score-ai-workflow-handoff-before-release-handoff-scorecard-boundary.webp)
+
+## How to score a handoff before release
+
+Run one boundary case with the production wiring intact, then inspect what crossed the seam and what changed after the receiver acted.
+
+1. **Freeze the case.** Record the model and version, prompts, tools, permissions, retrieval or memory settings, environment, and code revision. Anthropic describes the evaluation harness as the infrastructure that runs tasks, tools, recording, and grading end to end. Without that context, a pass is hard to interpret.
+
+2. **Keep the real orchestration path.** Do not call the sender and receiver as isolated Python functions if production invokes a tool or handoff. The [OpenAI Agents SDK testing guide](https://openai.github.io/openai-agents-python/testing/) shows this pattern with a scripted model: the tool pipeline runs between model calls, then the test asserts the final output and recorded calls.
+
+3. **Capture the seam.** Save the handoff event, destination, payload, input filter, forwarded history, and receiver input. In the OpenAI SDK, `input_type` validates arguments to the handoff call, while application state and history filtering use separate mechanisms. Test each one you rely on.
+
+4. **Assert continuation, not just syntax.** Check current state, decisions, evidence, constraints, owner, next action, and open questions. A schema-valid record can still leave the receiver unable to decide what to do next.
+
+5. **Verify the downstream result.** Inspect the source of truth after the receiver acts. That may be a record, file, approval, ticket, message, or explicit escalation event. A final answer is evidence about the result, not proof of the result.
+
+6. **Repeat the case.** Model behavior varies across trials. Keep the case, configuration, and grader versions fixed enough that a changed decision means something. Use a deterministic check for exact state, a model grader for bounded language quality, and human review where ambiguity or consequence requires calibration. Anthropic describes these grader types as complementary rather than interchangeable.
+
+The goal is not to force every handoff through a human reviewer. The goal is to give every acceptance condition a valid sensor.
+
+## Failure modes local tests miss at handoff
+
+The quickest diagnosis is to compare what each local test proves with what the workflow needs after transfer.
+
+| What passes locally | What fails at the boundary | Missing evidence |
+| --- | --- | --- |
+| Sender emits valid JSON | The handoff never triggers for a case that requires escalation | Handoff event and destination |
+| Receiver accepts the schema | The receiver cannot tell what is current or still blocked | Current state |
+| Both workers mention the right facts | An approval or forbidden action is not carried forward | Authority and constraints |
+| Receiver writes a clear next step | Nobody owns that step, so the task waits | Owner and continuation action |
+| The answer looks complete | An unresolved conflict is silently converted into a decision | Open question and escalation route |
+| Receiver returns “done” | The underlying record or approval is unchanged | Final outcome |
+
+Microsoft's graceful-failure scenarios make the same boundary visible from the escalation side. They test explicit handoff requests, conditions that require human judgment, a handoff capability call, and clear communication about what happens next ([Microsoft's agent evaluation scenario](https://github.com/microsoft/ai-agent-eval-scenario-library/blob/main/capability-scenarios/graceful-failure-and-escalation.md)). A keyword such as “transferring you” is useful, but it is not enough if no transfer event or receiving owner exists.
+
+Handover's pilot offers a helpful field list for structured continuation records: objective, current state, decisions, evidence, constraints, next action, owner, and open questions ([Handover's benchmark method](https://handover.sh/benchmark)). Treat its pilot scores as its own authored result, not as a universal ranking. The useful lesson for this decision tool is that continuation-critical information needs explicit fields.
+
+## What the worked decision looks like
+
+Suppose a sender test passes and a receiver test passes in isolation. The boundary record proves the handoff event, objective, current state, and evidence. It does not name an owner or next action, it drops an unresolved question, and it never checks the final downstream state.
+
+The score is 5/8. The decision is **Fail**, because owner and next action, open-question handling, and final outcome are veto conditions. The local passes remain useful evidence about the workers. They do not become evidence that the workflow completed its job.
+
+This is a logic example for reproducing the scorecard, not a claim about a production system. To run it on your workflow, replace each abstract condition with the recorded event, payload, receiver input, and final-state assertion from one frozen case.
+
+At a handoff, “done” must describe the state the receiver can safely continue from and the result the workflow must verify. That is the same capability boundary reflected in [Marius Manolachi's AI implementation work](https://mariusmanolachi.com/learn-ai), where the team is expected to run and improve a working workflow.
+
+## When a worker-only eval is enough
+
+A worker-only eval is enough when the task has no handoff, no downstream state change, no authority transfer, and no decision that another worker must continue. A purely informational response with no consequential action can often stop at response-level checks.
+
+The exception is narrower than it sounds. If a user will approve, send, purchase, publish, modify, or escalate something based on the answer, the downstream task is part of the outcome even when the AI system itself stays read-only.
+
+This is the handoff-specific decision tool in the [AI evaluation pillar](/blog/ai-evaluation-pillar). If you need the broader release gate, use [the AI agent evaluation guide](/blog/how-to-evaluate-an-ai-agent). If you need implementation cases for a multi-agent boundary, use [the multi-agent handoff test plan](/blog/test-multi-agent-handoffs). If your issue is broader user correction rather than a specific handoff seam, compare it with [the guide to evals that pass while users still fail](/blog/why-do-ai-evals-pass-while-users-still-fail). This page's job is narrower: decide whether the boundary itself has passed.
+
+The next practical move is simple. Pick one test case that currently passes, run it through the real handoff path, and fill in all eight rows. If a veto is blank, the workflow has not passed yet. It has found its next repair.
