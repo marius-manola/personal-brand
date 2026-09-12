@@ -1,0 +1,165 @@
+---
+title: "How to Write a Capability-Transfer Requirement Into an AI Engagement"
+date: "2026-09-12"
+updated: "2026-09-12"
+excerpt: "Replace ‘knowledge transfer included’ with a clause, acceptance matrix, and five tests for independent ownership of an AI workflow."
+answer: "Write capability transfer as an acceptance requirement, not a training deliverable. Name the internal owner, the bounded workflow, the evidence they must produce, the exception they must diagnose, and the monitoring and support controls they must own. Require an independent reviewer to sign off after the owner passes the exercise. The exception is a low-risk draft-only workflow where every output remains human-reviewed."
+targetQuery: "how to write a capability-transfer requirement into an ai engagement"
+queryAliases:
+  - "how to specify capability transfer in an ai sow"
+  - "ai engagement capability transfer acceptance criteria"
+  - "copy-paste capability transfer clause for ai consulting"
+intent: "commercial / implementation"
+funnel: "consideration"
+cluster: "commercial"
+parent: "/blog/ai-commercial-pillar"
+contentType: "implementation-lab"
+kind: "satellite"
+sourceableAtom: "A copy-paste capability-transfer clause, role-to-task acceptance matrix, five-part test packet, independent sign-off rule, and recorded seeded-failure exercise for a bounded AI workflow."
+evidenceType: "worked commercial requirement artifact plus reproducible capability-transfer acceptance exercise, bounded by a qualitative firsthand observation tied to F-pms"
+evidenceBasis: "Public-source procurement exercise recorded on 2026-08-23: one author-run dry run using UK AI procurement guidance and NIST AI RMF excerpts, with anonymized task instructions, rubric, output, seeded failure, repair, and limits."
+tags:
+  - "AI consulting"
+  - "AI procurement"
+  - "Capability transfer"
+  - "AI implementation"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://www.gov.uk/government/publications/guidelines-for-ai-procurement/guidelines-for-ai-procurement"
+  - "https://airc.nist.gov/airmf-resources/airmf/5-sec-core/"
+  - "https://nvlpubs.nist.gov/nistpubs/ai/nist.ai.100-1.pdf"
+  - "https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ai/plan"
+  - "https://www.gao.gov/products/gao-26-107859"
+faq:
+  - q: "Is training attendance evidence of capability transfer?"
+    a: "No. Attendance proves exposure. Capability transfer should be accepted only after the named owner independently reproduces the workflow, changes one requirement, diagnoses a seeded failure, verifies an output, and identifies the operating controls."
+  - q: "Who should sign off capability transfer in an AI engagement?"
+    a: "A reviewer who did not author the implementation and did not coach the owner during the acceptance run. The reviewer records pass, conditional pass with a dated remediation, or fail for each required test."
+  - q: "Does every AI engagement need this full acceptance exercise?"
+    a: "No. Scale the packet to the workflow’s risk and boundary. A read-only draft workflow can use a smaller rubric. A workflow that changes records, sends messages, or influences high-stakes decisions needs stronger source-of-truth checks, escalation, and independent review."
+cover: "/blog/how-to-write-a-capability-transfer-requirement-into-an-ai-engagement-capability-transfer-hero.webp"
+coverAlt: "Illustration of a buyer turning an AI engagement handoff into an acceptance test for independent workflow ownership"
+draft: false
+---
+
+When I taught product managers who went from writing specs to building and shipping the product, the recurring failure was not a model problem. It was that nobody could say what “done” meant. [Observed, F-pms]
+
+“Knowledge transfer included” has the same weakness. It describes an activity. It does not describe what the buyer can accept. [Inferred, I-01]
+
+![Illustration of a capability-transfer clause connected to roles, evidence, and acceptance tests](/blog/how-to-write-a-capability-transfer-requirement-into-an-ai-engagement-capability-transfer-clause-matrix.webp)
+
+## What should the requirement actually promise?
+
+Promise independent operation of one bounded workflow, with evidence. Do not promise a number of workshops, hours of training, or a folder of documentation. [Inferred, based on C-01 through C-05]
+
+The UK government’s AI procurement guidance tells buyers to use output-based requirements, include knowledge transfer and training, plan lifecycle testing, and arrange ongoing support. [Sourced, C-01](https://www.gov.uk/government/publications/guidelines-for-ai-procurement/guidelines-for-ai-procurement) NIST’s AI Risk Management Framework adds the operational pieces: defined roles, operator proficiency, human oversight, documented test sets, independent review, monitoring, and response or recovery controls. [Sourced, C-02 and C-03](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/)
+
+That combination gives you the shape of a useful requirement:
+
+- a named internal owner;
+- one bounded workflow and its boundaries;
+- five observable tasks;
+- evidence for each task;
+- a reviewer who is independent of the implementation;
+- a decision rule for pass, remediation, or rejection.
+
+Here is the clause I would put in an RFP, SOW, or milestone schedule. [Proposed, P-01]
+
+> **Capability transfer and independent operation.** The supplier shall transfer the capability to operate, inspect, modify, evaluate, and support the bounded AI workflow described in Schedule [X] to the named internal owner, [role]. The supplier shall provide the owner with the current workflow definition, inputs and outputs, configuration and prompt or rule versions, source-of-truth locations, known limitations, exception paths, monitoring instructions, escalation contacts, support procedure, and a reproducible test packet. Before milestone acceptance, the named owner shall independently: (1) reproduce one ordinary run from the supplied materials; (2) apply one stated requirement change and show the resulting output and version change; (3) diagnose and correct one seeded failure; (4) verify one output against the agreed rubric and the relevant source of truth; and (5) identify the monitoring signal, escalation threshold, rollback or pause action, and support owner for the workflow. The supplier may answer clarification questions about access or safety, but may not perform the acceptance run or coach the owner through the expected answer. A reviewer independent of the implementation author shall record pass, conditional pass with a dated remediation, or fail for each test. The milestone is not accepted until all mandatory tests pass or the buyer records an explicit risk acceptance. Attendance, documentation delivery, or a successful demonstration alone is not evidence of capability transfer.
+
+The clause is proposed commercial language. It is not legal advice, and it should be reviewed with procurement, security, legal, and operations owners. [Proposed, P-01]
+
+## Which tasks belong in the acceptance test?
+
+Assign the work to roles, then name the evidence that proves each role can perform it. [Proposed, P-01]
+
+| Role | Acceptance task | Evidence | Veto condition |
+| --- | --- | --- | --- |
+| Named internal workflow owner | Reproduce the ordinary run | Run ID, input reference, output, and step explanation | Supplier must take over the run |
+| Named internal workflow owner | Change one requirement | New requirement, version, before and after output, impact note | The owner cannot explain what changed |
+| Named internal workflow owner | Diagnose a seeded failure | Symptom, boundary, test or log, correction, retest | The owner names only a vague “quality issue” |
+| Named internal workflow owner | Verify the result | Rubric with field-level pass or fail and source-of-truth check | Fluent output is accepted without evidence |
+| Operations or service owner | Monitor and escalate | Signal, cadence, threshold, route, pause or rollback action | No one is named when performance or access changes |
+| Independent reviewer | Decide acceptance | Completed rubric, evidence links, decision, date, limits | Reviewer authored or coached the implementation |
+
+Microsoft’s AI adoption guidance treats skills, data readiness, focused proof-of-concept work, documented lessons, and clear success criteria as planning inputs. [Sourced and attributed, C-04](https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ai/plan) The matrix turns those planning ideas into a commercial handoff test. It also keeps the scope small enough to run before sign-off.
+
+Use the buyer’s real workflow if it is safe and available. If not, use a public or consenting workflow with the same input, output, exception, and ownership shape. Do not let a synthetic happy path stand in for the acceptance evidence. [Inferred, I-01]
+
+## How do you run the five-part test packet?
+
+Run the packet without supplier coaching. The owner can ask for access or safety clarification, but the owner should have to make the operational decisions. [Proposed, P-01]
+
+1. **Reproduce the ordinary case.** Give the owner the runbook, configuration or prompt versions, input references, and output contract. Ask for one complete run and a short explanation of each step.
+2. **Change one requirement.** Change one explicit condition, such as review cadence. Require the owner to update the version, output, and acceptance evidence without silently expanding the scope.
+3. **Diagnose a seeded failure.** Provide an output that looks complete but omits a required check. The owner must name the missing assertion, identify where it should be enforced, repair the workflow or runbook, and rerun the check.
+4. **Verify the output.** Score the result against a rubric. Check source references, not just prose quality. For a workflow that changes a record, inspect the record. For a read-only workflow, verify that every required evidence location resolves.
+5. **Name the operating controls.** The owner must state what is monitored, how often it is reviewed, what triggers escalation, who can pause or roll back the workflow, and who supports it after the supplier leaves.
+
+The acceptance test is complete only when the reviewer can follow the evidence without reconstructing the supplier’s intent. [Proposed, P-01]
+
+![Illustration of a five-part capability-transfer acceptance exercise with a seeded failure and independent sign-off](/blog/how-to-write-a-capability-transfer-requirement-into-an-ai-engagement-capability-transfer-test-packet.webp)
+
+## What did one dry run reveal?
+
+In one author-run teaching exercise on 2026-08-23, the packet passed reproduction, the requirement change, output verification, and control identification. It initially failed the seeded-failure diagnosis. [Observed, O-01]
+
+The bounded workflow turned a public procurement guidance excerpt into a supplier-ready requirement record. The seeded output named a successful draft but omitted the source-of-truth verification step. My first diagnosis called it a “quality issue.” That was too vague. The repair named the missing assertion, added the evidence-location check, and passed the rubric on the second attempt. [Observed, O-01]
+
+| Test | Result in the dry run | What the record contained |
+| --- | --- | --- |
+| Reproduce | Pass | Bounded requirement from public source excerpts |
+| Change one requirement | Pass | Weekly review changed to monthly, with version and monitoring note updated |
+| Diagnose seeded failure | Fail, then repaired | Missing source-of-truth assertion named and retested |
+| Verify output | Pass | Rubric caught the missing check |
+| Identify controls | Pass | Monitoring, escalation, pause action, and support owner role |
+
+This is not a transfer rate, benchmark, client result, or multi-person study. It is one observed run that shows why the failure test belongs in the requirement. [Observed, O-01]
+
+GAO’s 2026 review of 13 federal AI acquisitions found that selected agencies were not systematically collecting acquisition lessons and recommended processes for capturing lessons about contract clauses and testing requirements. [Sourced, C-05](https://www.gao.gov/products/gao-26-107859) Retain the acceptance record, including failure notes and limits, so the next engagement starts with evidence rather than a new promise.
+
+## When should a buyer reject the handoff?
+
+Reject or delay sign-off when the named owner can demonstrate the happy path but cannot change, diagnose, verify, or operate the workflow. [Inferred, I-01]
+
+Use these vetoes:
+
+- the workflow can run only when the supplier is present;
+- a requirement changed but no version or impact record exists;
+- the owner sees a bad output but cannot identify the missing check;
+- the rubric measures prose but not the source of truth;
+- no one can say who receives an escalation;
+- monitoring exists as a dashboard but has no threshold or action;
+- support ends with the supplier’s final workshop;
+- the reviewer is also the implementation author.
+
+For low-risk, read-only drafting, you can shrink the packet. Keep reproduction, one change, verification, and a named support path. For workflows that send messages, update records, or influence high-stakes decisions, keep the full packet and add the relevant permission, audit, rollback, and human-review controls. [Inferred, I-01, informed by C-02]
+
+The parent guide on [AI commercial decisions](/blog/ai-commercial-pillar) gives this requirement a place in the broader buying sequence. If you are comparing suppliers first, use [How to Compare AI Consulting Proposals](/blog/how-to-compare-ai-consulting-proposals). If your team is still defining what “done” means for an AI product, see [Why Do Product Managers Struggle to Ship AI Products](/blog/why-do-product-managers-struggle-to-ship-ai-products).
+
+## What should be in the final sign-off record?
+
+Keep one page that another reviewer can audit later. [Proposed, P-01]
+
+```text
+Workflow and version:
+Named internal owner:
+Independent reviewer:
+Inputs and source-of-truth locations:
+Ordinary-run evidence:
+Requirement-change evidence:
+Seeded-failure diagnosis and retest:
+Output rubric and source check:
+Monitoring signal and review cadence:
+Escalation threshold and route:
+Pause, rollback, or safe fallback:
+Support owner and post-engagement procedure:
+Decision: pass / conditional pass / fail
+Unresolved limits and risk acceptance:
+Date and next review:
+```
+
+The goal is not to make every buyer run a large evaluation program. It is to make the word “transfer” carry a testable obligation. A workshop can still be useful. It just cannot be the proof.
+
+If you are drafting an AI engagement now, replace the phrase “knowledge transfer included” with the clause, assign the owner, and schedule the five tests before the final milestone. That is the smallest change that makes capability transfer part of the deal.
