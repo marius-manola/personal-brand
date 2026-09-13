@@ -1,0 +1,151 @@
+---
+title: "How to Practice Deciding When an AI Output Needs Human Investigation"
+date: "2026-09-13"
+updated: "2026-09-13"
+excerpt: "A short six-case lab for deciding when to accept, investigate, escalate, or reject an AI output before it enters real work."
+answer: "Practice with fixed, source-grounded cases and decide from intended use, failure cost, evidence, and reviewer authority. Accept only a low-consequence output that matches its source. Investigate omissions or subtle mismatches, reject unsupported claims, and escalate conflicting or high-impact cases to a qualified reviewer. Confidence, fluency, and a citation are never sufficient on their own."
+targetQuery: "how to practice deciding when an ai output needs human investigation"
+queryAliases:
+  - "how to practice checking ai outputs"
+  - "when should a human investigate an ai answer"
+  - "ai output investigation practice"
+intent: "informational implementation lab"
+funnel: "capability"
+cluster: "capability"
+parent: "/blog/ai-capability-building"
+contentType: "implementation-lab"
+kind: "satellite"
+sourceableAtom: "A frozen six-case decision lab with raw outputs, source excerpts, an answer key, a decision log, an annotated failure reproduction, and a transfer case."
+evidenceType: "learning-exercise plus worked decision artifact"
+evidenceBasis: "Frozen on 2026-08-23 from a dated GPT-5/Codex generation pass and checked against OpenAI, NIST, ICO, UK Government, and CHI primary sources."
+tags:
+  - "AI capability"
+  - "human review"
+  - "AI evaluation"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://help.openai.com/en/articles/8313428-accuracy-and-reliability"
+  - "https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.600-1.pdf"
+  - "https://ico.org.uk/for-organisations/advice-and-services/audits/data-protection-audit-framework/toolkits/artificial-intelligence/human-review/"
+  - "https://www.gov.uk/government/publications/data-ethics-framework/data-and-ai-ethics-framework"
+  - "https://doi.org/10.1145/3613904.3642497"
+  - "https://arxiv.org/abs/2309.10947"
+faq:
+  - q: "Should every AI output be investigated?"
+    a: "No. Accept a low-consequence output only when its intended use is bounded and it matches an available source. Investigate when the cost, evidence gap, mismatch, conflict, or reviewer boundary changes the decision."
+  - q: "Is a citation enough to trust an AI answer?"
+    a: "No. OpenAI explicitly warns that confidence is not reliability and recommends checking important data, technical information, quotes, and references against the source."
+cover: "/blog/how-to-practice-deciding-when-an-ai-output-needs-human-investigation-ai-investigation-lab-hero.webp"
+coverAlt: "Illustration of a professional deciding whether an AI output needs human investigation"
+draft: false
+---
+
+When I taught product managers to build and ship instead of stopping at specifications, the hard part was often not the model. It was agreeing what “done” meant. The same problem appears in AI review: people hear “check the answer” but lack a shared decision.
+
+I built the following lab to make that decision visible. It ends with four possible actions: accept, investigate, escalate, or reject.
+
+![Illustration of a professional sorting AI outputs into accept, investigate, escalate, and reject decisions](/blog/how-to-practice-deciding-when-an-ai-output-needs-human-investigation-ai-investigation-lab-hero.webp)
+
+## What should decide whether an AI output needs investigation?
+
+Investigate when the intended use, failure cost, available evidence, output mismatch, conflicting sources, or reviewer authority makes acceptance unsafe. Accept only when the use is bounded, the consequence is low, and the output matches a source you can check. Escalate when the decision exceeds your authority. Reject when the output is unsupported or directly contradicted.
+
+This rule follows the evidence, not the tone. OpenAI warns that confidence is not reliability and says important data, technical information, quotes, and references should be checked. NIST defines risk through likelihood and consequence magnitude, while the UK Government framework says people remain responsible for decisions supported by AI and should verify LLM outputs for incorrect information and bias. ([OpenAI](https://help.openai.com/en/articles/8313428-accuracy-and-reliability), [NIST](https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.600-1.pdf), [UK Government](https://www.gov.uk/government/publications/data-ethics-framework/data-and-ai-ethics-framework))
+
+### The frozen lab answer key
+
+| Case condition | Expected action | Why |
+| --- | --- | --- |
+| Low consequence, direct source match | Accept | The use is bounded and checkable. |
+| Incomplete output | Investigate | A missing control can change how the work operates. |
+| Fluent unsupported claim | Reject | The central claim has no support and conflicts with the source. |
+| Source-grounded subtle mismatch | Investigate | The source is present, but the output narrows or distorts it. |
+| Conflicting evidence | Escalate | A policy owner must reconcile scope and authority. |
+| High-impact use | Human sign-off | A qualified reviewer must own the final boundary. |
+
+This is an artifact, not a learner study. I did not collect performance statistics.
+
+## How do you run the investigation-decision lab?
+
+Use one fixed work sample, one dated model configuration, and the same answer key every time.
+
+1. Freeze the six prompts and source excerpts below.
+2. Run each prompt without web retrieval or other tools in the generation pass.
+3. Record the raw output before editing it.
+4. Complete the decision log without looking at the answer key.
+5. Compare your verdict and reason with the key.
+6. Run the transfer case on an unfamiliar workflow.
+
+The published fixture was run on 2026-08-23 with GPT-5 through the Codex runtime, one generation pass, no web search or external tool calls, and no exposed temperature or seed. A rerun may change wording. Reproducibility here means preserving the prompt, source excerpt, configuration, and decision criteria, not expecting identical text.
+
+## What does each case teach you to notice?
+
+The table preserves the prompt, raw output, source-of-truth excerpt, consequence, and expected action. Read the raw output first. Then make your own decision.
+
+| Case | Prompt | Raw output | Source-of-truth excerpt | Consequence | Expected action |
+| --- | --- | --- | --- | --- | --- |
+| 1. Low consequence | “Using this GOV.UK excerpt, give three bullets explaining data minimisation.” | “Use only the information needed. Map the data flow. Record why each element is necessary and proportionate.” | GOV.UK asks teams to establish what is needed, map the flow, and record necessity and proportionality. | A low-stakes training note may need a correction. | **Accept**, because it directly matches the supplied excerpt and stays within a bounded use. |
+| 2. Incomplete | “Turn the ICO human-review guidance into a checklist.” | “Assess where review is appropriate. Document criteria, sampling, accuracy, tolerances. Log overrides and report results.” | ICO also expects reviewer knowledge, authority, independence, training, manageable caseloads, standard procedures, and fallback options. | A team could create a review process with no meaningful authority or capacity. | **Investigate and repair** before use. |
+| 3. Fluent and unsupported | “Can a confident AI answer be accepted without checking if it includes a citation?” | “Yes. A citation and confident wording are strong signals that the answer is reliable, so a human check is unnecessary unless the topic is controversial.” | OpenAI says confidence is not reliability and advises checking important information and references. | A false claim or fabricated citation may enter a work product. | **Reject**. The central rule is unsupported and contradicted. |
+| 4. Subtle mismatch | “Summarise NIST’s definition of confabulation and the review implication.” | “Confabulation is a factual error that appears mainly in long-form text. It happens when a model invents facts, so checking facts is enough.” | NIST says confabulation can occur across outputs and contexts and can include misleading logic or citations. | A reviewer may check sentences but miss prompt divergence or false reasoning. | **Investigate and correct**. |
+| 5. Conflicting evidence | “Must a human always make the final decision whenever AI is used?” | “Yes. Human review must always make the final decision whenever AI is used, and any reviewer can approve after a quick check.” | GOV.UK focuses on significant effects; ICO requires meaningful review by qualified, independent reviewers where appropriate. | A team may write an overbroad policy and still permit weak review. | **Escalate** to the policy owner. |
+| 6. High impact | “Approve an LLM patient-summary pilot. The model is the final source, with spot checks.” | “Approved for pilot. Spot checks and clinician access make the use safe enough, so the model can remain the final source.” | NIST uses healthcare to illustrate the harm from confabulated summaries; GOV.UK calls for oversight and intervention in high-risk uses. | A false summary could affect clinical decisions. | **Do not approve. Require qualified human sign-off and a redesigned authority boundary.** |
+
+The table is deliberately uncomfortable: Case 4 contains a true idea, Case 5 cites two relevant authorities, and Case 6 sounds cautious. None is safe to accept.
+
+## What should a useful human-review log contain?
+
+A review log should explain the decision another person would otherwise have to guess. ICO guidance recommends logging human overrides and reasons. The UK framework also calls for records showing who made a decision and what evidence they used. ([ICO](https://ico.org.uk/for-organisations/advice-and-services/audits/data-protection-audit-framework/toolkits/artificial-intelligence/human-review/), [UK Government](https://www.gov.uk/government/publications/data-ethics-framework/data-and-ai-ethics-framework))
+
+```text
+Case or output ID:
+Intended use:
+Failure cost if wrong:
+Evidence available:
+Investigation trigger:
+Next check:
+Reviewer boundary:
+Verdict: accept / investigate / escalate / reject
+Reason:
+```
+
+Fill in “failure cost” before “verdict.” That order prevents a polished answer from setting its own review threshold. A reviewer boundary is equally important: if you cannot approve a policy, clinical action, payment, employment decision, or other consequential use, escalation is part of the correct answer.
+
+![Illustration of a blank AI output decision log with evidence and reviewer-boundary fields](/blog/how-to-practice-deciding-when-an-ai-output-needs-human-investigation-ai-investigation-decision-log.webp)
+
+## How do you reproduce a subtle AI failure instead of just discussing it?
+
+Use Case 4. It is a small failure with a clear repair.
+
+The raw output says confabulation is mainly a factual error in long-form text. Compare it with NIST’s wider definition. The first defect is scope: NIST says confabulations can occur across outputs and contexts. The second is mechanism: the risk includes divergence from the prompt and contradictory statements, not only invented facts. The third is review guidance: checking facts alone misses misleading logic and citations.
+
+The repair is a three-part check:
+
+1. **Scope:** Did the output preserve the source’s conditions and boundaries?
+2. **Process:** Did the model follow the prompt and avoid internal contradictions?
+3. **Provenance:** Can the important claims, citations, data, or steps be traced to the source?
+
+That last check is not decorative. Gu and colleagues describe AI-assisted analyses that can seem correct while leading to incorrect conclusions. Their CHI study reports analysts using procedures, code, visualisations, data tables, and provenance during verification. ([CHI paper](https://doi.org/10.1145/3613904.3642497), [open version](https://arxiv.org/abs/2309.10947))
+
+## Can the judgment transfer to a new workflow?
+
+Yes, if you transfer the reason rather than memorising the case label.
+
+Try this new case after the six examples:
+
+> An AI classifies a payroll correction as low risk because the amount is small. Accept the classification using NIST’s risk definition.
+
+The raw output is: “Accept. A small amount means the consequence is small, so the risk is low.”
+
+The expected action is **investigate**. Ask what payroll decision is affected, who could be harmed, how likely the error is, and who can approve the correction. [NIST’s risk definition](https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.600-1.pdf) is contextual. A small amount is a proxy, not a complete failure-cost analysis.
+
+If your reason is “the output uses a neat shortcut that the source does not authorize,” you transferred the judgment. If your reason is only “payroll is high risk,” you memorised a category.
+
+![Illustration of a professional testing an AI risk judgment on a new payroll scenario](/blog/how-to-practice-deciding-when-an-ai-output-needs-human-investigation-ai-investigation-transfer-case.webp)
+
+## What should you do with your result?
+
+Keep the completed log with the work sample. In a team, compare reasons, not just verdicts. A disagreement about “investigate” versus “accept” often exposes an unstated intended use or reviewer boundary.
+
+For a next exercise, use the [AI capability-building parent page](/blog/ai-capability-building) and then compare this lab with the site’s [human-review rehearsal](/blog/how-to-build-a-human-review-rehearsal-for-an-ai-workflow). If you need a guided capability program, Marius Manolachi helps existing people learn to build AI products on their own work through [AI consulting and tutoring](/learn-ai). The artifact is complete without that next step.
