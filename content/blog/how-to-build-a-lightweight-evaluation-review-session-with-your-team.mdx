@@ -1,0 +1,152 @@
+---
+title: "How to Build a Lightweight Evaluation Review Session With Your Team"
+date: "2026-09-14"
+updated: "2026-09-14"
+excerpt: "Run a 45-minute AI evaluation review with three cases, shared evidence, and an explicit SHIP or HOLD decision your team can defend."
+answer: "Build a 45-minute session around one workflow and three cases: a normal case, an ambiguous case, and a boundary case. Give reviewers the same evidence sheet, score silently before discussion, then record unresolved risks, owners, and a SHIP, HOLD, or REWORK decision. Keep the session lightweight, but do not skip human review for high-impact or disputed cases."
+targetQuery: "How to build a lightweight evaluation review session with your team"
+queryAliases:
+  - "how to run a lightweight AI evaluation review"
+  - "team evaluation review session"
+  - "AI eval review meeting agenda"
+intent: "implementation"
+funnel: "consideration"
+cluster: "evaluation"
+parent: "/blog/ai-evaluation-pillar"
+contentType: "implementation-lab"
+kind: "satellite"
+sourceableAtom: "A 45-minute review-session packet with three case types and an explicit exit rule was locally validated as complete while returning HOLD for an unresolved ambiguous case."
+evidenceType: "artifact-validation"
+evidenceBasis: "A reusable review-session packet, exact JSON input, deterministic Node.js check, observed output, and limitations documented in research.md. No live team outcome is claimed."
+tags:
+  - "AI evaluation"
+  - "AI reliability"
+author: "Marius Manolachi"
+nextReviewAt: "2027-02-19"
+sources:
+  - "https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents"
+  - "https://developers.openai.com/api/docs/guides/evals"
+  - "https://learn.microsoft.com/en-us/agents/agent-evaluation/evaluation-checklist"
+  - "https://www.nist.gov/ai-measurement-and-evaluation"
+  - "https://airc.nist.gov/airmf-resources/airmf/5-sec-core/"
+  - "https://mariusmanolachi.com/learn-ai"
+faq:
+  - q: "How many cases should a lightweight evaluation review use?"
+    a: "Start with three cases that represent normal work, ambiguity, and a boundary or high-cost failure. Add cases from incidents or user corrections after the first session. The right number depends on risk and time, not a universal benchmark."
+  - q: "Should the team use an LLM judge in the review session?"
+    a: "Not by default. Use deterministic checks for observable conditions, a model grader for bounded language quality, and a human reviewer for ambiguous or high-impact judgment. If a model grader is present, compare it with human labels before trusting it."
+  - q: "What should happen when reviewers disagree?"
+    a: "Record the disagreement, name the missing evidence or decision owner, and leave the case at HOLD. Do not average away a disagreement on a critical boundary. Turn the unresolved case into the next test or requirement."
+cover: "/blog/how-to-build-a-lightweight-evaluation-review-session-with-your-team-evaluation-review-session-hero.webp"
+coverAlt: "Illustration of a small team reviewing three AI evaluation cases around a shared decision table"
+draft: false
+---
+
+I keep evaluation review sessions small because a large meeting can hide a missing decision. When I taught product managers who moved from writing specs to building and shipping, the recurring problem was often that nobody could say what done meant. That is the problem this session is designed to expose. ([Marius Manolachi's teaching practice](/learn-ai))
+
+The artifact is a 45-minute packet for one workflow and three cases. I validated its exit rule locally. All three rows were complete, but the session still returned `HOLD` because the ambiguous case remained unresolved.
+
+![Illustration of a small team reviewing three AI evaluation cases around a shared decision table](/blog/how-to-build-a-lightweight-evaluation-review-session-with-your-team-evaluation-review-evidence-sheet.webp)
+
+## Start with one workflow and three cases
+
+Choose one recurring AI workflow and bring three representative cases: normal work, ambiguous evidence, and a boundary or high-cost request. Do not review a whole product in one sitting. Review one decision surface the team can understand together.
+
+This shape follows the useful distinctions in Anthropic's evaluation guidance: a task has inputs and success criteria, a trial is one attempt, a grader checks part of the performance, and the outcome is the final state rather than the system's claim about it. ([Anthropic's evaluation definitions](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents))
+
+| Case | What it tests | What reviewers must decide |
+| --- | --- | --- |
+| Normal | The expected path | Did the workflow produce a usable result? |
+| Ambiguous | Missing or conflicting evidence | Did it expose uncertainty or invent a decision? |
+| Boundary | An out-of-scope or costly action | Did it refuse, escalate, or cross a human boundary? |
+
+The three cases are a starter configuration, not a research-backed sample-size rule. Add a real incident as soon as one appears. Microsoft also recommends expanding evaluation coverage across core behavior, robustness, architecture, and edge cases, and repeating runs when agent responses vary. ([Microsoft's agent evaluation checklist](https://learn.microsoft.com/en-us/agents/agent-evaluation/evaluation-checklist))
+
+## Use a 45-minute agenda that forces a decision
+
+Assign a facilitator, a domain owner, and a builder or evaluator. The facilitator protects the clock and records disagreements. The domain owner decides whether the work is usable. The builder explains what the system actually did. If one person fills all three roles, label that limitation in the notes.
+
+| Minutes | Activity | Output |
+| ---: | --- | --- |
+| 0-5 | State the workflow, source of truth, and human boundary | One-sentence success condition |
+| 5-12 | Review the three cases and expected outcomes | Shared case context |
+| 12-22 | Score silently, one row per reviewer and case | Independent judgments |
+| 22-35 | Compare disagreements and inspect the trace or final state | Evidence for each disputed row |
+| 35-42 | Decide SHIP, HOLD, or REWORK for each case | Decision and owner |
+| 42-45 | Read back blockers, next test, and review date | Written follow-up |
+
+Silent scoring comes before discussion so the loudest voice does not become the baseline. OpenAI's eval documentation separates the test-data schema from the testing criteria that determine correctness. Use the same separation in the meeting: agree on what the case contains before arguing about the output. ([OpenAI's eval guide](https://developers.openai.com/api/docs/guides/evals))
+
+## Give every reviewer the same evidence sheet
+
+Use one row per case. Keep the evidence fields separate from the verdict fields. This prevents a fluent answer from carrying a factual failure into a vague “mostly good” score.
+
+```text
+case_id:
+source_of_truth:
+expected_outcome:
+observed_outcome:
+evidence_checked:
+critical_risk: yes | no
+unresolved_question:
+decision: SHIP | HOLD | REWORK
+action_owner:
+next_test:
+review_date:
+```
+
+For an agent that changes state, inspect the resulting record, file, ticket, or approval. Inspect the trace when it explains how the result was reached. Anthropic distinguishes the transcript from the outcome for this reason. A convincing final message is not proof that the intended state exists. ([Anthropic's agent eval guidance](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents))
+
+Use the cheapest valid grader for each field:
+
+| Field | First grader | Human role |
+| --- | --- | --- |
+| Exact status, schema, file, or count | Deterministic check | Verify the check matches the work |
+| Tool choice, approval, or forbidden action | Trace assertion | Decide whether the rule is material |
+| Clarity or completeness | Bounded rubric | Calibrate the rubric on disputed cases |
+| Ambiguous or high-impact judgment | Human review | Own the decision |
+
+NIST treats evaluation as context-dependent and includes qualitative as well as quantitative methods. A lightweight session should therefore measure the property that matters for this workflow, not force every task into one score. ([NIST on AI measurement and evaluation](https://www.nist.gov/ai-measurement-and-evaluation))
+
+![Illustration of a shared AI evaluation evidence sheet separating observed outcome from team verdict](/blog/how-to-build-a-lightweight-evaluation-review-session-with-your-team-evaluation-review-exit-rule.webp)
+
+## Run the session in five moves
+
+1. **Name the source of truth.** Write down where the team will verify success. It might be a CRM record, a test result, a document field, or a human-approved draft.
+2. **Write the veto before looking at outputs.** Examples include an unauthorized action, an unresolved identity match, a missing approval, or an unsupported high-impact claim.
+3. **Score independently.** Each reviewer fills the same row before discussion. Use `unknown` when the evidence is insufficient rather than forcing a pass or fail.
+4. **Adjudicate the disagreement, not the average.** Ask which evidence would change the decision. If nobody can supply it, keep the case at HOLD and assign an owner.
+5. **Create the next case.** Turn the disagreement or failure into a saved evaluation case with the input, expected behavior, evidence, and decision rule.
+
+The point is not to make the meeting feel scientific. It is to make the team's judgment inspectable. NIST's AI Risk Management Framework calls for periodic review, clear roles, testing, and mechanisms to incorporate feedback into system design and implementation. ([NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/))
+
+## Close with an explicit exit rule
+
+Use `SHIP` only when every case has been reviewed, no critical veto is unresolved, every follow-up has an owner, and the domain owner accepts the outcome. Use `HOLD` when evidence is missing or a critical case is unresolved. Use `REWORK` when the team knows the needed change and can rerun the case.
+
+The local validation of the packet used one normal case, one ambiguous critical case, and one boundary case. It returned:
+
+| Cases reviewed | Complete | Blocker | Exit |
+| ---: | --- | --- | --- |
+| 3 | Yes | `ambiguous` remained unresolved | **HOLD** |
+
+The result is deliberately modest. It does not show that a real team agreed faster. It shows that the rule can distinguish “we filled every row” from “we have enough evidence to ship.” The exact check is only a few lines:
+
+```js
+const complete = reviews.length === packet.cases.length &&
+  reviews.every((review) => review.id && review.owner);
+const blockers = reviews.filter((review) =>
+  review.unresolved || !review.owner || review.outcome === "disagree"
+);
+const exit = complete && blockers.length === 0 ? "SHIP" : "HOLD";
+```
+
+Do not average away a critical disagreement. A numeric score can help compare ordinary cases, but it cannot cancel an approval bypass or an unresolved boundary. If you need a more complete release gate, use [the evaluation pillar](/blog/ai-evaluation-pillar) and [the AI agent evaluation guide](/blog/how-to-evaluate-an-ai-agent) for the surrounding system checks.
+
+## What this lightweight session cannot tell you
+
+It cannot establish production reliability from three cases. It cannot calibrate an LLM judge by itself. It cannot replace domain review where the consequence of a wrong decision is high. It also cannot tell you whether the workflow is valuable, only whether the selected cases meet the agreed conditions.
+
+After the first session, keep the packet and add cases from incidents, user corrections, and model or tool changes. Compare the same cases across versions, then schedule another review when the workflow changes. If you want to practice the judgment at the output level first, use [the rubric exercise](/blog/how-to-grade-an-ai-output-against-a-rubric). The team session is the bridge from individual scoring to shared ownership.
+
+If the team cannot agree on the source of truth or the human boundary, stop there. That is not a facilitation problem. It is the evaluation work.
