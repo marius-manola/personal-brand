@@ -1,0 +1,180 @@
+---
+title: 'What Should an AI Agent Run Contract Contain?'
+date: '2026-09-13'
+updated: '2026-09-13'
+excerpt: 'An AI agent run contract names its goal, inputs, state, tools, permissions, stop rules, evidence of progress, escalation path, owner, and retained trace.'
+answer: 'An AI agent run contract should name the goal, trigger, inputs, readable state, available tools, permitted actions, approval gates, evidence of progress, success condition, retry and stop limits, escalation owner, and retained trace fields. Use a six-field comparison with the fixed baseline first, because a bounded read-only agent needs less documentation than an open-ended one.'
+targetQuery: 'what should an ai agent run contract contain'
+queryAliases:
+  - 'when does an ai agent need a run contract'
+  - 'how to document an ai agent run for human review'
+  - 'what belongs in an ai agent run contract'
+intent: 'informational architecture documentation'
+funnel: 'consideration'
+cluster: 'architecture'
+parent: '/blog/ai-architecture-pillar'
+contentType: 'decision-tool'
+kind: 'satellite'
+sourceableAtom: 'A six-field run-contract scorecard compares a fixed workflow with an agent: the worked examples score 0/6, 5/6, and 6/6, with 4+ requiring a run contract and trace.'
+evidenceType: 'decision-artifact'
+evidenceBasis: 'A reproducible six-field delta scorecard was run on three bounded architecture examples. It is an original scoping artifact grounded in primary agent, tracing, context, and governance documentation, not a validated benchmark.'
+tags:
+  - 'AI architecture'
+  - 'AI agents'
+  - 'Decision tools'
+author: 'Marius Manolachi'
+nextReviewAt: '2027-02-19'
+sources:
+  - 'https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/'
+  - 'https://www.anthropic.com/engineering/building-effective-agents'
+  - 'https://openai.github.io/openai-agents-python/tracing/'
+  - 'https://openai.github.io/openai-agents-python/context/'
+  - 'https://airc.nist.gov/airmf-resources/airmf/5-sec-core/'
+faq: []
+cover: '/blog/what-should-an-ai-agent-run-contract-contain-hero.webp'
+coverAlt: 'Illustration of a fixed process path opening into an AI agent run with visible choices and boundaries'
+draft: false
+---
+
+An ordinary process has a route. You can point to the trigger, the next step, the check, and the owner.
+
+An agent replaces at least one arrow with a decision. That decision may depend on tool results, retained state, a retry, or a judgment about whether the work is finished. OpenAI describes agents as systems that manage workflow execution and dynamically select tools, while Anthropic distinguishes them from workflows with predefined code paths ([OpenAI](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/), [Anthropic](https://www.anthropic.com/engineering/building-effective-agents)).
+
+## What should an AI agent run contract contain?
+
+Start with six fields the agent adds over the fixed baseline: next-step choice, state dependence, tool choice, stopping behavior, progress evidence, and exception ownership. At 4/6 or higher, require a run contract and trace before relying on the process explanation.
+
+This is the reusable decision artifact for the question. Compare the proposed agent with the fixed workflow it replaces. Mark `1` only when the agent introduces a contract obligation that the baseline did not already have.
+
+| Run-contract obligation added by the agent | Mark 1 when the contract must record... | Why it belongs |
+| --- | --- | --- |
+| Next-step choice | How the agent selected this action instead of another available action | The path is no longer fully specified in code. |
+| State dependence | Which prior observations, records, or messages influenced the choice | The same starting request can reach a different branch. |
+| Tool choice | Which tools or data sources were available and why one was called | A tool call becomes part of the process logic. |
+| Stopping behavior | What tells the agent to continue, retry, escalate, or stop | Completion is now a runtime decision. |
+| Progress evidence | Which tool result or system change proves the run is moving forward | The explanation must show ground truth, not only the model's account. |
+| Exception ownership | Who decides when the agent is uncertain, blocked, or wrong | Responsibility moves across a human-agent boundary. |
+
+The worked results are deliberately simple:
+
+| Architecture example | Six-field result | Score | What to publish or hand over |
+| --- | --- | ---: | --- |
+| Fixed extraction, validation, and routing | `0, 0, 0, 0, 0, 0` | **0/6** | A normal process diagram and input/output contract. |
+| Bounded read-only agent choosing among five data tools and escalating exceptions | `1, 1, 1, 1, 1, 0` | **5/6** | A run contract plus a trace example. |
+| Open-ended multi-tool agent that can retry and hand off work | `1, 1, 1, 1, 1, 1` | **6/6** | A run contract, trace, stop rules, and explicit ownership map. |
+
+The arithmetic is reproducible: `sum([0,0,0,0,0,0]) = 0`, `sum([1,1,1,1,1,0]) = 5`, and `sum([1,1,1,1,1,1]) = 6`. The thresholds are a practical scoping aid created for this page, not a claim about every agent system.
+
+![Illustration of a six-field run-contract scorecard comparing a fixed workflow with an AI agent and showing 0/6, 5/6, and 6/6 outcomes](/blog/what-should-an-ai-agent-run-contract-contain-inline-1.webp)
+
+## Why the old process diagram stops being enough
+
+The old diagram describes prescribed transitions. An agent diagram must also describe who controls the transitions and what information is allowed to change them.
+
+Anthropic's distinction is useful here. A workflow sends LLM calls and tools through predefined code paths. An agent lets the LLM direct its own process and tool usage. That is the key source of explanation debt: the business goal may stay the same, but the path toward it becomes partly runtime-generated ([Anthropic](https://www.anthropic.com/engineering/building-effective-agents)).
+
+OpenAI names the same moving parts from a different angle. An agent uses an LLM to manage execution, selects tools based on current state, recognizes completion, and can hand control back after failure. Each capability is useful. Each one also creates another question for the person operating or reviewing the process ([OpenAI](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/)).
+
+So the explanation changes from:
+
+```text
+request -> validate -> retrieve -> decide -> update -> finish
+```
+
+to something closer to:
+
+```text
+request -> agent observes state
+        -> chooses a tool or asks a question
+        -> receives evidence
+        -> decides whether to continue, retry, escalate, or finish
+        -> records the result
+```
+
+The second diagram is not automatically better. It is simply more honest when the model controls the path.
+
+## Which parts of an agent run must be explained?
+
+Explain the choices that can change the run, not every token the model produces.
+
+The scorecard's six fields map to concrete documentation:
+
+1. **Next-step choice:** list the decisions the agent may make. “Investigate the exception” is too vague. Say whether it can check the purchase order, ask the requester, search a policy, or escalate.
+2. **State dependence:** name the state that is allowed to influence the next decision. This might be a tool result, a record status, a previous approval, or an explicit user answer.
+3. **Tool choice:** document the tool's purpose, permission, input, output, and failure meaning. OpenAI's guidance treats tools as part of the agent's core design, including data tools and action tools ([OpenAI](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/)).
+4. **Stopping behavior:** state the success condition, retry limit, escalation trigger, and forbidden continuation. Anthropic specifically points to environmental ground truth, human checkpoints, and stopping conditions such as maximum iterations ([Anthropic](https://www.anthropic.com/engineering/building-effective-agents)).
+5. **Progress evidence:** attach the system result that supports the next step. A model saying “the record was updated” is not proof that the record changed. The explanation should point to the returned status, identifier, test result, or human decision.
+6. **Exception ownership:** name the person or role who takes over, what they receive, and what the agent is not allowed to decide. NIST's AI RMF calls for documented roles, human-AI configurations, oversight, and documentation that improves transparency and accountability ([NIST](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/)).
+
+The state is not an abstract box in the diagram. The OpenAI Agents SDK context guide describes the inputs available to the model as conversation history, instructions, user input, tools, retrieval, and web search. Your run contract should say which of those sources can influence a decision ([OpenAI Agents SDK](https://openai.github.io/openai-agents-python/context/)).
+
+OpenAI's Agents SDK makes the same structure visible in a runtime trace. Its tracing documentation lists LLM generations, tool calls, handoffs, guardrails, and custom events, with nested spans that can be inspected during development and production ([OpenAI Agents SDK](https://openai.github.io/openai-agents-python/tracing/)). A step list cannot replace those details when the run is variable.
+
+## When should the run contract become more detailed?
+
+Score the delta before choosing the agent architecture. The score does not decide whether the agent is valuable. It tells you what explanation and operating evidence the value will require.
+
+Use this four-step procedure:
+
+1. **Write the fixed baseline.** Describe the current trigger, known steps, data used, result, and owner. If the baseline is already unclear, fix that first.
+2. **Mark the six differences.** Compare the agent's real permissions and runtime behavior with the baseline. Do not mark a field merely because an LLM is present.
+3. **Apply the threshold.** At 0-1, keep the existing explanation and add a bounded contract. At 2-3, add choices, state, and stopping rules. At 4-6, require a run contract and trace before calling the process understandable.
+4. **Test one run with a reviewer.** Ask a person who did not build the system to answer: What did the agent know? Why did it take that step? What would have stopped it? Who owns the exception? If they cannot answer from the documentation and trace, the explanation is not ready.
+
+The fourth step matters because a score is a prompt for inspection, not proof of clarity. A six out of six system can still be explainable if its run contract and traces are good. A one out of six system can still be unsafe if its single action is irreversible.
+
+## Worked decision: invoice exception review
+
+Consider a hypothetical process that receives an invoice, extracts fields, checks a purchase order, and routes an exception. This is an example, not a client result.
+
+The fixed version has known steps. Code validates the extracted invoice fields, retrieves the purchase order, compares totals, and routes a mismatch to finance. Its explanation can show the input, rule, result, and owner. It scores 0/6.
+
+Now let an agent investigate the mismatch. It can inspect the purchase order, search the vendor record, read the approval policy, ask for missing context, and decide whether to recommend escalation. It can retry a failed lookup and stop when it believes the exception is resolved.
+
+That version scores 5/6 if a human still owns the final decision. The process explanation now needs to show:
+
+- why the agent chose the vendor record before the policy;
+- which invoice and purchase-order state it saw;
+- what each tool was allowed to return or change;
+- why it continued or stopped;
+- which evidence supported its recommendation;
+- where the human took ownership.
+
+This is why the system feels harder to explain even when the business goal did not change. The agent has not merely added a step. It has added a set of conditional decisions around the steps.
+
+## When does an agent not add much explanation burden?
+
+The exception is a bounded agent whose path is almost fixed and whose action is read-only, reversible, and easy to verify.
+
+For example, an agent may receive a document, call one retrieval tool, return a structured draft, and stop. If code controls the next step, a single tool is available, no state persists beyond the request, and a person reviews the result, the score may be 0 or 1. In that case, document the model input, tool contract, output schema, and reviewer decision. Do not create a full autonomy narrative for a system that does not have meaningful autonomy.
+
+This is also the reason the [AI architecture pillar](/blog/ai-architecture-pillar) should start with the simplest architecture that can meet the job. The existing guide on [when to use an AI agent](/blog/when-to-use-an-ai-agent) covers the prior decision. The [single-agent architecture guide](/blog/single-ai-agent-instead-of-multiple-agents) covers the split decision. This page gives the run-contract decision after an agent enters the design.
+
+## How should you write the run contract?
+
+Use a short contract that another operator can read alongside one real trace:
+
+```text
+Goal:
+Trigger and inputs:
+State the agent may read:
+Tools it may call:
+Actions it may take:
+Actions requiring approval:
+How each tool result proves or disproves progress:
+Success condition:
+Retry and maximum-step limits:
+Escalation condition:
+Human owner after escalation:
+Trace fields retained:
+```
+
+The trace should preserve enough context to answer the reviewer’s questions without exposing more sensitive data than necessary. OpenAI's SDK documentation notes that generation and function spans can contain sensitive inputs and outputs, so trace capture needs its own data-handling decision ([OpenAI Agents SDK](https://openai.github.io/openai-agents-python/tracing/)).
+
+When I taught product managers to move from writing specs to building and shipping products, the recurring failure was not a missing model. It was that nobody could say what “done” meant. The same failure appears here in a more technical form: teams explain the business outcome but never define what a completed agent run, a safe stop, or a human takeover means. The contract forces those decisions into the open.
+
+## The practical answer
+
+An AI agent run contract should make the variable parts of execution inspectable: the choices, state, tools, stopping rules, progress evidence, and exception owner. Use the six-field scorecard against the fixed baseline. If the result is 4/6 or higher, document the contract and trace before you describe the system as ready to operate.
+
+If the score is low, keep the explanation small. If the score is high, do not hide the variable path behind a neat linear diagram. The reader needs the run contract more than another architecture picture.
