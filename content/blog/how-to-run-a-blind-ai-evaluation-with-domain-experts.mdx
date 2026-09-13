@@ -1,0 +1,167 @@
+---
+title: "How to Run a Blind AI Evaluation With Domain Experts"
+date: "2026-09-13"
+updated: "2026-09-13"
+excerpt: "Run a defensible blind AI evaluation with domain experts using a sealed manifest, separate deblinding key, order-swap check, and bounded release decision."
+answer: "Run the same frozen tasks through both model variants, normalize outputs, randomize Response 1 and Response 2, and give experts a manifest without model identity. Allow A, B, tie, and abstain. Keep the deblinding key separate, repeat a sample with order swapped, then report win rates, uncertainty, reversals, agreement, and disagreements. The exception is a high-risk or underspecified task: abstain and do not force a model choice."
+targetQuery: "how to run a blind AI evaluation with domain experts"
+queryAliases:
+  - "blind AI evaluation with domain experts"
+  - "how to run a domain-expert review before release"
+intent: "implementation"
+funnel: "evaluation"
+cluster: "evaluation"
+parent: "/blog/ai-evaluation-practice"
+contentType: "implementation-lab"
+kind: "satellite"
+sourceableAtom: "A dated, runnable blind-evaluation packet and fixture result showing the manifest boundary, separate key, raw de-identified labels, order reversals, disagreement log, uncertainty, and a no-go decision."
+evidenceType: "reproducible test plus reusable evaluation artifact"
+evidenceBasis: "A local frozen fixture run dated 2026-08-23, plus primary research and evaluation documentation cited inline. The fixture demonstrates packet mechanics and is not a live domain-expert or production-model result."
+tags:
+  - "AI evaluation"
+  - "domain experts"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://pmc.ncbi.nlm.nih.gov/articles/PMC13270056/"
+  - "https://ai.jmir.org/2025/1/e72153"
+  - "https://docs.ag2.ai/docs/user-guide/evaluation/pairwise/"
+  - "https://www.nist.gov/itl/ai-risk-management-framework"
+  - "https://www.johnsnowlabs.com/marketplace/clinical-large-language-model-evaluation-clever/"
+faq:
+  - q: "Should reviewers see the model names after they submit labels?"
+    a: "Yes, during a debrief. Do not reveal the mapping before labels are sealed, and preserve the pre-debrief labels so later discussion cannot rewrite the original evidence."
+  - q: "What should happen when experts disagree?"
+    a: "Keep the disagreement row, record the reason, and inspect the outputs against the criterion. Do not turn disagreement into a forced majority without a predeclared rule."
+cover: "/blog/how-to-run-a-blind-ai-evaluation-with-domain-experts-blind-eval-hero.webp"
+coverAlt: "Illustration of a blinded AI evaluation packet with a separate deblinding key"
+draft: false
+---
+
+When I taught product managers to move from writing specs to building and shipping, the failure was usually not the model. It was that nobody could say what “done” meant. A blind review forces that question into the open before a preference becomes a release decision.
+
+The packet run below is a synthetic smoke test, not a client result. Its value is the artifact and the stop condition.
+
+| Check | Observed result on 2026-08-23 |
+| --- | --- |
+| Tasks and reviewers | 8 synthetic tasks, 3 reviewer streams |
+| Initial labels | A 17, B 3, tie 3, abstain 1 |
+| B win rate, non-abstain labels | 13.0%, Wilson 95% interval 4.5% to 32.1% |
+| Order-swap sample | 4 rows, 2 reversals |
+| Pairwise reviewer agreement | 0.857, 0.625, and 0.429 across reviewer pairs |
+| Bounded decision | No-go for a model choice; recruit real domain experts and rerun |
+
+The result is not “A wins.” Two order reversals and one low-agreement pair tell you the fixture is not a safe basis for choosing a model.
+
+![Illustration of a reviewer-facing blinded manifest separated from the model identity key](/blog/how-to-run-a-blind-ai-evaluation-with-domain-experts-blind-eval-manifest.webp)
+
+## Freeze the comparison before experts see an output
+
+Freeze the task set, model versions, prompt, generation settings, criteria, normalization rules, random seed, and test date before the first reviewer opens the packet.
+
+This is the comparison contract. If you change the prompt after seeing labels, you are running a new evaluation. If you add a task because one model looked weak, you are changing the sample after observing the outcome.
+
+For each task, record:
+
+- a stable task ID and de-identified input;
+- the criterion in one sentence;
+- the exact model or endpoint version;
+- prompt and relevant generation settings;
+- raw outputs and every normalization step;
+- the reviewer packet version and test date.
+
+Use a task set that resembles the decision the system will support. The CLEVER study made this choice explicit: it used novel clinical cases, specialist reviewers, shuffled model outputs, and several task types rather than relying only on a public exam benchmark. ([JMIR AI CLEVER](https://ai.jmir.org/2025/1/e72153))
+
+## Put the identity boundary in a separate file
+
+The reviewer should see two anonymous responses. The reviewer should not see the model names, provider names, generation timestamps, or a token that can be joined back to a model.
+
+The reviewer-facing JSONL row can be this small:
+
+```json
+{
+  "test_date": "2026-08-23",
+  "task_id": "T01",
+  "criterion": "Decision and owner are both present and unambiguous.",
+  "response_1": "<normalized output>",
+  "response_2": "<normalized output>"
+}
+```
+
+Keep the mapping in a separate encrypted or access-controlled key. In the smoke test, the key mapped `A` to `alpha-v1` and `B` to `beta-v1`; the reviewer export did not contain that mapping. In a real evaluation, the person who owns the key should not be the person coaching reviewers toward a preferred answer.
+
+Blind, randomized response order is not a cosmetic detail. The clinical evaluation literature uses it to reduce order and expectation bias, and AG2's pairwise documentation describes the same boundary for offline human labeling. ([Multidisciplinary blinded randomized expert evaluation](https://pmc.ncbi.nlm.nih.gov/articles/PMC13270056/), [AG2 pairwise comparison](https://docs.ag2.ai/docs/user-guide/evaluation/pairwise/))
+
+## Give experts tie and abstain choices
+
+Ask reviewers to choose A, B, tie, or abstain. Tie means both responses are materially equivalent for the criterion. Abstain means the task is underspecified, outside the reviewer's competence, or unsafe to judge from the supplied evidence.
+
+Do not replace abstain with “pick the least bad answer.” Do not turn a tie into a win just to make the chart cleaner. CLEVER included neutral and none options for the same reason: forced choices can create false positives when both responses are similar or both fail the required standard. ([JMIR AI CLEVER](https://ai.jmir.org/2025/1/e72153))
+
+Give reviewers these instructions:
+
+1. Read the task and criterion first.
+2. Compare Response 1 and Response 2 against that criterion only.
+3. Select A, B, tie, or abstain.
+4. Write one short reason tied to an observable difference.
+5. Work independently and do not discuss labels until the debrief.
+
+The reason field is important. A label says what happened. A reason gives you a repair path when experts disagree.
+
+## Repeat a sample with the order swapped
+
+Repeat a predeclared sample after the initial review, swapping the visible response positions. Do not show the first label during the repeat. Compare the original choice with the swapped choice after both rounds are sealed.
+
+The smoke test repeated four rows:
+
+| Task | Initial label | Swapped label | Reversal |
+| --- | --- | --- | --- |
+| T02 | A | A | no |
+| T05 | A | B | yes |
+| T07 | A | B | yes |
+| T08 | tie | tie | no |
+
+Two reversals in four rows is a stop signal for this fixture. It does not estimate a universal position-bias rate. It tells you that the next real run needs a larger swap sample, clearer criteria, or reviewer calibration before the model choice can be trusted.
+
+AG2 reports position flips alongside pairwise results, and the clinical studies use repeat or washout checks to examine whether judgments remain stable. ([AG2 pairwise comparison](https://docs.ag2.ai/docs/user-guide/evaluation/pairwise/), [Multidisciplinary blinded randomized expert evaluation](https://pmc.ncbi.nlm.nih.gov/articles/PMC13270056/))
+
+![Illustration of blind-evaluation analysis with uncertainty, order reversals, and a bounded decision](/blog/how-to-run-a-blind-ai-evaluation-with-domain-experts-blind-eval-analysis.webp)
+
+## Unblind after labels are sealed
+
+Analyze the de-identified labels first. Then open the mapping key and translate response positions back to model variants. Keep both views: the reviewer-facing labels prove what experts saw, while the debrief view explains which model produced each response.
+
+Report at least:
+
+- wins for each model, ties, and abstentions;
+- the denominator used for the win rate;
+- an uncertainty interval, such as a Wilson interval for a small pairwise sample;
+- order reversals in the swapped sample;
+- reviewer agreement and the rule used to treat abstentions;
+- disagreement examples with the relevant output text;
+- the bounded go or no-go decision.
+
+Pairwise evaluation documentation commonly reports a win rate with a confidence interval and ties. That is useful packaging, but the interval does not repair a biased task set or unstable review criterion. ([AG2 pairwise comparison](https://docs.ag2.ai/docs/user-guide/evaluation/pairwise/))
+
+For the fixture, B won 3 of 23 comparable labels, for a 13.0% win rate. The 95% Wilson interval was 4.5% to 32.1%. One label was abstain. The agreement range was wide, from 0.429 to 0.857. Those facts support a no-go decision for model selection.
+
+## Treat the result as a release gate, not a leaderboard
+
+Use the result to decide what happens next, not to produce a ranking detached from risk.
+
+My release rule for this packet is simple:
+
+- Go when the task set is relevant, the identity boundary stayed sealed, abstentions are explained, order reversals are within the predeclared tolerance, and expert disagreement has a documented resolution path.
+- No-go when the packet is contaminated, the mapping leaked, the task criterion is unclear, order reversals are frequent in the swap sample, or the evidence is too uncertain for the risk of the decision.
+
+The no-go result here means: do not choose `alpha-v1` or `beta-v1` from the fixture. Recruit qualified domain experts, replace the fixture labels, rerun the sealed packet, and make the production decision from that run.
+
+That boundary also fits the purpose of the [NIST AI Risk Management Framework](https://www.nist.gov/itl/ai-risk-management-framework), which is intended to help organizations include trustworthiness in the design, development, use, and evaluation of AI systems. It is a risk-management frame, not permission to ship a model because a small preference sample looks favorable.
+
+## Keep the packet reusable
+
+Your final evaluation folder should contain the task inputs, frozen configuration, blinded manifest, separate deblinding key, reviewer instructions, completed labels, swapped-order labels, disagreement log, analysis output, and limitations. Preserve the raw outputs under restricted access so an auditor can verify normalization without giving reviewers a route to model identity.
+
+If you already have a broad evaluation contract, link this packet into it through the [AI evaluation practice guide](/blog/ai-evaluation-practice). For rubric design, see [how to grade an AI output against a rubric](/blog/how-to-grade-an-ai-output-against-a-rubric). If your evaluation cannot use an LLM judge, the [deterministic evaluator guide](/blog/what-should-an-ai-evaluator-do-without-an-llm-judge) covers the adjacent constraint.
+
+The practical next step is not to make the chart prettier. It is to recruit the right experts, seal the mapping key, and rerun the packet until the evidence can support the decision you need to make.
