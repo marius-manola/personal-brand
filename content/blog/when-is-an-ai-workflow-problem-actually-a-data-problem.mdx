@@ -1,0 +1,231 @@
+---
+title: "When Is an AI Workflow Problem Actually a Data Problem?"
+date: "2026-09-14"
+updated: "2026-09-14"
+excerpt: "A five-case deterministic fixture shows when verified evidence fixes an AI workflow failure, and when the real fault is the contract, permission, or evaluator."
+answer: "An AI workflow problem is a data problem when replacing the evidence packet, while holding the workflow contract, permissions, test double, and evaluator constant, changes the final-state result. In my five-case fixture, that happened for stale and conflicting records. If only a clarified contract, permission, or outcome rubric changes the result, fix that layer instead."
+targetQuery: "When is an AI workflow problem actually a data problem?"
+queryAliases:
+  - "when is an ai workflow a data problem"
+  - "how to tell if an ai workflow failure is caused by data"
+  - "ai workflow data problem or model problem"
+intent: "diagnostic"
+funnel: "consideration"
+cluster: "architecture"
+parent: "/blog/ai-architecture-pillar"
+contentType: "original-research"
+kind: "flagship"
+sourceableAtom: "In a five-case provider-neutral fixture, verified evidence repaired two data failures, a clarified workflow contract repaired unclear completion, corrected permission repaired a denied action, and a task-level rubric exposed an answer-surface false pass. All five diagnoses matched the injected fault."
+evidenceType: "reproducible-failure-reproduction"
+evidenceBasis: "A clean-environment run of a provider-neutral deterministic fixture on 2026-08-23, using five synthetic release-handoff cases, fixed test-double version workflow-fault-localization-0.1.0, recorded permissions, tool traces, final-state assertions, and one single-variable counterfactual per case."
+tags:
+  - "AI architecture"
+  - "AI reliability"
+  - "Data quality"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://www.mongodb.com/company/blog/technical/why-every-ai-workflow-is-really-a-data-problem-in-disguise"
+  - "https://www.mckinsey.com/capabilities/mckinsey-technology/our-insights/ai-data-readiness-the-key-to-scaling-impact"
+  - "https://www.ibm.com/think/insights/dataops-architecture"
+  - "https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/"
+  - "https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents"
+  - "https://airc.nist.gov/airmf-resources/airmf/5-sec-core/"
+faq: []
+cover: "/blog/when-is-an-ai-workflow-problem-actually-a-data-problem-hero.webp"
+coverAlt: "Illustration of a paired AI workflow replay separating data, contract, permission, and evaluator failures"
+draft: false
+---
+
+I built a small release-handoff fixture because “the model is wrong” is a weak diagnosis. A workflow can produce a polished answer while reading stale evidence, failing to write state, or being judged by a rubric that never checks the task.
+
+The useful result came from replaying the same task while changing one layer at a time.
+
+## The five-case replay points to the failing layer
+
+An AI workflow problem is a data problem only when a data-only counterfactual changes the task outcome while the contract, permissions, evaluator, and test double stay fixed.
+
+The fixture asked a deterministic test double to prepare a release handoff for `billing-v2` and leave the external release state truthful. It used synthetic records, explicit permissions, tool traces, and final-state assertions. The baseline and counterfactual results were:
+
+| Case | Seeded failure | Baseline result | One changed layer | Counterfactual result | Diagnosis |
+| --- | --- | --- | --- | --- | --- |
+| C1 | Release status was stale | Answer said approved; final state was `approved_for_release` | Verified evidence packet | Current packet produced `blocked` | Data |
+| C2 | Two current rollout dates conflicted | Answer chose August 25 | Verified evidence packet | Packet preserved conflict and produced `needs_clarification` | Data |
+| C3 | “Handoff prepared” had no defined completion state | Handoff remained `draft` | Workflow contract | `create_handoff` ran and state became `complete` | Workflow contract |
+| C4 | The workflow lacked write permission | Tool returned `PERMISSION_DENIED`; state stayed `ready_for_review` | Permission | State became `approved_for_release` | Permission |
+| C5 | The evaluator checked only the answer surface | “Approval request prepared” passed while the request ID was null | Task-level outcome rubric | The same run failed visibly | Evaluator |
+
+All five observed diagnoses matched the injected fault. That is the sourceable result of this page. It is a bounded fixture, not a benchmark, client result, or estimate of how often these faults occur.
+
+![Illustration of a five-row counterfactual diagnosis table with one changed workflow layer per row](/blog/when-is-an-ai-workflow-problem-actually-a-data-problem-inline-1.webp)
+
+This approach follows a distinction that is easy to lose in an AI pilot. A transcript tells you what the system said and which tools it called. The outcome is what happened in the environment. Anthropic makes that trace-versus-outcome distinction explicit in its evaluation guidance, including the example of an agent saying a booking succeeded when the database contains no reservation ([Anthropic's evaluation guidance](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)).
+
+## A data fix changes the evidence, not the model
+
+In the fixture, changing the evidence packet fixed two failures without changing the deterministic test double, workflow contract, permissions, or evaluator.
+
+### C1: stale data
+
+The baseline packet contained:
+
+```text
+release_status: green
+updated_at: 2026-08-21T09:00:00Z
+freshness_limit_hours: 24
+verified_packet: false
+```
+
+The test double read the status and answered:
+
+```text
+Approved for release: billing-v2 is green.
+```
+
+The final state was `approved_for_release`, so the task assertion failed. The answer was plausible because the record was structurally valid. It was wrong because the record was outside the stated freshness window.
+
+The counterfactual replaced only the evidence packet:
+
+```text
+release_status: blocked
+updated_at: 2026-08-23T08:00:00Z
+freshness_limit_hours: 24
+verified_packet: true
+```
+
+The answer became “Blocked: current evidence is not verified for release,” and the final state became `blocked`. The tool trace still contained one read call. No prompt, model, permission, or evaluator changed.
+
+That is a data diagnosis. The smallest useful repair is a verified current record or a freshness-aware evidence path. It is not automatically a better model.
+
+McKinsey describes AI data readiness as a governed, traceable, reusable foundation. It also warns that searchability alone is not usability: a system needs versioning, structure, and context to use data reliably ([McKinsey's AI data readiness research](https://www.mckinsey.com/capabilities/mckinsey-technology/our-insights/ai-data-readiness-the-key-to-scaling-impact)). MongoDB makes a similar vendor-side argument about stale, missing, and state data appearing as model failures ([MongoDB's workflow analysis](https://www.mongodb.com/company/blog/technical/why-every-ai-workflow-is-really-a-data-problem-in-disguise)). Those sources support the architecture concern. The two-case result above is my fixture evidence.
+
+### C2: conflicting data
+
+The second packet contained two current records:
+
+```text
+release-calendar: 2026-08-25, updated 2026-08-23T08:00:00Z
+launch-plan:     2026-08-26, updated 2026-08-23T08:05:00Z
+conflict_flag: false
+```
+
+The baseline tool trace called `read_rollout_dates`. The answer chose August 25 and set the external state to `approved_for_release`. That was a failure of evidence handling, not evidence absence. Both records were findable. Neither was authoritative.
+
+The counterfactual kept both records and changed only the verified packet metadata:
+
+```text
+conflict_flag: true
+authoritative_date: null
+```
+
+The answer became “Needs clarification: the rollout date is unresolved,” and the final state became `needs_clarification`.
+
+The decision rule is narrow but useful:
+
+> If the workflow changes from a wrong final state to the correct final state when you add freshness, provenance, precedence, or conflict information to the evidence packet, treat data as the first repair target.
+
+The exception is when the verified packet reaches the model but the workflow still ignores it. Then the counterfactual will not flip the outcome, and the fault belongs elsewhere.
+
+## A workflow contract failure survives perfect data
+
+Good records do not define what “done” means. The task contract must name the external state that proves completion.
+
+In C3, the fixture had current release data and a granted approval. The baseline instruction was effectively “prepare a handoff.” The test double returned:
+
+```text
+Handoff prepared for billing-v2.
+```
+
+It called `read_release_status` but did not call `create_handoff`. The external state was `handoff_status=draft`. A surface evaluator passed because the answer existed and contained the expected phrase.
+
+The counterfactual changed only the workflow contract. It required a `create_handoff` tool call and an external assertion of `handoff_status=complete` with a `handoff_id`. The tool trace then included:
+
+```text
+create_handoff -> handoff-001
+```
+
+The final state became `complete`, `handoff-001`, and the task passed.
+
+OpenAI describes a workflow as a sequence of steps that meets a user's goal, and describes agents as using tools to gather context and take actions while recognizing when the workflow is complete ([OpenAI's practical guide to building agents](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/)). NIST similarly asks teams to define the task, system requirements, human oversight, and the limits of the evaluation ([NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/)).
+
+This is why “the data is good” is not enough. If nobody can point to the state that proves the work is finished, the workflow has an architectural gap. A larger context window cannot supply that missing contract.
+
+When I taught product managers to move from writing specs to building and shipping products, the recurring failure was an undefined “done,” not a measured model failure. That is a bounded teaching observation from Marius Manolachi's work, not a statistic. The same distinction appears in this fixture: the source records were fine, but the workflow had no observable completion state ([Marius Manolachi's AI teaching work](https://mariusmanolachi.com/learn-ai)).
+
+![Illustration of a workflow answer separated from the external state that proves completion](/blog/when-is-an-ai-workflow-problem-actually-a-data-problem-inline-2.webp)
+
+## Permission failures are control failures, not data defects
+
+If the workflow can read the right record but cannot perform the required write, the failure is in authorization or action design.
+
+In C4, the data was current and the approval was granted. The contract required the external release state to be updated. The permission set contained only:
+
+```text
+read_release_status
+```
+
+The test double called `write_release_state`, which returned `PERMISSION_DENIED`. It still wrote “Approved for release” to the answer surface. The final state remained `ready_for_review`, with `approval_write=denied`.
+
+The counterfactual added one permission:
+
+```text
+write_release_state
+```
+
+The same tool call then returned `approved_for_release`, and the final assertion passed. No record changed. No evaluator changed. The permission boundary moved.
+
+OpenAI's guidance says guardrails should be paired with authentication, authorization, strict access controls, and standard security measures ([OpenAI's guardrail guidance](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/)). IBM's DataOps guidance also places validation, lineage, monitoring, and access controls inside the operating architecture rather than treating them as a final prompt concern ([IBM's DataOps architecture overview](https://www.ibm.com/think/insights/dataops-architecture)).
+
+The repair should be least privilege. Give the workflow the smallest action permission that the contract requires, record denied calls as failures, and assert that the external state changed. Do not widen access just because the answer sounds correct.
+
+## An answer-only evaluator can hide an outcome failure
+
+An evaluator is a separate fault surface. It can be too weak even when the data, contract, and permissions are adequate.
+
+In C5, the records showed a green release and pending approval. The workflow called `create_approval_request`, but the external tool returned `EXTERNAL_TIMEOUT`. The final state was:
+
+```text
+approval_request_id: null
+```
+
+The answer was:
+
+```text
+Approval request prepared.
+```
+
+The baseline `surface-check-0.1.0` evaluator passed because the answer was non-empty. That was a false pass. The counterfactual changed only the evaluator to `task-check-0.1.0`, which required a non-null approval request ID. The same run failed visibly.
+
+The repair did not make the approval request succeed. It made the release gate tell the truth about the failure. Anthropic recommends matching graders to what must be measured, including outcome verification and tool-call checks. NIST says test details, limitations, and measurement methods should be documented and evaluated for their usefulness ([Anthropic's evaluation guidance](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents), [NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/)).
+
+Use an answer evaluator for answer quality. Use a task evaluator for task completion. They are not interchangeable.
+
+## How to run a paired replay on a real workflow
+
+Use the smallest failure that still includes the real decision, tool boundary, and external state.
+
+1. **Freeze the run.** Save the input records, prompt or instructions, model or test-double version, permissions, tool schemas, tool results, answer, and final state. Do not start by changing the model.
+2. **Write the success assertion.** Name the external state that proves the task is complete. “Contains a status field” is an answer-shape check. “The approval request ID exists” is a task check.
+3. **Classify the suspected layer.** For data, record freshness, provenance, precedence, conflicts, and missing fields. For workflow, record required actions and completion. For permission, record the exact denied call. For evaluation, record what the grader can and cannot see.
+4. **Change one layer.** Replace the evidence packet, clarify the contract, correct the permission, or add the outcome rubric. Keep the other configuration fixed. A repair that changes two layers cannot localize the fault.
+5. **Compare the final state.** Record answer, tool trace, evaluator result, and external assertion separately. If the task result flips, the changed layer is a sufficient repair for that case. If it does not, move to the next layer or mark the fault compound.
+
+The method follows the evaluation structure described by Anthropic: a task has inputs and success criteria, a trial produces a trace, and the outcome is the final environment state ([Anthropic's definitions](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)). NIST's guidance adds the need to document test details, uncertainty, validity, and limits before treating a result as evidence ([NIST's measurement guidance](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/)).
+
+For a RAG-specific branch, use the existing [guide to telling retrieval failure from generation failure](/blog/how-to-tell-whether-a-rag-failure-is-retrieval-or-generation). For a production-trace branch, use [the guide to building an evaluation dataset from production traces](/blog/how-to-build-an-evaluation-dataset-from-production-traces). The assigned architecture parent is [the AI architecture pillar](/blog/ai-architecture-pillar).
+
+## What this fixture does not prove
+
+The result is deliberately small.
+
+- It has five cases, one synthetic release-handoff task, one deterministic test double, and one run date. It is not a model benchmark, client result, or prevalence estimate.
+- The data repairs change the evidence packet as a layer. They do not prove that record correction, freshness monitoring, source precedence, or conflict metadata is the cheapest production fix in every system.
+- The evaluator case demonstrates detection, not repair. The underlying timeout remains.
+- The deterministic test double does not measure stochastic model variance, latency, cost, or prompt sensitivity.
+- Production failures can be compound. A successful single-variable replay identifies a sufficient changed layer in this fixture, not necessarily the only defect in a live system.
+
+![Illustration of a bounded test fixture with synthetic records, tool traces, and explicit limits](/blog/when-is-an-ai-workflow-problem-actually-a-data-problem-inline-3.webp)
+
+The right claim is therefore not “AI workflow failures are data problems.” It is more useful: “A data diagnosis is earned when a data-only replay changes the task outcome.” That sentence tells the team what evidence to collect next.
+
+If you are debugging a pilot with a team, run this replay in the next incident review. If you need help turning the workflow into a testable task contract, [learn about working with Marius Manolachi as an AI tutor and consultant](/learn-ai). The page is complete without that next step.
