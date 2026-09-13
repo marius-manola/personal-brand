@@ -1,0 +1,192 @@
+---
+title: 'What Architecture Evidence Should Be Required Before an AI Pilot?'
+date: '2026-09-14'
+updated: '2026-09-14'
+excerpt: 'Require a bounded workflow, trusted data path, safe action boundary, replayable traces, evaluation baseline, and named ownership before an AI pilot.'
+answer: 'Before an AI pilot, require evidence for the workflow boundary, source of truth and data flow, tool permissions and side effects, recovery behavior, trace and replay, a representative baseline evaluation, and named ownership. Start in read-only or approval-gated mode. The principal exception is a truly read-only experiment, which still needs data, trace, evaluation, and ownership evidence.'
+targetQuery: 'what architecture evidence should be required before an ai pilot'
+queryAliases:
+  - 'AI pilot architecture evidence checklist'
+  - 'architecture gate before an AI pilot'
+  - 'what should an AI pilot architecture prove'
+intent: 'informational investigation'
+funnel: 'consideration'
+cluster: 'architecture'
+parent: '/blog/ai-architecture-pillar'
+contentType: 'failure-clinic'
+kind: 'satellite'
+sourceableAtom: 'A reproducible seven-item architecture evidence gate blocks an incomplete AI pilot packet, exposes duplicate-side-effect risk after an ambiguous write timeout, and passes after approval gating, idempotency, read-after-write verification, complete tracing, and ownership are added.'
+evidenceType: 'reproduced-failure'
+evidenceBasis: 'Local deterministic Node.js fixture run on 2026-08-23 with an incomplete synthetic invoice-exception pilot packet, an ambiguous CRM write timeout, a repaired approval-gated trace, and primary guidance from NIST, OpenAI, Anthropic, and AWS. This is not a production benchmark or client result.'
+tags:
+  - 'AI architecture'
+  - 'AI pilots'
+  - 'AI reliability'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-21'
+sources:
+  - 'https://airc.nist.gov/airmf-resources/airmf/'
+  - 'https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.600-1.pdf'
+  - 'https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/'
+  - 'https://www.anthropic.com/engineering/building-effective-agents'
+  - 'https://docs.aws.amazon.com/prescriptive-guidance/latest/gen-ai-lifecycle-operational-excellence/preprod-hardening.html'
+faq:
+  - q: 'Does every AI pilot need an agent architecture?'
+    a: 'No. Use the simplest architecture that can answer the pilot question. A fixed workflow or one model call may be enough. The evidence gate still applies to the data path, outcome, failure handling, trace, evaluation, and owner.'
+  - q: 'Is an architecture diagram enough before an AI pilot?'
+    a: 'No. A diagram shows components, but not source-of-truth rules, permissions, retries, replay fields, evaluation cases, or who owns a failure. Require the artifacts that make those behaviors testable.'
+  - q: 'What if the pilot has no write actions?'
+    a: 'A read-only pilot can omit write rollback, but it still needs a data boundary, access permissions, a verifiable output, trace and replay fields, a representative evaluation set, and a named owner for errors and changes.'
+cover: '/blog/what-architecture-evidence-should-be-required-before-an-ai-pilot-hero.webp'
+coverAlt: 'Illustration of an AI pilot architecture evidence packet blocking an unsafe release'
+draft: false
+---
+
+The dangerous gap before an AI pilot is usually not the model. It is the missing answer to a simpler question: what happens when the model is wrong, late, or working from the wrong source?
+
+I use an architecture gate for that gap. It is small enough to use before funding a pilot, but concrete enough to reject a design that only works in a demo. The gate sits below the broader [AI architecture pillar](/blog/ai-architecture-pillar) and beside the more general [AI agent proof-of-concept scope guide](/blog/how-to-scope-an-ai-agent-proof-of-concept).
+
+> **Sourceable result:** In a local deterministic fixture, an incomplete AI pilot packet was blocked. An accepted-but-timeout CRM write followed by an unkeyed retry reproduced duplicate-side-effect risk. The repaired packet passed after adding approval gating, an idempotency key, read-after-write verification, complete tracing, and named ownership.
+
+## The minimum architecture evidence is a packet, not a diagram
+
+Before an AI pilot, require seven connected artifacts: the workflow boundary, source of truth and data flow, action boundary, recovery behavior, trace and replay fields, an evaluation baseline, and named ownership. If one is missing, the architecture is not ready for consequential pilot traffic.
+
+| Evidence | Minimum artifact | The failure it should expose |
+| --- | --- | --- |
+| Workflow boundary | One trigger, one job, one owner, explicit exclusions, and a sequence showing where code and the model decide | Scope expands into an untestable assistant for everything |
+| Source of truth and data flow | Named systems of record, freshness or version rule, model inputs, and data owner | The system uses stale, duplicated, or unauthorised context |
+| Action boundary | Tool inventory, permissions, side-effect classification, approval rule, and human handoff | A plausible output becomes an unreviewed write or message |
+| Recovery behavior | Timeout, retry, deduplication, escalation, compensation or rollback, and stop condition | Partial success becomes a duplicate or orphaned run |
+| Trace and replay | Correlation ID, model and prompt versions, inputs, tool calls, results, state changes, errors, reviewer decision, and replay fixture | The team sees a bad answer but cannot explain it |
+| Evaluation and baseline | Representative cases, success rubric, forbidden actions, simpler baseline, correction fields, and continue or stop threshold | A demo is mistaken for useful performance |
+| Ownership and change | Named operator, incident owner, data owner, versioned deployment, change trigger, and rollback authority | Nobody knows who fixes the workflow when a source or policy changes |
+
+This is a pilot gate, not a universal production checklist. Regulated data, irreversible actions, and material user impact require additional security, privacy, legal, and domain controls. NIST's AI Risk Management Framework is useful here because it treats trustworthy AI as work across design, development, use, and evaluation, organized through Govern, Map, Measure, and Manage. [NIST AI RMF](https://airc.nist.gov/airmf-resources/airmf/)
+
+The important detail is the connection between rows. A data-flow diagram without an action boundary does not tell you what the model can change. A tool list without recovery behavior does not tell you what a timeout means. An evaluation set without a trace does not tell you why a case failed.
+
+![Illustration of a seven-item AI pilot architecture evidence packet connecting data, tools, recovery, traces, evaluation, and ownership](/blog/what-architecture-evidence-should-be-required-before-an-ai-pilot-inline-1.webp)
+
+## What proves the workflow boundary and data path?
+
+Require one executable story of a case from trigger to verifiable result. The story must name the source of truth, the context supplied to the model, the decision point, the allowed tools, the resulting state, and the owner who accepts or rejects the result.
+
+Write the story in this form:
+
+```text
+When [trigger] occurs, the system reads [approved source]
+and produces [verifiable result] for [owner].
+It may [allowed actions]. It must not [forbidden actions].
+If [failure condition] occurs, it [stop, escalate, or compensate].
+```
+
+For an invoice-exception pilot, “investigate invoices” is too broad. A usable boundary is: “When an invoice fails a matching rule, the system reads the invoice, purchase order, and approved vendor record, then produces a cited recommendation for a finance reviewer. It may retrieve records and draft a proposal. It must not pay, edit the ledger, contact the vendor, or delete evidence.”
+
+This also answers an architecture question that teams often skip: does the workflow need an agent? OpenAI describes agents as systems that control workflow execution and use tools under guardrails, while ordinary LLM applications do not hand over that control. Anthropic draws a similar line between predefined workflows and systems where the model directs its own process. [OpenAI's practical guide to building agents](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/), [Anthropic's guide to building effective agents](https://www.anthropic.com/engineering/building-effective-agents)
+
+Choose the simplest architecture that can answer the pilot question. If the path is fixed, use a fixed workflow. If the model must choose the next read-only check, test that narrow autonomy. Do not add an agent because the architecture diagram looks more complete with one.
+
+The data path needs the same precision. Record which system is authoritative for each field, how freshness is determined, what transformations occur before the model sees data, and what happens when two sources disagree. NIST's Generative AI Profile points teams toward documenting objectives and limitations, monitoring capabilities in deployment, and maintaining provenance and change records. [NIST Generative AI Profile](https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.600-1.pdf)
+
+## What proves actions can fail safely?
+
+For any side effect, reproduce an ambiguous result before the pilot: the external system may accept the action while the caller receives a timeout. Your architecture must say whether a retry is safe, how duplicates are detected, and who takes over when the answer is unknown.
+
+Here is the synthetic fixture I ran. It is deliberately small. The first trace has no approval gate, no idempotency key, and no read-after-write check.
+
+| Step | Event | Result |
+| ---: | --- | --- |
+| 1 | `crm.update` | Accepted by the external system, but the caller times out |
+| 2 | `retry.crm.update` | Duplicate-side-effect risk because the retry has no idempotency key |
+| 3 | `operator-review` | Review is too late because the trace and rollback evidence are missing |
+
+The diagnosis is architectural, not prompt-level. The model may have produced a perfectly reasonable proposal. The system still could not distinguish “the write failed” from “the write succeeded but the response was lost.”
+
+Repair the path in this order. If you need a deeper implementation treatment of the key retry property, see [how to design idempotent tools for AI agents](/blog/how-to-design-idempotent-tools-for-ai-agents).
+
+1. Make the model produce a proposal rather than an immediate write.
+2. Put approval before the consequential action.
+3. Give the action a stable idempotency key, such as `case-1042-v1`.
+4. After a timeout, query the system of record before deciding whether to retry.
+5. Route an unresolved state to a human review queue with the trace attached.
+6. Record whether the action was proposed, approved, accepted, verified, compensated, or abandoned.
+
+The repaired trace was:
+
+| Step | Event | Result |
+| ---: | --- | --- |
+| 1 | `proposal.created` | Awaiting approval |
+| 2 | `crm.update(idempotencyKey=case-1042-v1)` | Accepted, but the caller times out |
+| 3 | `read-after-write` | State verified once with the same key |
+| 4 | `operator-review` | Trace complete |
+
+OpenAI recommends guardrails, bounded tools, halting on failure, and human intervention for high-risk actions or repeated failures. AWS also treats rollback, security controls, and end-to-end testing as part of hardening rather than optional polish. [OpenAI's guide to guardrails and human intervention](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/), [AWS GenAIOps hardening guidance](https://docs.aws.amazon.com/prescriptive-guidance/latest/gen-ai-lifecycle-operational-excellence/preprod-hardening.html)
+
+If the pilot is read-only, this row changes shape rather than disappearing. Replace rollback with access revocation, stale-context handling, output quarantine, and escalation when the result cannot be verified.
+
+## What proves a bad run can be explained?
+
+Require a trace that lets another operator reconstruct the run without asking the person who built the demo. At minimum, retain the request or case ID, source versions, prompt and model versions, model inputs, tool names and arguments, tool results, state transitions, errors, retries, human decisions, and final outcome.
+
+The trace should answer five questions:
+
+1. What did the system know, and which source supplied it?
+2. What did the model decide to do next?
+3. Which tool actually ran, with which permissions and arguments?
+4. What did the external system return, including partial success or timeout?
+5. What did the person or system do after the failure?
+
+AWS describes observability for generative AI as correlated metrics, logs, and traces that include prompts, responses, token counts, tool parameters and outputs, and user feedback. It also recommends end-to-end tracing for chains of model calls, tool executions, and database queries. [AWS observability guidance](https://docs.aws.amazon.com/prescriptive-guidance/latest/gen-ai-lifecycle-operational-excellence/preprod-hardening.html)
+
+NIST's Generative AI Profile similarly connects incident response with logging, change-management records, version history, and metadata. That makes the trace part of the architecture, not a dashboard added after the pilot starts. [NIST AI 600-1](https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.600-1.pdf)
+
+Test replay with at least one known failure fixture. Replay does not mean blindly rerunning a live write. It means restoring the recorded input and mocked external responses, then checking that the workflow reaches the same diagnosis and applies the same containment rule. For a consequential action, replay in a dry-run or sandbox environment.
+
+This is where my teaching experience matters. Marius Manolachi has taught product managers who moved from writing specifications to building and shipping products and automating work around them. In that transition, “done” has to become observable. A pilot architecture that cannot state its final state, owner, and failure handoff has not defined done yet. [Learn AI with Marius Manolachi](/learn-ai)
+
+## What proves the pilot is worth continuing?
+
+Require a representative evaluation set and a simpler baseline before you interpret a demo. The evaluation should score the business result and the forbidden actions, not only whether the answer sounds plausible.
+
+Include these fields:
+
+- the cases the pilot must handle, including ambiguous and empty cases;
+- the expected result or acceptable range for each case;
+- the simpler baseline, such as a fixed workflow, rule, search step, or human-only process;
+- human correction and escalation fields;
+- the cost, latency, and review-capacity conditions that would make the result unusable;
+- a written continue, narrow, revise, or stop rule.
+
+AWS recommends layered unit, integration, end-to-end, offline, online, and human-in-the-loop evaluation for generative AI systems. It also recommends converting user-reported failures into new version-controlled evaluation cases. [AWS evaluation guidance](https://docs.aws.amazon.com/prescriptive-guidance/latest/gen-ai-lifecycle-operational-excellence/preprod-hardening.html)
+
+The architecture evidence should make the result comparable. If the AI system has more steps, more review, or more recovery work than the baseline, record that work. A higher answer score is not enough if the operator spends longer verifying every output.
+
+Do not require a universal pass percentage. The right threshold depends on the harm of an error, the reversibility of the action, the capacity of the reviewer, and the value of the successful cases. Require the team to state those conditions before it sees the demo result.
+
+## When is this evidence set too much?
+
+The full gate is too much only when the pilot is genuinely low consequence, narrow, and reversible. It is not too much because the team is early or because the demo is only internal.
+
+| Pilot condition | Evidence you may narrow | Evidence you should still require |
+| --- | --- | --- |
+| Read-only exploration with synthetic data | Rollback and side-effect compensation | Data boundary, output definition, trace, evaluation, owner |
+| Drafting with human approval before use | Automated write controls | Source of truth, reviewer decision, trace, baseline, correction path |
+| One-off analysis with no retained user data | Long-term operations and deployment rollback | Input boundary, provenance, reproducible analysis, result owner |
+| Any action that changes records, sends messages, moves money, or affects access | Nothing material | All seven rows, plus security, privacy, domain, and legal review as applicable |
+
+Anthropic's advice to start with the simplest solution is the exception that keeps this gate practical. It means reduce architectural complexity when the workflow does not need autonomy. It does not mean remove the evidence needed to understand data, actions, failures, and ownership. [Anthropic's architecture guidance](https://www.anthropic.com/engineering/building-effective-agents)
+
+## How should a team use the packet before funding the pilot?
+
+Run the packet in one short review with the builder, workflow owner, data owner, and person responsible for operating the result.
+
+1. Read the workflow sentence aloud. Remove any job that does not have one owner.
+2. Mark each source of truth and the fields that may cross into model context.
+3. Classify every tool as read, propose, approve, write, notify, or irreversible.
+4. Walk the ambiguous-timeout trace for every consequential action.
+5. Replay one known failure in a sandbox or dry-run mode.
+6. Compare the pilot with the simplest baseline and write the continue or stop rule.
+7. Refuse the pilot if a required row is blank, or narrow it until the row can be evidenced.
+
+If the team needs help making this packet and the review session part of its own capability, [Marius Manolachi's AI consulting and tutoring work](/learn-ai) is the relevant next step. The goal is not a prettier architecture diagram. It is a team that can explain, test, operate, and change the workflow without guessing.
