@@ -1,0 +1,162 @@
+---
+title: "How Reliable Are Small AI Evaluation Samples for Release Decisions?"
+date: "2026-09-13"
+updated: "2026-09-13"
+excerpt: "A 64-item release-gate experiment shows when small AI evals support ship, hold, or collect-more decisions, and why pairing changes the answer."
+answer: "Small AI evaluation samples are reliable only when their uncertainty is smaller than the release decision you need to make. In my 64-item reproducible fixture, 32 paired items returned collect-more, while 64 paired items shipped under a 75% baseline floor and 5-point minimum detectable improvement. The same 64 items treated as unpaired returned collect-more."
+targetQuery: "How reliable are small AI evaluation samples for release decisions?"
+queryAliases:
+  - "when should an AI release gate return collect more"
+  - "paired versus unpaired release test"
+  - "confidence interval for AI ship decisions"
+intent: "Informational pre-release decision"
+funnel: "evaluation"
+cluster: "evaluation"
+parent: "/blog/ai-evaluation-pillar"
+contentType: "implementation-lab"
+kind: "satellite"
+sourceableAtom: "In a 64-item deterministic evaluation fixture, the same candidate moved from collect-more at n=32 to ship at n=64 under a 75% baseline floor and 5-point minimum detectable improvement; at n=64, the paired comparison shipped while the unpaired contrast returned collect-more."
+evidenceType: "reproducible statistical evaluation experiment plus a worked release-decision artifact"
+evidenceBasis: "release_gate_eval.py v1.0, test_dataset.jsonl v1.0, and raw_output.json run on 2026-08-23; deterministic fixtures, not a live-model benchmark or client outcome"
+tags:
+  - "AI evaluation"
+  - "Release decisions"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://www.tmls.nyc/research/eval-sample-complexity"
+  - "https://www.nist.gov/publications/expanding-ai-evaluation-toolbox-statistical-models"
+  - "https://ised-isde.canada.ca/site/ised/en/canadian-artificial-intelligence-safety-institute/what-information-should-ai-evaluators-share"
+  - "https://openai.com/index/trustworthy-third-party-evaluations-foundations/"
+  - "https://github.com/openai/evals/blob/main/docs/custom-eval.md"
+faq:
+  - q: "Is 20 evaluation cases ever enough to ship?"
+    a: "Twenty cases can catch an obvious regression or a broken harness. It usually cannot resolve a small improvement with a 95% interval narrow enough for a release gate. Set the baseline, minimum detectable improvement, and interval first."
+  - q: "Should I pair models on the same evaluation items?"
+    a: "Yes when the comparison is about two versions on the same task set. Pairing removes shared item difficulty from the comparison, but it does not repair poor coverage, bad labels, judge disagreement, clustering, or a harness that differs from production."
+cover: "/blog/how-reliable-are-small-ai-evaluation-samples-for-release-decisions-hero-release-gate.webp"
+coverAlt: "Illustration of a small AI evaluation passing through a ship, hold, or collect-more release gate"
+draft: false
+---
+
+When I taught product managers who moved from writing specs to building and shipping, the recurring failure wasn't a missing model. It was that nobody could say what done meant. That same ambiguity appears in evaluation: a pass rate becomes a release verdict before anyone states how much movement the sample can resolve.
+
+The numbers below come from a bounded statistical fixture, not a client outcome or a live-model benchmark.
+
+## The result: a small sample can change the release decision
+
+The 64-item test set contains four clusters with 16 items each: policy, extraction, retrieval, and operations. I fixed the release gate before scoring: a 75% baseline floor, a 5-point minimum detectable improvement, 95% confidence, and no peeking beyond the declared sample-size views.
+
+| Evaluation view | Baseline | Candidate | Candidate Wilson 95% interval | Comparison used | Decision |
+| --- | ---: | ---: | --- | --- | --- |
+| First 32 items | 24/32 = 75.0% | 28/32 = 87.5% | 71.9% to 95.0% | Paired improvement: 1.0 to 24.0 points | Collect more |
+| All 64 items | 48/64 = 75.0% | 58/64 = 90.6% | 81.0% to 95.6% | Paired improvement: 6.7 to 24.5 points | Ship |
+| Same 64 items, unpaired contrast | 48/64 = 75.0% | 58/64 = 90.6% | 81.0% to 95.6% | Unpaired improvement: 2.8 to 28.4 points | Collect more |
+
+This is the sourceable result from the experiment: the candidate's point estimate is above the practical floor in every view, but the decision changes with sample size and with whether the same items are paired. The full hold calibration is included in the raw output; it flips eight baseline successes and returns hold, not ship.
+
+![Illustration of a release gate comparing pass-rate point estimates with Wilson uncertainty intervals](/blog/how-reliable-are-small-ai-evaluation-samples-for-release-decisions-interval-comparison.webp)
+
+## What can a small AI evaluation actually tell you?
+
+A small evaluation can support a release decision only when its uncertainty is narrower than the improvement that matters to the product. A point estimate alone cannot tell you that.
+
+For one model, the pass rate is successes divided by evaluated items. A 28/32 score is 87.5%, but the Wilson interval in this fixture runs from 71.9% to 95.0%. That lower bound is below the 75% floor, so the correct state is collect-more, even though the point estimate looks decisive.
+
+This is why I used Wilson intervals rather than a naive normal interval. The TMLS statistical synthesis describes Wilson and exact intervals as the small-sample repairs for proportions, especially near zero or one. [TMLS explains the interval choice and the finite-sample problem](https://www.tmls.nyc/research/eval-sample-complexity).
+
+There is a second question hiding inside the first. Are you measuring performance on this fixed set, or are you trying to generalize to future items from the same kind of work? NIST calls those different estimands: benchmark accuracy versus generalized accuracy. The latter requires assumptions about the item population, not just arithmetic on the rows you happened to score. [NIST describes that distinction in AI benchmark analysis](https://www.nist.gov/publications/expanding-ai-evaluation-toolbox-statistical-models).
+
+## Set the release gate before you inspect the score
+
+Write the gate in plain language before running the candidate. In this experiment it was:
+
+1. Treat 75% as the minimum acceptable baseline rate.
+2. Treat 5 percentage points as the smallest improvement worth shipping.
+3. Use 95% intervals.
+4. Compare both systems on the same item when possible.
+5. Stop only at the pre-declared sample view. Do not add items because the first result looks promising.
+
+The decision rule was:
+
+| Condition | Decision |
+| --- | --- |
+| Candidate Wilson lower bound is at least 75%, and the selected improvement interval lower bound is at least 5 points | Ship |
+| Improvement interval upper bound is below zero, or candidate Wilson upper bound is below 75% | Hold |
+| Neither condition is met | Collect more evidence |
+
+The minimum detectable improvement is not a promise that the sample will find a 5-point change. It is the smallest change this release gate treats as practically meaningful. Sample size and design determine whether the interval can actually resolve it.
+
+For a team starting from an existing eval log, the [AI evaluation pillar](/blog/ai-evaluation-pillar) gives the broader evaluation context. This page is the narrower implementation: turn the log into a declared gate.
+
+## Why pairing changed the answer
+
+Pairing means both versions receive the same items. The comparison then counts discordant outcomes:
+
+- `b`: baseline passes and candidate fails.
+- `c`: baseline fails and candidate passes.
+- improvement: `(c - b) / n`.
+
+In the 64-item fixture, `b = 0` and `c = 10`, so the observed improvement is 15.6 points. The paired 95% interval was 6.7 to 24.5 points, with an exact two-sided McNemar p-value of 0.00195. It cleared the 5-point minimum.
+
+The unpaired contrast ignores the fact that the rows are matched. Its interval was 2.8 to 28.4 points. The point estimate is the same, but its lower bound does not clear the 5-point gate. That view returns collect-more.
+
+The paired result is not automatically more truthful. It answers a narrower question: did the candidate change outcomes on these same items? It does not tell you whether the items represent production, whether the labels are sound, or whether the harness gives both versions equivalent conditions. The TMLS analysis covers the variance benefit of pairing and the fact that discordance, not total accuracy, controls the comparison. [Read the paired-comparison treatment](https://www.tmls.nyc/research/eval-sample-complexity).
+
+![Illustration of the same evaluation items flowing into paired and unpaired comparison paths with different uncertainty](/blog/how-reliable-are-small-ai-evaluation-samples-for-release-decisions-pairing-validity.webp)
+
+## What the reproducible artifact runs
+
+The companion release package contains `release_gate_eval.py` v1.0, `test_dataset.jsonl` v1.0, and the generated `raw_output.json`.
+
+The runner uses two deterministic fixture versions, `fixture-baseline-v1` and `fixture-candidate-v1`. It performs exact string equality against each gold label. There is one attempt per item, no retry, no temperature, and no tool access. That makes the result reproducible and keeps the experiment about the release gate rather than about an unavailable external model.
+
+The raw dataset exposes the fields a reviewer needs: item id, cluster, prompt, gold label, baseline output, and candidate output. OpenAI's custom-eval documentation likewise treats the dataset and evaluation runner as explicit parts of an eval, not hidden setup. [See the custom-eval example](https://github.com/openai/evals/blob/main/docs/custom-eval.md).
+
+The script computes Wilson intervals, the paired discordance table, exact McNemar p-values, the paired interval, the unpaired contrast, and the decision. I manually checked the 58/64 Wilson interval independently: 81.0171% to 95.6322%. The script returned the same endpoints to 12 decimal places.
+
+Run the artifact from this job directory:
+
+```bash
+python3 release_gate_eval.py --dataset test_dataset.jsonl --output raw_output.json
+```
+
+Test method: run the versioned script once against all 64 JSONL rows, with the pre-declared 32-item and 64-item views, no peeking, and paired scoring as the primary comparison. Then compare the generated JSON with the independent interval calculation recorded in `research.md`.
+
+Observed output: the 32-item paired view returned `collect-more`; the 64-item paired view returned `ship`; and the same 64 rows scored as unpaired returned `collect-more`. The generated output also returned a 58/64 Wilson interval of `[0.810171204004, 0.956321747415]` and an exact McNemar p-value of `0.001953125`.
+
+## Check validity before trusting the interval
+
+Statistics cannot rescue an evaluation that measures the wrong thing. Before using a small sample for release, check these fields:
+
+| Validity check | What to record | Failure that changes the decision |
+| --- | --- | --- |
+| Item coverage | Workflow slices, risk classes, edge cases, and exclusions | A clean average hides the slice that matters most |
+| Label quality | Label source, adjudication rule, and disputed items | The interval is precise around a wrong target |
+| Judge agreement | Independent reviewer agreement or deterministic scoring audit | A model judge changes the pass rate without a stable rubric |
+| Clustering | Shared template, conversation, customer, or source family | Nominal n is larger than the effective independent n |
+| Harness settings | Model version, prompts, tools, budget, retries, timeouts, and safeguards | The candidate wins because the test conditions changed |
+
+Canada's AI Safety Institute recommends reporting evaluation intent, methodology, datasets, metrics, configurations, and limits. OpenAI's playbook adds harness choices and validity hazards such as reward hacking, contamination, broken problems, refusals, and sandbagging. [Use the Canadian reporting checklist](https://ised-isde.canada.ca/site/ised/en/canadian-artificial-intelligence-safety-institute/what-information-should-ai-evaluators-share) and [OpenAI's harness guidance](https://openai.com/index/trustworthy-third-party-evaluations-foundations/) when turning this table into a real release report.
+
+Clustering deserves special attention. Sixteen prompts copied from one template are not the same evidence as sixteen independent workflow situations. The artifact's four clusters are a coverage device, not proof that the clusters represent your production population.
+
+## Use ship, hold, or collect-more as explicit states
+
+The release decision should end in one of three states:
+
+- **Ship:** the candidate clears the absolute floor and the chosen comparison clears the practical improvement threshold.
+- **Hold:** the evidence points to a regression or the candidate is below the minimum acceptable floor.
+- **Collect more:** the result is compatible with both a useful improvement and an insufficient one. The sample has not resolved the decision.
+
+Collect-more is not a soft ship. It is a request for the next pre-declared evidence tranche, a better paired design, or a validity repair. Do not stop when the point estimate crosses the threshold. Stop when the uncertainty supports the decision you wrote down in advance.
+
+If your current release gate is only “the new score is higher,” the practical next step is to add four fields to the eval record: baseline rate, minimum detectable improvement, interval method, and decision state. Then add the validity table before the next run. The [practical AI agent evaluation guide](/blog/how-to-evaluate-an-ai-agent) is useful for the surrounding release checklist, while [Why AI evals pass while users still fail](/blog/why-do-ai-evals-pass-while-users-still-fail) covers the production-validity problem this arithmetic cannot solve.
+
+## What this experiment does not prove
+
+This experiment does not show that a 64-item eval is generally enough. It shows that, under one declared fixture and one decision rule, 32 items did not clear the gate, 64 paired items did, and the same 64 unpaired comparison did not.
+
+It also does not measure a live model, judge reliability, production distribution, contamination, user harm, cost, latency, or behavior outside these 64 newly constructed items. The paired interval is an approximation, so the exact McNemar p-value is reported beside it. A larger sample can still be invalid. A smaller sample can still be useful for catching a broken harness or an obvious failure mode.
+
+The honest answer to the query is conditional: small AI evaluation samples are reliable for release decisions only when the item population, labels, harness, design, and uncertainty are all explicit, and when the interval is narrower than the decision threshold. Otherwise, the right result is collect-more.
