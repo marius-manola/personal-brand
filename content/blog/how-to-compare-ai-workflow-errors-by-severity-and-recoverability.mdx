@@ -1,0 +1,233 @@
+---
+title: 'How to Compare AI Workflow Errors by Severity and Recoverability'
+date: '2026-09-13'
+updated: '2026-09-13'
+excerpt: 'A reproducible rubric separates user impact, hidden wrongness, and recovery burden, then shows how the same AI failures move in four release queues.'
+answer: 'Compare each trace on two independent axes: severity, which combines user impact and hidden-wrongness, and recovery burden, which combines effort, reversibility, containment, and successful recovery. Rank repeated errors with a combined score, but veto critical silent failures. A frequent visible error can outrank a rarer contained high-severity error; it must not outrank a rare severe error that is silent, propagated, or hard to reverse.'
+targetQuery: 'how to compare ai workflow errors by severity and recoverability'
+queryAliases:
+  - 'compare AI workflow errors by severity'
+  - 'AI error severity and recoverability'
+  - 'how to prioritize AI workflow failures'
+  - 'severity versus recoverability for AI errors'
+intent: 'informational'
+funnel: 'consideration'
+cluster: 'evaluation'
+parent: '/blog/ai-workflow-evaluation'
+contentType: 'original-research'
+kind: 'flagship'
+sourceableAtom: 'On a six-fixture, 24-occurrence trace set, the combined queue put the rare silent extraction omission first under a critical veto, while the frequent visible support misroute outranked a rarer high-severity but contained refund-draft error; flat counts did neither.'
+evidenceType: 'reproducible test and worked decision artifact'
+evidenceBasis: 'Six authored anonymized trace fixtures across three workflows, two independent annotation records, a disagreement log, a Node.js 20.11.0 deterministic runner, and an observed comparison of flat, severity-only, recovery-only, and combined queues on 2026-08-23. No production data or model endpoint was used.'
+tags:
+  - 'AI evaluation'
+  - 'AI reliability'
+  - 'AI workflows'
+author: 'Marius Manolachi'
+nextReviewAt: '2027-02-19'
+sources:
+  - 'https://aclanthology.org/2024.dash-1.3.pdf'
+  - 'https://arxiv.org/abs/2604.23581'
+  - 'https://arxiv.org/abs/2603.06847'
+  - 'https://www.nist.gov/itl/ai-risk-management-framework'
+  - 'https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents'
+faq:
+  - q: 'Is severity the same as recoverability?'
+    a: 'No. Severity describes user impact and how easily a wrong result can look correct. Recoverability describes the work, reversibility, containment, and outcome of fixing it. A frequent visible error can be low severity but expensive at scale, while a rare silent error can be critical even when it occurs once.'
+  - q: 'Should a rare critical AI error always block release?'
+    a: 'Use a veto when the error is both materially harmful and plausibly hidden or propagated. A rare visible error that is stopped by an approval gate can stay in the queue, but a silent wrong write or irreversible side effect should not be traded away for frequency.'
+  - q: 'How many annotations do I need before trusting the queue?'
+    a: 'Start with two independent passes on a small fixture set, keep the disagreement log, and calibrate the rubric before scaling. The six-fixture pilot here reached 66.7% full-row agreement, which is a reason to refine instructions, not a reliability claim.'
+cover: '/blog/how-to-compare-ai-workflow-errors-by-severity-and-recoverability-severity-recoverability-hero.webp'
+coverAlt: 'Illustration of an AI workflow error ledger split into severity and recovery burden before release prioritization'
+draft: false
+---
+
+A flat failure count makes every broken run look the same. That is a problem when one error is obvious and fixable while another quietly changes a record that nobody checks.
+
+I built a small trace fixture to make the queue visible. The same six error types moved depending on whether I ranked them by frequency, severity, recovery burden, or both.
+
+## What did the six-fixture comparison change?
+
+The combined queue put the rare silent extraction error first, then put the frequent visible support error ahead of a rarer high-severity error that an approval gate contained.
+
+| Trace | Workflow | Occurrences | Severity | Recovery burden | Combined score | Release treatment |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| D01 | Document extraction | 2 | 9 | 10 | 38 | Critical veto, fix before release |
+| S01 | Support triage | 8 | 2 | 2 | 32 | Fix next because frequency dominates |
+| S02 | Support triage | 3 | 6 | 3 | 27 | Fix after S01, approval contains it |
+| D02 | Document extraction | 6 | 2 | 1 | 18 | Add retry and monitor |
+| C01 | Code change | 4 | 2 | 1 | 12 | Keep the test gate, improve feedback |
+| C02 | Code change | 1 | 2 | 1 | 3 | Defer |
+
+The queue is the sourceable result of this page. It is not a production failure rate. These are authored, anonymized fixtures run 24 times in total so the prioritization behavior can be inspected.
+
+### Method and sample
+
+This was a deterministic fixture study, not a production benchmark. I used six authored, anonymized trace fixtures across support triage, document extraction, and code change, with scripted occurrence counts totaling 24. Two independent annotation records were completed before adjudication, and a Node.js 20.11.0 runner applied the four queue formulas. The observed result is the table above: D01 moved from fifth under flat count to first under combined priority with the critical veto, while S01 stayed ahead of S02. The sample shows how the decision rule changes an order; it does not measure real-world frequency.
+
+![Illustration of six anonymized AI workflow traces moving into four different prioritization queues](/blog/how-to-compare-ai-workflow-errors-by-severity-and-recoverability-severity-recoverability-queues.webp)
+
+The surprising comparison is between S01, S02, and D01:
+
+- Flat count ranks S01 first and D01 fifth.
+- Severity-only ranks S02 first, with D01 tied for second.
+- The combined queue applies a veto to D01, then ranks S01 ahead of S02.
+
+That gives a practical rule: frequency can decide between errors that are visible and contained. It cannot cancel a rare error that is materially wrong, plausibly hidden, and able to propagate.
+
+## Why use severity and recoverability as separate axes?
+
+Severity tells you how bad the user-facing mistake is. Recoverability tells you what happens after the mistake: who must notice it, how much work correction takes, whether the state can be reversed, and whether the correction succeeds.
+
+The axes answer different questions:
+
+| Axis | Ask this | Example high value |
+| --- | --- | --- |
+| Severity | If this passes through, how much user impact or hidden wrongness is present? | A valid JSON object silently omits a renewal date and looks complete |
+| Recovery burden | If someone notices, what must the user or operator do to restore a safe state? | A wrong external write needs investigation and a compensating action |
+
+The distinction builds on a useful observation in Adobe's enterprise Assistant evaluation work: an answer that looks right but is wrong is different from an answer that looks wrong and is either recoverable or unrecoverable. The paper labels those classes Severity 0, 1, and 2, and connects the taxonomy to user impact ([the ACL paper on evaluating an enterprise AI assistant](https://aclanthology.org/2024.dash-1.3.pdf)).
+
+I keep that distinction but make two changes for a release queue:
+
+1. Severity is not one vague label. It is user impact plus hidden-wrongness.
+2. Recoverability is not a synonym for visible failure. It is a separate burden made from effort, reversibility, containment, and successful recovery.
+
+That separation prevents a common scoring mistake. A failure can be severe but easy to catch and undo. Another can be less dramatic in the moment but expensive because it repeats across thousands of cases. You need both facts before choosing the next fix.
+
+## How should you score an AI workflow error?
+
+Score user impact and hidden-wrongness for severity. Score correction effort, reversibility, containment, and recovery outcome for recovery burden. Keep each input visible so annotators can disagree about one fact instead of arguing over one final number.
+
+| Field | 0 | 1 | 2 | 3 |
+| --- | --- | --- | --- | --- |
+| User impact | no visible effect | delay or extra click | degraded task or manual correction | material wrong action, data, or risk |
+| Hidden-wrongness | obvious failure | visible with a routine check | plausible until checked | silent and plausible, likely to propagate |
+| User/operator effort | no correction | re-ask or one click | multi-step edit or retry | specialist reconstruction |
+| Reversibility | no state or easy undo | easy compensating action | difficult compensating action | irreversible or external side effect |
+| Containment | stopped in current step | approval or downstream block | can propagate to later steps | external commit or propagation |
+| Recovery outcome | first correction succeeds | likely after retry | uncertain or manual investigation | not recovered in the fixture |
+
+Use these formulas:
+
+```text
+severity_score = (2 × user_impact) + hidden_wrongness
+recovery_burden = effort + reversibility + containment + recovery_outcome
+combined_priority = occurrence_count × (severity_score + recovery_burden)
+```
+
+The severity score ranges from 0 to 9. The recovery-burden score ranges from 0 to 12. In this fixture, severity 8 or 9 plus hidden-wrongness 3 triggers a critical veto. That means the error stays at the top even if its count is small.
+
+The weights are a starting decision artifact, not a universal standard. If your workflow treats reversibility as more important than operator effort, change the weights, record the change, and rerun the same fixtures. Do not silently change the meaning of an old queue.
+
+## What should an annotation record contain?
+
+Record the trace, the contract it violated, the six raw dimensions, the derived scores, and the evidence used for each judgment.
+
+```yaml
+trace_id: D01
+workflow: document-extraction
+task_contract: "Extract renewal_date and schedule a reminder"
+observed_failure: "renewal_date omitted while JSON schema passed"
+source_of_truth: "source document contains a renewal date"
+annotator: A
+labels:
+  user_impact: 3
+  hidden_wrongness: 3
+  effort: 3
+  reversibility: 2
+  containment: 2
+  recovery_outcome: 3
+derived:
+  severity_score: 9
+  recovery_burden: 10
+evidence_note: "The output looked structurally valid and skipped the downstream reminder."
+```
+
+The `source_of_truth` field matters. It stops an annotator from grading only the final message. A trace is a record of actions and intermediate results; the outcome is the final state that the workflow was supposed to reach. Anthropic makes this distinction explicit in its evaluation guidance and also recommends multiple trials when behavior varies ([Anthropic's guide to evals for AI agents](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)).
+
+For a multi-step agent, add a step ID and parent step to each trace event. AgentEval's DAG framing is useful here because it connects intermediate quality and dependency paths to root-cause analysis ([AgentEval](https://arxiv.org/abs/2604.23581)). The severity and recovery rubric then answers a different question: how urgently should the error be fixed?
+
+## How do you run independent annotation without hiding disagreement?
+
+Use two passes before discussion. Do not let the first annotator's label become the second annotator's answer.
+
+1. Freeze the input, trace, task contract, rubric version, and runtime configuration.
+2. Give each annotator the fixture description without the other annotator's labels or the queue order.
+3. Require the six raw dimension scores and one evidence note. Do not accept only “high severity.”
+4. Calculate the derived scores after both passes. Keep the raw records unchanged.
+5. Compare full rows, severity bands, and recovery burden separately.
+6. Adjudicate only the dimensions that differ. Write why the evidence supports the chosen value.
+7. Revise the instructions when the disagreement reveals an ambiguous term, then rerun the affected fixture.
+
+The pilot produced 4/6 full-row agreement, or 66.7%. Severity-score agreement was also 4/6. Recovery-burden agreement was 6/6. Cohen's kappa across the four severity bands was 0.45. That result is useful because it identifies where the rubric needs clearer examples. It is not large enough to establish reliability.
+
+The two disagreements were instructive:
+
+- S02 split on hidden-wrongness. One pass saw a wrong draft amount as plausible until review; the other saw the approval hold as a routine visibility check. The adjudicated label kept the higher hidden-wrongness because the amount could be copied into a later action.
+- C01 split on user impact. One pass counted operator correction as a degraded task; the other counted the pre-merge test gate as a low-impact catch. The adjudicated label used the lower impact because shared state never changed.
+
+If the same disagreement appears across real cases, do not average it away. Change the rubric or split the error class.
+
+## Which queue should drive the release decision?
+
+Use flat counts to see workload, severity-only to see harm concentration, recovery-only to see operational burden, and the combined queue to choose a fix order. Apply policy vetoes before arithmetic ranking.
+
+| Queue | Formula | This fixture's order |
+| --- | --- | --- |
+| Flat count | `n` | S01, D02, C01, S02, D01, C02 |
+| Severity-only | `n × severity_score` | S02, D01, S01, D02, C01, C02 |
+| Recovery-only | `n × recovery_burden` | D01, S01, S02, D02, C01, C02 |
+| Combined | `n × (severity_score + recovery_burden)` plus veto | D01, S01, S02, D02, C01, C02 |
+
+### Worked release decision
+
+The first release slot goes to D01. It occurs twice, but it has severity 9, hidden-wrongness 3, recovery burden 10, and a downstream omission. The critical veto blocks a frequency trade-off.
+
+The second slot goes to S01. It occurs eight times, is visible before an external action, and is cheap to repair. Its severity is low, but the repeated operator work is now the largest fixable burden that is not a veto.
+
+S02 goes third. Its severity score is higher than S01's, but its approval gate contains the wrong draft before sending. In this fixture, the frequent recoverable error outranks the rarer high-severity but contained error.
+
+That is the exception many queues miss. “High severity always wins” is too blunt when the error is visible, blocked, and easy to correct. “Most frequent always wins” is unsafe when a rare error is silent, propagates, or changes an external state.
+
+The release queue should therefore have two layers:
+
+1. Policy layer: veto silent material errors, unauthorized actions, privacy breaches, and irreversible wrong writes.
+2. Capacity layer: rank the remaining errors by frequency multiplied by severity and recovery burden.
+
+NIST describes the AI RMF as a way to incorporate trustworthiness into the design, development, use, and evaluation of AI systems. This two-layer structure is an implementation choice that keeps that risk concern visible without pretending that one arithmetic score can settle every workflow ([NIST AI Risk Management Framework](https://www.nist.gov/itl/ai-risk-management-framework)).
+
+![Illustration of a release queue with a critical veto lane above a frequency-weighted repair lane](/blog/how-to-compare-ai-workflow-errors-by-severity-and-recoverability-critical-veto-release-queue.webp)
+
+![Illustration of two independent annotators comparing an AI workflow trace and preserving a disagreement before adjudication](/blog/how-to-compare-ai-workflow-errors-by-severity-and-recoverability-annotation-disagreement-log.webp)
+
+## Where do step-level and fault taxonomies fit?
+
+Use taxonomies to describe and locate the error. Use severity and recoverability to decide what to do next.
+
+The distinction matters because a root cause is not a priority. A schema mismatch might be contained in a test environment or might silently erase a field in a customer record. A tool-selection fault might be visible and reversible or might trigger an irreversible write. The category alone cannot tell you which queue it belongs in.
+
+The empirical fault-taxonomy study is useful as a comparison point because it groups agentic faults by types, symptoms, and root causes after analyzing sampled issues and pull requests. It does not make those categories a release-priority score ([Characterizing Faults in Agentic AI](https://arxiv.org/abs/2603.06847)). Keep its fault type as another annotation field.
+
+Likewise, AgentEval's step-level DAG evaluation helps expose error propagation. It reports stronger failure detection and root-cause attribution than flat step evaluation in its own study, but that does not answer the severity or recovery question for your workflow. Use the DAG to find the failing step, then use this rubric to price the consequence and repair path.
+
+This separation also keeps the queue compatible with the existing Assistant severity taxonomy. You can retain `fault_type`, `step_id`, and `severity_class` while adding raw recovery fields. The result is more information, not another single label.
+
+## What can this comparison not prove, and what do I still not know?
+
+It cannot estimate how often real AI systems fail, which model is better, or whether these weights transfer unchanged to a high-stakes workflow.
+
+The main limitation is the sample: six authored cases, three workflows, two independent annotation records, and scripted occurrence counts. It has no production users, model calls, real tool permissions, latency, cost, or external side effects. The agreement result is a calibration signal. The queue result is evidence that the decision changes under explicit scoring.
+
+What I still do not know is whether the same ordering survives on production traces, on other workflow types, or when an expected-loss model replaces these simple weights.
+
+The rubric can also miss what the trace does not reveal. A hidden wrong answer that no one checks may be labeled too gently. A visible error may be more disruptive than the table suggests if the operator is already overloaded. A “successful recovery” in a fixture may fail when the source system is unavailable.
+
+Add real traces only after you can verify the outcome and state the failure hypothesis. The neighboring guide on [building an evaluation dataset from production traces](/blog/how-to-build-an-evaluation-dataset-from-production-traces) covers that conversion. For the larger release gate, use [the AI agent evaluation guide](/blog/how-to-evaluate-an-ai-agent). If the problem is that automated scores pass while users still repair the work, see [why AI evals pass while users still fail](/blog/why-do-ai-evals-pass-while-users-still-fail).
+
+The assigned [AI workflow evaluation parent](/blog/ai-workflow-evaluation) is the place to connect this queue to the rest of the cluster as that hub is published.
+
+When I taught product managers to move from writing specifications to building and shipping, the recurring failure was usually an undefined “done,” not the model. A severity-by-recoverability queue makes that word concrete. It tells you what happened, what it cost to fix, and which failure cannot be traded away for a better average.
+
+If you want to apply the rubric to a real workflow, bring the trace, the source of truth, the current release rule, and the last disagreement to [Marius Manolachi's AI learning work](/learn-ai). The useful outcome is a queue your team can inspect and rerun, not a score nobody can explain.
