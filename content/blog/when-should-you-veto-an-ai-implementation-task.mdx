@@ -1,0 +1,165 @@
+---
+title: 'When Should You Veto an AI Implementation Task?'
+date: '2026-09-15'
+updated: '2026-09-15'
+excerpt: 'Use a redacted five-task worksheet to detect when an AI implementation task needs a safety veto, with weighted scoring, review thresholds, and rollback evidence.'
+answer: 'Veto an AI implementation task when a failure could cause a high-impact side effect and the team cannot define a rollback path or human approval threshold. A high score does not override that gate. For lower-risk work, score frequency, outcome, data, rules, access, safety, and ownership, then use the result to choose a reversible pilot.'
+targetQuery: 'when should we veto an ai implementation task'
+queryAliases:
+  - 'how to set a rollback gate for an ai implementation'
+  - 'when to reject a high-impact ai change'
+  - 'what makes an ai implementation task unsafe'
+intent: 'decision, implementation risk gate'
+funnel: 'consideration'
+cluster: 'implementation'
+parent: '/blog/ai-implementation-pillar'
+contentType: 'decision-tool'
+kind: 'satellite'
+sourceableAtom: 'A task-level implementation-veto worksheet ranks candidate tasks using queue evidence, a measurable outcome, input and rule readiness, integration access, reversibility, human approval, and ownership. A high-impact task with no rollback or review path is vetoed regardless of its weighted score.'
+evidenceType: 'reproducible decision artifact plus bounded firsthand observation'
+evidenceBasis: 'Five redacted task rows normalized from locked product-manager, Orange workshop, and TryUncle teaching or shipping contexts; visible raw fields; CSV download; locked seven-factor weights; reproducible 0-to-3 formula; one worked calculation; one high-impact veto. The rows and scores are qualitative documentary judgments, not a measured study, client result, or monthly workload sample.'
+tags:
+  - 'AI implementation'
+  - 'AI prioritization'
+  - 'AI governance'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-21'
+sources:
+  - 'https://academy.openai.com/public/clubs/champions-ecqup/resources/workflow-discovery-and-prioritization-matrix-2026-05-05'
+  - 'https://airc.nist.gov/airmf-resources/airmf/5-sec-core/'
+  - 'https://www.nist.gov/itl/ai-risk-management-framework/nist-ai-rmf-playbook'
+  - 'https://www.gov.uk/guidance/portfolio-of-ai-assurance-techniques'
+  - 'https://tryuncle.com/'
+  - 'https://www.linkedin.com/posts/natalia-melniciuc-phd_continuouslearning-professionaldevelopment-ugcPost-7222195991079231489-fwGg'
+  - 'https://mariusmanolachi.com/learn-ai'
+faq:
+  - q: 'What should we do when the highest-scoring task has no rollback?'
+    a: 'Veto it from the automate-first lane. Keep the task manual or redesign it as a draft, read-only recommendation, or approval-gated action with a tested rollback path.'
+  - q: 'Do we need exact monthly volume before choosing a first task?'
+    a: 'You need queue evidence, but not a perfect number. If volume is not recorded, label it as unknown and treat measurement as preparation work rather than presenting a qualitative impression as a fact.'
+cover: '/blog/when-should-you-veto-an-ai-implementation-task-when-should-you-veto-an-ai-implementation-task-hero.webp'
+coverAlt: 'Illustration of a team applying a safety veto to a high-impact AI implementation task'
+draft: false
+---
+
+The most important implementation decision is sometimes a refusal. Before a score ranks the backlog, check whether a wrong result could create a high-impact side effect without a tested way back or a human approval boundary.
+
+The OpenAI Academy's prioritization matrix is a useful starting point because it makes value, frequency, repeatability, reach, complexity, readiness, and dependencies visible. NIST's AI Risk Management Framework adds the operating question: what context, owner, oversight, and measurement make a go or no-go decision defensible? ([OpenAI Academy](https://academy.openai.com/public/clubs/champions-ecqup/resources/workflow-discovery-and-prioritization-matrix-2026-05-05), [NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/))
+
+This worksheet turns those ideas into a task-level veto decision. It also makes one rule hard to ignore: a high-impact task without rollback or human review is not a bad score. It is a veto.
+
+![Illustration of a decision worksheet connecting task evidence to a weighted score and a rollback or human-review veto](/blog/when-should-you-veto-an-ai-implementation-task-when-should-you-veto-an-ai-implementation-task-decision-worksheet.webp)
+
+## What should trigger the veto?
+
+Veto the task when its failure impact is high and either rollback or human approval before the side effect is missing. A weighted score can rank eligible work, but it cannot make an unsafe action eligible.
+
+For tasks that pass that gate, prefer a draft, extraction, classification, recommendation, or proposed action over a write that changes a customer record, project, payment, permission, or public commitment.
+
+The principal exception is a high-impact task with no rollback or review path. Keep it manual even when its theoretical value is high. The UK government's AI assurance portfolio treats impact assessment, performance testing, and ongoing testing as lifecycle techniques, while NIST places governance and human oversight across the lifecycle rather than at the end. ([GOV.UK assurance techniques](https://www.gov.uk/guidance/portfolio-of-ai-assurance-techniques), [NIST AI RMF Playbook](https://www.nist.gov/itl/ai-risk-management-framework/nist-ai-rmf-playbook))
+
+When I taught product managers who moved from writing specifications to building, shipping, and automating work, the recurring obstacle was often an undefined `done`, not an inability to produce code. That is a teaching observation, not a measured failure rate. It is why the first row below is a reviewable product brief rather than an autonomous feature. ([Marius's AI teaching context](https://mariusmanolachi.com/learn-ai))
+
+## The worksheet treats readiness as evidence, not optimism
+
+Fill one row for each actual task, not each broad ambition. For every row, record:
+
+1. Trigger: what event starts the work?
+2. Monthly volume or queue evidence: a count, queue sample, or an explicit `not recorded` label.
+3. Baseline metric: what the current process measures, or what is missing.
+4. Desired outcome: what should improve and how the owner will check it.
+5. Input and data readiness: whether the required context is available and bounded.
+6. Rule and exception clarity: normal cases, ambiguity, escalation, and forbidden actions.
+7. Integration and permission status: tools, owners, access, and write boundaries.
+8. Failure impact: what a wrong result can change.
+9. Rollback path: how to undo or discard the result.
+10. Human review threshold: what a person must approve, and when.
+11. Owner: one person accountable for the decision and follow-up.
+
+If you do not know a field, write `not recorded`. That is evidence about readiness. Do not convert it into a generous score because the idea feels important.
+
+<a download="ai-implementation-first-task-worksheet.csv" href="data:text/csv;charset=utf-8,task_id%2Ctask%2Ctrigger%2Cvolume_or_queue%2Cbaseline%2Cdesired_outcome%2Cdata_readiness%2Crule_clarity%2Cintegration_access%2Cfailure_impact%2Crollback%2Creview_threshold%2Cowner%2Cfrequency%2Coutcome%2Cdata%2Crules%2Cintegration%2Csafety%2Cowner_score%2Ctotal%2Cdisposition%2Cveto%0AA%2CDraft%20product%20brief%2CNew%20task%20enters%20discovery%2CRecurring%3B%20count%20not%20recorded%2CManual%20specs%3B%20minutes%20and%20acceptance%20not%20recorded%2CReviewable%20brief%20approved%20before%20build%2C2%2F3%2C2%2F3%2C3%2F3%2CMedium%2CDiscard%20draft%2CReview%20every%20output%2CProduct%20owner%2C2%2C2%2C2%2C2%2C3%2C3%2C3%2C70%2Cautomate%20first%2Cnone%0AB%2CPropose%20screen%20control%20annotation%2CUser%20asks%20while%20editing%2COn-demand%20queue%3B%20count%20not%20published%2CNo%20response-time%20or%20pointing%20baseline%2CSuggest%20only%3B%20user%20acts%2C1%2F3%2C1%2F3%2C1%2F3%2CMedium%2CIgnore%20and%20continue%20manually%2CUser%20remains%20actor%2CProduct%20owner%2C1%2C2%2C1%2C1%2C1%2C3%2C2%2C55%2Cprepare%20first%2Cnone%0AC%2CCapture%20screen%20after%20explicit%20question%2CUser%20asks%2COn-demand%20capture%3B%20count%20not%20published%2CNo%20capture%20success%20or%20processing%20baseline%2CContext%20supplied%20only%20after%20request%2C1%2F3%2C3%2F3%2C1%2F3%2CMedium%2CReject%20capture%3B%20use%20description%2CUser%20reviews%20answer%2CProduct%20owner%2C1%2C2%2C1%2C3%2C1%2C3%2C3%2C68.3%2Cprepare%20first%2Cnone%0AD%2CMeet%20live%20annotation%20response%20time%2CQuestion%20during%20active%20edit%2CRepeated%20constraint%3B%20latency%20not%20published%2CNo%20p50%20or%20p95%20baseline%2CMeasure%20threshold%20before%20expansion%2C1%2F3%2C1%2F3%2C1%2F3%2CMedium%2CManual%20guidance%20fallback%2CNo%20automatic%20action%20on%20timeout%2CProduct%20owner%2C2%2C2%2C1%2C1%2C1%2C3%2C2%2C60%2Cprepare%20first%2Cnone%0AE%2CEdit%20project%20autonomously%2CScreen%20suggests%20next%20edit%2CNo%20autonomous%20queue%20documented%2CNo%20accuracy%20correction%20rollback%20or%20harm%20baseline%2CKeep%20user%20in%20control%20until%20controls%20exist%2C1%2F3%2C1%2F3%2C0%2F3%2CHigh%2CNo%20documented%20rollback%2CNo%20approval%20before%20side%20effect%2CProduct%20owner%2C1%2C2%2C1%2C1%2C0%2C0%2C2%2C31.7%2Ckeep%20manual%2Cno%20rollback%20or%20review%20boundary">Download the complete worksheet as CSV</a>
+
+The visible tables below are the same artifact in a form you can inspect without downloading it. The rows are redacted because the permitted evidence does not identify a client or disclose a private backlog.
+
+## The worked decision: draft the product brief first
+
+The winning task is not “build an autonomous product manager.” It is narrower: draft a first-pass product brief from a structured task brief, then let the product or implementation owner decide what is correct, missing, or unsafe.
+
+Here is the locked scoring formula:
+
+`total = (frequency / 3 × 15) + (outcome / 3 × 15) + (data / 3 × 15) + (rules / 3 × 15) + (integration / 3 × 10) + (safety / 3 × 20) + (owner / 3 × 10)`
+
+Weights are locked before scoring:
+
+| Criterion | Weight | What a 3 means |
+| --- | ---: | --- |
+| Frequency or queue evidence | 15 | Recurring work with a measured count or a clear queue |
+| Outcome measurability | 15 | Baseline and acceptance target are explicit |
+| Input and data readiness | 15 | Required context is available, bounded, and inspectable |
+| Rule and exception clarity | 15 | Normal cases, exceptions, escalation, and forbidden actions are stated |
+| Integration and permission status | 10 | Access is available with a narrow, approved boundary |
+| Safety, reversibility, and review | 20 | Failure is containable, rollback exists, and human review is defined |
+| Owner | 10 | One person can approve, review, pause, and improve the pilot |
+
+All scores are 0 to 3. No weight changes after the rows are visible.
+
+For row A:
+
+`(2/3 × 15) + (2/3 × 15) + (2/3 × 15) + (2/3 × 15) + (3/3 × 10) + (3/3 × 20) + (3/3 × 10) = 70.0`
+
+A score of 70.0 clears the automate-first threshold of 70 only when no veto applies. The threshold is a local decision rule, not a validated industry benchmark. The output remains draft-only. The owner reviews every result before it becomes a specification, ticket, estimate, or build decision.
+
+## The raw redacted backlog
+
+This is a documentary backlog slice, not a client case study. Row A is grounded in the product-manager teaching observation. Rows B through E are grounded in the TryUncle screen, annotation, latency, and human-control context. The Orange workshop supplies the work-first rule used to choose and redact task cards: start with work people already do, not a tour of agents. ([Public Orange workshop account](https://www.linkedin.com/posts/natalia-melniciuc-phd_continuouslearning-professionaldevelopment-ugcPost-7222195991079231489-fwGg))
+
+| ID | Task and trigger | Monthly volume or queue evidence | Baseline metric | Desired outcome and acceptance target |
+| --- | --- | --- | --- | --- |
+| A | Draft product brief from structured task brief. Trigger: new task enters discovery. | Recurs in product-manager teaching and shipping context; exact monthly count not recorded. | No published minutes per task or acceptance rate; current starting point is manual specification writing. | Reviewable brief; owner approves before build. Track review time, rework, and missing-field rate. |
+| B | Turn a user's screen question into a proposed control annotation. Trigger: user asks while editing. | On-demand question queue documented; exact monthly count not published. | No published response-time or pointing-accuracy baseline. | Suggest the likely control; user remains the actor. Track pointing confirmation and abstentions. |
+| C | Capture a screen snapshot only after an explicit question. Trigger: user asks. | On-demand capture behavior documented; exact monthly count not published. | No published capture success rate or processing-time baseline. | Provide enough context to answer; explicit request remains required. Track capture success, processing time, and rejected captures. |
+| D | Meet response-time requirement for live screen annotation. Trigger: question during an active editing moment. | Repeated product constraint in TryUncle context; no latency distribution published. | No published p50 or p95 latency baseline. | Set and measure a response-time threshold before expanding exposure; fall back to manual guidance on failure. |
+| E | Edit the user's project autonomously. Trigger: screen state appears to suggest a next edit. | Autonomous-edit queue is not documented; current public product boundary keeps editing with the user. | No published accuracy, correction, rollback, or harm baseline. | Do not automate the edit unless explicit approval, rollback, and forbidden-action rules are designed. |
+
+| ID | Input/data readiness | Rule and exception clarity | Integration and permission status | Failure impact | Rollback path | Human review threshold | Owner |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| A | 2/3. Structured task input exists, but field coverage is not measured. | 2/3. `Done` and exception questions must be made explicit. | 3/3. No write integration required. | Medium. A wrong draft can mislead planning but does not change production. | Discard draft and retain source task. | Owner reviews every output before use. | Product or implementation owner |
+| B | 1/3. Screen context exists, but coverage is not measured. | 1/3. Ambiguous screens need an abstain path. | 1/3. Permission and live annotation path are not measured. | Medium. A wrong pointer wastes time but does not edit the project. | User ignores annotation and continues manually. | User sees suggestion and remains actor. | Product owner |
+| C | 1/3. Data boundary is described, but coverage is not measured. | 3/3. Explicit request and no background capture are clear. | 1/3. Screen permission and data handling need a measured spike. | Medium. Wrong context can produce a wrong answer, not a direct write. | Reject capture and use user's description. | Explicit request required; user reviews answer. | Product owner |
+| D | 1/3. Representative timing cases are not published. | 1/3. Acceptable delay and timeout behavior are not locked. | 1/3. Live path and permission dependencies need a spike. | Medium. Delay harms usefulness but does not edit a project. | Fall back to manual guidance. | User decides; no automatic action when timing fails. | Product owner |
+| E | 1/3. Screen interpretation is not enough to authorize a write. | 1/3. Forbidden actions and exceptions are not defined. | 0/3. No approved write boundary or permission path. | High. An incorrect edit can alter a user's project before it is understood. | No documented rollback path for arbitrary edits. | No human approval threshold before side effect. | Product owner |
+
+The result is deliberately uneven. Row A is the only automate-first candidate. Rows B through D are preparation tasks because their product constraints are documented but their baselines and readiness evidence are not. Row E is kept manual because it fails the safety gate.
+
+| ID | Raw scores in weight order | Total | Disposition | Veto |
+| --- | --- | ---: | --- | --- |
+| A | 2, 2, 2, 2, 3, 3, 3 | 70.0 | Automate first | None |
+| B | 1, 2, 1, 1, 1, 3, 2 | 55.0 | Prepare first | None |
+| C | 1, 2, 1, 3, 1, 3, 3 | 68.3 | Prepare first | None |
+| D | 2, 2, 1, 1, 1, 3, 2 | 60.0 | Prepare first | None |
+| E | 1, 2, 1, 1, 0, 0, 2 | 31.7 | Keep manual | High impact, no rollback and no review boundary |
+
+The score order is frequency, outcome, data, rules, integration, safety, and owner. The 70-point automate-first threshold is applied only after the veto check.
+
+## Why the autonomous edit is rejected
+
+The TryUncle product boundary is useful here: its public description says the assistant shows the user what to do, while the user edits, and that screen capture occurs only when the user asks. That is a first-party product boundary, not a universal rule for every AI system. ([TryUncle](https://tryuncle.com/))
+
+Row E also fails the artifact's hard veto. The failure impact is high, the rollback path is not documented, and there is no human approval threshold before the side effect. A score cannot compensate for those missing controls. The correct disposition is `keep manual`, or redesign the task as a proposed edit with explicit approval, a reversible operation, an audit record, and a tested dry run.
+
+This is where a scorecard differs from a spreadsheet contest. A weighted total ranks eligible work. A veto decides whether the work is eligible at all.
+
+## What to do before building
+
+Run the worksheet in this order:
+
+1. Start from work people already do. In my Orange workshop, that was the useful starting point, not a tour of agents. Keep the candidate tied to a real trigger and owner.
+2. Record the baseline before choosing a model. If volume, review time, correction rate, or latency is unknown, make measurement the preparation task.
+3. Freeze weights and vetoes in the worksheet. Do not change them after seeing a winner.
+4. Choose the narrowest reversible action. For row A, that means draft-only output and human approval before any downstream use.
+5. Define the stop rule. Pause if the reviewer cannot inspect the result, the owner cannot protect review time, the data boundary changes, or the pilot produces a harmful side effect.
+
+The broader [AI use-case prioritization guide](/blog/how-to-prioritize-ai-use-cases-in-a-small-business) covers the earlier portfolio question. For the next implementation step, use the acceptance-criteria guidance on [how to write acceptance criteria for an AI feature](/blog/how-to-write-acceptance-criteria-for-an-ai-feature), and keep the assigned parent in the cluster architecture at [/blog/ai-implementation-pillar](/blog/ai-implementation-pillar).
+
+If your team wants help running this artifact on its own backlog, [learn more about working with Marius Manolachi](/learn-ai). The useful handoff is not a model choice. It is a task with an owner, a baseline, a review boundary, and a way back.
