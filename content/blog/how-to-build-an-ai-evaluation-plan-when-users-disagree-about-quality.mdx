@@ -1,0 +1,194 @@
+---
+title: "How to Build an AI Evaluation Plan When Users Disagree About Quality"
+date: "2026-09-15"
+updated: "2026-09-15"
+excerpt: "Build an AI evaluation plan that treats user disagreement as evidence: separate criteria, vetoes, adjudication, and judge calibration."
+answer: "Build the plan around the user's task outcome, not one averaged quality score. Define separate criteria, record each reviewer's rationale, mark safety or policy vetoes, and require adjudication when reviewers disagree about task success or a veto. Automate only after human judgments are calibrated. The exception is low-risk work with a deterministic acceptance test."
+targetQuery: "How to build an AI evaluation plan when users disagree about quality"
+queryAliases:
+  - "how to handle disagreement in AI evaluation"
+  - "how to calibrate AI evaluators when reviewers disagree"
+  - "AI evaluation plan for conflicting quality judgments"
+intent: "informational / implementation"
+funnel: "consideration"
+cluster: "evaluation"
+parent: "/blog/ai-evaluation-pillar"
+contentType: "implementation-lab"
+kind: "satellite"
+sourceableAtom: "A disagreement-ready evaluation contract stores separate reviewer judgments and vetoes, then converts task-success or veto disagreement into an adjudicated BLOCK decision; a deterministic fixture observes four disagreements and the reason unresolved_conflict_hidden."
+evidenceType: "reproducible implementation artifact"
+evidenceBasis: "A YAML evaluation contract plus a deterministic two-reviewer Node fixture executed on 2026-08-23. The observed output is a protocol result, not a model benchmark, user study, or production rate."
+tags:
+  - "AI evaluation"
+  - "AI reliability"
+  - "AI product development"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://langfuse.com/resources/engineering/llm-evaluation-strategy"
+  - "https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents"
+  - "https://developers.openai.com/api/docs/guides/evals"
+  - "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/evaluate-judge-model"
+  - "https://airc.nist.gov/airmf-resources/airmf/5-sec-core/"
+faq:
+  - q: "Should every reviewer disagreement fail an AI release?"
+    a: "No. A preference difference on a low-risk wording choice can be logged and sampled. Disagreement about task success, policy, safety, privacy, or a release veto should block an automatic pass until a qualified owner adjudicates it."
+  - q: "When can an LLM judge replace human reviewers?"
+    a: "Only after the judge has been compared with human ratings on representative cases and its disagreement patterns are understood. Keep humans on vetoes, disagreement cases, high-risk work, and a verification sample."
+  - q: "What if different users genuinely want different kinds of quality?"
+    a: "Split the evaluation by user cohort or task intent and give each group an explicit outcome and rubric. Do not average incompatible preferences into one release score."
+cover: "/blog/how-to-build-an-ai-evaluation-plan-when-users-disagree-about-quality-hero.webp"
+coverAlt: "Illustration of two reviewers turning conflicting AI quality judgments into an evaluation release decision"
+draft: false
+---
+
+When two users disagree about an AI answer, the easy move is to average their scores. That can hide the only failure that matters.
+
+I taught product managers who went from writing specs to building and shipping the product, and automating work around it. The recurring gap was not always model capability. It was that nobody had defined what “done” meant for the user. A disagreement is useful because it exposes that missing definition.
+
+**Observed fixture result:** two reviewers disagreed on task success, fidelity, completeness, and a veto. The plan recorded both judgments and produced `release: BLOCK` with reason `unresolved_conflict_hidden`. This is a deterministic protocol test, not a claim about model quality or user behavior.
+
+![A disagreement-ready evaluation plan separating task outcome, criteria, veto, and adjudication](/blog/how-to-build-an-ai-evaluation-plan-when-users-disagree-about-quality-inline-1.webp)
+
+## What should an AI evaluation plan decide before anyone scores an output?
+
+Decide what the user must be able to do after using the output, which criteria can be scored separately, which failures are vetoes, and who resolves a disagreement.
+
+An evaluation plan is not just a judge prompt. It is a decision contract. Langfuse describes the useful mapping as quality dimension, precise definition, measurement method, timing, and action at a threshold. ([Langfuse evaluation strategy](https://langfuse.com/resources/engineering/llm-evaluation-strategy))
+
+Write these fields before collecting scores:
+
+| Field | What to write | Why it matters when users disagree |
+| --- | --- | --- |
+| User outcome | The observable next state or usable deliverable | Reviewers can disagree about style while still checking the same job |
+| Criteria | Separate fidelity, completeness, clarity, or other task-specific dimensions | A single quality score hides the source of disagreement |
+| Vetoes | Failures that no average can forgive | A polished answer cannot pass by being persuasive |
+| Reviewer record | Reviewer ID, score, rationale, and evidence | The disagreement becomes inspectable rather than anecdotal |
+| Adjudication | Owner, decision, reason, and follow-up case | The team can close the loop without rewriting history |
+
+Use the cheapest valid grader for each field. Code can check exact state, required fields, or forbidden values. A model judge can assess bounded language criteria. A qualified human should own domain accountability and disputed judgments. Anthropic documents these three grader types as complementary, with different trade-offs, and notes that disagreement may require reconciliation. ([Anthropic's eval guidance](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents))
+
+The key distinction is between a preference and a failure. “I prefer the shorter answer” is not the same as “the answer selected an unapproved date.” Put them in different fields.
+
+## How do you turn reviewer disagreement into a reproducible test?
+
+Use two independent reviews, preserve the raw judgments, and run a rule that routes task-success or veto disagreement to adjudication instead of averaging it away.
+
+Here is the smallest useful contract. Rename the criteria for your workflow, but keep the separation between outcome, dimensions, vetoes, and adjudication.
+
+```yaml
+evaluation_plan:
+  version: 1
+  user_outcome: "The user can approve, send, or escalate the AI result without hidden conflict"
+
+  criteria:
+    - id: task_success
+      scale: pass_fail
+      evidence: "accepted deliverable or verified next state"
+    - id: fidelity
+      scale: 0_to_2
+      evidence: "claims match the source of truth"
+    - id: completeness
+      scale: 0_to_2
+      evidence: "required facts and next step are present"
+    - id: clarity
+      scale: 0_to_2
+      evidence: "intended reader can act without reconstruction"
+
+  vetoes:
+    - unsupported_claim
+    - unresolved_conflict_hidden
+    - unsafe_or_unapproved_action
+
+  review:
+    independent_reviewers: 2
+    blind_to_other_scores: true
+    record: [reviewer_id, scores, vetoes, rationale, evidence]
+    disagreement:
+      task_success_or_veto: adjudicate_before_pass
+      criterion_difference: record_and_adjudicate_if_material
+      preference_only: sample_and_track
+
+  release:
+    block_if: [task_success_fail, any_veto, unresolved_material_disagreement]
+    pass_if: [task_success_pass, no_veto, adjudication_complete]
+```
+
+OpenAI's eval documentation uses explicit testing criteria and human-provided labels as the reference for deciding whether a generated output satisfies a task. That is the useful pattern here: a reviewer judgment is evidence with provenance, not a mysterious “ground truth” number. ([OpenAI evals guide](https://developers.openai.com/api/docs/guides/evals))
+
+### Reproduction fixture
+
+Run the contract against this fixed case:
+
+- Source: two policy records list different effective dates.
+- AI output: selects one date and does not disclose the conflict.
+- Reviewer R1: task success pass, fidelity 2, completeness 2, clarity 2, no veto.
+- Reviewer R2: task success fail, fidelity 0, completeness 1, clarity 2, veto `unresolved_conflict_hidden`.
+- Adjudicator: task success fail, veto true, decision `BLOCK`.
+
+The observed result is:
+
+| Recorded field | Result |
+| --- | --- |
+| Reviewers | 2 |
+| Disagreement fields | `task_success`, `fidelity`, `completeness`, `veto` |
+| Adjudication | `BLOCK` |
+| Blocking reason | `unresolved_conflict_hidden` |
+
+This is the sourceable artifact: it makes disagreement a first-class release input. The result does not say which reviewer is generally more reliable. It says the plan refuses to call the case safe while the conflict is unresolved.
+
+## Which disagreements should block an automatic pass?
+
+Block disagreements about the user's actual outcome, safety, policy, privacy, grounding, or an explicit veto. Log and sample disagreements about taste, tone, or equally acceptable wording when the task is low risk.
+
+Use this decision rule:
+
+1. If one reviewer marks task success as fail, do not pass automatically.
+2. If either reviewer marks a veto, preserve the veto and adjudicate it.
+3. If both reviewers agree the outcome passes but differ on a non-critical criterion, record the difference and inspect whether the rubric anchor is too vague.
+4. If disagreement repeats for one user cohort or intent, split the evaluation rather than forcing one average.
+5. If the disagreement reveals a missing acceptance condition, add a regression case and update the contract.
+
+NIST's AI RMF Measure function calls for documented test sets and tools, evaluation under conditions similar to deployment, expert or independent assessment, documented limitations, production monitoring, and feedback from users or affected communities. Those requirements support a conservative boundary around vetoes and context, but they do not supply a universal numeric disagreement threshold. ([NIST AI RMF Measure](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/))
+
+The principal exception is a genuinely low-risk task with a deterministic acceptance test. If the user outcome is exact and mechanically verifiable, a reviewer preference split may not need adjudication. Even then, keep the test case and the reason for the exception.
+
+![Release decision tree showing preference disagreement versus task failure or veto](/blog/how-to-build-an-ai-evaluation-plan-when-users-disagree-about-quality-inline-2.webp)
+
+## How should you calibrate a judge when reviewers disagree?
+
+Compare the judge with independent human ratings on representative cases, inspect disagreement by criterion, and keep human review for vetoes, disputed cases, and a verification sample.
+
+Google Cloud's judge-model guidance says to prepare human ratings as ground truth and compare model-based metric scores with those ratings. Anthropic makes the same practical point from another angle: model-based graders are flexible and scalable, but they require calibration with human graders. ([Google Cloud judge evaluation](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/evaluate-judge-model), [Anthropic's eval guidance](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents))
+
+Use this calibration loop:
+
+1. Freeze the rubric version, input, output, and judge configuration.
+2. Have reviewers score the same cases independently and without seeing the judge score.
+3. Compare judge and human results per criterion, not only on an overall average.
+4. Inspect every veto mismatch and every task-success mismatch.
+5. Rewrite ambiguous anchors, then rerun the same cases plus new cases from the disagreement pattern.
+6. Reduce routine human coverage only where agreement is stable. Keep vetoes, disagreements, high-risk cases, and a random verification sample human-owned.
+
+Do not call the judge calibrated because its mean score is close to the human mean. A judge can match the average while missing every safety veto. The artifact should preserve disagreement counts and examples by dimension.
+
+## What should change after the first disputed case?
+
+Turn the disputed case into a regression test, then change the smallest part of the system that could explain the failure.
+
+The repair path is:
+
+1. Freeze the original input, output, scores, rationales, and decision.
+2. State the missing acceptance condition in observable language.
+3. Add the case to the evaluation dataset with its corrected outcome or adjudicated label. See [How to Build an Evaluation Dataset From Production Traces](/blog/how-to-build-an-evaluation-dataset-from-production-traces).
+4. Assign the check to code, model judge, or human review based on what must be observed.
+5. Rerun the old case and nearby variants. A new prompt that fixes the case but creates a different veto is not a complete repair.
+6. Update the release contract and record who approved the change.
+
+This keeps the evaluation plan connected to real failures instead of turning it into a static rubric library. It also complements [How to Measure AI Output Quality When There Is No Single Right Answer](/blog/how-to-measure-ai-output-quality-no-single-right-answer), which separates outcome quality, criterion quality, preference, and constraint integrity.
+
+For the wider cluster, start with the [AI evaluation pillar](/blog/ai-evaluation-pillar) when you need the surrounding release, quality, and production-monitoring decisions.
+
+My rule is simple: disagreement should change the evidence you collect, not disappear into an average. If the team cannot explain what the user needed, which reviewer saw which failure, and who resolved the conflict, the evaluation plan is not ready to automate.
+
+If your team needs help turning a live workflow into this contract, [Marius Manolachi's AI consulting and tutoring work](/learn-ai) starts with the work and leaves the team able to run the evaluation themselves.
