@@ -1,0 +1,170 @@
+---
+title: 'How to Build a Shadow Mode for an AI Workflow Before It Takes Action'
+date: '2026-09-16'
+updated: '2026-09-16'
+excerpt: 'Build a no-op shadow harness that compares proposed tool calls with a human baseline before any business side effect is allowed.'
+answer: 'Build shadow mode around the action boundary, not only the model: replay the same inputs through the candidate, intercept every proposed tool call in a no-op sink, and compare each receipt with a human baseline. Promote only read-only or explicitly approved action classes. Keep actions shadowed when evidence is missing, approval is unclear, or the candidate can exceed its declared scope.'
+targetQuery: 'how to build a shadow mode for an ai workflow before it takes action'
+queryAliases:
+  - 'AI workflow shadow mode'
+  - 'shadow testing an AI agent before tool execution'
+  - 'how to inspect proposed AI workflow tool calls before execution'
+intent: 'implementation'
+funnel: 'consideration'
+cluster: 'implementation'
+parent: '/blog/ai-workflow-implementation'
+contentType: 'implementation-lab'
+kind: 'satellite'
+sourceableAtom: 'In a reproducible 9-fixture purchase-request run, the candidate matched the human baseline on 6 inputs and disagreed on 3, including 2 scope misses and 1 missing-source miss, while all proposed tool calls were intercepted and 0 executed.'
+evidenceType: 'reusable artifact and reproducible test'
+evidenceBasis: 'A versioned local Python harness, 9 stable non-sensitive fixtures, a no-op action sink, structured dated receipts, a CSV human-baseline comparison, and a JSON decision report. The 2026-08-23 run produced 6 matches, 3 disagreements, and 0 executed tool calls.'
+tags:
+  - 'AI workflows'
+  - 'AI safety'
+  - 'Implementation'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-20'
+sources:
+  - 'https://docs.aws.amazon.com/sagemaker/latest/dg/model-shadow-deployment.html'
+  - 'https://docs.aws.amazon.com/sagemaker/latest/dg/shadow-tests-view-monitor-edit-dashboard.html'
+  - 'https://arxiv.org/abs/2403.16795'
+  - 'https://genai.owasp.org/download/43299/?tmstv=1731900559'
+  - 'https://www.nist.gov/itl/ai-risk-management-framework/nist-ai-rmf-playbook'
+  - 'https://www.udemy.com/user/marius-manola/'
+faq:
+  - q: 'Can shadow mode prove that an AI action is safe?'
+    a: 'No. Shadow mode proves what the candidate would have proposed against observed inputs. It cannot prove that a write is authorized, that a human will approve it consistently, or that unseen inputs are safe. Those require downstream authorization, review, and additional evaluation.'
+  - q: 'Should every tool stay shadowed forever?'
+    a: 'No. A read-only lookup can earn a less restrictive boundary after source freshness, error handling, and access checks are verified. A message, record change, purchase, or other consequential action should remain approval-gated until its own evidence and owner are explicit.'
+  - q: 'What should a shadow ledger record?'
+    a: 'Record the input and workflow versions, proposed tool and arguments, source IDs, permission class, execution result, human baseline, match status, disagreement category, and review decision. Without those fields, a shadow run becomes a model transcript instead of a release artifact.'
+cover: '/blog/how-to-build-a-shadow-mode-for-an-ai-workflow-before-it-takes-action-shadow-mode-hero.webp'
+coverAlt: 'Illustration of an AI workflow intercepting a proposed tool call before a human approval boundary'
+draft: false
+---
+
+When I teach product managers to move from writing specs to building and shipping, I keep seeing the same release mistake: a working demo is treated as permission to act. A shadow run creates a pause between “the candidate proposed this” and “the system did this.”
+
+Here is the local result that shaped this implementation. I ran the harness in `shadow-harness/` against six fixed fixtures and three short replay inputs. It matched the human baseline on 6 of 9 inputs, disagreed on 3, and intercepted all 9 proposed calls without executing any of them. Two disagreements were scope failures. One was caused by a missing source.
+
+![Illustration of a local AI workflow shadow harness routing proposed tool calls into a no-op sink and comparison ledger](/blog/how-to-build-a-shadow-mode-for-an-ai-workflow-before-it-takes-action-shadow-mode-harness-flow.webp)
+
+## Start with a no-op boundary, not a shadow dashboard
+
+Shadow mode should copy the candidate's proposed action into a receipt before the real executor can see it. The candidate may parse inputs, retrieve permitted evidence, and choose a tool, but the final call must terminate in a sink that records the proposal and returns a safe no-op result.
+
+That is the workflow version of AWS SageMaker's shadow-variant pattern: the existing production variant continues serving while the shadow candidate receives the same requests for validation before promotion ([AWS SageMaker shadow deployments](https://docs.aws.amazon.com/sagemaker/latest/dg/model-shadow-deployment.html)). The important adaptation is the boundary. A model comparison can show output differences. A tool-workflow shadow must also show permission, arguments, source evidence, and whether execution happened.
+
+Use three action states in configuration:
+
+| State | Meaning | Example from this run |
+| --- | --- | --- |
+| `shadowed` | The candidate may observe and propose, but the call cannot execute. | `lookup_policy`, `lookup_budget` |
+| `approval-gated` | The candidate may prepare a proposal, but a named human or downstream policy must approve it. | `draft_purchase_approval`, `notify_requester` |
+| `out-of-scope` | The action is not part of this workflow's declared authority. | `create_purchase_order` |
+
+Do not use “shadow” as a synonym for “safe.” The candidate can still reveal data, spend compute, or produce a dangerously persuasive proposal while it is shadowed. The sink prevents this harness from making a business-side effect. It does not replace authorization in the real system.
+
+## Build the smallest reproducible harness
+
+Keep the first lab boring. One bounded workflow is enough. My harness uses a purchase-request flow with an amount, two source IDs, a scope field, and five possible decisions. It uses deterministic rules so another engineer can reproduce the result without an API key or a model-version assumption.
+
+1. **Freeze the input contract.** Store each fixture with an `input_id`, request text, source IDs, scope, human action, and human reason. The human action is written into the fixture before the candidate runs.
+2. **Version the candidate and configuration.** The harness records `workflow_version: candidate-2026-08-23`, while `config.json` records version `1.0.0` and the $500 small-request limit.
+3. **Separate proposal from execution.** The candidate returns a proposed action and arguments. Only the `NoOpSink.intercept()` method receives the call in this lab.
+4. **Hash the input.** The receipt stores a SHA-256 hash of the request text. This makes a ledger row traceable without copying a larger input into every downstream report.
+5. **Compare exact actions.** A match means the proposed action equals the human baseline action. Do not turn this first run into a vague “quality score.” The question is whether the candidate selected the same next action for this bounded task.
+6. **Write raw and summarized artifacts.** Keep the JSONL ledger for inspection, CSV for review, JSON for the release decision, and the configuration used for replay.
+
+The core interceptor is intentionally small:
+
+```python
+def intercept(self, tool_name, arguments, permission):
+    receipt = {
+        "tool_name": tool_name,
+        "arguments": arguments,
+        "permission_class": permission,
+        "intercepted": True,
+        "executed": False,
+        "sink": "no-op",
+    }
+    self.receipts.append(receipt)
+    return receipt
+```
+
+Run the artifact from its directory:
+
+```bash
+python3 shadow_harness.py \
+  --config config.json \
+  --fixtures fixtures.jsonl \
+  --out-dir artifacts
+```
+
+The command is the test method. If it cannot be run without credentials, a network connection, or a real write path, it is not yet a safe first shadow harness.
+
+## Compare every proposal with a human baseline
+
+A shadow ledger is useful when it answers “what would the operator have done?” The comparison table makes the disagreement inspectable instead of hiding it in an aggregate score.
+
+| Input | Stream | Candidate proposal | Human baseline | Match | Miss |
+| --- | --- | --- | --- | --- | --- |
+| fixed-001 | fixed | draft approval | draft approval | yes | |
+| fixed-002 | fixed | draft approval | escalate | no | source |
+| fixed-003 | fixed | escalate | escalate | yes | |
+| fixed-004 | fixed | create purchase order | escalate | no | scope |
+| fixed-005 | fixed | draft approval | draft approval | yes | |
+| fixed-006 | fixed | draft approval | draft approval | yes | |
+| replay-001 | replay | draft approval | draft approval | yes | |
+| replay-002 | replay | escalate | escalate | yes | |
+| replay-003 | replay | create purchase order | escalate | no | scope |
+
+The first disagreement is more valuable than the 6 matching rows. On `fixed-002`, the candidate saw a $240 request and proposed an approval draft even though the budget source was absent. On `fixed-004`, it followed purchase-order wording toward a tool the workflow did not own. Those are different repairs. One needs source completeness. The other needs a hard scope boundary before tool selection.
+
+AWS's shadow-test documentation lists operational comparisons such as invocation volume, model latency, 4XX and 5XX errors, model errors, and container resource use ([AWS shadow-test monitoring](https://docs.aws.amazon.com/sagemaker/latest/dg/shadow-tests-view-monitor-edit-dashboard.html)). Keep those metrics in the production version, but add workflow metrics that a model-serving dashboard will not know: source completeness, action agreement, permission class, approval rate, escalation rate, and blocked-side-effect count.
+
+## Classify disagreements before changing the prompt
+
+Use a miss taxonomy that points to a repair. The categories below cover the failure locations I want in a first ledger. The current run observed source and scope misses; the other categories remain explicit so a later run does not force every disagreement into “the model was wrong.”
+
+| Miss type | What it means | Repair to test | Observed here |
+| --- | --- | --- | ---: |
+| Prompt | The task framing caused the candidate to misunderstand the job. | Rewrite the task contract and add a fixture that tests the ambiguity. | 0 |
+| Source | A required source was absent, stale, or ignored. | Make source completeness a precondition for the action. | 1 |
+| Rule | The candidate applied the wrong threshold or routing rule. | Change the deterministic rule or policy test, then replay boundary values. | 0 |
+| Reviewer | The human baseline was inconsistent or under-specified. | Reconcile the baseline with a second reviewer or an explicit policy decision. | 0 |
+| Scope | The candidate proposed a capability outside its declared authority. | Remove the tool, block the action downstream, and add an out-of-scope fixture. | 2 |
+
+This is where the harness earns its place. A generic pass rate would combine the missing-budget-source error with the purchase-order permission error. The ledger keeps them separate, so the next change has a falsifiable target.
+
+The MLOps interview study by Shreya Shankar and colleagues describes evaluation throughout a multi-stage deployment and continual monitoring and response across the lifecycle ([arXiv:2403.16795](https://arxiv.org/abs/2403.16795)). That supports running the harness repeatedly as the prompt, source snapshot, rules, reviewer policy, or tool permissions change. It does not turn this nine-input run into a production benchmark.
+
+## Choose promotion boundaries by action class
+
+Promote permissions one action class at a time. A single candidate score is not a permission grant.
+
+| Action class | Boundary after this run | Evidence needed before loosening it |
+| --- | --- | --- |
+| Read-only policy lookup | Stay shadowed in this lab | Source freshness, access checks, error handling, and complete receipts |
+| Read-only budget lookup | Stay shadowed in this lab | Same checks, plus a defined behavior when the source is absent |
+| Draft purchase approval | Approval-gated | Agreement on representative cases, visible source evidence, named approver, and a downstream authorization check |
+| Notify requester | Approval-gated | Approved message preview, recipient validation, idempotency, and a human approval record |
+| Create purchase order | Out of scope | A separate workflow, owner, policy, and release gate. It is not unlocked by this shadow run |
+
+OWASP describes Excessive Agency as the combination of unnecessary functionality, permissions, or autonomy that lets unexpected or manipulated outputs cause damaging actions. Its mitigations include minimizing extensions and permissions, requiring approval for high-impact actions, and enforcing authorization in downstream systems ([OWASP LLM06 Excessive Agency](https://genai.owasp.org/download/43299/?tmstv=1731900559)). The harness applies that advice as configuration, not as a prompt instruction.
+
+NIST's AI RMF Playbook organizes its suggested actions around Govern, Map, Measure, and Manage across design, development, deployment, and use ([NIST AI RMF Playbook](https://www.nist.gov/itl/ai-risk-management-framework/nist-ai-rmf-playbook)). For this lab, that means naming the owner and allowed actions, mapping the workflow boundary, measuring proposal-to-baseline differences, and managing the unresolved permissions through an explicit decision record.
+
+![Illustration of AI workflow action classes separated into shadowed, approval-gated, and out-of-scope permission boundaries](/blog/how-to-build-a-shadow-mode-for-an-ai-workflow-before-it-takes-action-shadow-mode-permission-boundaries.webp)
+
+## Know what this run cannot prove
+
+This run proves that the supplied harness can replay nine fixtures, emit structured receipts, compare candidate actions with a stored human baseline, and prevent execution in the local sink. It does not prove production accuracy, model consistency, source freshness, reviewer agreement, latency, cost, or safety under adversarial input.
+
+It also does not prove that a real integration is harmless because its shadow branch has no writes. Production authorization must still be enforced by the downstream system, with a scoped identity and an operator who can approve or stop the action. The shadow branch is evidence collection. It is not an exception to security design.
+
+That distinction matters because the deployment pattern is staged. AWS lets an operator monitor a shadow test and promote the shadow variant after reviewing its metrics, but the promotion step is still a deliberate operational decision ([AWS shadow-test monitoring](https://docs.aws.amazon.com/sagemaker/latest/dg/shadow-tests-view-monitor-edit-dashboard.html)). For an AI workflow, promotion should also require a clean action-boundary decision for each tool class.
+
+If you want the broader release sequence, continue with [How to Roll Out an AI Feature Safely](/blog/how-to-roll-out-an-ai-feature-safely). For the implementation cluster, use the assigned parent, [AI workflow implementation](/blog/ai-workflow-implementation), as the next hub. Marius Manolachi's [AI learning work](/learn-ai) is the appropriate next step when your team needs to build and operate this kind of workflow on its own work rather than hand the whole implementation away.
+
+The practical next step is small: add one fixture for every action class you want to discuss, run the candidate with the sink still attached, and refuse to loosen a boundary until the ledger can explain both the matches and the misses.
