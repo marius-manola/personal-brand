@@ -1,0 +1,176 @@
+---
+title: "Why Does an AI Workflow Lose Context Between a Person and the System?"
+date: "2026-09-16"
+updated: "2026-09-16"
+excerpt: "Find the first boundary where an AI workflow drops, changes, stales, hides, or summarizes away a person's context before changing the model."
+answer: "An AI workflow usually loses context at a boundary, not inside the model: a field is omitted during normalization, changed by a type or naming conversion, read from a stale checkpoint, hidden behind unavailable authority, or removed by a summary. Compare the submitted packet with normalized state, checkpoint, and resumed input. The exception is genuine model misunderstanding after all required fields match."
+targetQuery: "why does an ai workflow lose context between a person and the system"
+queryAliases:
+  - "AI workflow loses context between person and system"
+  - "how to find the first lost field in an AI workflow"
+intent: "failure diagnosis"
+funnel: "consideration"
+cluster: "implementation"
+parent: "/blog/ai-workflow-implementation"
+contentType: "failure-clinic"
+kind: "satellite"
+sourceableAtom: "A provider-neutral six-case transfer fixture found the first loss boundary across a person request, normalized state, checkpoint, and resumed input, even though every raw system output returned draft_ready."
+evidenceType: "failure-reproduction"
+evidenceBasis: "A dependency-free deterministic Node.js fixture was checked and run on 2026-08-23. It preserved the input packet, boundary payloads, checkpoint, resumed input, expected contract, raw outputs, and first-loss table for one complete transfer and five named failure cases."
+tags:
+  - "AI workflows"
+  - "AI implementation"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://openai.github.io/openai-agents-js/guides/human-in-the-loop/"
+  - "https://opentelemetry.io/docs/specs/otel/trace/api/"
+  - "https://docs.langchain.com/oss/python/concepts/memory"
+  - "https://docs.langchain.com/oss/python/langgraph/persistence"
+  - "https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.600-1.pdf"
+  - "https://saltwaterinteractive.com/ai-workflow-handoffs/"
+faq:
+  - q: "How can I tell whether context was lost or the model misunderstood it?"
+    a: "First compare required fields at each boundary. If a field is missing, changed, stale, or inaccessible before the resumed model input, the failure is transfer. If every required value matches and the output is still wrong, investigate model interpretation, retrieval, or business rules next."
+  - q: "Should I store the whole conversation to preserve context?"
+    a: "No. Store a typed task contract and the evidence needed to resume. A full transcript can exceed context limits, preserve stale instructions, and hide which values are authoritative. Keep the transcript as an optional diagnostic artifact, not the contract itself."
+  - q: "What should an approval checkpoint contain?"
+    a: "Store the pending action, approval decision and actor, request identity, workflow version, source reference and version, required evidence, and a resumable state identifier. Validate those fields before the resumed system acts."
+cover: "/blog/why-does-an-ai-workflow-lose-context-between-a-person-and-the-system-context-transfer-boundaries-hero.webp"
+coverAlt: "Illustration of a person request crossing normalization, checkpoint, and resume boundaries before an AI workflow responds"
+draft: false
+---
+
+When I taught product managers to move from writing specifications to building and shipping products, the failure was almost never the model. It was that nobody could say what done meant. A context handoff has the same problem: “the system saw it” is not a contract.
+
+![Illustration of a person request moving through normalized state, an approval pause, a checkpoint, and resumed system input](/blog/why-does-an-ai-workflow-lose-context-between-a-person-and-the-system-context-transfer-boundaries-hero.webp)
+
+I ran a small provider-neutral fixture to find the first place context disappeared. It used one request, one approval pause, one persisted checkpoint, and one resumed run. The result was more useful than a better prompt:
+
+| Case | First observed loss | Resumed raw output |
+| --- | --- | --- |
+| `complete-transfer` | None | `draft_ready` |
+| `omitted-field` | `normalized_state.approval_actor` became `null` | `draft_ready` |
+| `normalization-mismatch` | `normalized_state.source_version` changed format | `draft_ready` |
+| `stale-checkpoint` | `checkpoint.source_version` reverted to `2026-08-23-v1` | `draft_ready` |
+| `inaccessible-source-of-truth` | `normalized_state.source_excerpt` became `null` after access denial | `draft_ready` |
+| `truncated-summary` | `checkpoint.source_version` disappeared from the summary | `draft_ready` |
+
+That is the diagnostic result: a successful system response does not prove that the person's context survived the boundary. The raw packet and method are preserved in the evidence record used to draft this post for anyone who wants to reproduce the diagnosis.
+
+## Where does the context actually disappear?
+
+Context disappears at the first boundary where a required value no longer matches the transfer contract. The model is downstream of that boundary, so changing its instructions first can hide the cause.
+
+Use four representations when you debug:
+
+| Representation | What it answers | Typical loss |
+| --- | --- | --- |
+| Person packet | What did the person actually submit or approve? | The field was never present, or the request identity was unclear. |
+| Normalized state | What did the application decide to carry forward? | A mapper dropped a field, renamed it, changed its type, or could not read the source. |
+| Checkpoint | What was persisted at the pause? | The saved version is stale, the wrong thread was loaded, or a summary removed detail. |
+| Resumed input | What could the system actually see after resume? | The pointer was present but the authority was unavailable, or the resume adapter rebuilt an incomplete input. |
+
+The key distinction is between “stored” and “available.” A checkpoint can contain a reference to a policy while the resumed process lacks permission to read that policy. A transcript can contain a decision while the structured task state does not. A summary can sound complete while removing the one field that controls the next action.
+
+## What did the deterministic fixture reproduce?
+
+The fixture used this expected contract for the resumed run:
+
+```json
+{
+  "request_id": "req-ctx-001",
+  "person_goal": "Review the Q3 refund exception and prepare a response.",
+  "pending_action": "draft_response",
+  "approval_status": "approved",
+  "approval_actor": "person-7",
+  "source_ref": "policy://refunds",
+  "source_version": "2026-08-23-v2",
+  "source_excerpt": "Refund exceptions require a documented reason and human approval."
+}
+```
+
+The fixture then compared the projected values after normalization, after checkpointing, and after resume. It reported the first mismatch, not every downstream symptom. That keeps the diagnosis actionable.
+
+![Illustration of a first-loss comparison table with expected values beside normalized state, checkpoint, and resumed input](/blog/why-does-an-ai-workflow-lose-context-between-a-person-and-the-system-first-loss-comparison-inline-1.webp)
+
+The complete case passed. Each failing case failed for a different reason, but all six raw outputs still reported `draft_ready`. This was a deliberate test of observability, not a claim about model behavior. The fixture has no model call, so it cannot tell you whether a model would have interpreted the surviving values correctly.
+
+## How do you locate the first failing boundary?
+
+Run the comparison in order. Stop at the first mismatch.
+
+1. **Freeze the person's packet.** Save the exact structured request, approval decision, actor, request ID, source reference, and source version. If the person supplied free text, preserve it as a separate raw artifact rather than treating it as the only state.
+
+2. **Write the expected contract.** List the fields the resumed step needs and their expected values. Include authority, version, and approval fields. “The conversation” is not a field.
+
+3. **Capture normalized state.** Compare each contract field after the application maps the person's input into workflow state. Check omission, field names, null handling, enums, date formats, and IDs.
+
+4. **Capture the checkpoint before the pause.** Record the thread or run identifier, workflow version, sequence, state payload, and summary. Compare the checkpoint to normalized state. Do not inspect only the database row after the failure, because a later repair may have overwritten it.
+
+5. **Capture resumed input.** Record the exact payload and resolved source evidence sent to the resumed step. A reference such as `policy://refunds` proves that a pointer traveled. It does not prove that the authority was readable.
+
+6. **Capture raw output separately.** Preserve the system's response without letting its success status decide whether context survived. In the fixture, `draft_ready` appeared for every case, including the five failures.
+
+7. **Repair the first loss, then rerun the same packet.** Keep the model and prompt fixed for this test. If the result changes after the boundary repair, you have evidence that the transfer was part of the failure. If the fields match and the result remains wrong, move to retrieval, rules, or model interpretation.
+
+This is the same kind of evidence boundary you want in an [AI workflow audit trail](/blog/how-to-add-an-audit-trail-to-an-ai-workflow). Correlate the request, normalization, checkpoint, approval, resume, and output with one run identity so a reviewer can reconstruct the sequence.
+
+For the wider implementation sequence around this diagnosis, use the [AI workflow implementation hub](/blog/ai-workflow-implementation).
+
+## What does each loss class mean?
+
+The repair depends on the first loss, not on the final wording of the response.
+
+| Loss class | What the boundary shows | Repair | Verification |
+| --- | --- | --- | --- |
+| Omission | A required field exists in the person packet but not in normalized state. | Make the field required in the mapper and reject incomplete state before pause. | The same packet preserves the field after normalization. |
+| Transformation | The field exists but its value or representation changes, such as `2026-08-23-v2` becoming `2026/08/23-v2`. | Define one canonical type and validate the normalized value against it. | Expected and observed values compare equal, not merely “parse successfully.” |
+| Stale state | The checkpoint contains an older version or snapshot than the state before pause. | Persist a sequence or version, reject stale resume input, and choose the correct checkpoint deliberately. | A replay with the same run ID loads the newest valid state. |
+| Inaccessible authority | The pointer survives, but the source excerpt or permission needed for the decision does not. | Resolve authority before resume or return an explicit blocked state. Do not treat a reference as evidence. | The resumed input contains the expected source value or a visible access failure. |
+| Lossy summary | A summary replaces structured state and removes a required field. | Keep a typed state record as the contract; use summaries only as a convenience view. | Reconstruct the resumed input from structured state without the summary. |
+
+The exception is a legitimate model error after the contract matches. If the resumed input contains every required value, the correct source version, and usable evidence, then prompt repair may be relevant. Before that point, a prompt change is a guess.
+
+## How should an approval boundary preserve context?
+
+An approval boundary should persist the work needed to continue, not just the fact that someone clicked approve. The minimum provider-neutral envelope is:
+
+```text
+run_id
+request_id
+workflow_version
+state_version
+pending_action
+approval: {status, actor, decision_id}
+source_of_truth: {ref, version, evidence_or_access_status}
+resumption_point
+```
+
+The OpenAI Agents SDK is one implementation of this general pattern. Its human-in-the-loop guide describes a run pausing when approval is required and resuming from the updated `RunState`; it also documents serializing state for longer approval periods. That does not make the SDK the contract. It shows how one framework carries the contract. ([OpenAI Agents SDK human-in-the-loop guide](https://openai.github.io/openai-agents-js/guides/human-in-the-loop/))
+
+LangGraph makes a similar distinction between a checkpointer for thread-scoped graph state and a store for application-defined data across threads. Its documentation also warns that in-memory checkpoints disappear after restart and that subgraph state may not be visible to a parent immediately. Those are implementation-specific examples of two provider-neutral questions: which scope owns this value, and which persisted record will the resumed step read? ([LangGraph persistence](https://docs.langchain.com/oss/python/langgraph/persistence), [LangChain memory overview](https://docs.langchain.com/oss/python/concepts/memory))
+
+For tracing, OpenTelemetry's API gives spans stable `TraceId` and `SpanId` values, parent-child relationships, and context propagation across process boundaries. Use those identifiers to correlate boundary artifacts. Do not put the entire business contract into trace attributes by default, especially when it contains sensitive content. ([OpenTelemetry tracing API](https://opentelemetry.io/docs/specs/otel/trace/api/))
+
+## What should you verify before changing the model?
+
+Check these questions in order:
+
+- Did the packet contain the value, or only an implication of it?
+- Did normalization preserve the value and its type?
+- Did the checkpoint store the latest version for the correct run or thread?
+- Did the resume path load that checkpoint rather than create a fresh one?
+- Can the resumed process read the source of truth now?
+- Did a summary replace a typed field?
+- Does the raw output expose the observed context, or only a success label?
+
+This is also a governance issue. NIST's Generative AI Profile calls for data provenance, human oversight roles, review of sources and citations, and documentation of data quality and relevance at different stages. Those requirements point in the same direction as the fixture: record what traveled, what authority was available, and which person controlled the decision. ([NIST AI RMF Generative AI Profile](https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.600-1.pdf))
+
+If the workflow is queue-backed, the same packet belongs in the durable job record or a protected artifact store, not only in a worker's memory. The [queue-backed AI workflow guide](/blog/how-to-build-a-queue-backed-ai-workflow) covers the adjacent problem of keeping work identifiable after the request ends.
+
+## What should you do next?
+
+Take one failed run and build the smallest packet that can explain it. Do not start with a new model. Start with the person packet, the expected contract, the checkpoint, and the resumed input. The first mismatch is usually a shorter path to a repair than another round of prompt edits.
+
+If your team can reproduce the first loss but cannot agree on the contract or the owner of the source of truth, that is the implementation problem to solve next. Marius Manolachi helps existing teams learn to build and operate AI products on their own work through [AI consulting and tutoring](https://mariusmanolachi.com/learn-ai).
