@@ -1,0 +1,204 @@
+---
+title: 'How to Write an AI Capability Purchase Requirement'
+date: '2026-09-16'
+updated: '2026-09-16'
+excerpt: 'A practical way to specify the right AI capability format, required artifact, safety boundary, and transfer check before you buy.'
+answer: 'Write the requirement around the missing capability and the proof needed at the end. Specify a workshop for shared direction, training for a common safety baseline, or tutoring for role-specific independence. Name the workflow, boundaries, owner, artifact, verification record, and new-task transfer check. If high-risk work lacks a safety baseline, require training first.'
+targetQuery: 'How to write an AI capability purchase requirement'
+queryAliases:
+  - 'AI capability purchase requirement template'
+  - 'AI learning engagement deliverables'
+  - 'AI capability vendor proposal checklist'
+intent: 'commercial decision for team capability'
+funnel: 'consideration'
+cluster: 'capability'
+parent: '/blog/ai-capability-pillar'
+contentType: 'implementation-lab'
+kind: 'satellite'
+sourceableAtom: 'A runnable JavaScript decision function and observed five-case output route a buyer to AI training, AI tutoring, or a team workshop based on shared problem clarity, safety baseline, uneven skill, role specificity, and common-baseline need.'
+evidenceType: 'implementation-lab'
+evidenceBasis: 'A deterministic JavaScript decision function was executed locally on 2026-08-23 against five named cases. The code, inputs, outputs, method, and limitations are documented in research.md and reproduced in this post.'
+tags:
+  - 'AI capability'
+  - 'AI training'
+  - 'AI tutoring'
+  - 'team workshops'
+  - 'buying AI services'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-21'
+sources:
+  - 'https://airc.nist.gov/airmf-resources/airmf/5-sec-core/'
+  - 'https://eur-lex.europa.eu/eli/reg/2024/1689/2026-07-27/eng'
+  - 'https://digital-strategy.ec.europa.eu/en/policies/ai-talent-skills-and-literacy'
+  - 'https://doi.org/10.1108/JWL-08-2016-0079'
+  - 'https://doi.org/10.1177/0018720819845988'
+  - 'https://doi.org/10.1186/1757-7241-18-47'
+  - 'https://www.linkedin.com/posts/natalia-melniciuc-phd_continuouslearning-professionaldevelopment-ugcPost-7222195991079231489-fwGg'
+faq:
+  - q: 'Can we buy a workshop and tutoring together?'
+    a: 'Yes. A short workshop can align the team on one workflow, boundaries, and a first artifact, then tutoring can help the people who must operate that workflow independently. Treat them as two bounded purchases with separate outputs, not as one vague transformation package.'
+  - q: 'What should an AI learning vendor leave behind?'
+    a: 'Require a usable artifact, the checks applied to it, the boundary decisions, and a transfer test on a new task. Attendance, slides, and a polished demonstration are not enough to show that the team can work without the supplier.'
+  - q: 'Does the EU AI Act require a particular AI course?'
+    a: 'No. The current Article 4 requires providers and deployers to take measures to support AI literacy while considering people’s knowledge, experience, education, training, and context. It does not prescribe one course or guarantee a specific level for every individual.'
+cover: '/blog/how-to-write-an-ai-capability-purchase-requirement-ai-capability-purchase-hero.webp'
+coverAlt: 'Illustration of a buyer choosing between AI training, tutoring, and a team workshop'
+draft: false
+---
+
+The wrong purchase requirement usually starts with the wrong question: “Which format do we like?” Start with, “What capability is missing, and what will prove that it changed?”
+
+I built a small decision function for this article and ran it against five buyer situations. Its result gives the requirement a clear route: a workshop is for shared direction, training is for a common baseline, and tutoring is for role-specific independence. The high-risk exception comes first.
+
+![Illustration of three purchase paths branching from a team capability decision](/blog/how-to-write-an-ai-capability-purchase-requirement-ai-capability-decision-function.webp)
+
+## Start the requirement with the missing capability
+
+Write a team workshop requirement when the team cannot yet agree on the problem or the first safe workflow. Write an AI training requirement when many roles need the same baseline. Write an AI tutoring requirement when the workflow is clear but people need individual feedback to perform it. If high-risk work lacks a safety baseline, specify training first.
+
+Here is the complete implementation artifact:
+
+```js
+function choose(input) {
+  if (input.highRisk && !input.hasSafetyBaseline) return 'AI training';
+  if (!input.sharedProblem) return 'team workshop';
+  if (input.unevenSkill || input.roleSpecificWorkflow) return 'AI tutoring';
+  if (input.manyRolesNeedSameBaseline) return 'AI training';
+  return 'team workshop';
+}
+
+const cases = [
+  { name: 'no shared problem', highRisk: false, hasSafetyBaseline: false, sharedProblem: false, unevenSkill: false, roleSpecificWorkflow: false, manyRolesNeedSameBaseline: false },
+  { name: 'high-risk work without a baseline', highRisk: true, hasSafetyBaseline: false, sharedProblem: true, unevenSkill: true, roleSpecificWorkflow: true, manyRolesNeedSameBaseline: true },
+  { name: 'uneven roles after scope is clear', highRisk: false, hasSafetyBaseline: true, sharedProblem: true, unevenSkill: true, roleSpecificWorkflow: true, manyRolesNeedSameBaseline: false },
+  { name: 'same baseline across many roles', highRisk: false, hasSafetyBaseline: true, sharedProblem: true, unevenSkill: false, roleSpecificWorkflow: false, manyRolesNeedSameBaseline: true },
+  { name: 'shared task needs a decision and first artifact', highRisk: false, hasSafetyBaseline: true, sharedProblem: true, unevenSkill: false, roleSpecificWorkflow: false, manyRolesNeedSameBaseline: false }
+];
+
+console.log(JSON.stringify(cases.map(({ name, ...input }) => ({ case: name, choice: choose(input) })), null, 2));
+```
+
+The observed output from that run was:
+
+| Buyer situation | Output |
+| --- | --- |
+| No shared problem | Team workshop |
+| High-risk work without a baseline | AI training |
+| Uneven roles after scope is clear | AI tutoring |
+| Same baseline across many roles | AI training |
+| Shared task needs a decision and first artifact | Team workshop |
+
+This is a decision aid, not a validated purchasing study. It does not compare prices, vendors, attendance, or learning outcomes. Its value is that it makes the first conversation concrete and gives you a testable purchase scope.
+
+If several conditions apply, use the function's order rather than choosing the most attractive format: fix a missing safety baseline first, then resolve a missing shared problem, then address uneven or role-specific work, and only then choose common-baseline training. That precedence prevents a fast workshop or tailored tutoring from skipping a basic safety need.
+
+For the wider capability sequence, start at the [AI capability pillar](/blog/ai-capability-pillar). This page handles the purchase choice inside that cluster.
+
+## What are you buying in each format?
+
+The formats solve different gaps. Do not compare them as three versions of the same product.
+
+| Purchase | You are buying | Choose it when | Do not use it to hide |
+| --- | --- | --- | --- |
+| AI training | A common body of knowledge, rules, examples, and baseline practice | Many people need the same safe starting point | An unresolved workflow or a lack of individual feedback |
+| AI tutoring | Guided practice and feedback on a person’s real role or task | The workflow is known but capability is uneven | A missing team decision or a policy that nobody has agreed on |
+| Team workshop | Shared language, a scoped problem, boundary decisions, and a first artifact | People need to decide together what to do first | A permanent learning program or proof of independent skill |
+
+Here, tutoring means a person teaching and coaching people on their work. It does not mean a homework chatbot. The right format depends on the output you need at the end:
+
+- A workshop should leave a team with a chosen workflow, boundaries, owner, and first artifact.
+- Training should leave participants with a baseline they can retrieve and apply, plus a clear safety boundary.
+- Tutoring should leave a learner able to complete a new task with less help and explain how they checked the result.
+
+If a proposal cannot name that output, it is selling an event rather than a capability.
+
+## When should we buy a team workshop?
+
+Buy a workshop first when the team has energy around AI but no shared answer to three questions: which work matters, what the system may receive or do, and what a useful result would look like.
+
+A good workshop is not a tour of AI features. It is a short decision-and-practice cycle. The facilitator should bring the team from an actual work example to a scoped first experiment. The deliverable can be a one-page workflow brief containing:
+
+```text
+Workflow and owner:
+Current pain or delay:
+Allowed and prohibited inputs:
+AI role: draft, extract, recommend, or act:
+Human review point:
+What counts as good:
+First artifact to produce:
+Next use and date:
+```
+
+The team workshop is the right purchase when the missing capability is collective. Research on teams is not evidence that every workshop works, but it does support the importance of shared understanding and communication for coordinated performance. In a study of 27 trauma-team simulations, expert-rated performance was associated with information exchange, communication, and shared mental-model behaviours. That is a reason to make shared understanding an explicit workshop output, not a reason to promise that a single session improves business performance. [Read the study](https://doi.org/10.1186/1757-7241-18-47).
+
+The exception is a team that already has a clear workflow, clear boundaries, and a named owner. In that case, a workshop may be pleasant but unnecessary. Spend the first budget on training or tutoring, depending on whether the gap is common or individual.
+
+My own Orange workshop experience points in the same direction. The useful starting point was the work attendees already did, not a catalogue of AI features. [The workshop was described by Natalia Melniciuc](https://www.linkedin.com/posts/natalia-melniciuc-phd_continuouslearning-professionaldevelopment-ugcPost-7222195991079231489-fwGg). That is a locked firsthand observation, not a measured comparison of workshop formats.
+
+## When should we buy AI training?
+
+Buy training when many roles need the same baseline: what the tool can and cannot do, what data may be used, how to verify an output, and where a human remains responsible.
+
+Training is especially useful at the start of a broad rollout or when the organisation needs a consistent vocabulary. It should cover the boundary around the work, not just prompts or feature demonstrations. A practical training brief should specify:
+
+1. The roles and tasks in scope.
+2. The allowed, restricted, and prohibited input classes.
+3. The output checks participants must perform.
+4. The human approval point.
+5. A new-task exercise that happens after the example.
+6. The artifact that proves the exercise was completed.
+
+The transfer condition matters. In a study of 149 employees, Ghosh and colleagues reported that transfer design and supervisor support were related to training transfer, and that supervisor support moderated the relationship. A meta-analysis by Hughes and colleagues likewise found positive relationships between peer, supervisor, and organisational support and training transfer or sustainment. Their model accounted for 32% of transfer variance, which is not a promise about any one company, but it is a useful warning against treating the class as the whole intervention. [Read the transfer-design study](https://doi.org/10.1108/JWL-08-2016-0079) and [the work-environment meta-analysis](https://doi.org/10.1177/0018720819845988).
+
+That is why I would not approve a training proposal that ends at attendance. Ask for one saved work artifact, one verification record, and one scheduled next use. The [guide to making AI training stick in a small team](/blog/how-to-make-ai-training-stick-in-a-small-team) covers the follow-up loop in more detail.
+
+## When should we buy AI tutoring?
+
+Buy tutoring when the workflow is already chosen but the people who must use it have uneven skills, different roles, or repeated decisions that need feedback.
+
+Tutoring is the most useful of the three when the learner must explain decisions, investigate failures, and adapt the method to an unfamiliar task. The tutor can watch the person work, ask why they trusted an output, and correct the boundary or verification step before a bad habit becomes normal.
+
+This is also where a workshop often stops too early. A team may agree on a workflow while only one person can actually operate it. If two people can produce the first example but cannot diagnose a changed input, the team has alignment, not capability.
+
+Use tutoring when the purchase brief can name:
+
+- the learner or small group;
+- the recurring work task;
+- the decisions they must make without help;
+- the failure cases they must recognise;
+- the new scenario used for the transfer check.
+
+Do not buy tutoring to compensate for an unresolved team decision. If the learner is still asking which workflow matters or what the organisation permits, bring the wider group into a workshop first. And do not buy tutoring as an indefinite dependency. Set an exit test: the learner completes a new task, checks the result, documents the boundary, and knows when to stop or ask for review.
+
+## What changes when the work is high-risk?
+
+High-risk work changes the order of operations. Start with a baseline training intervention that covers roles, limits, data, oversight, and escalation before paying for speed or individual optimisation.
+
+For this article, high-risk means an error could materially affect a person’s safety, rights, access, money, employment, or a consequential business decision. This is an operational threshold, not a legal classification.
+
+The NIST AI Risk Management Framework treats governance as continuous across the AI lifecycle. Its core includes documented roles, AI risk-management training, human-AI oversight responsibilities, and practices for testing and incident identification. [See the NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/).
+
+If your organisation is a provider or deployer in scope of the EU AI Act, current Article 4 requires measures to support AI literacy for staff and others operating or using AI systems on its behalf, taking account of people’s knowledge, experience, education, training, and context. The European Commission says the provision entered application on 2025-02-02 and was amended in mid-July 2026. It does not prescribe one course or require a specific literacy level for every individual. [Check the current consolidated Article 4](https://eur-lex.europa.eu/eli/reg/2024/1689/2026-07-27/eng) and [the Commission’s AI literacy guidance](https://digital-strategy.ec.europa.eu/en/policies/ai-talent-skills-and-literacy).
+
+That legal or governance condition does not tell you to buy a workshop, tutor, or course. It tells you to take the capability and context seriously. Your evidence should include the people in scope, the work they perform, the boundary they follow, and how you know they can escalate a problem.
+
+## How should we write the purchase requirement?
+
+Write the requirement around a transfer artifact, not a delivery format. This keeps a vendor from winning by promising the most engaging event.
+
+Use this short buyer test:
+
+| Question | If the answer is no | Likely next move |
+| --- | --- | --- |
+| Can the team name one workflow worth changing? | The problem is still collective and unclear | Team workshop |
+| Do the people in scope need the same baseline and safety boundary? | The purchase needs a common foundation | AI training |
+| Can each learner name the task they must perform alone? | Individual tutoring would be premature | Workshop or training first |
+| Can the supplier show a new-task transfer check? | Attendance may be mistaken for capability | Change the proposal or do not buy |
+
+![Illustration of a team checking an AI learning artifact and a new-task transfer test](/blog/how-to-write-an-ai-capability-purchase-requirement-ai-capability-transfer-check.webp)
+
+Ask the supplier to state what will exist at the end, who owns it, and what happens when the first example fails. Then ask how the team will continue without the supplier. A polished demo is useful evidence of a demo. It is not evidence of independent work.
+
+The shortest honest recommendation is this: workshop for shared direction, training for a common baseline, tutoring for individual transfer. Add them in that order only when the conditions require a sequence. A buyer with a clear workflow and one capable owner may need only tutoring. A buyer with high-risk work and no baseline should start with training even if everyone is asking for a fast workshop.
+
+If you want a second pair of eyes on the choice against a real workflow, [Marius Manolachi’s AI consulting and tutoring work](/learn-ai) is the relevant next step. The page above is complete without that conversation.
