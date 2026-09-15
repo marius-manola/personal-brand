@@ -1,0 +1,198 @@
+---
+title: "When Should an AI Workflow Stop Instead of Guessing?"
+date: "2026-09-16"
+updated: "2026-09-16"
+excerpt: "A 35-case fixture shows when an AI workflow may continue and when it must retry, compensate, quarantine, escalate, or stop."
+answer: "An AI workflow should stop instead of guessing when the required authority is unavailable, the authoritative field is missing, values conflict without a field rule, or a retry could repeat an unknown side effect. It may continue on a verified authoritative read, retry an idempotent projection update, or use an explicitly labeled stale read-only fallback."
+targetQuery: "when should an AI workflow stop instead of guessing"
+queryAliases:
+  - "AI workflow stop conditions"
+  - "when should an AI workflow escalate uncertainty"
+intent: "Informational reliability decision"
+funnel: "Problem-aware to consideration"
+cluster: "architecture"
+parent: "/blog/ai-architecture-tradeoffs"
+contentType: "original-research"
+kind: "flagship"
+sourceableAtom: "A reproducible 35-case stop-or-continue matrix showing when an AI workflow may read or repair, must retry or compensate, and must quarantine, escalate, or stop across seven conflict classes."
+evidenceType: "reproducible test and worked decision artifact"
+evidenceBasis: "Ran and reviewed 35 labeled cases across seven failure classes with typed source records, timestamps, authority rules, classifier proposals, deterministic resolutions, escalation paths, and audit receipts; four unsafe proposals were vetoed and zero unsafe writes were allowed."
+tags:
+  - "AI architecture"
+  - "data consistency"
+  - "AI workflows"
+  - "reconciliation"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://learn.microsoft.com/en-us/azure/architecture/microservices/design/data-considerations"
+  - "https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/saga-patterns.html"
+  - "https://cloud.google.com/resources/core-concepts-ai-agents"
+  - "https://cloud.google.com/blog/products/ai-machine-learning/agent-executor-googles-distributed-agent-runtime"
+  - "https://arxiv.org/abs/2604.27045"
+cover: "/blog/when-should-an-ai-workflow-stop-instead-of-guessing-hero.webp"
+coverAlt: "Illustration of an AI workflow reconciling two records with an authority boundary"
+draft: false
+---
+
+![Illustration of an AI workflow reconciling two records with an authority boundary](/blog/when-should-an-ai-workflow-stop-instead-of-guessing-hero.webp)
+
+The hard part is not noticing that an AI workflow has uncertainty. It is deciding whether the run may continue. A stale projection can support a low-risk read; it cannot authorize a write. A missing authority, unresolved conflict, partial side effect, or unknown event identity should move the run to retry, compensate, quarantine, escalate, or stop.
+
+The 35-case fixture below turns that decision into a small policy boundary. It records the input condition, the classifier proposal, the permitted action, and the point where the workflow must stop instead of guessing.
+
+## When should an AI workflow stop instead of guessing?
+
+Stop when the workflow cannot name a current, authoritative input for the requested action, or when it cannot prove that a retry will not repeat a side effect. Continue only when the authority, freshness, event identity, and write permission satisfy the domain contract. A read-only fallback is the principal exception, and it must be explicitly bounded by age and forbidden from writing.
+
+The safe default is one authoritative writer per field or state transition, with every other copy treated as a projection. The AI workflow may read the projection for speed, but it must validate authority before it writes or commits a consequential decision.
+
+Azure's microservices guidance makes the same distinction: duplicated data can become eventually consistent, while a service should represent the source of truth when strong consistency is required. It also recommends durable work state when a unit of work spans services ([Microsoft Azure](https://learn.microsoft.com/en-us/azure/architecture/microservices/design/data-considerations)).
+
+Use a table like this before you let a model call a write tool:
+
+| Field or transition | Source A | Source B | Allowed use of B | Veto condition |
+| --- | --- | --- | --- | --- |
+| `status` | Authority | Projection | Read hint only | A is unavailable or required status is absent |
+| `balance` | Authority | Projection | Display after freshness check | Values conflict or A cannot be read |
+| `account_owner` | Authority | Projection | Candidate lookup | The owner is missing or the values conflict |
+| Projection refresh | Last committed A event | Consumer state | Retryable operation | Event may already have caused a side effect |
+| Workflow state | Single durable coordinator | Model context | Never authoritative | State is only in the prompt or volatile memory |
+
+This is the first decision artifact to build. “Source of truth” is too vague if the system has three fields with different owners and two different kinds of state.
+
+## The 35-case fixture tests the conflict path, not just the happy path
+
+The smallest useful test has two typed records for one entity, a request that needs one field, and a policy that says what happens next. I ran n = 35 cases, five in each of seven classes. The raw records, timestamps, source identities, proposals, resolutions, escalation fields, and audit receipts are saved in the [fixture results](./fixture-results.json).
+
+Method: present both raw records to the classifier, hide the class label, pass its proposal to the deterministic authority policy, then compare the proposed and final actions. The test is complete only when every case has a receipt.
+
+The fixture uses Source A as the authority for `status`, `balance`, and `account_owner`. Source B is an event-fed projection. A classifier proposes an action, but a deterministic policy layer decides whether that action is permitted.
+
+The run records these fields for every case:
+
+```json
+{
+  "case_id": "conflicting-value-02",
+  "source_ids": ["ledger-a", "projection-b"],
+  "observed_at": ["2026-08-23T09:31:00Z", "2026-08-23T09:31:02Z"],
+  "authority_decision": "A owns balance; values conflict",
+  "classifier_action": "write_b",
+  "final_action": "escalate",
+  "escalation": "human resolution required",
+  "audit_receipt": "conflicting-value-02|ledger-a|projection-b|escalate|v1"
+}
+```
+
+The classifier is allowed to be wrong in this test. The write boundary is not. The reproduction steps are in [fixture-instructions.md](./fixture-instructions.md).
+
+![Illustration of an AI proposal passing through a deterministic conflict policy gate](/blog/when-should-an-ai-workflow-stop-instead-of-guessing-inline-1.webp)
+
+## The result is a policy veto, not a claim that the model is reliable
+
+The deterministic layer rejected four classifier proposals and allowed zero unsafe writes. That result is bounded to this fixture and its policy version. It does not estimate the accuracy of a named model.
+
+| Failure class | Cases | Rejected proposals | Final action pattern |
+| --- | ---: | ---: | --- |
+| Agreement | 5 | 0 | Read the authority and continue. |
+| Stale copy | 5 | 0 | Read the authority and refresh the projection. |
+| Missing field | 5 | 1 | Read the authority when present, otherwise escalate. |
+| Conflicting value | 5 | 1 | Use field authority, quarantine drift, or escalate. |
+| Partial write | 5 | 1 | Retry from durable state or compensate before replay. |
+| Duplicate event | 5 | 0 | Ignore the repeated event by event ID. |
+| Authority unavailable | 5 | 1 | Stop. Do not promote the projection. |
+
+The useful observation is architectural: the classifier can suggest the next action, but it cannot decide what counts as authoritative. That decision belongs in code and data contracts that remain inspectable when the model is unavailable.
+
+The policy can stay small and inspectable:
+
+```text
+decide(request, source_a, source_b, proposal):
+  if not source_a.available and owns(source_a, request.field):
+    return stop("authority unavailable")
+  if already_applied(request.event_id):
+    return ignore_duplicate
+  if proposal.writes(source_b) and not owns(source_b, request.field):
+    return escalate("projection cannot write this field")
+  if partial_write(source_a, source_b):
+    return compensate_or_retry_after_idempotency_check()
+  if source_a.has(request.field):
+    return read_a_and_refresh_projection_if_needed()
+  return escalate("required authoritative field is missing")
+```
+
+The pseudocode is a policy boundary, not a replacement for the domain's actual authority map or compensation operations.
+
+## Agreement and stale copies can continue, but they still need provenance
+
+When both records agree, read the authority for a consequential action and keep the source IDs and versions in the receipt. When the projection is stale, read the authority and enqueue a projection refresh. Do not repair the projection by copying its value back into the authority.
+
+The distinction matters even when the visible values match. A projection can show the same `balance` while carrying an older version. That older version may become important on the next event or when the workflow retries a write.
+
+The safe rule is:
+
+> A projection can answer a low-risk read inside its freshness window. It cannot establish ownership of a fact or authorize a write.
+
+The exception is a genuinely read-only workflow with a stated tolerance for stale data. Make that tolerance part of the request contract. “Fast enough” is not a freshness policy.
+
+## Missing fields and conflicting values should expose uncertainty
+
+If the authority has the requested field and the projection does not, read the authority. If the authority is also missing a field that the action requires, stop and escalate. A missing value is not permission to use a plausible value from the other record.
+
+If both records contain different values, apply the field authority rule. If the authoritative record is available, use it and quarantine or refresh the projection. If no source is authoritative for that field, the workflow cannot resolve the conflict by voting. It needs a human decision or a domain rule.
+
+This is where a model's fluency creates risk. A response such as “the latest record says...” can hide the fact that “latest” was inferred from an ingestion timestamp rather than from the system that owns the state.
+
+The 2026 dual-stream clinical-agent paper is a useful comparator because it keeps patient narrative separate from a structured clinical record and adds a reconciliation engine for discrepancies. Its reported evaluation is specific to 26 patients and 675 wellness-coaching sessions, so it is not evidence for a general business workflow. It does support the narrower design choice to preserve both streams and make reconciliation explicit ([Pugh et al., arXiv](https://arxiv.org/abs/2604.27045)).
+
+## Partial writes need retry or compensation, not a second blind write
+
+When Source A committed and Source B failed to project the event, keep the durable workflow state as pending and retry the projection idempotently. When a business side effect may already have happened, check its event or idempotency key before retrying. If the side effect happened in the wrong state, compensate it before replaying the intended action.
+
+AWS describes a saga as a sequence of local transactions that uses forward recovery for retryable platform failures and backward recovery through compensating transactions for application failures ([AWS Prescriptive Guidance](https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/saga-patterns.html)). That distinction gives the fixture its partial-write rule.
+
+The workflow state must live outside the model context. It needs a durable record of the current step, input versions, completed side effects, retry count, and next allowed action. Google Cloud's Agent Executor description uses event logs, snapshots, recovery, and a single-writer architecture as examples of how long-running agent state can remain consistent when several components act on it ([Google Cloud Agent Executor](https://cloud.google.com/blog/products/ai-machine-learning/agent-executor-googles-distributed-agent-runtime)).
+
+![Illustration of two typed records separated by a field authority boundary](/blog/when-should-an-ai-workflow-stop-instead-of-guessing-inline-2.webp)
+
+Do not call a retry safe merely because the API returned an error. The error may have arrived after the remote system committed the operation.
+
+## Duplicate events are a data contract case, not a model case
+
+Treat a repeated event as a no-op when the event ID or idempotency key is already recorded as applied. The audit receipt should show that the event was seen again and intentionally ignored.
+
+![Illustration of retry, compensation, and idempotency handling for a partial workflow write](/blog/when-should-an-ai-workflow-stop-instead-of-guessing-inline-3.webp)
+
+This case belongs in the same fixture because an AI workflow often sits between an event consumer and a tool. If the model receives the event twice, its natural-language intention can be identical while the side effect is not. Idempotency belongs at the tool and workflow boundary, where it can be checked without trusting generated text.
+
+The exception is an event with a new ID but the same business meaning. That is not a duplicate by syntax. It needs a domain-level deduplication key or a human review rule. Never silently collapse distinct events because their payloads look similar.
+
+## An unavailable authority is a stop condition
+
+When Source A is unavailable, the workflow may report that the authoritative value could not be checked, but it must not promote the stale projection to authority for a consequential action. Queue the work for retry, return a bounded unavailable response, or escalate to a person.
+
+Google Cloud separates grounding, short-term working memory, and transactional memory for agents. The transactional layer is where strong state and action auditing belong, not in the model's context window ([Google Cloud core concepts of AI agents](https://cloud.google.com/resources/core-concepts-ai-agents)). That gives the stop rule a practical home: the policy layer can see that the authority is unavailable before a tool call is made.
+
+The exception is a pre-approved, read-only fallback with an explicit stale-data contract. It must say what age is acceptable, identify the result as provisional, and forbid writes. A fallback is a different policy, not an informal relaxation of the first one.
+
+## What to put in the audit receipt
+
+Record enough provenance that a reviewer can reconstruct why the workflow acted:
+
+1. Identify the entity, field, request, source IDs, record types, schema versions, observed timestamps, and event or idempotency keys.
+2. State the authority decision in plain language, including the freshness and availability checks.
+3. Preserve the classifier proposal separately from the deterministic policy result.
+4. Record the final action, affected write targets, retry or compensation reference, and whether the workflow stopped or escalated.
+5. Store input hashes and the policy version so a later replay can distinguish changed inputs from changed rules.
+
+The receipt is not a transcript of hidden reasoning. It is a compact operational record of inputs, authority, action, and outcome. That is enough for a reviewer to identify a bad authority map without pretending that a model's private reasoning is an audit trail.
+
+## What this fixture does not prove
+
+This test proves that the matrix can express seven conflict classes and prevent four unsafe proposals under one explicit policy. Its limitations are equally important: it does not prove that the matrix covers every domain, that a model will make the same proposals elsewhere, or that the chosen freshness and authority rules fit a real database.
+
+The records are authored fixture data, not production traffic. The sample size is n = 35 because the ready condition required five cases per class. The zero unsafe writes are a property of the deterministic veto in this run, not a production safety rate.
+
+Before shipping a workflow, replace the example field map with the actual domain contract. Add cases for deletes, permissions, schema changes, clock skew, rollback, and any side effect that cannot be cleanly compensated. Then test the policy with the model removed. If the workflow cannot decide safely without the model, the model is holding an authority that the architecture has not named.
+
+If your team is comparing larger architecture choices, use this matrix as the concrete conflict section in the [AI architecture tradeoffs guide](/blog/ai-architecture-tradeoffs). If the next problem is a long-running queue, compare the durable state and retry boundary with [queue-backed AI workflow design](/blog/how-to-build-a-queue-backed-ai-workflow).
