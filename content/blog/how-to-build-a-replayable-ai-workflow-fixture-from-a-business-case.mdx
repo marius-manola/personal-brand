@@ -1,0 +1,180 @@
+---
+title: 'How to Build a Replayable AI Workflow Fixture From a Business Case'
+date: '2026-09-15'
+updated: '2026-09-15'
+excerpt: 'Turn one business case into a versioned AI workflow fixture with mocked dependencies, assertions, replay output, and a caught regression.'
+answer: 'Build the smallest fixture that replays one bounded business case with sanitized inputs, mocked dependencies, pinned workflow and prompt versions, expected outcome, required actions, forbidden actions, and machine-readable assertions. Compare a baseline with every change and keep a failing case. A fixture cannot prove production reliability when real data, external side effects, or unseen exceptions dominate.'
+targetQuery: 'how to turn a business case into a deterministic AI workflow test'
+queryAliases:
+  - 'business case AI workflow test fixture'
+  - 'how to make a business case testable without production data'
+intent: 'implementation'
+funnel: 'consideration'
+cluster: 'implementation'
+parent: '/blog/ai-workflow-delivery'
+contentType: 'implementation-lab'
+kind: 'satellite'
+sourceableAtom: 'A local invoice-routing fixture caught a baseline-to-change regression where comparing purchase-order total instead of remaining balance changed a passing review route into an auto-approval, with both outcome and trace assertions failing.'
+evidenceType: 'reusable artifact plus reproducible test and failure reproduction'
+evidenceBasis: 'Dependency-free fixture pack with sanitized input, mocked vendor and purchase-order responses, version records, JSON traces, five assertions, a baseline, an intentional changed implementation, and identical second-run outputs.'
+tags:
+  - 'AI workflows'
+  - 'Evaluation'
+  - 'Implementation'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-21'
+sources:
+  - 'https://docs.langchain.com/langsmith/evaluation-concepts'
+  - 'https://docs.langchain.com/langsmith/evaluate-complex-agent'
+  - 'https://platform.openai.com/docs/api-reference/evals'
+  - 'https://platform.openai.com/docs/api-reference/graders'
+  - 'https://docs.appliedlabs.ai/docs/analytics-and-quality/simulations'
+faq:
+  - q: 'Do I need a live model to build the first workflow fixture?'
+    a: 'No. Start with a deterministic model or planner stub and mocked dependencies. Add a live model only after the fixture proves that the business outcome and action assertions are the right ones.'
+  - q: 'What is the difference between a fixture and a production trace?'
+    a: 'A fixture is a controlled, replayable case with expected outputs and actions. A production trace records what happened without necessarily containing a reference answer. Use real failures to add new fixtures, but sanitize them first.'
+  - q: 'Should a changed implementation be allowed to improve one assertion while failing another?'
+    a: 'Only when the workflow owner has approved the trade-off. A forbidden action or approval bypass is a release veto in this example, even if the final response looks better.'
+cover: '/blog/how-to-build-a-replayable-ai-workflow-fixture-from-a-business-case-hero-fixture-contract.webp'
+coverAlt: 'Illustration of a business case becoming a versioned replayable AI workflow fixture'
+draft: false
+---
+
+A business case becomes testable when you can replay it without touching the real systems. I use one small case first, because a clear failure teaches more than a large suite nobody can inspect.
+
+When I taught product managers to move from writing specs to building and shipping, the recurring gap was not a missing model. It was that nobody could say what done meant. A fixture makes “done” executable. [The broader AI workflow delivery guide](/blog/ai-workflow-delivery) is the parent context; this is the smallest lab I would build inside it.
+
+![Illustration of a sanitized invoice, mocked dependencies, version pins, and assertions flowing into a replay command](/blog/how-to-build-a-replayable-ai-workflow-fixture-from-a-business-case-fixture-contract-map.webp)
+
+## The first result: one field change caught an unsafe route
+
+The fixture below replays an invoice-routing case twice: once against a baseline implementation and once against a changed implementation. The external calls are mocks, so the result is reproducible and safe to inspect.
+
+| Run | Decision | Action trace | Result |
+| --- | --- | --- | --- |
+| Baseline | Route to `ap_review` | `lookup_vendor` → `lookup_purchase_order` → `route_to_review` | PASS, 5/5 assertions |
+| Changed | Auto-approve | `lookup_vendor` → `lookup_purchase_order` → `approve_invoice` | FAIL, 0/5 assertions |
+
+The changed version compares the invoice with the purchase-order total, EUR 2,000. The business rule needs the remaining balance, EUR 200. The EUR 1,280 invoice therefore gets approved by the changed version even though it exceeds what remains. The comparison file records five regressions and a release decision of `hold`.
+
+**A replayable fixture can expose a business-rule regression even when the workflow still returns valid structured output.**
+
+Run it from the companion pack with no API key or package install:
+
+```bash
+cd fixture-pack
+python3 replay.py --implementation both
+```
+
+The pack is intentionally small: `fixture.json` holds the case and mocks, `replay.py` runs baseline and changed implementations, `README.md` documents clean setup, and `results/` contains the three JSON outputs.
+
+Observed output from the first run, repeated byte-for-byte on the second run:
+
+```text
+baseline PASS route=ap_review actions=lookup_vendor,lookup_purchase_order,route_to_review
+changed FAIL route=auto_approve actions=lookup_vendor,lookup_purchase_order,approve_invoice
+comparison regressions=outcome.queue,outcome.route,trace.final_action,trace.forbidden_actions,trace.required_actions decision=hold: changed implementation has regressions
+```
+
+## Choose one bounded workflow, not a benchmark
+
+Start with a workflow that has one trigger, a small set of dependencies, a clear decision, and a safe final action. Invoice routing fits because the input is small, the lookups can be mocked, and the business rule has a precise exception.
+
+Avoid starting with “evaluate our customer-support agent” or “benchmark three models.” Those scopes hide several decisions. Pick one case such as:
+
+1. An invoice exceeds the remaining purchase-order balance.
+2. A vendor lookup returns an inactive vendor.
+3. A required identifier is missing.
+4. A policy lookup returns a conflict that must go to review.
+
+The first case should be narrow enough that two people can agree on the expected outcome and action sequence. If they cannot, the workflow contract is not ready for a fixture.
+
+## Define the fixture contract before writing the runner
+
+The minimum useful contract records the scenario, environment, dependencies, versions, expected result, required actions, forbidden actions, and assertions. That shape follows a practical distinction in current evaluation documentation: a dataset example carries inputs and optional reference outputs, while an experiment captures the run output, evaluator scores, and trace for a particular application version ([LangSmith evaluation concepts](https://docs.langchain.com/langsmith/evaluation-concepts)).
+
+Keep the contract vendor-neutral. The fixture used here is JSON:
+
+```json
+{
+  "case_id": "invoice-over-remaining-po-balance",
+  "input": {
+    "invoice_total": 1280,
+    "currency": "EUR",
+    "purchase_order_id": "PO-7781"
+  },
+  "mocks": {
+    "vendor_directory.lookup": {"active": true, "payment_hold": false},
+    "purchase_orders.lookup": {
+      "status": "open",
+      "total": 2000,
+      "remaining": 200
+    }
+  },
+  "expected": {
+    "route": "ap_review",
+    "required_actions": [
+      "lookup_vendor",
+      "lookup_purchase_order",
+      "route_to_review"
+    ],
+    "forbidden_actions": ["approve_invoice", "send_payment"]
+  }
+}
+```
+
+The complete version also records the workflow, mock model, prompt, tool policy, runner, and Python versions. Record them inside each result, not only in a README. A result that says “the agent passed” without saying which prompt or tool policy ran is not a useful baseline.
+
+OpenAI's Evals API uses the same broad separation between a data-source schema, testing criteria, and runs against model configurations ([OpenAI Evals API reference](https://platform.openai.com/docs/api-reference/evals)). Its grader reference includes deterministic string checks and Python graders alongside model-based graders ([OpenAI graders reference](https://platform.openai.com/docs/api-reference/graders)). You do not need those APIs to use the design principle locally.
+
+![Illustration of baseline and changed workflow versions splitting from the same fixture and converging in a pass-fail comparison report](/blog/how-to-build-a-replayable-ai-workflow-fixture-from-a-business-case-baseline-change-regression.webp)
+
+## Assert the business outcome and the path taken
+
+Check the final state first, then inspect the action trace. A correct-looking final message cannot repair an unauthorized or forbidden action.
+
+| Assertion layer | Invoice fixture assertion | Why it matters |
+| --- | --- | --- |
+| Outcome | `route == ap_review` and `queue == accounts-payable` | The business work lands with the right owner. |
+| Required actions | Vendor lookup, purchase-order lookup, review routing, in that order | The workflow used the evidence needed for the decision. |
+| Forbidden actions | No `approve_invoice` and no `send_payment` | The fixture blocks the harmful shortcut. |
+| Final action | `route_to_review` | The run ends in the intended state, not just a plausible explanation. |
+
+This is also why a workflow fixture should preserve a trace. The LangSmith complex-agent tutorial separates final-response, trajectory, and single-step evaluation, which maps neatly to outcome, action sequence, and first-tool checks ([evaluate a complex agent](https://docs.langchain.com/langsmith/evaluate-complex-agent)).
+
+The cheap grader is code. Exact route and action assertions are deterministic, fast, and easy to rerun. Use a model grader only for a property that cannot be checked directly, such as whether an explanation cites the right policy clause. A model judge should not decide whether `approve_invoice` occurred when the trace already tells you. For the wider release-gate view, see [how to evaluate an AI agent](/blog/how-to-evaluate-an-ai-agent).
+
+## Compare a baseline with every changed implementation
+
+Run the same fixture against the current version first. Save its machine-readable output. Change one implementation detail, rerun, and compare assertion IDs rather than relying on a single pass rate.
+
+In this case the only semantic change is the comparison field:
+
+```text
+baseline: invoice_total <= purchase_order.remaining
+changed:  invoice_total <= purchase_order.total
+```
+
+The baseline passes. The changed implementation fails the route, queue, required-actions, forbidden-actions, and final-action assertions. That is a useful failure because the trace explains it: the implementation chose `approve_invoice` after reading a purchase order with only EUR 200 remaining.
+
+The official docs use different product terms, but the pattern is shared. LangSmith describes offline regression testing against curated examples, and Applied Labs describes replaying the same scenario against revisions, then separating regressions from fixes ([LangSmith evaluation concepts](https://docs.langchain.com/langsmith/evaluation-concepts), [Applied Labs simulations](https://docs.appliedlabs.ai/docs/analytics-and-quality/simulations)). The vendor capabilities are not the finding here. The finding is the local fixture and the observed failure.
+
+## Keep the failure, then add the next case
+
+Do not “fix” the changed output by deleting the fixture. Keep it as a regression case and repair the implementation or policy mapping. Then add the next case only when you have a reason:
+
+1. A real workflow exception appears.
+2. A reviewer disputes the expected result.
+3. A dependency response changes shape.
+4. A prompt, model, tool, or policy version changes behavior.
+
+This keeps the suite small enough to understand. It also gives each case a reason to exist. Applied Labs documents the same operational loop in its own terms: run a green baseline, change a revision, compare, and ship only when fixes have no regressions ([Applied Labs simulations](https://docs.appliedlabs.ai/docs/analytics-and-quality/simulations)). Treat that as a vendor example, not a universal release law.
+
+## What this fixture cannot prove
+
+This fixture does not prove production reliability. It uses a deterministic mock router, one sanitized invoice, two mocked lookups, and one policy exception. It does not cover model variability, concurrency, authentication, currency conversion, duplicate invoices, permission changes, stale data, or external write failures.
+
+That limit is part of the artifact. The fixture proves one narrower statement: this exact replay catches a semantic regression that changes a review decision into an approval. Real traffic, human review, and newly discovered failures need their own evidence. When a team can name those limits and add the next case without outside help, the fixture has done its job.
+
+If you want help turning a real team process into a small build-and-test loop, [AI consulting and tutoring with Marius Manolachi](/learn-ai) is the next step. The deliverable should still be something your team can rerun and change alone.
