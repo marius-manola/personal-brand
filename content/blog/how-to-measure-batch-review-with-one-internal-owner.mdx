@@ -1,0 +1,278 @@
+---
+title: "How to Measure Batch Review With One Internal Owner"
+date: "2026-09-16"
+updated: "2026-09-16"
+excerpt: "A reproducible one-owner experiment shows how to compare batch sizes by intervention catch rate, decision time, expiry, and attention cost."
+answer: "Use a fixed, versioned case set and compare one-owner review at batch sizes 1, 2, 4, and 8. Track intervention catch rate, high-risk misses, median and p95 decision time, expiry, escalation, active review time, and attention cost. In my fixture, batch 4 was acceptable; batch 8 was not because it missed 5 of 9 required interventions, including both high-risk interventions."
+targetQuery: "how to measure batch review with one internal owner"
+queryAliases: ["batch review metrics with one reviewer", "how to measure human review batching", "one-owner AI review queue experiment"]
+intent: "informational decision support"
+funnel: "evaluation"
+cluster: "architecture"
+parent: "/blog/ai-architecture-decisions"
+contentType: "original-research"
+kind: "flagship"
+sourceableAtom: "In a dated 16-case fixture, batch size 4 preserved a 100% intervention catch rate while reducing active review time 20.7% versus the non-batched baseline; batch size 8 reduced attention further but caught only 4 of 9 required interventions and 0 of 2 high-risk interventions."
+evidenceType: "reproducible operational experiment with a reusable decision artifact"
+evidenceBasis: "batch-review-fixture-v1, run 2026-08-24, 16 fixed anonymized cases, 64 one-owner decision rows, raw CSV, schema, protocol, calculations, and predeclared go/no-go rule"
+tags: ["AI architecture", "AI evaluation"]
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec04-bp02.html"
+  - "https://docs.aws.amazon.com/prescriptive-guidance/latest/gen-ai-lifecycle-operational-excellence/prod-monitoring-feedback.html"
+  - "https://docs.cloud.google.com/architecture/choose-design-pattern-agentic-ai-system"
+  - "https://arxiv.org/abs/2509.08514"
+  - "https://www.nist.gov/news-events/news/2026/03/new-report-challenges-monitoring-deployed-ai-systems"
+cover: "/blog/how-to-measure-batch-review-with-one-internal-owner-batch-review-hero.webp"
+coverAlt: "Illustration of one internal owner comparing AI review batches with a visible catch-rate decision table"
+draft: false
+faq:
+  - q: "Can high-risk cases be included in a review batch?"
+    a: "Yes, but only if the batch rule has a separate high-risk catch requirement and a safe fallback. In this fixture, batch 8 failed because both required high-risk interventions were missed by the owner."
+  - q: "What if every batch size has the same catch rate?"
+    a: "Choose using p95 decision time, expiry, escalation, active review time, and cost of attention. If the trade-off is not measurable, the experiment has not earned a batching decision."
+  - q: "What should happen when the run cannot produce a catch signal?"
+    a: "Reject the topic or redesign the fixture. Do not publish a batching recommendation from coverage and queue speed alone."
+---
+
+I keep seeing teams treat a fast approval queue as proof that the review design works. It isn't. A reviewer can clear twice as many cases and still miss the intervention that mattered.
+
+When I taught product managers to move from writing specifications to building and shipping, the recurring failure was not the model. It was that nobody could say what done meant. That same gap appears in AI review queues. If the owner decision is not tied to a known outcome, batching turns judgment into a throughput metric.
+
+This post publishes a small, reproducible way to test the trade-off. It uses a constructed fixture, not production traffic or a client result. The point is to give you a decision artifact you can replace with your own cases.
+
+## Result: batch 4 is the largest passing condition
+
+For the fixture in this experiment, use four cases per batch. Batch 4 preserved the baseline's 100% catch rate for required interventions, caught every required high-risk intervention, and cut active review time by 20.7%. Batch 8 was cheaper and faster, but it missed five of nine required interventions, including both high-risk interventions.
+
+Observed results from the run are shown in the table below. The sample size was 16 fixed cases, repeated across four conditions for 64 decision rows.
+
+| Condition | Cases per batch | Coverage | Required interventions | Caught | Catch rate | Sampled misses | Median decision | p95 decision | Expiry | Escalation | Active review | Attention cost |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| B0 baseline | 1 | 100% | 9 | 9 | 100% | 0 | 45 s | 84 s | 0% | 0% | 13.50 min | $16.88 |
+| B2 | 2 | 100% | 9 | 9 | 100% | 0 | 37.5 s | 75 s | 0% | 0% | 11.50 min | $14.38 |
+| B4 | 4 | 100% | 9 | 9 | 100% | 0 | 34.5 s | 72 s | 0% | 0% | 10.70 min | $13.37 |
+| B8 | 8 | 100% | 9 | 4 | 44.4% | 5 | 31.5 s | 69 s | 0% | 0% | 9.90 min | $12.38 |
+
+The decision is not “batching works” or “batching fails.” It is “B4 passes this rule for this workflow fixture; B8 does not.” That distinction is the useful result.
+
+![Illustration of the four-condition result table showing batch 4 passing and batch 8 failing](/blog/how-to-measure-batch-review-with-one-internal-owner-batch-review-result-table.webp)
+
+## What should one-owner batch review measure?
+
+Measure intervention value and attention cost together. Approval rate and queue speed are incomplete because they cannot show whether the owner caught a case that required editing or rejection.
+
+The minimum scorecard has four layers:
+
+1. **Coverage:** Did the owner review every case that entered the condition?
+2. **Change and catch value:** How many cases actually needed an edit or rejection, and how many did the owner catch?
+3. **Decision friction:** What were the median and p95 decision times? Did a deadline expire or escalate?
+4. **Attention cost:** How much active review time did the condition consume, and what does that time cost at your team's loaded rate?
+
+This structure follows the shape of the operational problem. AWS recommends logging reviewer identity, notification and response timestamps, the operation, the decision, and escalation events for approval decisions. Its production feedback guidance also stresses structured feedback linked to the originating trace. The raw row below turns those principles into a small case-level log. ([AWS Agentic AI Lens](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec04-bp02.html), [AWS production feedback guidance](https://docs.aws.amazon.com/prescriptive-guidance/latest/gen-ai-lifecycle-operational-excellence/prod-monitoring-feedback.html))
+
+Do not collapse catch value into “owner changed something.” A false positive edit creates attention cost without showing that the system needed intervention. The fixture carries a separate `correct_action` label so the calculation can distinguish useful catches from owner activity.
+
+## How do you build a fixed case set?
+
+Use cases with a known consequence, a known correct action, and a risk tier that stays constant across conditions. The case should be identical in B0, B2, B4, and B8. Only the grouping changes.
+
+My fixture represents AI-drafted internal policy-change notices. The proposal is always `publish`; the fixed truth says whether the owner should publish, edit, or reject it. The sample size is 16 cases: 8 low-risk, 5 medium-risk, and 3 high-risk, with 9 required interventions.
+
+| Case IDs | Risk tier | What the cases test | Required interventions |
+| --- | --- | --- | ---: |
+| C01, C03, C05, C07 | Low | Correct notices that should publish unchanged | 0 |
+| C02, C04, C06, C08 | Low | Missing exception, wrong date, unsupported source, missing exception | 4 |
+| C09, C10, C11, C12, C13 | Medium | Scope, correct notice, restricted data, correct notice, unsupported escalation promise | 3 |
+| C14, C15, C16 | High | Wrong approval threshold, correct notice, auto-send without an accountable owner | 2 |
+
+The risk tier is not a confidence score. It is the consequence if the proposed result is accepted without the needed intervention. AWS recommends human review for high-risk or unfamiliar scenarios and bounded automation for well-defined low-risk scenarios. NIST likewise identifies human-factors monitoring and risk-level monitoring as open operational concerns. ([AWS production feedback guidance](https://docs.aws.amazon.com/prescriptive-guidance/latest/gen-ai-lifecycle-operational-excellence/prod-monitoring-feedback.html), [NIST monitoring report](https://www.nist.gov/news-events/news/2026/03/new-report-challenges-monitoring-deployed-ai-systems))
+
+Your case set does not need to look like mine. It does need to contain enough cases for a meaningful failure signal. If every case is correctly publishable, you can measure speed but not catch value. Reject the experiment until the fixture contains known edits, rejects, and at least one high-consequence case.
+
+![Illustration of the fixed case set divided into low, medium, and high consequence tiers](/blog/how-to-measure-batch-review-with-one-internal-owner-batch-review-case-set.webp)
+
+## What protocol keeps the batch comparison fair?
+
+The method is a fixed-case, repeated-condition comparison: freeze the case set, owner, decision context, and acceptance rule before you look at the results, then change only the number of cases presented in one batch.
+
+1. Version the case set, including the hidden correct action and risk tier.
+2. Assign one accountable owner label. In this run it is `owner-01`, an anonymized internal owner identity.
+3. Run B0 with one case per batch, then B2, B4, and B8.
+4. Present the same proposed result and decision context for each case in every condition.
+5. Record one row per case, including timestamps and the owner's decision.
+6. Apply the same post-review audit to every condition. A post-review audit is not a second owner. It reveals misses so you can measure them.
+7. Calculate the scorecard from raw rows, not from a manually edited summary.
+
+The owner protocol needs enough context to decide without reading raw system logs. AWS's human-in-the-loop guidance recommends durable decision context, a visible operation, relevant data sources, and potential consequences. It also recommends timeout and escalation paths for long-running approvals. ([AWS Agentic AI Lens](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec04-bp02.html))
+
+The architecture question is larger than a queue setting. Google Cloud's design guidance says to assess task characteristics, latency, cost, and human involvement, then revisit the choice as workload requirements change. Batching is one of those workload choices. It deserves the same evidence discipline as the model or workflow pattern. ([Google Cloud Architecture Center](https://docs.cloud.google.com/architecture/choose-design-pattern-agentic-ai-system))
+
+## What should the raw decision log contain?
+
+Store one row for every case in every condition. A batch-level approval record is too coarse because it cannot show which case was missed.
+
+| Field | Use |
+| --- | --- |
+| `condition` | B0, B2, B4, or B8 |
+| `owner_id` | Stable anonymized owner label |
+| `case_id` | Stable case identity across comparisons |
+| `batch_id` | Batch identity inside the condition |
+| `risk_tier` | Low, medium, or high consequence tier |
+| `proposed_result` | The AI proposal shown to the owner |
+| `correct_action` | Fixture truth used for evaluation |
+| `owner_decision` | Publish, edit, or reject |
+| `edit_reject_reason` | Owner's intervention reason |
+| `started_at`, `submitted_at` | UTC decision timestamps |
+| `decision_seconds` | Derived duration |
+| `expiry`, `escalation` | Deadline and escalation flags |
+| `post_review_outcome` | What happened after the fixed audit |
+
+The `correct_action` field is not a production field that you expose to the reviewer. It belongs in the evaluation layer. Without it, you can count edits but cannot calculate whether the edits were useful.
+
+The public run below uses the same anonymized rows that produced the result table. Empty reason cells mean the owner approved the proposal. In B8, the five rows where `correct_action` is not `publish` but `owner_decision` is `publish` are the sampled misses.
+
+<details>
+<summary>Open the 64 raw anonymized decision rows</summary>
+
+```csv
+condition,owner_id,case_id,batch_id,risk_tier,proposed_result,correct_action,owner_decision,edit_reject_reason,started_at,submitted_at,decision_seconds,expiry,escalation,post_review_outcome
+B0,owner-01,C01,B0-01,low,publish,publish,publish,,2026-08-24T09:00:00Z,2026-08-24T09:00:36Z,36,false,false,released unchanged
+B0,owner-01,C02,B0-02,low,publish,edit,edit,missing exception clause,2026-08-24T09:02:41Z,2026-08-24T09:03:17Z,36,false,false,corrected before release
+B0,owner-01,C03,B0-03,low,publish,publish,publish,,2026-08-24T09:05:22Z,2026-08-24T09:05:58Z,36,false,false,released unchanged
+B0,owner-01,C04,B0-04,low,publish,edit,edit,wrong effective date,2026-08-24T09:08:03Z,2026-08-24T09:08:39Z,36,false,false,corrected before release
+B0,owner-01,C05,B0-05,low,publish,publish,publish,,2026-08-24T09:10:44Z,2026-08-24T09:11:20Z,36,false,false,released unchanged
+B0,owner-01,C06,B0-06,low,publish,reject,reject,source does not support claim,2026-08-24T09:13:25Z,2026-08-24T09:14:01Z,36,false,false,blocked and routed to manual handling
+B0,owner-01,C07,B0-07,low,publish,publish,publish,,2026-08-24T09:16:06Z,2026-08-24T09:16:42Z,36,false,false,released unchanged
+B0,owner-01,C08,B0-08,low,publish,edit,edit,missing exception clause,2026-08-24T09:18:47Z,2026-08-24T09:19:23Z,36,false,false,corrected before release
+B0,owner-01,C09,B0-09,medium,publish,edit,edit,scope excludes contractors,2026-08-24T09:21:28Z,2026-08-24T09:22:22Z,54,false,false,corrected before release
+B0,owner-01,C10,B0-10,medium,publish,publish,publish,,2026-08-24T09:24:27Z,2026-08-24T09:25:21Z,54,false,false,released unchanged
+B0,owner-01,C11,B0-11,medium,publish,reject,reject,contains restricted personal data,2026-08-24T09:27:26Z,2026-08-24T09:28:20Z,54,false,false,blocked and routed to manual handling
+B0,owner-01,C12,B0-12,medium,publish,publish,publish,,2026-08-24T09:30:25Z,2026-08-24T09:31:19Z,54,false,false,released unchanged
+B0,owner-01,C13,B0-13,medium,publish,edit,edit,unsupported escalation promise,2026-08-24T09:33:24Z,2026-08-24T09:34:18Z,54,false,false,corrected before release
+B0,owner-01,C14,B0-14,high,publish,reject,reject,approval threshold is wrong,2026-08-24T09:36:23Z,2026-08-24T09:37:47Z,84,false,false,blocked and routed to manual handling
+B0,owner-01,C15,B0-15,high,publish,publish,publish,,2026-08-24T09:39:52Z,2026-08-24T09:41:16Z,84,false,false,released unchanged
+B0,owner-01,C16,B0-16,high,publish,reject,reject,auto-send lacks accountable owner,2026-08-24T09:43:21Z,2026-08-24T09:44:45Z,84,false,false,blocked and routed to manual handling
+B2,owner-01,C01,B2-01,low,publish,publish,publish,,2026-08-24T10:00:00Z,2026-08-24T10:00:30Z,30,false,false,released unchanged
+B2,owner-01,C02,B2-01,low,publish,edit,edit,missing exception clause,2026-08-24T10:00:35Z,2026-08-24T10:01:05Z,30,false,false,corrected before release
+B2,owner-01,C03,B2-02,low,publish,publish,publish,,2026-08-24T10:03:10Z,2026-08-24T10:03:40Z,30,false,false,released unchanged
+B2,owner-01,C04,B2-02,low,publish,edit,edit,wrong effective date,2026-08-24T10:03:45Z,2026-08-24T10:04:15Z,30,false,false,corrected before release
+B2,owner-01,C05,B2-03,low,publish,publish,publish,,2026-08-24T10:06:20Z,2026-08-24T10:06:50Z,30,false,false,released unchanged
+B2,owner-01,C06,B2-03,low,publish,reject,reject,source does not support claim,2026-08-24T10:06:55Z,2026-08-24T10:07:25Z,30,false,false,blocked and routed to manual handling
+B2,owner-01,C07,B2-04,low,publish,publish,publish,,2026-08-24T10:09:30Z,2026-08-24T10:10:00Z,30,false,false,released unchanged
+B2,owner-01,C08,B2-04,low,publish,edit,edit,missing exception clause,2026-08-24T10:10:05Z,2026-08-24T10:10:35Z,30,false,false,corrected before release
+B2,owner-01,C09,B2-05,medium,publish,edit,edit,scope excludes contractors,2026-08-24T10:12:40Z,2026-08-24T10:13:25Z,45,false,false,corrected before release
+B2,owner-01,C10,B2-05,medium,publish,publish,publish,,2026-08-24T10:13:30Z,2026-08-24T10:14:15Z,45,false,false,released unchanged
+B2,owner-01,C11,B2-06,medium,publish,reject,reject,contains restricted personal data,2026-08-24T10:16:20Z,2026-08-24T10:17:05Z,45,false,false,blocked and routed to manual handling
+B2,owner-01,C12,B2-06,medium,publish,publish,publish,,2026-08-24T10:17:10Z,2026-08-24T10:17:55Z,45,false,false,released unchanged
+B2,owner-01,C13,B2-07,medium,publish,edit,edit,unsupported escalation promise,2026-08-24T10:20:00Z,2026-08-24T10:20:45Z,45,false,false,corrected before release
+B2,owner-01,C14,B2-07,high,publish,reject,reject,approval threshold is wrong,2026-08-24T10:20:50Z,2026-08-24T10:22:05Z,75,false,false,blocked and routed to manual handling
+B2,owner-01,C15,B2-08,high,publish,publish,publish,,2026-08-24T10:24:10Z,2026-08-24T10:25:25Z,75,false,false,released unchanged
+B2,owner-01,C16,B2-08,high,publish,reject,reject,auto-send lacks accountable owner,2026-08-24T10:25:30Z,2026-08-24T10:26:45Z,75,false,false,blocked and routed to manual handling
+B4,owner-01,C01,B4-01,low,publish,publish,publish,,2026-08-24T11:00:00Z,2026-08-24T11:00:27Z,27,false,false,released unchanged
+B4,owner-01,C02,B4-01,low,publish,edit,edit,missing exception clause,2026-08-24T11:00:32Z,2026-08-24T11:00:59Z,27,false,false,corrected before release
+B4,owner-01,C03,B4-01,low,publish,publish,publish,,2026-08-24T11:01:04Z,2026-08-24T11:01:31Z,27,false,false,released unchanged
+B4,owner-01,C04,B4-01,low,publish,edit,edit,wrong effective date,2026-08-24T11:01:36Z,2026-08-24T11:02:03Z,27,false,false,corrected before release
+B4,owner-01,C05,B4-02,low,publish,publish,publish,,2026-08-24T11:04:08Z,2026-08-24T11:04:35Z,27,false,false,released unchanged
+B4,owner-01,C06,B4-02,low,publish,reject,reject,source does not support claim,2026-08-24T11:04:40Z,2026-08-24T11:05:07Z,27,false,false,blocked and routed to manual handling
+B4,owner-01,C07,B4-02,low,publish,publish,publish,,2026-08-24T11:05:12Z,2026-08-24T11:05:39Z,27,false,false,released unchanged
+B4,owner-01,C08,B4-02,low,publish,edit,edit,missing exception clause,2026-08-24T11:05:44Z,2026-08-24T11:06:11Z,27,false,false,corrected before release
+B4,owner-01,C09,B4-03,medium,publish,edit,edit,scope excludes contractors,2026-08-24T11:08:16Z,2026-08-24T11:08:58Z,42,false,false,corrected before release
+B4,owner-01,C10,B4-03,medium,publish,publish,publish,,2026-08-24T11:09:03Z,2026-08-24T11:09:45Z,42,false,false,released unchanged
+B4,owner-01,C11,B4-03,medium,publish,reject,reject,contains restricted personal data,2026-08-24T11:09:50Z,2026-08-24T11:10:32Z,42,false,false,blocked and routed to manual handling
+B4,owner-01,C12,B4-03,medium,publish,publish,publish,,2026-08-24T11:10:37Z,2026-08-24T11:11:19Z,42,false,false,released unchanged
+B4,owner-01,C13,B4-04,medium,publish,edit,edit,unsupported escalation promise,2026-08-24T11:13:24Z,2026-08-24T11:14:06Z,42,false,false,corrected before release
+B4,owner-01,C14,B4-04,high,publish,reject,reject,approval threshold is wrong,2026-08-24T11:14:11Z,2026-08-24T11:15:23Z,72,false,false,blocked and routed to manual handling
+B4,owner-01,C15,B4-04,high,publish,publish,publish,,2026-08-24T11:15:28Z,2026-08-24T11:16:40Z,72,false,false,released unchanged
+B4,owner-01,C16,B4-04,high,publish,reject,reject,auto-send lacks accountable owner,2026-08-24T11:16:45Z,2026-08-24T11:17:57Z,72,false,false,blocked and routed to manual handling
+B8,owner-01,C01,B8-01,low,publish,publish,publish,,2026-08-24T12:00:00Z,2026-08-24T12:00:24Z,24,false,false,released unchanged
+B8,owner-01,C02,B8-01,low,publish,edit,edit,missing exception clause,2026-08-24T12:00:29Z,2026-08-24T12:00:53Z,24,false,false,corrected before release
+B8,owner-01,C03,B8-01,low,publish,publish,publish,,2026-08-24T12:00:58Z,2026-08-24T12:01:22Z,24,false,false,released unchanged
+B8,owner-01,C04,B8-01,low,publish,edit,publish,,2026-08-24T12:01:27Z,2026-08-24T12:01:51Z,24,false,false,post-review audit caught wrong effective date
+B8,owner-01,C05,B8-01,low,publish,publish,publish,,2026-08-24T12:01:56Z,2026-08-24T12:02:20Z,24,false,false,released unchanged
+B8,owner-01,C06,B8-01,low,publish,reject,reject,source does not support claim,2026-08-24T12:02:25Z,2026-08-24T12:02:49Z,24,false,false,blocked and routed to manual handling
+B8,owner-01,C07,B8-01,low,publish,publish,publish,,2026-08-24T12:02:54Z,2026-08-24T12:03:18Z,24,false,false,released unchanged
+B8,owner-01,C08,B8-01,low,publish,edit,publish,,2026-08-24T12:03:23Z,2026-08-24T12:03:47Z,24,false,false,post-review audit caught missing exception clause
+B8,owner-01,C09,B8-02,medium,publish,edit,edit,scope excludes contractors,2026-08-24T12:05:52Z,2026-08-24T12:06:31Z,39,false,false,corrected before release
+B8,owner-01,C10,B8-02,medium,publish,publish,publish,,2026-08-24T12:06:36Z,2026-08-24T12:07:15Z,39,false,false,released unchanged
+B8,owner-01,C11,B8-02,medium,publish,reject,reject,contains restricted personal data,2026-08-24T12:07:20Z,2026-08-24T12:07:59Z,39,false,false,blocked and routed to manual handling
+B8,owner-01,C12,B8-02,medium,publish,publish,publish,,2026-08-24T12:08:04Z,2026-08-24T12:08:43Z,39,false,false,released unchanged
+B8,owner-01,C13,B8-02,medium,publish,edit,publish,,2026-08-24T12:08:48Z,2026-08-24T12:09:27Z,39,false,false,post-review audit caught unsupported escalation promise
+B8,owner-01,C14,B8-02,high,publish,reject,publish,,2026-08-24T12:09:32Z,2026-08-24T12:10:41Z,69,false,false,post-review audit caught approval threshold is wrong
+B8,owner-01,C15,B8-02,high,publish,publish,publish,,2026-08-24T12:10:46Z,2026-08-24T12:11:55Z,69,false,false,released unchanged
+B8,owner-01,C16,B8-02,high,publish,reject,publish,,2026-08-24T12:12:00Z,2026-08-24T12:13:09Z,69,false,false,post-review audit caught auto-send lacks accountable owner
+```
+
+</details>
+
+## How do you calculate catch value and attention cost?
+
+Keep the formulas simple enough that another person can audit them from the raw rows.
+
+```text
+coverage = reviewed cases / fixture cases
+required interventions = correct_action != publish
+caught interventions = required interventions where owner_decision != publish
+catch rate = caught interventions / required interventions
+sampled misses = required interventions - caught interventions
+decision time = submitted_at - started_at
+active review minutes = sum(decision_seconds) / 60
+cost of attention = active review minutes / 60 * loaded hourly cost
+```
+
+For this run, the loaded hourly cost is a transparent scenario input of $75. The baseline costs $16.88 in active attention. B4 costs $13.37, a $3.51 saving per 16-case fixture. B8 costs $12.38, only $0.99 less than B4, while losing five required catches. That is why a cost-only optimization selects the wrong architecture.
+
+The p95 matters because a median can look healthy while one difficult case consumes the owner's attention. The p95 here falls as the batch grows, but that speed signal is not enough to override the B8 catch failure. AWS's guidance treats decision context, timeout policy, escalation, and logging as part of the approval design. Those fields make the tail visible instead of hiding it in an average. ([AWS Agentic AI Lens](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec04-bp02.html))
+
+## Why did batch 8 fail even though it was fastest?
+
+Batch 8 failed because grouping changed the owner's intervention behavior. It did not fail on coverage, expiry, or escalation. It failed on the metric that tells you whether the human gate still adds useful control.
+
+Case C14 is the clearest example. It is a high-risk notice with a wrong approval threshold. B0, B2, and B4 reject it. B8 approves it. The post-review audit catches the miss, so the fixture records the failure without pretending that an external incident occurred.
+
+Case C16 shows the same pattern for an auto-send action with no accountable owner. B8 approves it; the audit catches it. Together, C14 and C16 make B8's high-risk intervention catch rate 0% for the two high-risk cases that required intervention.
+
+![Illustration of a large batch missing high-risk interventions that a post-review audit catches](/blog/how-to-measure-batch-review-with-one-internal-owner-batch-review-miss-boundary.webp)
+
+This result is consistent with the broader human-review problem, but it does not prove a universal psychology law. A 2025 study of people evaluating AI suggestions reported that review-process structure and reviewer attitudes affected accuracy, correction activity, overcorrection, and undercorrection. That is a reason to measure the owner and protocol you actually use, not a reason to borrow a generic reviewer-fatigue number. ([Bias in the Loop](https://arxiv.org/abs/2509.08514))
+
+## When is batching acceptable for a one-owner workflow?
+
+Batch only up to the largest condition that passes a predeclared rule. Do not let the cost saving choose the rule after the result is visible.
+
+The rule used here was:
+
+- 100% case coverage
+- at least 90% catch rate for required interventions
+- 100% catch rate for required high-risk interventions
+- p95 decision time no more than 125% of the non-batched baseline
+- zero expiry and escalation
+
+The worked decision is straightforward:
+
+| Condition | Passes coverage? | Passes catch rule? | Passes high-risk rule? | Passes p95 rule? | Decision |
+| --- | --- | --- | --- | --- | --- |
+| B2 | Yes | Yes | Yes | Yes | Accept |
+| B4 | Yes | Yes | Yes | Yes | Accept, largest passing batch |
+| B8 | Yes | No, 44.4% | No, 0 of 2 | Yes | Reject |
+
+The principal exception is a workflow where every case is reversible and low consequence. There, a lower catch threshold may be defensible if the post-review recovery path is fast and measured. That is a different rule, not a reason to relax the high-risk veto in this workflow.
+
+If your case set cannot produce a meaningful catch signal, stop. A result with identical intervention counts, no risk separation, and no measurable attention trade-off should be treated as an instrumentation failure, not a batching recommendation.
+
+## Limitations and what we still do not know
+
+The main limitation is scope: this experiment does not prove that four is the right batch size for your workflow. It proves that a fixed comparison can tell you when a larger batch starts hiding required interventions.
+
+The fixture is small and constructed. `owner-01` is one anonymized owner label. The timestamps and durations belong to this run and are not a universal performance estimate. The $75/hour cost is an assumption to replace with your loaded cost. The post-review audit catches fixture misses, so this is a measurement of intervention value, not a production harm estimate.
+
+NIST describes post-deployment AI monitoring as a fragmented field with open questions around human factors, logging, risk level, cadence, and the balance between automated and human-validated monitoring. This artifact is deliberately narrow. It gives one team a repeatable starting point, not a complete monitoring program. ([NIST monitoring report](https://www.nist.gov/news-events/news/2026/03/new-report-challenges-monitoring-deployed-ai-systems))
+
+The next run should use your real cases, your real owner, your real expiry policy, and a larger fixture if the result is close to the go/no-go threshold. Keep the same fields so the comparison remains legible.
+
+## What should you do next?
+
+Copy the schema, create a fixed case set with known interventions, and run B0, B2, B4, and B8 before changing the production queue. If B4 is the largest passing condition, start there and keep a post-review sample for high-risk cases. If every batch fails, keep the non-batched gate and fix the workflow or case mix before optimizing attention cost.
+
+I use this kind of evidence-first exercise in the same spirit as my work helping people build on their own workflows. If your team needs help turning one approval queue into a measured architecture decision, [see how I work with teams on AI systems they can operate themselves](/learn-ai). You can also compare this protocol with the broader [human-in-the-loop approval gate guide](/blog/human-in-the-loop-ai-agents) and the [AI output quality measurement guide](/blog/how-to-measure-ai-output-quality-no-single-right-answer). This post belongs to the [AI architecture decisions collection](/blog/ai-architecture-decisions).
