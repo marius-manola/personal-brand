@@ -1,0 +1,197 @@
+---
+title: "Design Architecture for Tenant-Specific Workflows: Practice Guide"
+date: "2026-09-16"
+updated: "2026-09-16"
+excerpt: "A hands-on practice guide for choosing shared or isolated tenant workflows, carrying tenant context, scoping state, and testing action boundaries."
+answer: "Use one workflow definition with explicit tenant context, tenant-scoped configuration and state, and a server-side policy check before every tenant-sensitive action. Choose mixed isolation when only some data, queues, or integrations need stronger boundaries. Split deployments when compliance, customer-managed keys, noisy-neighbor risk, or blast radius makes pooled resources unacceptable."
+targetQuery: "design architecture for tenant-specific workflows practice guide"
+queryAliases:
+  - "tenant-specific workflow architecture"
+  - "multitenant workflow design guide"
+  - "how to design workflows for multiple tenants"
+intent: "architecture practice guide"
+funnel: "consideration"
+cluster: "architecture"
+parent: "/blog/ai-architecture-decisions"
+contentType: "capability-guide"
+kind: "satellite"
+sourceableAtom: "A reusable six-check tenant-workflow practice card, a completed comparison of three designs, and a transfer check for a new expense-approval scenario."
+evidenceType: "capability-guide"
+evidenceBasis: "Practice card and worked comparison completed on 2026-08-24. The six-check desk exercise scored prompt-only branching 2/6, copied tenant workflows 4/6, and one explicit tenant-aware workflow 6/6. The result is a reproducible design exercise, not production evidence."
+tags:
+  - "AI architecture"
+  - "multitenancy"
+  - "workflow design"
+author: "Marius Manolachi"
+nextReviewAt: "2027-02-24"
+sources:
+  - "https://docs.aws.amazon.com/whitepapers/latest/saas-architecture-fundamentals/tenant-isolation.html"
+  - "https://docs.aws.amazon.com/wellarchitected/latest/saas-lens/identity-and-access-management.html"
+  - "https://learn.microsoft.com/en-us/azure/architecture/guide/multitenant/considerations/map-requests"
+  - "https://learn.microsoft.com/en-us/azure/architecture/guide/multitenant/considerations/tenancy-models"
+  - "https://learn.microsoft.com/en-us/azure/architecture/guide/multitenant/service/app-configuration"
+  - "https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html"
+  - "https://csrc.nist.gov/pubs/sp/800/207/final"
+faq:
+  - q: "Should every tenant have a separate workflow deployment?"
+    a: "No. Start with shared workflow code and explicit tenant boundaries when the isolation, compliance, and load requirements allow it. Use separate deployments for requirements such as customer-managed keys, strong blast-radius separation, or tenant-specific infrastructure that the shared design cannot enforce."
+  - q: "Where should tenant-specific workflow rules live?"
+    a: "Keep rules in versioned tenant configuration or a policy component, not in prompt text. Resolve the active policy for the tenant and policy version, then check it again before a tenant-sensitive action."
+  - q: "How do you test a multitenant workflow boundary?"
+    a: "Replay a run or resource from Tenant A under Tenant B context and require a server-side denial before the workflow reads or writes the resource. Repeat the test for state, configuration, artifacts, retries, and integrations."
+cover: "/blog/design-architecture-tenant-specific-workflows-practice-guide-tenant-workflow-architecture-hero.webp"
+coverAlt: "Illustration of a tenant-specific workflow architecture being tested across shared and isolated boundaries"
+draft: false
+---
+
+When I taught product managers who went from writing specs to building and shipping the product and automating work around it, the failure was usually an undefined “done,” not the model. That is a bounded teaching observation, not a measured prevalence claim.
+
+Tenant-specific workflows create the same trap at the architecture level. A workflow can look configurable while its state, permissions, retries, or tool calls still assume one tenant. The result is a system that appears shared but has no explicit boundary to test.
+
+The useful practice result is small. Apply six checks to the design before choosing a shared service, tenant copies, or isolated deployments:
+
+| Design | Checks passed | Desk decision |
+| --- | ---: | --- |
+| Prompt-only branching | 2/6 | Reject |
+| Copied workflow per tenant | 4/6 | Reserve for a stronger isolation need |
+| One workflow with explicit tenant context, policy, state, and action checks | 6/6 | Choose for the worked case |
+
+These are rubric results from a synthetic desk exercise completed on 2026-08-24. They are not a production benchmark. The [AI architecture decisions parent guide](/blog/ai-architecture-decisions) gives the wider decision context. This page is the practice guide for doing the tenant-specific part.
+
+## Start with one workflow and explicit tenant boundaries
+
+Use one workflow definition when the work is structurally the same across tenants and the differences can be represented as tenant-scoped policy, configuration, state, and integrations. AWS describes tenant isolation as a separate concern from ordinary authentication and authorization: the system must use tenant context to limit access to the right resources, even on shared infrastructure ([AWS tenant isolation guidance](https://docs.aws.amazon.com/whitepapers/latest/saas-architecture-fundamentals/tenant-isolation.html)).
+
+That gives you a useful default:
+
+1. Resolve the active tenant at the request or event boundary.
+2. Carry tenant context with the actor, workflow run, and policy version.
+3. Load tenant-specific configuration through a controlled lookup.
+4. Scope state, artifacts, retries, logs, and integrations to that tenant.
+5. Enforce authorization again before each tenant-sensitive action.
+6. Test a wrong-tenant read and write as deliberate failure cases.
+
+AWS makes tenant context a first-class part of SaaS identity and recommends that application layers can acquire and apply it without a round trip to another service on every call ([AWS SaaS Lens](https://docs.aws.amazon.com/wellarchitected/latest/saas-lens/identity-and-access-management.html)). Microsoft also separates mapping a request to a tenant from checking the user's permissions, especially when one user can belong to multiple tenants ([Microsoft request mapping guidance](https://learn.microsoft.com/en-us/azure/architecture/guide/multitenant/considerations/map-requests)).
+
+The exception is a workflow whose tenants only appear similar at the happy path. If the data, approval authority, integrations, or legal boundary differs materially, keep the shared code small and move the isolation decision down to the affected tier.
+
+## Fill in the six-check tenant-workflow practice card
+
+Complete this card before you draw deployment boxes. A blank architecture diagram hides missing decisions. The card makes each boundary inspectable.
+
+| Check | Write down | A passing answer looks like |
+| --- | --- | --- |
+| Tenant context at entry | Where tenant identity comes from, which tenant is active, actor, and run ID | A server-side context object exists before the workflow reads tenant data |
+| Tenant policy and configuration | Approval rules, routing, limits, integration handles, and policy version | The workflow can name which tenant policy version it used |
+| Tenant-scoped state | Keys for inputs, runs, artifacts, retries, logs, and outputs | A resource lookup requires tenant context, not only a guessed object ID |
+| Server-side action authorization | The check before every tenant-sensitive read, write, or external call | A denied decision stops the action before the tool or adapter runs |
+| Change without duplication | What changes through policy/config and what needs a separate workflow | A tenant rule change does not require copying the whole workflow by default |
+| Cross-tenant isolation test | A wrong-tenant request, resource ID, retry, or integration case | The system denies it and records the decision |
+
+The first four checks protect the current run. The last two protect the architecture as tenants change. OWASP recommends deny-by-default authorization, validation on every request, and server-side enforcement rather than client-side checks ([OWASP Authorization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html)). NIST's zero-trust model gives the same action-boundary idea a useful shape: a policy decision and policy enforcement point sit between a subject and a resource ([NIST SP 800-207](https://csrc.nist.gov/pubs/sp/800/207/final)).
+
+Do not put the tenant rule only in the prompt. A model may help interpret a request, but prompt text is not your durable authorization boundary, state key, or audit record. The [separate policy layer guide](/blog/when-should-an-ai-workflow-have-a-separate-policy-layer) covers the case where policy deserves its own component.
+
+![Illustration of a six-check tenant-workflow practice card connecting tenant context, policy, state, action authorization, change, and isolation testing](/blog/design-architecture-tenant-specific-workflows-practice-guide-tenant-workflow-practice-card.webp)
+
+## Work the card on a two-tenant invoice workflow
+
+Use a scenario where the happy path is shared but authority differs. This forces the architecture to show its seams.
+
+Scenario: Tenant A lets a department manager approve an invoice exception below a configured threshold. Tenant B requires finance approval for every exception. Both need an auditable decision record.
+
+Compare these three designs:
+
+| Design | What it does | Six-check result |
+| --- | --- | ---: |
+| Prompt-only branching | Tells the model to follow Tenant A or Tenant B instructions | 2/6. The prompt describes a path, but it does not prove scoped state, durable policy versioning, or action authorization. |
+| Copied workflow per tenant | Duplicates the workflow and edits each copy for the tenant | 4/6. It can isolate some resources, but variation is hidden in duplicated code and uniform cross-tenant tests are harder to maintain. |
+| Explicit tenant-aware workflow | Resolves context, loads versioned policy, scopes state, and checks each action | 6/6. Tenant variation is visible, testable, and changeable without a new workflow copy by default. |
+
+The third design wins this exercise. It does not win every deployment decision. If Tenant B requires a customer-managed key or a separate operational blast radius, keep the workflow contract the same but choose a stronger boundary for the affected configuration, data, queue, or deployment.
+
+To reproduce the result, score each design pass or fail against the six checks. Do not award a pass because the diagram has a box called “tenant service.” Write the value that crosses the boundary and the test that would reject a wrong value.
+
+## Keep tenant-specific rules in policy and configuration
+
+Store tenant variation as data that the workflow can load, version, inspect, and test. Examples include approval thresholds, allowed actions, queue names, retention settings, model choice, escalation roles, and integration identifiers. Treat those values as untrusted inputs until a server-side policy check approves their use.
+
+Microsoft's multitenant configuration guidance describes both shared stores with key prefixes or labels and stores per tenant. The shared approach lowers deployment and operational complexity. A per-tenant store increases isolation and can fit requirements such as customer-managed keys or configuration data that must not share a store ([Microsoft App Configuration guidance](https://learn.microsoft.com/en-us/azure/architecture/guide/multitenant/service/app-configuration)).
+
+Use a record that makes a configuration decision replayable:
+
+```yaml
+tenant_context:
+  tenant_id: tenant-a
+  actor_id: user-42
+  workflow_run_id: run-918
+  policy_version: invoice-approval-v7
+configuration:
+  approval_threshold: tenant-scoped-value
+  approval_role: department-manager
+state:
+  key_shape: tenant_id/workflow_id/run_id
+action_boundary:
+  check: server-side policy decision before approval write
+  deny: stop and record the decision
+isolation_test:
+  case: use tenant-a resource under tenant-b context
+  expected: deny before read or write
+```
+
+The identifiers above are example fields, not a claim about a particular implementation. Use identifiers that your identity, storage, queue, and integration layers can actually preserve. If a retry can lose the tenant ID or policy version, the design is not ready for a live workflow.
+
+## Practice the action boundary with failure cases
+
+The fastest exercise is not a happy-path demo. It is a small set of requests that should be denied.
+
+1. Start a Tenant A run with Tenant B's resource ID.
+2. Replay a Tenant A retry after the active tenant has changed to Tenant B.
+3. Remove the policy version and attempt a tenant-sensitive write.
+4. Change the tenant configuration after planning but before execution.
+5. Use a tenant integration handle that belongs to another tenant.
+
+For each case, record the first boundary that should reject it, the decision, the resource that remained untouched, and the audit record. OWASP's guidance is direct here: permissions must be validated on every request and failed checks must exit safely, not leave the application in an unstable state ([OWASP authorization guidance](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html)).
+
+If a design only checks tenant context when the user opens the screen, it has not passed. Background jobs, retries, tool calls, scheduled runs, exports, and administrative operations need the same discipline.
+
+## Run the transfer check on a new expense scenario
+
+Do not declare the practice learned because the invoice example looks clear. Use a new case with different field names and approval logic.
+
+New scenario: Tenant A lets a manager approve expenses up to a tenant-configured threshold. Tenant B requires finance review for every exception. One tenant may later require a customer-managed key for its configuration.
+
+Fill the six fields without copying the invoice answer. A passing design includes:
+
+- active tenant context with actor and run ID at the event boundary;
+- a versioned approval policy outside prompt text;
+- tenant-scoped keys for the expense, run, approval, and audit record;
+- a server-side check before a write, approval, or tenant integration call;
+- a negative test that uses a Tenant A run under Tenant B context and is denied;
+- an isolation exception that moves configuration or the full deployment when the shared design cannot satisfy the customer-managed-key requirement.
+
+The transfer check passes when the reader can name the boundary, the policy version, the state key, the denied action, and the reason for stronger isolation. It does not require one specific cloud service. It tests whether the architecture decision survives a changed workflow rather than whether the learner memorized a diagram.
+
+## Split the boundary when the requirement is stronger than configuration
+
+Choose a separate store, queue, deployment stamp, account, or tenant environment when the requirement is about isolation rather than behavior. Common triggers include customer-managed keys, tenant-specific infrastructure, a materially different operational blast radius, noisy-neighbor risk, or a rule that the shared service cannot enforce consistently.
+
+Microsoft describes multitenant isolation as a spectrum. A shared application tier can sit beside isolated databases, tables, or blob containers, and the choice depends on security, cost, performance, reliability, customer requirements, and resource limits ([Microsoft tenancy models](https://learn.microsoft.com/en-us/azure/architecture/guide/multitenant/considerations/tenancy-models)). That makes mixed isolation a real architecture option, not a compromise to hide.
+
+The principal exception is a hard boundary. If regulation, contractual controls, or customer-managed cryptography requires independent administration or keys, do not let a clean configuration schema persuade you that pooled resources are equivalent. Preserve the workflow contract, then isolate the component that carries the requirement. If the whole workload must be isolated, use a dedicated deployment and test the mapping from tenant to deployment.
+
+## The finished artifact should explain what is shared and what is not
+
+Your final practice record should let another engineer answer six questions without opening the model prompt:
+
+1. Which tenant is active for this run?
+2. Which policy version was used?
+3. Which state and resources are scoped to that tenant?
+4. Where is the server-side decision before the action?
+5. What can change without copying the workflow?
+6. Which wrong-tenant case was denied, and where was it logged?
+
+If you can answer those questions, you have a design that another person can inspect and challenge. If you cannot, the next step is not a more autonomous agent. It is a smaller workflow boundary and a better evidence record.
+
+Marius Manolachi's work is about making existing people capable of building AI products on their own work. If your team needs a guided architecture practice session, [learn about the capability-building work](/learn-ai). The artifact above is complete without that next step.
+
