@@ -1,0 +1,154 @@
+---
+title: "How to Decide Evidence Quality When Source Data Conflicts"
+date: "2026-09-17"
+updated: "2026-09-17"
+excerpt: "A worked conflict ledger shows how to classify competing values by definition, coverage, date, provenance, and fitness for the decision."
+answer: "When source data conflicts, do not choose the newest or most prestigious source by default. Define the decision, preserve both raw values, compare definitions, coverage, time window, collection method, and provenance, then apply a pre-specified rule. Choose the source fit for that decision, preserve the other as context, and abstain or escalate when the conflict remains unresolved."
+targetQuery: "how to decide evidence quality when source data conflicts"
+queryAliases:
+  - "how to evaluate conflicting source data"
+  - "which source should I trust when data conflicts"
+intent: "commercial-decision"
+funnel: "consideration"
+cluster: "opportunity"
+parent: "/blog/ai-opportunity-discovery"
+contentType: "commercial-decision"
+kind: "satellite"
+sourceableAtom: "A public Census conflict ledger shows that the right value depends on the decision: use the direct count for an enumerated date, use the estimates base for an estimates series, preserve different time windows, and abstain when the conflict remains unresolved."
+evidenceType: "worked decision artifact plus reproducible source-comparison test"
+evidenceBasis: "Public U.S. Census records captured on 2026-08-24, preserved in a raw-value ledger, classified before selection, and recalculated with explicit arithmetic."
+tags:
+  - "evidence quality"
+  - "AI opportunity"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://www.nice.org.uk/corporate/ecd9/chapter/assessing-data-suitability"
+  - "https://www.cochrane.org/authors/handbooks-and-manuals/handbook/current/chapter-05"
+  - "https://unstats.un.org/UNSDWebsite/statcom/session_53/documents/BG-3e-Handbook-E.pdf"
+  - "https://www.census.gov/newsroom/press-releases/2021/2020-census-apportionment-results.html"
+  - "https://www.census.gov/newsroom/press-releases/2026/vintage-2025-pop-estimates.html"
+cover: "/blog/how-to-decide-evidence-quality-when-source-data-conflicts-conflict-ledger-hero.webp"
+coverAlt: "Illustration of two source records being compared against one decision question"
+draft: false
+---
+
+When I teach product managers to build and ship, I start with the decision they need to make, not with the tool they want to use. A polished number can still answer the wrong question.
+
+That is the trap when source data conflicts. The practical answer is a small conflict ledger that keeps the disagreement visible until the decision gives you a reason to choose.
+
+## The worked decision: which population value belongs in the dashboard?
+
+For a dashboard about the enumerated U.S. resident population on April 1, 2020, choose the 2020 Census count, not the newest estimates-base value. Preserve the newer value because it is useful for a different job: maintaining a coherent population-estimates series.
+
+The U.S. Census Bureau reports a 2020 Census count of 331,449,281 residents on April 1, 2020. Its Vintage 2025 release reports an April 1, 2020 estimates base of 331,516,113. Those records differ by 66,832, or 0.020160% of the Census count. The newer number is not automatically the better answer. It is a different statistical product. ([2020 Census release](https://www.census.gov/newsroom/press-releases/2021/2020-census-apportionment-results.html), [Vintage 2025 release](https://www.census.gov/newsroom/press-releases/2026/vintage-2025-pop-estimates.html))
+
+| Record | Raw value | What it measures | Conflict classification | Decision outcome |
+| --- | ---: | --- | --- | --- |
+| 2020 Census | 331,449,281 | Enumerated resident population on April 1, 2020 | Measurement and process | Choose for an enumerated-count question |
+| Vintage 2025 estimates base | 331,516,113 | Base of the current population-estimates series on April 1, 2020 | Measurement and revision | Preserve and use for estimates-series questions |
+| Vintage 2021 July estimate | 331,501,080 | Estimated population on July 1, 2020 | Temporal | Preserve, but label July 1 explicitly |
+
+That table is the sourceable artifact in this post. It gives another operator the raw values, the reason they differ, and the next action without asking them to trust an unexplained ranking of sources.
+
+## What makes one source better for this decision?
+
+Evidence quality is fitness for purpose. Start with the question, then judge each source against the definition, coverage, time window, collection method, provenance, and transformation needed for that question. NICE describes the same logic as data quality and relevance, with transparent reporting of source characteristics, collection, coverage, and governance. ([NICE real-world evidence framework](https://www.nice.org.uk/corporate/ecd9/chapter/assessing-data-suitability))
+
+The United Nations Statistics Division treats quality as multidimensional. Relevance, accuracy, timeliness, coherence, comparability, accessibility, and interpretability can pull in different directions. Its handbook also separates source quality from input, process, and output quality. ([UN Statistics Division handbook](https://unstats.un.org/UNSDWebsite/statcom/session_53/documents/BG-3e-Handbook-E.pdf))
+
+Use this test before you score authority:
+
+| Test | Question to record | Why it changes the choice |
+| --- | --- | --- |
+| Definition | What exactly is being counted or measured? | “Census count” and “estimates base” are not interchangeable labels. |
+| Coverage | Which people, records, teams, regions, or systems are included? | A complete source for the wrong population is still the wrong source. |
+| Time window | What is the reference date or period, and when was it collected? | A July 1 estimate cannot silently answer an April 1 question. |
+| Collection method | Was the value enumerated, reported, sampled, inferred, smoothed, or modeled? | Method changes the error and bias you should expect. |
+| Provenance | Who owns it, who transformed it, which version was used, and when was it retrieved? | A current page can revise historical values. |
+| Fitness | What decision will the value change? | The right source depends on the consequence and required precision. |
+
+The [NICE framework](https://www.nice.org.uk/corporate/ecd9/chapter/assessing-data-suitability) also warns that reasonable trade-offs exist between data-source characteristics. That is why “most prestigious source wins” is a poor rule.
+
+## How should you classify the conflict before choosing?
+
+Classify the disagreement before deciding which value to keep. Most conflicts fall into five categories.
+
+1. **Semantic:** the fields sound alike but measure different things, such as “active customer” versus “customer with a paid invoice.” Preserve both definitions and do not merge them.
+2. **Temporal:** the values refer to different dates, reporting cutoffs, or collection windows. Keep both and relabel the date.
+3. **Coverage-related:** one source includes a subset, geography, channel, or system that the other omits. Align the population only if the missing coverage can be demonstrated.
+4. **Measurement-related:** the sources use different instruments, collection methods, estimators, or revision processes. Choose according to the decision, and record the likely bias.
+5. **Unresolved:** the definitions, coverage, method, or provenance are too unclear to explain the difference. Preserve both and escalate or abstain.
+
+The Census example contains two different conflicts. The count and Vintage 2025 base use the same nominal date but different products and processes. That is measurement and revision. The Vintage 2021 July estimate uses a different reference date. That is temporal. Calling all three values “the 2020 population” hides the exact information needed to choose.
+
+## What decision rule should a team apply?
+
+Write the rule before interpreting the numbers. This keeps a preferred source from winning simply because it supports the hoped-for outcome.
+
+```text
+1. If one record matches the decision's definition, coverage, and reference date, choose it.
+2. If records match the question but differ because one is a revised version, use the version required by the decision's time series and preserve the earlier snapshot.
+3. If records refer to different dates or windows, do not reconcile them. Label and preserve both.
+4. If coverage or measurement differs, choose only after recording the bias and consequence.
+5. If the conflict remains unexplained or the consequence exceeds review authority, abstain and escalate.
+```
+
+Applied to the example:
+
+- Dashboard question: “What was the enumerated resident population on April 1, 2020?” Choose 331,449,281.
+- Estimates question: “What base should a current population-estimates series use?” Preserve and choose 331,516,113 for that series.
+- July trend question: “What was the estimated population on July 1, 2020?” Use 331,501,080 and keep the July 1 label.
+- Question still says only “2020 population”: do not choose yet. Ask for the reference date and product definition.
+
+The [Cochrane Handbook](https://www.cochrane.org/authors/handbooks-and-manuals/handbook/current/chapter-05) gives a useful parallel: decide which sources may contain the most useful information, plan how to resolve discrepancies, collect data in a structured form, and archive it so the work can be checked later.
+
+## What should the conflict ledger contain?
+
+Use one row per source record. Keep the raw value beside the interpretation so a later operator can recalculate the result without reconstructing your reasoning.
+
+| Field | Example from the Census test |
+| --- | --- |
+| Decision question | Enumerated resident population on April 1, 2020 |
+| Source owner and product | U.S. Census Bureau, 2020 Census; U.S. Census Bureau, Vintage 2025 estimates |
+| Raw label and value | “Population, Census, April 1, 2020,” 331,449,281; “Population estimates base, April 1, 2020 (V2025),” 331,516,113 |
+| Definition and coverage | Resident population, 50 states and District of Columbia; estimates-series base, United States |
+| Collection method | Decennial enumeration; revised population-estimates base |
+| Reference and retrieval dates | April 1, 2020; retrieved August 24, 2026 |
+| Transformation | None in the comparison; arithmetic only for the delta |
+| Likely bias | Coverage and disclosure-avoidance effects for the count; revision and estimation effects for the base |
+| Conflict class | Measurement/process revision, with a separate temporal record |
+| Outcome | Choose, preserve, or abstain, with reason |
+| Escalation condition | Definition, coverage, method, or consequence remains unresolved |
+
+Do not replace the raw fields with a single confidence score. A score can hide the fact that a source is highly accurate for one question and irrelevant to another.
+
+## How do you recalculate the result?
+
+Keep the arithmetic boring. That makes review easier.
+
+```text
+absolute_delta = abs(331516113 - 331449281) = 66832
+relative_delta = 66832 / 331449281 * 100 = 0.020160%
+temporal_delta = 331501080 - 331449281 = 51799
+```
+
+The percentages are descriptive, not a quality verdict. They tell you how far apart the records are. They do not tell you whether the difference matters to the decision.
+
+For a production workflow, store the source URL, retrieval timestamp, export or API version, raw payload or snapshot location, and transformation code. If you cannot reproduce the number from those fields, the calculation is not finished.
+
+## When should the team preserve both values or abstain?
+
+Preserve both when the records answer different valid questions, when a historical snapshot matters, or when the downstream system needs a coherent series. Abstain when the conflict survives the definition and provenance review.
+
+Escalate if the records claim the same definition, coverage, date, and method but still disagree. Escalate too when the selected value will trigger an irreversible action, a financial commitment, a compliance report, or a customer-facing claim that the owner cannot correct quickly.
+
+This is also where an AI workflow needs a boundary. A model can extract fields and calculate deltas. It should not silently decide that two conflicting business values are equivalent because their labels look similar. If the workflow has no rule for preserving both values, it has no safe answer for this case.
+
+The [AI opportunity discovery guide](/blog/ai-opportunity-discovery) is the right next step if you have not yet defined the decision. If the opportunity is already clear, compare this ledger with [the smallest evidence set for an AI opportunity decision](/blog/smallest-evidence-set-ai-opportunity-decision) and identify the one unresolved source question that could change your investment choice.
+
+## What should you do with your next conflict?
+
+Copy the ledger fields into your working document. Ask for the decision question and reference date before asking which source is “better.” Preserve the raw records, classify the conflict, apply the rule, and make abstention an acceptable outcome.
+
+If your team needs help turning one real workflow conflict into an inspectable opportunity decision, bring the two source exports and the decision they are meant to support to [Marius Manolachi's AI consulting and tutoring work](/learn-ai). The useful starting artifact is the ledger, not a promise that one source is always right.
