@@ -1,0 +1,194 @@
+---
+title: 'How to Build State Ownership When Policies Change'
+date: '2026-09-17'
+updated: '2026-09-17'
+excerpt: 'A runnable state-ownership test for policy versioning, replay, projections, compensation, duplicate delivery, and conflicting writes.'
+answer: 'Build state ownership around an append-only event history owned by the workflow, version each policy decision, and keep policy evaluation separate from enforcement. Treat new cases under the new policy, preserve historical decisions unless the policy is explicitly retroactive, rebuild projections from events, and use a compensating event for an approved side effect that must be reversed. The exception is a deliberate policy-owner decision to migrate history.'
+targetQuery: 'how to build state ownership when policies change'
+queryAliases:
+  - 'state ownership when policies change'
+  - 'policy version state ownership'
+  - 'how to handle state when policies change'
+intent: 'implementation'
+funnel: 'consideration'
+cluster: 'architecture'
+parent: '/blog/ai-architecture-decisions'
+contentType: 'implementation-lab'
+kind: 'satellite'
+sourceableAtom: 'In a pinned five-scenario fixture, changing the auto-approval threshold from 1,000 in policy v1 to 500 in v2 held a new 600 claim, preserved historical decisions, routed historical review to the policy or recovery owner, processed a duplicate once, and rejected a stale write.'
+evidenceType: 'reproducible test and worked decision artifact'
+evidenceBasis: 'A complete JavaScript fixture with explicit states, transitions, policy versions, event history, replay, projection idempotency, compensation, and optimistic concurrency, rerun twice on Node v20.11.0 with identical exit-0 output.'
+tags:
+  - 'AI architecture'
+  - 'State management'
+  - 'Policy versioning'
+author: 'Marius Manolachi'
+nextReviewAt: '2027-02-20'
+sources:
+  - 'https://engineering.homeoffice.gov.uk/principles/end-to-end-product-ownership/'
+  - 'https://digital-handbook.cabinetoffice.gov.uk/docs/software/software-development-operations.html'
+  - 'https://learn.microsoft.com/en-us/azure/architecture/patterns/event-sourcing'
+  - 'https://www.openpolicyagent.org/docs'
+  - 'https://www.openpolicyagent.org/docs/policy-testing'
+faq:
+  - q: 'Should a policy change rewrite historical state?'
+    a: 'Usually no. Preserve the original event and policy version, then decide explicitly whether history is still valid, needs manual review, or needs a compensating event. A new policy does not silently become a migration script.'
+  - q: 'Who owns a projection after a policy change?'
+    a: 'The projection owner owns rebuilding and idempotent delivery, but not the business rule. The projection should consume the authoritative events and policy decision records; the policy owner decides what a new evaluation means.'
+  - q: 'When should a workflow append a compensating event?'
+    a: 'Append one when an already-recorded side effect must be reversed or corrected. Keep the original event, record the reason and policy version, and make the recovery action explicit rather than editing history.'
+cover: '/blog/how-to-build-state-ownership-when-policies-change-state-ownership-hero.webp'
+coverAlt: 'Illustration of policy versions, authoritative state, projections, and compensating events'
+draft: false
+---
+
+When I teach product managers to move from writing specifications to building and shipping, the hard question is often not which rule to add. It is what “done” means after the rule changes. A workflow that cannot name its state owner will usually let the policy owner, projection, or retry worker change state by accident.
+
+This lab gives that question a small, runnable answer. It uses a reimbursement claim, two policy versions, an append-only event stream, a projection, and five failure-oriented cases.
+
+## What did the policy-change test observe?
+
+The test changed the auto-approval threshold from 1,000 in v1 to 500 in v2. The new case used v2. Historical cases kept their original decision and were routed for a new decision without silent mutation.
+
+| Case | Observed result | Owner of the next decision |
+| --- | --- | --- |
+| New 600 claim under v2 | `held` with `ClaimSubmitted` and `ClaimHeld` | Policy owner, then workflow state owner |
+| Historical 800 claim approved under v1 | Remains `approved`; v2 produces `manual_review` with `mutateState: false` | Policy owner |
+| Historical 800 claim paid under v1 | Remains paid until `CompensationRequested` is appended; then `compensation_pending` | Operations recovery owner |
+| Duplicate event delivery | Projection processes event IDs `1` and `2` once | Projection owner |
+| Stale concurrent write | Append fails with `version_conflict expected=1 actual=2` | Workflow state owner |
+
+**The observed result is a decision artifact: a policy change changes the next decision first, not the authority of an old event.**
+
+![Illustration of a policy version change branching into new state, manual review, projection replay, and compensation](/blog/how-to-build-state-ownership-when-policies-change-state-ownership-decision-branches.webp)
+
+The fixture is not a production benchmark. It is a compact reproduction of the ownership question. The exact code, commands, runtime, and limits appear below so you can challenge the result instead of trusting the prose.
+
+## What does state ownership mean when the policy changes?
+
+State ownership means one workflow owner controls the authoritative lifecycle, its legal transitions, and the event history that records those transitions. A policy owner supplies a versioned decision. A projection owner rebuilds read models. A recovery owner handles explicit reversal. Those roles can be held by one team, but the responsibilities must stay distinct.
+
+This follows the durable ownership principle in the [Home Office end-to-end product ownership guidance](https://engineering.homeoffice.gov.uk/principles/end-to-end-product-ownership/), which assigns an enduring team responsibility for build, operation, and iteration. It also matches the event-sourcing boundary described by [Microsoft Azure](https://learn.microsoft.com/en-us/azure/architecture/patterns/event-sourcing): the event store is authoritative, while applications derive state by replaying events and maintain read-only projections for queries.
+
+The policy version belongs in the decision record, not only in a deployment variable. The [Open Policy Agent documentation](https://www.openpolicyagent.org/docs) describes policy decision-making as separate from enforcement over structured input. That is the useful separation here: the policy answers “what should happen under v2?” and the workflow decides whether that answer can cause a legal transition.
+
+| Responsibility | Owns | Does not own |
+| --- | --- | --- |
+| Workflow state owner | Event stream, state reducer, legal transitions, expected stream version, terminal states | Changing the business rule without a policy decision |
+| Policy owner | Policy versions, effective dates, test cases, prospective or retroactive scope | Directly rewriting an event or projection |
+| Projection owner | Read model, event cursor, duplicate handling, rebuild and lag monitoring | Deciding that an old business decision was wrong |
+| Operations recovery owner | Compensation workflow, approval of reversal, external side-effect verification | Editing the original event |
+
+The [Cabinet Office software development and operation policies](https://digital-handbook.cabinetoffice.gov.uk/docs/software/software-development-operations.html) also make the operational implication clear: tests should compare actual outcomes with predicted outcomes, and architectural decisions should be documented. A policy change is both a code change and a decision-rights change.
+
+## Which states and transitions should the fixture make explicit?
+
+Keep the smallest state graph that exposes the ownership boundary. This fixture uses `submitted`, `approved`, `held`, `paid`, `compensation_pending`, and `compensated` as state outcomes. The important transitions are:
+
+1. `ClaimSubmitted` records the amount and the policy version used for the first decision.
+2. `ClaimApproved` or `ClaimHeld` records the policy result as an event.
+3. `ClaimPaid` records an external side effect without deleting the approval event.
+4. `CompensationRequested` starts a reversal path when a later review requires it.
+5. A stale writer cannot append because the expected stream version no longer matches.
+
+The policy change is not a transition by itself. It is an input to a new decision. That distinction prevents a background replay from turning every old approval into a new state mutation.
+
+Here is the complete fixture. Save it as `policy-state-test.js` and run it with Node.
+
+```js
+const assert = require('node:assert/strict');
+const policies = { v1: { max: 1000 }, v2: { max: 500 } };
+const owners = { state: 'Workflow state owner', policy: 'Policy owner', projection: 'Projection owner', recovery: 'Operations recovery owner' };
+const decide = (amount, version) => amount <= policies[version].max ? 'approve' : 'hold';
+function append(stream, expected, type, data = {}) {
+  if (stream.length !== expected) throw Error(`version_conflict expected=${expected} actual=${stream.length}`);
+  stream.push({ ...data, eventId: String(stream.length + 1), type });
+}
+function reduce(stream) {
+  let state = 'new';
+  for (const e of stream) {
+    if (e.type === 'ClaimSubmitted') state = 'submitted';
+    if (e.type === 'ClaimApproved') state = 'approved';
+    if (e.type === 'ClaimHeld') state = 'held';
+    if (e.type === 'ClaimPaid') state = 'paid';
+    if (e.type === 'CompensationRequested') state = 'compensation_pending';
+  }
+  return state;
+}
+function project(stream) {
+  const seen = new Set(), processed = [];
+  for (const e of stream) if (!seen.has(e.eventId)) { seen.add(e.eventId); processed.push(e.eventId); }
+  return { processed, status: reduce(stream.filter(e => seen.has(e.eventId))) };
+}
+function review(stream, currentVersion) {
+  const amount = stream[0].amount, state = reduce(stream), decision = decide(amount, currentVersion);
+  if (state === 'paid' && decision === 'hold') return { action: 'compensation_review', mutateState: false, owner: owners.recovery };
+  if (state === 'approved' && decision === 'hold') return { action: 'manual_review', mutateState: false, owner: owners.policy };
+  return { action: 'no_change', mutateState: false, owner: owners.policy };
+}
+function claim(claimId, amount, version, paid = false) {
+  const s = []; append(s, 0, 'ClaimSubmitted', { claimId, amount, policyVersion: version });
+  const d = decide(amount, version); append(s, 1, d === 'approve' ? 'ClaimApproved' : 'ClaimHeld', { policyVersion: version });
+  if (paid) append(s, 2, 'ClaimPaid', { policyVersion: version });
+  return s;
+}
+const fresh = claim('new-v2-600', 600, 'v2');
+const oldApproved = claim('historical-v1-800', 800, 'v1');
+const oldPaid = claim('historical-v1-paid-800', 800, 'v1', true);
+assert.equal(reduce(fresh), 'held');
+assert.deepEqual(review(oldApproved, 'v2'), { action: 'manual_review', mutateState: false, owner: owners.policy });
+assert.deepEqual(review(oldPaid, 'v2'), { action: 'compensation_review', mutateState: false, owner: owners.recovery });
+append(oldPaid, 3, 'CompensationRequested', { policyVersion: 'v2' }); assert.equal(reduce(oldPaid), 'compensation_pending');
+const duplicate = project([...oldApproved, oldApproved[1]]); assert.deepEqual(duplicate.processed, ['1', '2']);
+let conflict = ''; try { append(oldApproved, 1, 'ClaimApproved'); } catch (e) { conflict = e.message; }
+assert.equal(conflict, 'version_conflict expected=1 actual=2');
+console.log(JSON.stringify({ runtime: process.version, policies, owners, cases: {
+  new_v2_600: { state: reduce(fresh), event_types: fresh.map(e => e.type) },
+  historical_v1_800: { state: reduce(oldApproved), current_v2: review(oldApproved, 'v2') },
+  historical_v1_paid_800: { state: reduce(oldPaid), current_v2: review(oldPaid.slice(0, 3), 'v2'), compensation_event: oldPaid.at(-1).type },
+  duplicate_delivery: duplicate, conflicting_write: { result: conflict }
+}}, null, 2));
+```
+
+The fixture has explicit event IDs, but it uses an in-memory array. In a real workflow, the state owner would put the append and expected-version check behind a durable store. The event stream remains the authority; the projection is disposable.
+
+## When should you replay, rebuild a projection, or compensate?
+
+Use the current policy to classify what needs attention. Do not use it as permission to rewrite history.
+
+| Situation | Safe operation | Owner |
+| --- | --- | --- |
+| New case has not been decided | Evaluate under the active policy and append the resulting event | Policy owner plus state owner |
+| Historical case was decided under an accepted policy | Keep the original state and policy version; optionally create a review projection | Policy owner |
+| Historical side effect conflicts with a deliberate retroactive rule | Append a compensation command or event after recovery approval | Recovery owner |
+| Read model is stale or duplicated | Rebuild from the event stream and deduplicate by event ID | Projection owner |
+| Two writers use the same old stream version | Reject the append, reload, reevaluate, and retry only if still legal | State owner |
+
+The distinction matters because replay has two meanings. Replaying events to reconstruct state should be deterministic. Re-evaluating old business decisions under a new policy is a separate operation that may produce a review finding, not a state mutation. [Microsoft's event-sourcing guidance](https://learn.microsoft.com/en-us/azure/architecture/patterns/event-sourcing) recommends immutable events and new compensating events for reversal. It also warns that consumers must be idempotent when delivery can happen more than once.
+
+## What do the duplicate and conflict failures tell you?
+
+The duplicate case proves that a projection needs its own ownership and cursor rule. The event stream can be correct while a projection drifts. Tracking processed event IDs makes re-delivery a no-op for this fixture. It does not make an external side effect safe by itself. Payments, emails, and partner API calls need their own idempotency contract.
+
+The conflict case proves that “last write wins” is not a state-ownership policy. Two workers read version 1. The first append makes version 2. The second append is rejected because its expected version is stale. The worker must reload current state and ask whether its command is still legal. A projection must never resolve this by overwriting the authoritative stream.
+
+The [Open Policy Agent policy-testing guide](https://www.openpolicyagent.org/docs/policy-testing) uses the same useful discipline at the rule layer: write tests for policy behavior, run them, and make failures visible. Keep those tests next to the state-transition tests. A policy can pass while the workflow still mishandles replay, duplicate delivery, or compensation.
+
+## How should a team ship a policy change?
+
+Make the policy change a small decision record before it becomes a deployment. Record:
+
+1. The new policy version and effective date.
+2. The state and decisions it controls.
+3. Whether it is prospective or explicitly retroactive.
+4. The owner of new decisions, historical review, projection rebuild, and recovery.
+5. The fixture cases and expected outputs that must pass.
+6. The event, projection, and external-side-effect limits that are not covered.
+
+If the policy is only changing how a screen groups records, rebuild a projection. If it changes what a new claim should do, route new commands through the policy owner and append a new decision event. If it changes the validity of a completed side effect, stop and create a recovery decision. That is the ownership choice.
+
+I would attach this fixture and matrix to the architecture decision record, then ask the state owner to run it in CI whenever the policy version changes. The [AI architecture decisions parent page](/blog/ai-architecture-decisions) is the place for the wider trade-off. For the runtime boundary, see [How to Design an AI Agent State Machine](/blog/how-to-design-an-ai-agent-state-machine). For staged release controls, see [How to Roll Out an AI Feature Safely](/blog/how-to-roll-out-an-ai-feature-safely).
+
+![Illustration of an append-only event stream feeding a replay reducer and an idempotent projection](/blog/how-to-build-state-ownership-when-policies-change-state-ownership-event-projection.webp)
+
+The next step is not to add a policy service because policy services are fashionable. Copy the fixture, replace the reimbursement claim with one real workflow, and make the first failing case belong to a named owner. If the team cannot agree whether history is authoritative, pause the implementation there. That is the architecture decision.
