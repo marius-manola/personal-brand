@@ -1,0 +1,168 @@
+---
+title: 'How to Choose an Architecture for Changing Approval Policies'
+date: '2026-09-18'
+updated: '2026-09-18'
+excerpt: 'Choose application code, a policy decision point, or a workflow by testing policy changes, stale approvals, ownership, and rollback before you migrate.'
+answer: 'Keep approval policy in application code when one team owns a stable rule set and changes can ship with the service. Choose an external policy decision point when the same rules span services or need independent versioning. Choose a decision workflow when business reviewers must inspect decisions, exceptions, or pending approvals. The exception is a small, low-risk workflow where another layer would cost more than it controls.'
+targetQuery: 'choose architecture for changing approval policies buyer decision guide'
+queryAliases:
+  - 'application code vs policy engine for approval rules'
+  - 'how to compare approval policy platforms before migration'
+  - 'approval policy versioning checklist for architecture buyers'
+intent: 'commercial investigation'
+funnel: 'consideration'
+cluster: 'architecture'
+parent: '/blog/ai-architecture-decisions'
+contentType: 'commercial-decision'
+kind: 'satellite'
+sourceableAtom: 'A six-case approval-policy change worksheet that makes architecture choice explicit across threshold changes, new approver attributes, exceptions, stale pending approvals, reviewer timeouts, and allow, deny, or require-approval outcomes.'
+evidenceType: 'worked decision artifact with reproducible policy-change test'
+evidenceBasis: 'Primary-source architecture and governance guidance from AWS, Open Policy Agent, and OMG DMN, combined with the completed six-case approval-policy decision worksheet in this article. The worksheet is a bounded analysis artifact, not a benchmark: no performance statistic or public implementation result is claimed.'
+nextReviewAt: '2026-11-24'
+tags:
+  - 'AI architecture'
+  - 'AI strategy'
+  - 'Buying AI services'
+  - 'Workflow design'
+author: 'Marius Manolachi'
+sources:
+  - 'https://docs.aws.amazon.com/prescriptive-guidance/latest/saas-multitenant-api-access-authorization/introduction.html'
+  - 'https://docs.aws.amazon.com/prescriptive-guidance/latest/saas-multitenant-api-access-authorization/opa.html'
+  - 'https://www.openpolicyagent.org/docs'
+  - 'https://www.omg.org/dmn/'
+  - 'https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec04-bp02.html'
+faq:
+  - q: 'Should every changing approval policy move into OPA or another policy engine?'
+    a: 'No. Move policy out of application code when independent policy ownership, reuse across services, or controlled versioning pays for the extra integration and operating work. A small rule set owned by one service can remain in code.'
+  - q: 'How should a system handle an approval after the policy changes?'
+    a: 'Bind the approval to the policy version and decision inputs that produced it. Before execution, re-evaluate the live policy and inputs. If the result changes or the binding is missing, expire the approval and route the action for a new decision.'
+cover: '/blog/choose-architecture-changing-approval-policies-hero-architecture-choice.webp'
+coverAlt: 'Illustration of three approval-policy architecture paths compared under changing rules'
+draft: false
+---
+
+Approval rules start as a few conditions in a service. Then someone asks for a tenant-specific threshold, a new approver attribute, an exception, or a way to explain why a pending request is no longer valid. At that point, the hard decision is not which policy tool is fashionable. It is where policy should live and who should be able to change it safely.
+
+This guide gives you a small decision artifact for that choice. It distinguishes source-backed architecture facts from the analysis in the worksheet, so you can use it before a platform purchase or migration without pretending that a design comparison is a performance benchmark.
+
+## Which architecture should you choose when approval policies change?
+
+Keep the policy in application code for a small, stable, service-owned rule set. Use an external policy decision point when the same decision must serve several services or change independently of their release cycles. Use a decision and workflow layer when reviewers need visible rules, exceptions, durable pending state, or controlled escalation. Choose the simplest shape that gives the people who own the policy a safe change and review path.
+
+AWS separates policy administration, policy decision, and policy enforcement as distinct responsibilities in its multi-tenant authorization guidance. That separation is useful even if you keep all three in one service at first: it gives you a way to see which part is becoming difficult. [AWS's authorization guidance](https://docs.aws.amazon.com/prescriptive-guidance/latest/saas-multitenant-api-access-authorization/introduction.html) also describes decisions that depend on tenant, user, and application state, which is why a few local conditionals can become a wider policy boundary.
+
+The decision rule from this page is:
+
+> If a policy change requires a service release, a coordinated change across multiple enforcement points, or a human decision about an in-flight request, score the current architecture as a change-control problem. Move only the responsibility that needs independent change, review, or state.
+
+That rule is analysis, not a published standard. The worksheet below makes it inspectable.
+
+## What should the architecture-change worksheet contain?
+
+Use the same six cases for every candidate architecture. Record the required policy change, the decision inputs, the expected outcome, the owner of the change, and the rollback or re-review action. Do not score an architecture from a diagram alone.
+
+| Case | Synthetic change to replay | Expected decision behavior | What the buyer must inspect |
+| --- | --- | --- | --- |
+| Threshold | Change the approval threshold for one tenant | The same request can move from `allow` to `require_approval` or `deny` without changing unrelated rules | Where the threshold lives, who reviews it, and how the old version is restored |
+| Approver attribute | Require a finance approver for a high-value request | A request is routed using an explicit attribute such as role, team, or tenant, not an untracked prompt assumption | Attribute source, missing-attribute behavior, and authorization to change it |
+| Exception | Allow a named exception for a bounded resource or period | The exception is narrower than the general rule and has an expiry or removal path | Precedence, expiry, audit entry, and the veto that prevents a broad bypass |
+| Policy version during pending approval | Change the policy after a request enters review | Execution rechecks the policy; an approval bound to an obsolete version expires or is re-reviewed | Version binding, decision-input snapshot, and final enforcement check |
+| Reviewer timeout | Let the review window expire | The system follows a declared timeout action such as deny, re-review, or escalation | Timer durability, escalation owner, notification failure, and default action |
+| Outcome shape | Return `allow`, `deny`, or `require_approval` | The enforcement layer handles all outcomes explicitly and does not treat a missing field as approval | Output schema, fail-closed behavior, idempotency, and observability |
+
+These are synthetic cases. They are not results from a completed cross-architecture test, and the table contains no customer data or measured claim. Its purpose is to stop a buyer from comparing “code versus policy engine” in the abstract. The artifact is complete when each candidate has an input, an expected output, a change owner, a version rule, and a failure action for every row.
+
+## When should approval policy stay in application code?
+
+Keep approval policy in application code when one service owns the decision, the rule set is small, changes can ship with that service, and a single team can review both policy and enforcement. Code is usually the right starting point when the alternative would add a network boundary, a deployment pipeline, a new policy language, and an operations owner without solving a real change problem.
+
+Test the choice against the worksheet. A code-based design passes when a threshold change is easy to review, an approver attribute has a clear source, exceptions are narrow, and a pending approval is checked again before the side effect. It fails the decision when every service has a slightly different copy of the rule, a policy owner must wait for unrelated releases, or the pending state cannot say which policy produced the approval.
+
+The exception is not “anything small.” A low-volume workflow can still need independent policy ownership if the decision is regulated, contested, or changed by people who should not deploy the application. Conversely, an external policy service can be the wrong move when its network failure would create more risk than the local rule and the service has no real reuse.
+
+## When is an external policy decision point the better fit?
+
+Choose an external policy decision point when policy needs to be evaluated separately from enforcement, reused by several services, or versioned and reviewed on its own release path. The enforcement point should send structured input, receive an explicit decision, and retain enough context to explain what happened.
+
+[Open Policy Agent's documentation](https://www.openpolicyagent.org/docs) describes decoupled policy decisions, structured JSON input, and structured output beyond a boolean. [AWS's OPA guidance](https://docs.aws.amazon.com/prescriptive-guidance/latest/saas-multitenant-api-access-authorization/opa.html) describes OPA as a general-purpose policy engine using Rego and a REST API, while also making clear that policy update control-plane work and external data retrieval remain the user's responsibility.
+
+That last responsibility belongs in the buying decision. An OPA deployment does not automatically provide your policy ownership model, input freshness guarantees, rollout process, audit retention, or fallback behavior. Add those rows to the worksheet:
+
+| PDP question | Decision evidence |
+| --- | --- |
+| Who can change a rule? | Repository or policy-management boundary, review roles, and approval record |
+| Which version made the decision? | Policy version in the response and in the durable request record |
+| What if input data is unavailable? | Explicit deny, escalation, cached-data rule, or other reviewed behavior |
+| How does rollback work? | A tested version switch with a defined effect on already-pending requests |
+| Who operates the boundary? | On-call owner, availability target, logs, alerts, and dependency failure procedure |
+
+The principal exception is a policy decision point that is only a remote copy of one service's private conditionals. If no other enforcement point uses it and no independent owner needs it, you may have added a distributed failure without gaining policy autonomy.
+
+## When does a decision table and workflow layer win?
+
+Use a decision table with an approval state machine when the rule needs business-readable review and the request remains alive while people, timers, or exceptions act on it. A decision table answers which outcome follows from the inputs. A workflow answers what happens when the outcome is `require_approval`, the reviewer does not respond, or the policy changes before execution.
+
+[OMG describes DMN](https://www.omg.org/dmn/) as a notation for precise business decisions and business rules, including decision tables intended to be readable and unambiguous for stakeholders. That makes the table useful for review. It does not remove the need for runtime enforcement, persistence, permissions, or a safe state transition.
+
+The workflow layer earns its cost when the buyer can answer these questions in the artifact:
+
+1. What exact action is waiting?
+2. Which policy version and inputs produced the request?
+3. Who may approve, reject, escalate, or cancel it?
+4. What happens at timeout or reviewer unavailability?
+5. Which checks run again immediately before the side effect?
+
+[AWS's human-in-the-loop guidance](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec04-bp02.html) recommends risk-tiered review, defined time windows, escalation paths, durable decision context, and logs containing reviewer identity and timestamps. Those are governance requirements that a state machine can make visible. They are not reasons to add a workflow to a rule that never waits.
+
+## How should you test a choice before buying or migrating?
+
+Run a bounded architecture review rather than a broad platform evaluation. The output is a completed matrix, not a promise that one technology wins everywhere.
+
+1. **Write the decision boundary.** Name the action, the policy owner, the enforcement point, the highest-risk outcome, and the systems that supply inputs.
+2. **Freeze six synthetic cases.** Use the worksheet rows. Include one policy-version change while an approval is pending. Keep inputs and expected outcomes identical across candidates.
+3. **Describe each candidate at the same boundary.** For application code, show the rule module and approval state. For an external PDP, show the request and response contract, policy version, and input retrieval. For a decision table plus workflow, show the table, state transitions, timeout, and final enforcement check.
+4. **Score change isolation and reviewability.** Can the policy owner change a rule without unrelated code changes? Can another person inspect the diff and approve it?
+5. **Score versioning and rollback.** Can you identify the version behind a pending approval, restore the prior version, and state what happens to work already in flight?
+6. **Score integration cost and operational ownership.** Count the new boundary, deployment path, data dependencies, alerts, on-call duties, and access controls. Do not turn these into invented financial estimates.
+7. **Choose the smallest safe move.** Keep the rule local, extract only the decision, or extract both decision and workflow. Record the condition that would trigger the next extraction.
+
+The useful buyer artifact is a one-page record with these fields:
+
+```text
+Decision: [what action is being approved]
+Policy owner: [role, not only a team name]
+Enforcement point: [service or workflow that performs the action]
+Candidate: [application code | external PDP | decision table + workflow]
+Six-case result: [pass, redesign, or reject for each case]
+Policy version binding: [how the approval points to the version and inputs]
+Timeout action: [deny | re-review | escalate | other reviewed action]
+Rollback: [how the previous policy is restored]
+Operational owner: [who responds when the boundary fails]
+Next trigger: [what future change would justify extraction]
+```
+
+This is a decision tool, not a claim that the three candidates have been benchmarked. Its value is that it makes missing ownership and stale-approval behavior visible before those omissions become migration work.
+
+## What should happen to an approval after the policy changes?
+
+Treat an approval as a versioned decision, not a permanent permission. Store the action, normalized inputs, policy version, approver identity, approval time, expiry, and relevant decision context. Re-evaluate the live policy immediately before execution. If the live result differs, the approval is expired and the request follows the new outcome.
+
+This is the safest default for a changing policy because it separates “a person approved this request under these conditions” from “the system may execute this action now.” The workflow can choose a stricter exception, such as preserving approval for low-risk actions, but that exception needs an owner, a risk boundary, and a recorded reason.
+
+The same rule applies whichever architecture you choose. Local code can implement it. A PDP can return the policy version and decision context. A workflow can persist the pending state and route re-review. No architecture makes stale approvals safe by itself.
+
+## When does this decision guide not apply?
+
+Do not start with this comparison when the real problem is authorization for a resource rather than approval of a business action. Use your access-control design and threat model first. Do not buy a policy platform to compensate for unknown ownership, missing input data, or an undefined approval outcome. A new layer will make those gaps harder to see.
+
+The guide is also too broad for a simple one-service rule that changes with the service and has no pending state. Keep that rule local, document the change owner, and revisit the worksheet when another service, policy owner, or human review path appears.
+
+For the next adjacent design question, read [How to design an AI agent state machine](/blog/how-to-design-an-ai-agent-state-machine), especially if an approval is one state inside a larger AI workflow. The canonical architecture context for this decision is [AI architecture decisions](/blog/ai-architecture-decisions). If your team is choosing a learning or consulting path, bring this worksheet and the six cases to [Marius Manolachi's AI learning and consulting work](/learn-ai); the useful input is the work your team already needs to change.
+
+## Sources
+
+- [AWS multi-tenant authorization guidance](https://docs.aws.amazon.com/prescriptive-guidance/latest/saas-multitenant-api-access-authorization/introduction.html)
+- [AWS guidance on implementing a policy decision point with OPA](https://docs.aws.amazon.com/prescriptive-guidance/latest/saas-multitenant-api-access-authorization/opa.html)
+- [Open Policy Agent documentation](https://www.openpolicyagent.org/docs)
+- [OMG Decision Model and Notation](https://www.omg.org/dmn/)
+- [AWS Agentic AI Lens human-in-the-loop guidance](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec04-bp02.html)
