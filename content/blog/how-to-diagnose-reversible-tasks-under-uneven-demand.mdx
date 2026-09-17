@@ -1,0 +1,162 @@
+---
+title: 'How to Diagnose Reversible Tasks Under Uneven Demand'
+date: '2026-09-17'
+updated: '2026-09-17'
+excerpt: 'Use a demand window, rollback proof, observation window, and revert trigger to decide if an overloaded task is truly reversible.'
+answer: 'Diagnose a task as reversible only when you can name the demand window, show a rollback that restores the prior operating state, assign an owner, and set an observation window with a stop trigger. Under uneven demand, test the smallest flexible move that produces a useful signal, then expand only if the signal holds. The exception is a side effect that cannot be undone in the world, even if software has an undo button.'
+targetQuery: 'how to diagnose reversible tasks under uneven demand'
+queryAliases:
+  - 'reversible tasks under uneven demand'
+  - 'how to decide if a bursty workflow change can be undone'
+  - 'rollback test for uneven workflow demand'
+intent: 'diagnostic and practical informational'
+funnel: 'problem-aware / consideration'
+cluster: 'opportunity'
+parent: '/blog/ai-opportunity-discovery'
+contentType: 'failure-clinic'
+kind: 'satellite'
+sourceableAtom: 'A reusable reversible-task worksheet and decision table, filled against three dated anonymized workflow snapshots, with the observed result that a shape-only screen-guidance check passed 9/9 cases while the task fixture contained seven known failures, so the change was held rather than scaled.'
+evidenceType: 'worked decision artifact with bounded firsthand observations'
+evidenceBasis: 'A dated local evidence packet from 2026-08-23 containing three redacted workflow snapshots, a filled worksheet, an audit note, local task or packet fixtures, observed repairs, and explicit limits. The cases are not client studies, production benchmarks, or population research.'
+tags:
+  - 'AI opportunity'
+  - 'Operations'
+  - 'Decision tools'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-22'
+sources:
+  - 'https://pubsonline.informs.org/doi/10.1287/opre.50.2.375.428'
+  - 'https://pubsonline.informs.org/doi/10.1287/opre.2016.1561'
+  - 'https://pubsonline.informs.org/doi/10.1287/mnsc.44.2.162'
+  - 'https://pubsonline.informs.org/doi/10.1287/msom.1060.0099'
+  - 'https://www.gov.uk/government/publications/the-magenta-book/guidance-on-the-impact-evaluation-of-ai-interventions-html'
+faq:
+  - q: 'What proves that a task is reversible?'
+    a: 'A tested restore action returns the workflow to its prior operating state, a named owner can execute it, and the observation record shows what happens to in-flight work. A feature flag alone is not proof if side effects, data exposure, or public commitments remain after the flag is turned off.'
+  - q: 'How long should I observe a reversible task?'
+    a: 'Observe until the predeclared signal could appear under the task’s actual demand pattern, then stop or expand according to the recorded trigger. Do not choose a universal number of days before you know whether the signal is a latency, review, quality, or queue outcome.'
+cover: '/blog/how-to-diagnose-reversible-tasks-under-uneven-demand-hero.webp'
+coverAlt: 'Illustration of an operations lead testing a reversible workflow under uneven demand with a visible rollback path'
+draft: false
+---
+
+The word reversible gets used too early. A switch can turn a workflow off while leaving behind changed records, unreviewed work, or a new bottleneck.
+
+I diagnose the task at the point where demand arrives, not at the point where a feature flag exists. The useful question is: what small change can absorb this demand, what signal should appear, and what exactly will we restore if the signal turns bad?
+
+> **Sourceable artifact:** this page includes a filled reversible-task worksheet and audit note for three dated, anonymized workflow snapshots. The most important result is a failure: a shape-only screen-guidance control passed 9/9 cases while the underlying task fixture contained seven known failures, so the change was held.
+
+![Illustration of a reversible-task worksheet connecting uneven demand to a tested rollback path](/blog/how-to-diagnose-reversible-tasks-under-uneven-demand-inline-1.webp)
+
+## What should you diagnose before calling a task reversible?
+
+Record the demand window, the current constraint, the rollback proof, the rollback cost, the expected signal, the observation window, the next move, and the revert trigger. If any of those is blank, the task is not ready for a scale decision.
+
+That order matters. Flexible-capacity research treats capacity as a choice made before demand is known and assigned after demand arrives. Its result is not “add flexibility everywhere.” In a two-class case, stronger demand correlation shifts the optimal mix toward dedicated capacity, which is a reminder to classify the demand pattern before choosing a generic buffer. ([Netessine, Dobson, and Shumsky, *Flexible Service Capacity*](https://pubsonline.informs.org/doi/10.1287/opre.50.2.375.428))
+
+Use this decision table for one task at a time:
+
+| Field | What to write | Stop if |
+| --- | --- | --- |
+| Demand window | When demand rises, falls, or changes class; state what is measured and what is not. | The window is “always busy” or “spiky” with no observable boundary. |
+| Current constraint | The queue, latency, review step, owner, tool, or source of truth that limits the task. | The proposed fix names a tool but not the constraint. |
+| Reversibility proof | The exact action that restores the prior state, including in-flight work and residual side effects. | Turning off the change leaves an unknown state behind. |
+| Rollback cost | A qualitative low, medium, or high judgment with the work needed to restore and reconcile. | The cost is called low only because the code can be reverted. |
+| Expected signal | The observable result that would justify continuing. | The signal is enthusiasm, a demo, or activity rather than a task outcome. |
+| Observation window | The smallest real or fixture window in which that signal can appear. | The window is chosen before the signal is defined. |
+| Next move | The smallest flexible change that can produce the signal. | Several capacities, tools, or stages change together. |
+| Revert trigger | The condition, owner, and action that returns the task to the prior path. | Nobody can say who stops it or what “bad” means. |
+
+## How do you prove the rollback instead of describing it?
+
+Run the restore action in the same sandbox or fixture that produced the proposed change. The proof should show the prior state, the changed state, the restored state, and the treatment of work created while the change was active.
+
+This is where software reversibility and operational reversibility separate. An internal draft may be restorable. A sent message, an exposed record, or a public promise may keep its effect after the stored object is deleted. The worksheet therefore asks for residual side effects, not just an undo endpoint.
+
+Use this five-step check:
+
+1. Capture the baseline state and the owner who can verify it.
+2. Apply one small change to one task class or demand slice.
+3. Record the changed state and the signal you expected to see.
+4. Execute the rollback while preserving in-flight work for inspection.
+5. Compare the restored state with the baseline and write down what could not be restored.
+
+Capacity-learning research supports this time-boxed discipline. The authors model costly adjustments and distinguish a single adjustment from multiple opportunities to adjust. Their single-adjustment heuristic explores demand for an appropriate period before changing capacity. I translate that mechanism into a practical rule: observe long enough to learn about the task you are changing, but do not confuse one successful burst with evidence that the new path should become permanent. ([Qi, Ahn, and Sinha, *Capacity Investment with Demand Learning*](https://pubsonline.informs.org/doi/10.1287/opre.2016.1561))
+
+## What did the three local snapshots show?
+
+The worksheet produced three different decisions. One change was suitable for controlled internal use, one was held, and one was allowed only as a limited read-only capability.
+
+| Snapshot | Demand window used | Signal observed | Decision |
+| --- | --- | --- | --- |
+| Source-to-claim handoff | One topic package and three public-source inputs | Three claim rows were usable; one route label was too broad and was repaired | Controlled internal use with human claim review |
+| Live screen guidance | Nine fixed task cases, including seven known failure labels | Shape-only control passed 9/9; the combined deterministic gate passed 3/9 and caught six of seven known task failures | HOLD before customer-facing expansion |
+| Launch-packet checker | Twenty-four redacted packets designed to expose missing controls | Version 0 made 21 false GO decisions; version 1 returned 24/24 correct dispositions in the local fixture | Limited internal, approval-gated use |
+
+These are local fixture results, not customer outcomes or production benchmarks. The value is the decision record and the failure boundary.
+
+### Snapshot A: the source-to-claim handoff
+
+The task was to turn an assigned topic package into traceable claim rows and a reviewable draft. The current constraint was not writing speed. It was proving what each claim meant, where it came from, and who owned the final judgment.
+
+The change was reversible because the workflow used public sources, made no external writes, and kept Marius Manolachi as the final owner. The local rollback was a worksheet repair, not a production deployment rollback. Three inputs produced usable rows. One route label was too broad, and a comparison source exposed the distinction. The route label changed before the workflow widened.
+
+This matches an observation from my teaching: when I taught product managers who moved from specifications to building and shipping, the recurring gap was often undefined “done.” Here, done was a cited claim row and a reviewable draft, not a fluent paragraph. That is a bounded observation from Marius Manolachi's teaching work, not a measured rate. ([Marius Manolachi's AI learning and consulting work](https://mariusmanolachi.com/learn-ai))
+
+### Snapshot B: live screen guidance
+
+The task was to give a user a safe instruction based on the current screen. The constraint was semantic and operational at the same time: the answer had to match the page, target, tool path, latency limit, and approval state.
+
+The first control checked answer shape. It passed every case. That was the failure. The nine-case fixture contained seven known task failures, and the shape-only control did not inspect task truth. Adding schema, reference, trajectory, latency, approval, and human-review checks changed the result to 3/9 passes. The gate caught six of seven known failures and produced one false positive.
+
+I am building TryUncle, an AI agent that watches the screen and annotates it live. In that product context, timing and human approval are not polish. They are part of the task boundary. The local fixture was run without an external model call, so it does not establish live-user performance. It did establish that a plausible answer was a poor release signal.
+
+The next move is approval-gated evaluation with more semantic regression cases. The revert trigger is any critical page, target, tool, latency, or approval failure. No customer-facing expansion was exposed in this packet.
+
+### Snapshot C: the launch-packet checker
+
+The task was to decide whether an AI feature had enough evidence for a limited internal release. The current constraint was an aggregate completeness score that hid critical missing controls.
+
+Version 0 counted populated fields and returned GO at 70 percent completeness. In the 24-packet local fixture, that produced 21 false GO decisions. The repair added field-level checks and hard vetoes for missing rollback, missing owner, unresolved privacy or safety, unresolved adversarial failure, and unauthorized action. Version 1 returned 24/24 correct dispositions in the same fixture.
+
+The rollback proof was simple in the local environment: keep version 0 as a comparison, run version 1 read-only, and keep external launch and write actions out of scope. The audit's critical trace kept the same score but changed the decision from `GO` to `HOLD` when rollback evidence was missing. The signal was not a better score. It was a more defensible disposition.
+
+## When does flexible capacity create a new bottleneck?
+
+Treat a partial flexible move as a new hypothesis about the whole workflow. It may relieve one queue while moving variability into upstream review, inventory, coordination, or exception handling.
+
+Research on partial manufacturing flexibility found that modest flexibility can bring much of the sales benefit while increasing production and upstream order variability. It also found that allocation policy affects performance. The direct setting is manufacturing, not software or AI. The operational translation is still useful: if only one stage can flex, measure the neighboring stage before declaring the task fixed. ([Muriel, Somasundaram, and Zhang, *Impact of Partial Manufacturing Flexibility on Production Variability*](https://pubsonline.informs.org/doi/10.1287/msom.1060.0099))
+
+Ask three questions after the first observation window:
+
+- Did the original constraint improve?
+- Which adjacent step absorbed the variability?
+- Can that step be rolled back without losing the work already created?
+
+If the answer to the third question is no, the intervention may be reversible in code but not in operations.
+
+Sequence changes deserve the same care. Research on operations reversal models when reversing two consecutive stages can reduce variance under stated conditions. That supports testing a changed sequence when the current order is creating variability, not swapping stages because the diagram looks cleaner. ([Lee and Tang, *Variability Reduction Through Operations Reversal*](https://pubsonline.informs.org/doi/10.1287/mnsc.44.2.162))
+
+## How should the next decision be recorded?
+
+Use three possible decisions, each tied to evidence rather than optimism:
+
+| Decision | Use it when | Required record |
+| --- | --- | --- |
+| Continue small | The expected signal appeared, rollback was demonstrated, and no critical veto fired | Next demand window, owner, and expansion boundary |
+| Hold | The task is useful but the signal is mixed, the observation window is too short, or a critical check is incomplete | Missing evidence, next test, and exact stop condition |
+| Revert | The signal crossed its trigger, the bottleneck moved into an unsafe step, or rollback proof failed | Restore action, in-flight work treatment, owner, and residual effects |
+
+UK government guidance on AI interventions makes a related point at a different scale: evaluate early, define a baseline, choose a proportionate method, and align evaluation stages with an intervention that may change. I use that as evaluation discipline, not as a claim that a small product workflow needs a government-style impact study. ([UK government AI intervention evaluation guidance](https://www.gov.uk/government/publications/the-magenta-book/guidance-on-the-impact-evaluation-of-ai-interventions-html))
+
+The reader should be able to answer one final question from the record: what would make us undo this change? If the answer is missing, the team has made a commitment while calling it an experiment.
+
+## What does this worksheet not prove?
+
+It does not estimate demand, prove a production benefit, validate a model, or establish that a rollback will be cheap in a live system. Case A measured one bounded handoff. Case B used nine fixed cases and two blind human reviews. Case C used 24 redacted packets and a deterministic stub. The timings and decisions belong to those fixtures.
+
+It also does not make every low-risk task safe to automate. A draft can be easy to discard, but a wrong draft can still consume scarce review capacity. An access change can be technically reversible while exposing data before it is revoked. A public message can be deleted while its commitment persists elsewhere.
+
+Start with one overloaded task. Fill the worksheet. Prove the restore action. Observe the signal that matters. Then make the next decision from the record, not from the relief you felt when the queue briefly got smaller.
+
+If you need to choose the opportunity before this diagnosis, use [the AI use-case prioritization guide](/blog/how-to-prioritize-ai-use-cases-in-a-small-business). If you are ready to test a bounded release, see [the AI feature rollout guide](/blog/how-to-roll-out-an-ai-feature-safely). The cluster parent is [AI opportunity discovery](/blog/ai-opportunity-discovery). For a team that wants to learn this workflow on its own work, [work with Marius Manolachi through AI consulting and tutoring](https://mariusmanolachi.com/learn-ai).
