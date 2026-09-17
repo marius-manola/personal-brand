@@ -1,0 +1,213 @@
+---
+title: 'How to Diagnose Replay Fixtures During Quarterly Planning'
+date: '2026-09-17'
+updated: '2026-09-17'
+excerpt: 'Use a versioned replay-fixture triage table to separate real failures from noise and choose what to continue, fix, defer, expand, or stop next quarter.'
+answer: 'Diagnose replay fixtures by freezing each input, expected outcome, trace, configuration, and provenance, then run the current and proposed workflow on the same cases at least three times. Classify reproduced failures as specification, data/retrieval, tool/state, model/generalization, or harness/environment. The exception is a stochastic or high-risk workflow, which needs more trials and human review before planning expansion.'
+targetQuery: 'how to diagnose replay fixtures during quarterly planning'
+queryAliases:
+  - 'how do you diagnose replay fixtures in quarterly planning'
+  - 'replay fixture diagnosis for quarterly planning'
+  - 'how to turn replay failures into a quarterly planning decision'
+  - 'how to prioritize AI workflow fixes before a new quarter'
+intent: 'implementation'
+funnel: 'consideration'
+cluster: 'implementation'
+parent: '/blog/ai-workflow-implementation'
+contentType: 'failure-clinic'
+kind: 'satellite'
+sourceableAtom: 'In a six-fixture redacted source-to-claim handoff pack, the baseline shape-only implementation matched 3/18 expected dispositions across three repetitions, while the proposed per-fixture contract matched 18/18 and exposed five distinct failure classes.'
+evidenceType: 'reusable artifact plus bounded reproducible diagnostic test'
+evidenceBasis: 'Local packet replay-triage-2026-08-24.1, run on 2026-08-24 with Node.js v20.11.0, six redacted or representative fixtures, current v0.4 and proposed v0.5, three repetitions per fixture, deterministic test double, and no external model calls.'
+tags:
+  - 'AI evaluation'
+  - 'AI implementation'
+  - 'AI reliability'
+  - 'Workflow debugging'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-22'
+sources:
+  - 'https://github.com/openai/evals/blob/main/docs/build-eval.md?plain=1'
+  - 'https://developers.openai.com/api/reference/overview#backwards-compatibility'
+  - 'https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents'
+  - 'https://docs.langchain.com/langsmith/evaluation-concepts?mode=ui'
+  - 'https://docs.langchain.com/langsmith/repetition'
+faq:
+  - q: 'How many times should I replay each fixture?'
+    a: 'Use at least three repetitions for a small diagnostic pack when you need a quick stability check. Increase the count when the workflow uses a stochastic model, when a critical failure appears intermittently, or when the quarterly decision depends on a small difference between versions.'
+  - q: 'Should replay fixtures come only from production failures?'
+    a: 'No. Start with redacted failures when you have them, then add authored edge cases for ambiguity, missing data, stale state, unsafe actions, and harness gaps that production has not exercised. Mark the provenance so the two kinds of evidence are not confused.'
+  - q: 'When should a replay fixture become a permanent regression test?'
+    a: 'Promote it when the expected outcome is verified, the failure hypothesis is named, the relevant trace and configuration are captured, and an owner agrees that the behavior must remain stable. Keep an unverified trace in investigation or monitoring instead.'
+cover: '/blog/how-to-diagnose-replay-fixtures-during-quarterly-planning-replay-fixture-quarterly-triage-hero.webp'
+coverAlt: 'Illustration of a replay-fixture triage table turning repeated workflow failures into a quarterly planning decision'
+draft: false
+---
+
+Quarterly planning gets vague when every replay failure becomes “the model is flaky.” I wanted a smaller question: does this exact fixture fail again, under the same conditions, and what should we do about it?
+
+When I taught product managers to move from specifications to building and shipping, the recurring gap was that “done” had not been made explicit. That observation is context, not a measured failure rate. A replay fixture makes done concrete enough to inspect.
+
+The local result is the useful part. In a six-case source-to-claim handoff pack, a shape-only baseline matched 3 of 18 expected dispositions across three repetitions. A proposed per-fixture contract matched 18 of 18. The table exposed five different failure classes, so the quarterly decision was to **stop expansion and fix the workflow and harness first**.
+
+| Version | Correct expected dispositions | What it did | Planning meaning |
+| --- | ---: | --- | --- |
+| Current v0.4 | 3/18 | Returned `CONTINUE` for every fixture | The aggregate check was not fit for planning |
+| Proposed v0.5 | 18/18 | Checked freshness, claim type, route, trace metadata, and version alignment | The pack was fit for a bounded planning decision |
+
+## What should a quarterly replay fixture prove?
+
+A quarterly replay fixture should prove whether a named behavior reproduces under a recorded input, expected outcome, trace, configuration, and provenance. It should not merely prove that the output is non-empty or that a demo still looks plausible.
+
+OpenAI's eval guide treats an evaluation as a dataset plus an evaluation class, with structured samples and explicit versions. It also recommends bumping the version when the evaluation changes ([OpenAI Evals](https://github.com/openai/evals/blob/main/docs/build-eval.md?plain=1)). LangSmith makes the same operational distinction from another angle: offline evaluation runs curated examples with reference outputs, while online evaluation inspects production runs and traces without a reference answer ([LangSmith evaluation concepts](https://docs.langchain.com/langsmith/evaluation-concepts?mode=ui)).
+
+For planning, that means one fixture needs five kinds of evidence:
+
+1. **Input:** the smallest redacted request or event that recreates the behavior.
+2. **Expected outcome:** the state, answer, route, approval, or abstention that counts as done.
+3. **Trace or trajectory:** the steps that explain how the result was reached.
+4. **Configuration:** code, prompt, model snapshot, tools, permissions, data version, and harness details.
+5. **Provenance:** observed failure, reviewed trace, or representative edge case, with a date and owner.
+
+If one of these is missing, the result may still be useful evidence, but it is not yet a reliable quarterly comparison. A plausible answer with no expected outcome cannot tell you whether a failure reproduced. A failure with no configuration cannot tell you whether the proposed change actually caused the difference.
+
+## How do you build the triage pack?
+
+Build the pack in this order. The order matters because a quarterly conversation is much harder to repair after people have seen an attractive aggregate score.
+
+1. **Choose one workflow slice.** Name the trigger, user, system boundary, and final state. The local example is a source-to-claim handoff, not the whole content operation.
+2. **Freeze the fixture contract.** Write expected outcomes and critical failures before replaying either version. Include normal, edge, and boundary cases.
+3. **Capture the trajectory.** Keep the ordered source, model, retrieval, tool, state, approval, and review steps that explain the result. LangSmith describes traces as runs with inputs, outputs, intermediate steps, metadata, and execution history ([LangSmith evaluation concepts](https://docs.langchain.com/langsmith/evaluation-concepts?mode=ui)).
+4. **Pin the environment.** Record code version, prompt version, model snapshot, temperature, seed, tool permissions, source version, configuration hash, and harness version. OpenAI notes that prompting behavior can change between model snapshots and recommends pinned versions plus evals when consistency matters ([OpenAI API reference](https://developers.openai.com/api/reference/overview#backwards-compatibility)).
+5. **Pair the comparison.** Run the current and proposed implementations against identical fixture IDs, inputs, expected outcomes, and repetition counts. Do not let the candidate use a cleaned-up copy of the cases.
+6. **Classify before prioritizing.** A wrong expectation is not the same repair as stale retrieval, cached state, weak generalization, or missing trace metadata.
+7. **Record the planning action.** Each row gets an owner, impact, correction cost, decision, and reversal condition. The aggregate quarterly action must explain which row made the decision unavoidable.
+
+Anthropic calls each attempt at a task a trial because model outputs can vary between runs. Its guidance also warns that ambiguous task specifications can create failures that belong to the task or grader, not the model ([Anthropic eval guidance](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)). LangSmith's repetition guidance gives a practical starting point: run each example three times and inspect both the aggregate and individual repetitions ([LangSmith repetitions](https://docs.langchain.com/langsmith/repetition)).
+
+Here is the blank schema I use for the pack:
+
+```yaml
+fixture_id: RFX-__
+fixture_version: 1.0.0
+workflow_id: 
+provenance: observed | representative
+input: 
+expected_outcome:
+  decision: CONTINUE | FIX | EXPAND | DEFER | STOP
+  success_conditions: []
+  critical_failures: []
+trace_or_trajectory:
+  trace_id: 
+  ordered_steps: []
+  terminal_state: 
+environment:
+  run_date: YYYY-MM-DD
+  code_version: 
+  prompt_version: 
+  model_snapshot: 
+  tools_and_permissions: []
+  source_version: 
+  configuration_hash: 
+repetition_plan:
+  count: 3
+  isolation_rule: 
+triage:
+  current_version: 
+  proposed_version: 
+  failure_class: specification | data/retrieval | tool/state | model/generalization | harness/environment | none
+  impact: low | medium | high | critical
+  human_correction_cost: 
+  owner: 
+quarterly_decision:
+  action: CONTINUE | FIX | EXPAND | DEFER | STOP
+  reason: 
+  reversal_condition: 
+```
+
+The schema's `provenance` field prevents a team from presenting an authored edge case as a production incident. The version fields keep the comparison paired. The repetition plan makes a one-run result visibly incomplete.
+
+## Which failures reproduced in the six-fixture pack?
+
+The table below is the completed artifact. “Reproduces” means the baseline's wrong disposition appeared on all three repeated runs. The correction-cost column names the human work required to make the case usable again. It is qualitative because this run did not time a reviewer.
+
+| Fixture | Expected | Current v0.4 | Proposed v0.5 | Failure class | Reproduces | Impact | Human correction cost |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| RFX-01 direct source | `CONTINUE` | `CONTINUE`, 3/3 | `CONTINUE`, 3/3 | None | No | Low | Normal review |
+| RFX-02 stale source | `FIX` | `CONTINUE`, wrong 3/3 | `FIX`, 3/3 | Data/retrieval | Yes, 3/3 | Medium | Refresh source and repeat review |
+| RFX-03 inference labeled as fact | `FIX` | `CONTINUE`, wrong 3/3 | `FIX`, 3/3 | Specification | Yes, 3/3 | High | Relabel claim and repeat review |
+| RFX-04 cached source snapshot | `DEFER` | `CONTINUE`, wrong 3/3 | `DEFER`, 3/3 | Tool/state | Yes, 3/3 | High | Invalidate cache and rerun |
+| RFX-05 ambiguous route | `STOP` | `CONTINUE`, wrong 3/3 | `STOP`, 3/3 | Model/generalization | Yes, 3/3 | High | Owner adjudication and new boundary case |
+| RFX-06 missing trace metadata | `DEFER` | `CONTINUE`, wrong 3/3 | `DEFER`, 3/3 | Harness/environment | Yes, 3/3 | Medium | Restore metadata and rerun |
+
+The important detail is not the 18/18 number. It is the change in the decision surface. The baseline asked, “Is there a claim, a source ID, and an owner?” The proposed version asked whether the source was current, the claim type matched the evidence, the route was unambiguous, and the replay was traceable.
+
+This is why I keep the failure class beside the score. A specification failure needs a clearer contract. A data or retrieval failure needs a source repair. A tool or state failure needs cache or state isolation. A model or generalization failure needs a boundary case and often a human stop. A harness failure needs metadata or environment repair. The same `FAIL` label would hide those different next actions.
+
+![Illustration of six replay fixtures branching into specification, data, tool, model, and harness diagnoses before a planning decision](/blog/how-to-diagnose-replay-fixtures-during-quarterly-planning-replay-fixture-failure-classes.webp)
+
+## How do you repair a reproduced failure?
+
+Repair the layer named by the diagnosis, then preserve the fixture so the same failure cannot disappear into a vague pass-rate change. In this pack, the repair was a per-fixture contract that checked freshness, claim type, route, trace metadata, and version alignment.
+
+| Failure class | Repair applied to the pack | Verification signal |
+| --- | --- | --- |
+| Specification | Relabel the inference case and make the expected claim type explicit | RFX-03 returned `FIX`, 3/3 |
+| Data/retrieval | Refresh the stale source before repeating claim review | RFX-02 returned `FIX`, 3/3 |
+| Tool/state | Invalidate the cached snapshot and compare source versions | RFX-04 returned `DEFER`, 3/3 |
+| Model/generalization | Add the ambiguous route as a boundary case and require owner adjudication | RFX-05 returned `STOP`, 3/3 |
+| Harness/environment | Restore the configuration hash and trace identifier | RFX-06 returned `DEFER`, 3/3 |
+
+The repair is not “make the row pass.” It is “make the expected decision and the reason for it inspectable.” A high-impact ambiguity remains a stop even after the harness can reproduce it. If the action is irreversible or the owner cannot state the boundary, keep the human gate.
+
+## How do you verify the repair before planning?
+
+Verify a repair by rerunning the unchanged fixture pack against both versions with the same configuration and repetition count, then compare each expected disposition and trace record. Do not verify only with the aggregate score.
+
+The proposed v0.5 run matched all six expected dispositions in all three repetitions, 18/18. That verifies the contract and accounting in this deterministic test double. It does not verify stochastic model quality, production prevalence, latency, or correction time.
+
+Use this verification sequence:
+
+1. Keep the fixture IDs, inputs, expected outcomes, and provenance unchanged.
+2. Record the repaired code, prompt, model snapshot, tools, permissions, source version, and configuration hash.
+3. Run the same repetitions for the current and proposed versions from a clean state.
+4. Inspect each row and trace. Promote the repair only when the expected outcome, diagnosis, and owner decision still agree.
+
+If a failure disappears, mark the result `unknown` and compare versions, state, cache, permissions, and trace metadata before calling it fixed. A non-reproducing failure is not verification.
+
+## How did the table change the quarterly plan?
+
+The quarterly decision was **STOP expansion of this workflow into new slices this quarter. FIX the current handoff contract and replay harness first.** Continue only the existing human-reviewed, bounded path while the fixes are made.
+
+The decision came from the row pattern, not from a universal threshold:
+
+| Observed signal | Planning interpretation | Action |
+| --- | --- | --- |
+| 1 of 6 fixtures was healthy enough to continue | One path is suitable for bounded use | Continue the existing human-reviewed path |
+| 2 fixtures required contract or source repair | The workflow still has correctness debt | Fix specification and data handling |
+| 2 fixtures could not be trusted until state or trace was repaired | The replay evidence itself was not fully reliable | Defer those cases and repair the harness |
+| 1 ambiguous fixture required a hard stop | Expansion would turn unresolved routing uncertainty into scope | Stop expansion until ownership and boundary behavior are explicit |
+
+The current implementation would have produced a misleading quarterly story: six `CONTINUE` rows and an apparent invitation to expand. The proposed implementation produced one continue, two fixes, two defers, and one stop. That is a planning artifact, not a model leaderboard.
+
+For a different workflow, the same table could produce `EXPAND` if all critical fixtures continue and the owner accepts the scope. It could produce `DEFER` if the failures are mostly trace or environment gaps. It could produce `STOP` if an unresolved failure affects an irreversible action. The decision vocabulary stays stable; the evidence decides the verb.
+
+## What should you do when the failure does not reproduce?
+
+Do not erase a failure that appears once. Mark it `unknown` and investigate whether the fixture, configuration, state, or expected outcome changed.
+
+First compare the fixture version, source version, prompt and model snapshot, tool responses, cache state, permissions, and trace metadata. Then rerun from a clean environment. Anthropic specifically warns that shared state, cached data, leftover files, and resource exhaustion can create correlated failures that look like agent behavior ([Anthropic eval guidance](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)).
+
+If the failure still does not reproduce, keep the original trace in an investigation queue. Do not promote it to a permanent regression test until an owner can state the expected outcome and failure hypothesis. A replay set should preserve uncertainty instead of turning one unexplained incident into a false pass or false failure.
+
+## What are the limits of this diagnostic?
+
+This pack has six small fixtures. Three came from a redacted source-to-claim handoff pattern and three were authored or adapted to exercise ambiguity and missing metadata. It is not a production benchmark, a customer study, or a failure rate.
+
+The harness used a deterministic test double, so three repetitions demonstrate stable accounting and classification in this environment, not stochastic model reliability. The run measured no latency, token cost, retrieval recall, or reviewer minutes. The correction-cost field is therefore a qualitative description of human work.
+
+The proposed contract also cannot decide whether the source claim is substantively true outside its recorded acceptance rule. A human still owns source interpretation, route ownership, approvals, and the quarterly decision. If the workflow, model, tools, or source of truth changes, bump the fixture version and rerun the pack.
+
+The pack is a starting point for a real suite. LangSmith recommends manually curated examples, historical traces, negative feedback, and interesting runs as sources for evaluation data, while keeping offline reference-based testing distinct from online production monitoring ([LangSmith evaluation concepts](https://docs.langchain.com/langsmith/evaluation-concepts?mode=ui)).
+
+If you are implementing the wider system, use the [AI workflow implementation pillar](/blog/ai-workflow-implementation) for the surrounding architecture, then connect the pack to [an evaluation dataset built from production traces](/blog/how-to-build-an-evaluation-dataset-from-production-traces). For the broader release gate, see [how to evaluate an AI agent](/blog/how-to-evaluate-an-ai-agent). The next useful move is not a larger scorecard. It is one fixture with a known expected outcome, a trace you can inspect, and a quarterly decision someone is willing to own.
