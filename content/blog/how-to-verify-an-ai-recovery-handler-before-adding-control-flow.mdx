@@ -1,0 +1,197 @@
+---
+title: "How to Verify an AI Recovery Handler Before Adding Control Flow"
+date: "2026-09-17"
+updated: "2026-09-17"
+excerpt: "A 28-case benchmark shows when exception branches create path and test debt, when a typed handler wins, and when recovery should escalate."
+answer: "Verify an AI recovery handler against the same clean and seeded failure cases before adding another control-flow branch. Compare graph nodes, edges, terminal paths, model calls, recovery outcomes, and changed tests. In my 28-task deterministic benchmark, a typed handler matched branch-specific recovery at six exception classes with nine fewer nodes and edges. Keep a dedicated branch only when the invariant, permission boundary, side-effect compensation, or approval path truly changes."
+targetQuery: "how to verify an AI recovery handler before adding control flow"
+queryAliases: []
+intent: "architecture failure diagnosis"
+funnel: "problem-aware"
+cluster: "architecture"
+parent: "/blog/ai-architecture-tradeoffs"
+contentType: "failure-clinic"
+kind: "satellite"
+sourceableAtom: "A pinned 28-task benchmark shows that six exception classes grow branch-specific code to 21 nodes and 26 edges, while a typed shared handler stays at 12 nodes and 17 edges with the same recovery result."
+evidenceType: "reproducible architecture benchmark plus worked decision artifact"
+evidenceBasis: "Node.js v20.11.0 deterministic harness, dated 2026-08-23, SHA-256 40fe9839c0270e6658ed06e0f835dd32b54177aba025ade0ecdab4576d274c90; 28 tasks, 24 seeded failures, raw traces and decision record in research.md."
+tags:
+  - "AI architecture"
+  - "agent reliability"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-21"
+sources:
+  - "https://www.anthropic.com/engineering/building-effective-agents"
+  - "https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/"
+  - "https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentperf05-bp01.html"
+  - "https://docs.cloud.google.com/architecture/choose-design-pattern-agentic-ai-system"
+  - "https://arxiv.org/abs/2508.07935"
+cover: "/blog/how-to-verify-an-ai-recovery-handler-before-adding-control-flow-hero.webp"
+coverAlt: "Illustration of an AI workflow graph growing exception branches beside a compact typed handler"
+draft: false
+---
+
+![Illustration of an AI workflow graph growing exception branches beside a compact typed handler](/blog/how-to-verify-an-ai-recovery-handler-before-adding-control-flow-hero.webp)
+
+I built the smallest benchmark I could use to make this failure visible. It starts with a straight workflow, then adds six kinds of failure one class at a time.
+
+The result is simple. The branch-heavy version gets larger and harder to test without recovering more failures. The typed handler keeps the graph smaller. The LLM loop keeps the source graph smallest, but spends more model calls to do it.
+
+## What did the benchmark actually measure?
+
+The benchmark compares three ways to add exception behavior to the same deterministic workflow: one branch per exception, one typed shared handler, and one bounded LLM-directed recovery loop.
+
+The task set contains four clean cases and 24 seeded failures, four each for validation failure, tool timeout, malformed tool output, authorization failure, stale state, and policy escalation. The harness adds the failure classes progressively from zero through six.
+
+The graph begins with these stages:
+
+```text
+start -> validate -> tool -> parse -> authorize -> state -> policy -> complete
+                                                        \-> escalate
+```
+
+The harness records graph nodes, graph edges, bounded reachable paths, model calls, summed wall-clock time, input and output tokens, token-count cost proxy, recovery success, failed case IDs, and a test-maintenance proxy. The full corpus and raw trace signatures are preserved in the companion evidence record, [research.md](./research.md).
+
+Anthropic draws a similar architectural line between predefined workflows and agents that dynamically direct their own process. It also recommends adding complexity only when the simpler solution falls short, because agentic systems trade latency and cost for performance. [Anthropic's guidance](https://www.anthropic.com/engineering/building-effective-agents) supports the benchmark's comparison, but does not supply its measurements.
+
+## What changed after six exception classes?
+
+At six classes, the typed shared handler matched the branch implementation's recovery result while adding less graph structure. The bounded LLM loop had the smallest source graph, but it paid for runtime flexibility with extra model calls and token proxy.
+
+| Implementation | Nodes | Edges | Bounded paths | Model calls | Wall-clock ms | Token proxy | Recovery success | Assertions / fixtures |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| Exception-specific branches | 21 | 26 | 13 | 28 | 557.9 | 7,280 | 41.67% | 19 / 7 |
+| Typed shared handler | 12 | 17 | 13 | 28 | 363.9 | 7,280 | 41.67% | 13 / 1 |
+| Bounded LLM loop | 12 | 12 | 4 | 52 | 960.1 | 14,960 | 41.67% | 10 / 2 |
+
+The branch and handler graphs expose the same 13 bounded terminal paths in the harness. The branch version expresses those paths as separate recovery subgraphs. The typed version expresses exception identity as state data flowing into one handler.
+
+The LLM loop hides more choice in runtime behavior. That is useful when the repair cannot be written down in advance. It is not free. At six classes, it used 52 model calls, compared with 28 for either deterministic implementation, and its token proxy was 14,960 rather than 7,280.
+
+These are measurements from one local run, not production SLOs. The local wall-clock number is noisy. The stable architectural signals are the graph, path, call, token, recovery, and maintenance counts.
+
+![Illustration of three AI exception recovery architectures compared by graph shape and escalation boundary](/blog/how-to-verify-an-ai-recovery-handler-before-adding-control-flow-inline-1.webp)
+
+## Why does a branch become expensive before the code looks huge?
+
+A branch is expensive when it duplicates a decision surface, not merely when it adds an `if` statement.
+
+Every branch can introduce a new path to complete, retry, refresh state, compensate a side effect, or escalate. Each path needs a test. Each retry path needs a timeout and an ownership rule. Each state-recovery path needs a trace that explains what happened.
+
+The benchmark makes the first part visible. Adding six exception classes grew the branch graph from 9 nodes and 8 edges to 21 nodes and 26 edges. The typed handler grew from 12 nodes and 11 edges to 12 nodes and 17 edges because the classes add inputs to one handler rather than separate recovery subgraphs.
+
+That difference is why branch count alone is a poor complexity measure. The more useful questions are:
+
+1. How many distinct terminal paths can a reader or test reach?
+2. How many recovery behaviors are actually different?
+3. How many model calls and retries happen on a failure?
+4. How much state must be recovered before the workflow can continue?
+5. How many assertions and fixtures change when one more class arrives?
+
+OpenAI makes the same practical point from another angle. It recommends maximizing a single agent's capabilities before adding more agents, while treating complicated conditional logic as a signal that responsibilities may need to split. [OpenAI's guide](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/) is a useful design constraint: simplify first, split when the logic really becomes a different responsibility.
+
+When I taught product managers to move from writing specifications to building and shipping, the failure was often that nobody could say what “done” meant. That observation from my teaching work is relevant here: an exception branch can look finished while its recovery state, test expectation, and escalation meaning remain undefined.
+
+## Which implementation should you choose?
+
+Use the typed shared handler as the default. Choose a dedicated branch only when the exception changes a business invariant, permission boundary, side-effect compensation, or approval path. Use an LLM-directed loop only when the repair needs interpretation and you can bound both attempts and spend.
+
+| Situation | Default choice | Why |
+| --- | --- | --- |
+| Same repair shape, different error label | Typed shared handler | The label is state data, not new control flow |
+| Deterministic retry, refresh, reparse, or normalization | Typed shared handler | The behavior is testable and repeatable |
+| Different invariant or irreversible side effect | Dedicated branch | The state transition and safety proof are genuinely different |
+| Authorization or policy decision | Human-review branch or escalation | The model should not overrule a permission boundary |
+| Repair depends on interpreting changing intermediate state | Bounded LLM loop | Flexibility is useful, but only with a hard bound |
+| Unknown recovery after the bound | Escalate | A failed recovery is a terminal state, not a reason for another hidden retry |
+
+Google Cloud recommends assessing task structure, latency, cost, and human involvement when choosing an agentic pattern. It also notes that predictable tasks can be more cost effective without agentic infrastructure. [That design guidance](https://docs.cloud.google.com/architecture/choose-design-pattern-agentic-ai-system) is the reason this decision record treats human escalation as a first-class outcome rather than a failure to automate.
+
+## When should a new exception get its own branch?
+
+Add a dedicated branch when the new case changes what the system is allowed to do or what state must be proven before it continues.
+
+Use this test:
+
+1. **Invariant:** Does the exception change a business invariant, such as which record may be updated or which action is legal?
+2. **Side effect:** Does recovery require a different compensation or idempotency proof?
+3. **Approval:** Does the case need a distinct human decision or policy gate?
+4. **Observability:** Would a shared handler hide a materially different reason for stopping?
+
+If the answer is yes to one of these, a branch can be justified. Name the invariant, terminal states, timeout, owner, and test cases in the decision record before writing the branch.
+
+Authorization failure and policy escalation are the obvious cases in this corpus. The seeded cases do not recover. They escalate. That is not a missing clever handler. It is the behavior the harness was designed to preserve.
+
+AWS recommends cycle detection, maximum depth, bounded fan-out, timeouts, and workflow metrics for dynamic orchestration. [AWS's Agentic AI Lens](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentperf05-bp01.html) gives the operational reason to keep a branch's escape path explicit: an execution graph that can loop or fan out without bounds can turn one exception into a workload problem.
+
+## When does the exception belong in a shared handler?
+
+Put the exception in a shared typed handler when the repair is deterministic, idempotent, and already has the same shape as another recovery.
+
+The handler should receive a typed error and enough state to make the transition explicit. It should not receive an unstructured paragraph and guess what happened. In the harness, the traces make the difference visible:
+
+```text
+error:stale_state
+state:ERROR_STALE_STATE
+handler:refresh_and_recheck
+```
+
+The class remains visible. The control-flow shape stays shared. A new error class adds a typed transition test and a corpus fixture, rather than another recovery subgraph.
+
+This is also where the [AI agent state-machine guide](/blog/how-to-design-an-ai-agent-state-machine) belongs in the architecture conversation. A state machine is useful when its states explain safety and ownership. It becomes another branch catalog when every label owns a bespoke path without a distinct invariant.
+
+The benchmark's test-maintenance proxy makes the trade-off concrete. At six classes, the branch version touched 19 assertions and seven fixtures when extending the corpus. The typed handler touched 13 assertions and one shared fixture. Those counts are harness-specific, but the review question transfers: are you adding a new behavior, or naming a known behavior more precisely?
+
+## When should recovery stop and escalate?
+
+Stop when the repair is unsafe, the state is ambiguous, the policy boundary is reached, or the recovery budget is exhausted.
+
+The bounded LLM loop in the benchmark has a two-round configuration. Each seeded failure consumes one recovery model call. The loop is allowed to suggest a repair or escalate. It is never allowed to keep trying because the last attempt failed.
+
+That boundary matters most for authorization failure, policy escalation, and stale state after a failed refresh. The right output is an explicit escalation record with the error type, last known state, attempted repair, and next human owner.
+
+SHIELDA's paper is relevant here because it frames exception handling as more than a catch block. It proposes classification, a handling-pattern registry, flow control, and state recovery, and reports a taxonomy of 36 exception types across 12 agent artifacts. [SHIELDA](https://arxiv.org/abs/2508.07935) is a framework proposal and case study, not evidence that this benchmark's numbers generalize. Its useful lesson is the separation of local handling, flow control, and state recovery.
+
+If the workflow already has a [graceful degradation policy](/blog/how-to-design-graceful-degradation-for-ai-features), put escalation beside fallback rather than after an unbounded retry loop. A human-owned terminal state is part of the architecture.
+
+## What should you preserve when refactoring branches?
+
+Preserve the error taxonomy, state transition, repair preconditions, terminal outcomes, and raw traces before you collapse control flow.
+
+For each exception, record:
+
+| Field | Example from the harness |
+| --- | --- |
+| Error type | `STALE_STATE` |
+| Origin | `state` |
+| Safe repair | `refresh_and_recheck` |
+| Recovery bound | Two rounds for the LLM loop |
+| Terminal failure | `escalate` |
+| Evidence | Ordered trace and case ID |
+| Owner | Team or human queue decided by the workflow |
+
+Do not refactor by replacing every branch with one generic `catch`. That removes names the operator needs. The goal is shared control flow with typed state, not less information.
+
+I use this kind of evidence-first review because a demo can hide the work that starts after the happy path. Anthropic recommends extensive testing in sandboxed environments for autonomous agents, and AWS recommends monitoring step duration, state payloads, depth distribution, and orchestration behavior. The benchmark is small, but it follows that discipline: cases, traces, limits, and failed recoveries stay visible.
+
+## How do you verify the refactor?
+
+Verify the repaired design against the same task corpus and compare graph, trace, recovery, call, and maintenance results. A refactor passes when it removes duplicate behavior without hiding a new terminal path or weakening escalation.
+
+Use this verification record:
+
+1. Freeze the workflow, recovery bound, permissions, policy version, and task corpus.
+2. Run the branch and typed-handler versions against the same clean and seeded cases.
+3. Compare graph nodes, edges, terminal paths, model calls, recovery outcomes, and changed assertions separately.
+4. Inspect every failed recovery and confirm that authorization and policy cases still escalate.
+5. Record the result as keep, revise, or escalate, with the raw trace and owner for the next decision.
+
+The benchmark's six-class result supports the recommendation. Branches and typed handling had identical recovery outcomes and model-call totals, but branches used nine more graph nodes, nine more edges, and six more changed assertions when all six classes were present. The loop saved graph edges but doubled recovery-path model calls from 24 to 48 and doubled the token proxy for failure handling. Those are engineering observations under this harness, not universal constants.
+
+## The decision
+
+For this six-class workflow, I would merge the exception-specific branches into a typed shared handler, keep dedicated approval paths for authorization and policy escalation, and allow an LLM recovery loop only where a deterministic repair cannot be written down. I would cap it, trace it, and escalate when it stops converging.
+
+That is the practical answer to why AI architecture becomes expensive when every exception gets its own branch. The code does not become costly because `if` statements are morally bad. It becomes costly when each exception quietly creates another graph, another recovery contract, another test surface, and another place where the system can spend model calls without reaching a safe terminal state.
+
+If your workflow is already showing this signature, start with the benchmark record and link the decision to the broader [AI architecture trade-offs guide](/blog/ai-architecture-tradeoffs). The useful next step is not adding a smarter branch. It is measuring whether the next exception is genuinely new behavior.
