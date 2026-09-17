@@ -1,0 +1,187 @@
+---
+title: "How to Build Workflow Ownership Changes With a Small Evaluation Budget"
+date: "2026-09-18"
+updated: "2026-09-18"
+excerpt: "A worked 24-case fixture showing how to change workflow ownership, measure handoffs and reviewer effort, and choose go, hold, or revert."
+answer: "Build the change around a low-risk workflow, a named business owner, and a paired case set of at least 20 safe cases. Map who owns each decision before and after, score the same normal, edge, and failed-handoff cases, and require zero unsafe actions plus explicit escalation on missing context. Go only to a reversible shadow-mode pilot; hold or revert if a handoff is accepted without enough context."
+targetQuery: "how to build workflow ownership changes with a small evaluation budget"
+queryAliases:
+  - "small evaluation budget for workflow ownership change"
+  - "how to transfer workflow acceptance to a business owner"
+  - "go hold revert decision for workflow ownership"
+intent: "implementation"
+funnel: "consideration"
+cluster: "opportunity"
+parent: "/blog/ai-opportunity-discovery"
+contentType: "implementation-lab"
+kind: "satellite"
+sourceableAtom: "A 24-case paired ownership-change fixture moved the tested workflow from 14/24 correct with 4 unsafe actions and 12 silent missing-context accepts to 24/24 correct with 0 unsafe actions and 0 silent missing-context accepts, supporting a shadow-mode go only."
+evidenceType: "worked decision artifact plus bounded evaluation dataset and observed result"
+evidenceBasis: "No-model deterministic fixture run on 2026-08-24 with 24 synthetic anonymized cases, identical baseline and proposed inputs, explicit owner maps, routing rubric, reviewer-minute estimates, permissions, and signed shadow-mode decision."
+tags:
+  - "AI implementation"
+  - "AI evaluation"
+  - "Workflow ownership"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://developers.openai.com/api/docs/guides/evals"
+  - "https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents"
+  - "https://airc.nist.gov/airmf-resources/airmf/5-sec-core/"
+  - "https://docs.cloud.google.com/vertex-ai/generative-ai/docs/models/determine-eval"
+  - "https://www.fabrenhq.com/blog/ai-owner-handoff-receipt-workflow"
+  - "https://focused.io/lab/agentic-ai-implementation-change-control"
+faq:
+  - q: "How many cases do you need for a small workflow ownership change?"
+    a: "Start with at least 20 safe, bounded cases when that is available, including normal work, known edge cases, and failed handoffs. Use all available safe cases when fewer exist, and state that the result is local to the tested workflow."
+  - q: "Should the proposed owner receive write access during the evaluation?"
+    a: "No. Keep the ownership change in shadow mode or a read-only environment until the same cases show zero unsafe actions, visible escalation, and a named rollback owner."
+cover: "/blog/how-to-build-workflow-ownership-changes-with-a-small-evaluation-budget-workflow-ownership-change-hero.webp"
+coverAlt: "Illustration of a small team comparing baseline and proposed workflow ownership with a bounded case set"
+draft: false
+---
+
+When I taught product managers who went from writing specs to building and shipping products, the recurring failure was not the model. It was that nobody could say what done meant. [Observed, F-pms]
+
+Ownership changes have the same trap. A team moves a task to a new person, adds an AI step, or changes the approval boundary, then calls the work transferred because the assignment exists. That is not evidence that the new owner can accept, reject, or escalate the work safely.
+
+This post shows the smallest artifact I would use before a low-risk change. It is a synthetic lab fixture, not a client result.
+
+## The smallest useful ownership change is a controlled handoff
+
+Move one decision boundary, not the whole workflow. In the worked fixture, the change moved acceptance and escalation from the Workflow Builder to an Editorial Operations Lead while keeping the runner and schema with the builder.
+
+The sourceable result is bounded to this exact fixture:
+
+| Run | Correct states | Silent accepts with missing context | Unsafe actions | Reviewer-minute estimate |
+| --- | ---: | ---: | ---: | ---: |
+| Baseline ownership | 14/24 | 12 | 4 | 53 |
+| Proposed ownership | 24/24 | 0 | 0 | 38 |
+
+The proposed map supports a **go to shadow mode**, not a production rollout. The fixture uses no model, no customer data, and no write-capable tool. [Observed, O-01]
+
+![Illustration of a paired baseline and proposed ownership map for a small workflow](/blog/how-to-build-workflow-ownership-changes-with-a-small-evaluation-budget-workflow-ownership-map.webp)
+
+OpenAI's evaluation guide separates the test data schema from the testing criteria and uses human-labeled ground truth for comparison. Anthropic defines a task as inputs plus success criteria and recommends starting early with 20-50 simple tasks drawn from real failures. [Sourced, C-01 through C-03](https://developers.openai.com/api/docs/guides/evals) [Sourced, C-02 and C-03](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)
+
+That is the useful bridge between an evaluation budget and an ownership change: test the responsibility boundary on the same cases before and after.
+
+## Choose a workflow where errors are cheap to reverse
+
+Start with a read-only or draft-only workflow whose mistakes can be stopped without changing a system of record. A small internal intake-routing process works well: it classifies a request as `accept`, `reject`, or `escalate` before anything is executed.
+
+Name the business owner as a role, not as a vague team. In this artifact, the role is **Editorial Operations Lead**. The other roles are **Workflow Builder** and **Evaluation Reviewer**.
+
+Do not start with a workflow that sends customer messages, changes financial records, grants access, or makes a high-stakes decision. Those workflows need a stronger safety and approval design than this lab provides. NIST says risk controls should be scaled to organizational risk tolerance, with roles and responsibilities documented and trustworthy behavior measured in conditions similar to deployment. [Sourced, C-04 and C-05](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/)
+
+## Record the ownership delta before you test
+
+Write down who owns each decision before and after. The change record should also name the forbidden action, the evidence trace, and who can pause or revert the change. [Sourced, C-08](https://focused.io/lab/agentic-ai-implementation-change-control)
+
+| Responsibility | Baseline owner | Proposed owner | Evidence of ownership |
+| --- | --- | --- | --- |
+| Define input and output schema | Workflow Builder | Workflow Builder | Versioned schema |
+| Accept a complete ordinary case | Workflow Builder | Editorial Operations Lead | Visible acceptance state |
+| Reject out-of-scope or duplicate work | Workflow Builder | Editorial Operations Lead | Rejection reason |
+| Escalate incomplete or policy-sensitive work | Workflow Builder | Editorial Operations Lead | Escalation record and receipt |
+| Run the fixture | Workflow Builder | Workflow Builder | Run ID and case results |
+| Decide go, hold, or revert | Implicitly shared | Evaluation Reviewer | Signed decision |
+| Pause or revert the change | Unnamed | Evaluation Reviewer with business owner | Revert trigger and owner |
+
+The change is not “AI owns intake.” It is a smaller, testable statement: the business owner now owns the acceptance and escalation states, while the builder owns the mechanism.
+
+## Spend the budget on cases, not on a large benchmark
+
+Use at least 20 safe cases when you have them, split across ordinary work, known edge cases, and handoff failures. If you have fewer safe cases, use all of them and narrow the claim. A small set can expose a large ownership mistake, but it cannot estimate a general production rate. Anthropic makes the same distinction between a useful early 20-50 task set and the larger evaluation needs of mature systems. [Sourced, C-03](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)
+
+The fixture's case schema is:
+
+```text
+case_id
+cohort: normal | edge | handoff-failure
+input_state
+expected_state: accept | reject | escalate
+baseline_state
+proposed_state
+missing_context: yes | no
+unsafe_action: yes | no
+reviewer_minutes_estimate
+```
+
+The 24 cases were N01-N12 normal requests, E01-E06 edge cases, and H01-H06 failed handoffs. The edge reference states were `escalate`, `escalate`, `escalate`, `reject`, `reject`, `escalate`. Every failed handoff had an expected state of `escalate`.
+
+Score each run with four separate checks:
+
+1. **Correct final state.** The output matches the reference state.
+2. **Missing-context defect.** A required owner, source, acceptance criterion, due date, or receipt is absent.
+3. **Silent missing-context accept.** The run accepts a case even though context is missing.
+4. **Unsafe action.** The run proposes an acceptance or route despite a forbidden or unapproved condition.
+
+Google's evaluation guidance separates the dataset from the metrics and supports rubric-based, computation-based, and custom metrics. That is why the fixture keeps “context was missing” separate from “the owner handled missing context correctly.” [Sourced, C-06](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/models/determine-eval)
+
+![Illustration of a 24-case evaluation packet split into normal, edge, and handoff-failure cohorts](/blog/how-to-build-workflow-ownership-changes-with-a-small-evaluation-budget-bounded-evaluation-case-set.webp)
+
+## Run both ownership maps on identical cases
+
+Keep the case order, reference states, permissions, and review rubric constant. Change only the ownership map and its acceptance or escalation rule.
+
+The no-model fixture ran locally with Node.js v24.11.1 on 2026-08-24. It had no network access, no customer data, and no business-system tools. Reviewer minutes are fixed effort estimates for the path, not stopwatch measurements.
+
+| Cohort | Cases | Baseline correct | Proposed correct | Baseline silent accepts | Proposed silent accepts | Baseline unsafe | Proposed unsafe |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Normal | 12 | 12 | 12 | 0 | 0 | 0 | 0 |
+| Edge | 6 | 1 | 6 | 6 | 0 | 1 | 0 |
+| Handoff failure | 6 | 1 | 6 | 6 | 0 | 3 | 0 |
+| Total | 24 | 14 | 24 | 12 | 0 | 4 | 0 |
+
+The raw per-case summary is below. `B` means baseline and `P` means proposed. `m` is the missing-context flag, `u` is the unsafe-action flag, and the final pair is the reviewer-minute estimate.
+
+| Case | Ref | B state | P state | B m/u | P m/u | B/P min |
+| --- | --- | --- | --- | --- | --- | ---: |
+| N01-N12 | accept | accept | accept | 0/0 | 0/0 | 1/1 each |
+| E01 | escalate | accept | escalate | 1/0 | 1/0 | 3/2 |
+| E02 | escalate | escalate | escalate | 1/0 | 1/0 | 4/2 |
+| E03 | escalate | accept | escalate | 1/1 | 1/0 | 4/3 |
+| E04 | reject | accept | reject | 1/0 | 1/0 | 2/2 |
+| E05 | reject | escalate | reject | 1/0 | 1/0 | 2/2 |
+| E06 | escalate | accept | escalate | 1/0 | 1/0 | 3/3 |
+| H01 | escalate | accept | escalate | 1/0 | 1/0 | 3/2 |
+| H02 | escalate | accept | escalate | 1/1 | 1/0 | 4/2 |
+| H03 | escalate | accept | escalate | 1/0 | 1/0 | 3/2 |
+| H04 | escalate | accept | escalate | 1/1 | 1/0 | 4/2 |
+| H05 | escalate | escalate | escalate | 1/0 | 1/0 | 5/2 |
+| H06 | escalate | accept | escalate | 1/1 | 1/0 | 4/2 |
+
+The normal cases are grouped because all 12 have the same schema and result. The full case identifiers, reference states, and output fields are reproducible from the schema above and the summary in this article.
+
+## Use a veto rule before you call the change a success
+
+The decision should be driven by safety invariants, not by the average score. Use this rule for a low-risk, reversible workflow:
+
+| Decision | Conditions |
+| --- | --- |
+| Go to shadow mode | All normal cases are correct, every failed handoff escalates or rejects, silent missing-context accepts are 0, unsafe actions are 0, and a business owner plus rollback owner are named. |
+| Hold | Any critical case is uncovered, any handoff-failure case is accepted, an unsafe action appears, or the business owner cannot review the queue. |
+| Revert | A shadow-mode trace creates an unsafe state the fixture missed, or the owner map loses its accountable acceptance or rollback role. |
+
+The fixture met the go conditions, so the signed decision was **GO to shadow mode only**. Writes stay disabled. The first 20 safe shadow cases are reviewed with the same rubric.
+
+Fabren's handoff receipt guidance makes the key operational distinction: assignment is not accepted ownership. The receiver needs enough context, acceptance criteria, and visible proof of transfer. [Sourced, C-07](https://www.fabrenhq.com/blog/ai-owner-handoff-receipt-workflow)
+
+## Inspect the failure before you expand the workflow
+
+H02 is the failure to show the team. It contains a stale owner. Baseline accepted it, recorded missing context, and raised an unsafe-action flag. Proposed ownership escalated it to the Editorial Operations Lead and did not accept the work.
+
+That failure is more useful than the 12 normal passes. It tells you what the new owner must be able to see and what the old owner must no longer be allowed to decide. If the proposed map had accepted H02, the correct decision would have been hold, even if the overall table looked better.
+
+The same logic applies to E03, the policy-sensitive edge case. This artifact does not decide the policy. It makes the policy-sensitive condition visible and routes it to a human owner.
+
+## What this small result does not prove
+
+It does not prove that every workflow needs exactly 20 cases. It does not prove that a business owner will review cases in two minutes. It does not measure model variability, live adoption, production latency, or long-term maintenance. It does not justify giving an AI system write access.
+
+NIST asks teams to document test sets, tools, metrics, deployment-context measures, safety evaluation, and limits on generalizability. [Sourced, C-05](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/) This fixture follows that shape, then stops at the boundary its evidence can support.
+
+If you are making an ownership change, copy the packet: owner map, case schema, rubric, identical paired runs, one failure example, raw summary, and signed go, hold, or revert rule. Keep the first release reversible. The evidence you need is not a large benchmark. It is proof that the new owner can see the same failure the old process hid.
+
+For the wider opportunity sequence, start with the [AI opportunity discovery guide](/blog/ai-opportunity-discovery). If the case set needs production-shaped inputs, use [How to Build an Evaluation Dataset From Production Traces](/blog/how-to-build-an-evaluation-dataset-from-production-traces). If the workflow already has an audit concern, pair this packet with [How to Add an Audit Trail to an AI Workflow](/blog/how-to-add-an-audit-trail-to-an-ai-workflow).
