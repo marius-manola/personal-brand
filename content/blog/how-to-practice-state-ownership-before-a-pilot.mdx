@@ -1,0 +1,163 @@
+---
+title: 'How to Practice State Ownership Before an AI Pilot'
+date: '2026-09-18'
+updated: '2026-09-18'
+excerpt: 'Use a worked owner and writer matrix plus five replay cases to expose state failures before an AI pilot receives real permissions.'
+answer: 'Practice it on one bounded workflow before granting pilot access: name the authoritative owner and permitted writers for every mutable field, then replay normal completion, duplicate retry, interrupted approval, stale read, and rollback. Approve the pilot only if each replay reaches an expected state with a visible log, human decision boundary, and recovery action. Hold when ownership or recovery is ambiguous.'
+targetQuery: 'how to practice state ownership before a pilot'
+queryAliases:
+  - 'practice state ownership before an AI pilot'
+  - 'AI workflow state ownership rehearsal'
+  - 'state ownership test before pilot'
+intent: 'capability'
+funnel: 'consideration'
+cluster: 'architecture'
+parent: '/blog/ai-architecture-decisions'
+contentType: 'capability-guide'
+kind: 'satellite'
+sourceableAtom: 'A pre-pilot state-ownership rehearsal artifact that maps each workflow state field to one authoritative owner, permitted writers, readers, freshness rule, human approval point, recovery action, and a replay test for normal completion, duplicate retry, interruption, stale read, and rollback.'
+evidenceType: 'reproducible decision artifact and failure-reproduction exercise'
+evidenceBasis: 'A synthetic purchase-approval worksheet and provider-neutral Python harness run on 2026-08-24 with five replayable cases, captured state-transition outcomes, and a recorded HOLD decision.'
+tags:
+  - 'AI architecture'
+  - 'AI pilots'
+  - 'Workflow reliability'
+  - 'Evaluation'
+author: 'Marius Manolachi'
+nextReviewAt: '2027-02-20'
+sources:
+  - 'https://learn.microsoft.com/en-us/agent-framework/concepts/workflows/state'
+  - 'https://openai.github.io/openai-agents-js/guides/running-agents/'
+  - 'https://www.nist.gov/publications/assessing-risks-and-impacts-ai-aria-pilot-evaluation-report'
+  - 'https://airc.nist.gov/airmf-resources/airmf/appendices/app-c-ai-risk-management-and-human-ai-interaction/'
+  - 'https://airc.nist.gov/airmf-resources/playbook/measure/'
+  - 'https://mariusmanolachi.com/learn-ai'
+cover: '/blog/how-to-practice-state-ownership-before-a-pilot-state-ownership-pilot-hero.webp'
+coverAlt: 'Illustration of a bounded AI pilot workflow with one owner for each state field and guarded recovery paths'
+draft: false
+---
+
+Most pilot demos hide state ownership because one person runs the whole flow. The trouble starts when a retry, approval, or delayed read arrives after that person leaves the screen.
+
+When I taught product managers who moved from writing specs to building and shipping products, the gap was often making “done” concrete. State ownership is the technical version of that question: who is allowed to change this field, and what proves the change can be recovered?
+
+## Quick answer
+
+Practice it on one bounded workflow before granting pilot access: name the authoritative owner and permitted writers for every mutable field, then replay normal completion, duplicate retry, interrupted approval, stale read, and rollback. Approve the pilot only if each replay reaches an expected state with a visible log, human decision boundary, and recovery action. Hold when ownership or recovery is ambiguous.
+
+![Illustration of a bounded AI pilot workflow moving from proposal to approval, commit, and rollback](/blog/how-to-practice-state-ownership-before-a-pilot-state-ownership-replay-paths.webp)
+
+The artifact in this guide is a synthetic purchase-approval workflow. It is deliberately small. Its value is that you can inspect every write and replay every failure without inventing a client result.
+
+## What should the rehearsal cover?
+
+Start with one bounded workflow that has at least one mutable business field, one human decision, and one external side effect. Do not begin with the whole agent architecture.
+
+The worked fixture here is a purchase request for 500 units of currency. A proposal service creates the amount, a human approves it, a finance ledger records the commit, and the runtime can compensate the ledger entry if the workflow fails after the side effect.
+
+The worksheet is the sourceable artifact. Copy its shape, then replace the roles and fields with your own:
+
+| Field | Authoritative owner | Permitted writers | Readers | Freshness and visibility | Approval or recovery rule |
+| --- | --- | --- | --- | --- | --- |
+| `workflow_status` | WorkflowRuntime | WorkflowRuntime | All components | Current checkpoint only | Runtime enforces legal transitions. |
+| `proposal_amount` | ProposalService | ProposalService | Approver, runtime | Read with its proposal version | A changed amount creates a new version. |
+| `proposal_version` | ProposalService | ProposalService | Approver, runtime | Must match the approval read | Stale approval is rejected. |
+| `approval_decision` | HumanApprover | HumanApprover | Runtime, ledger | Visible after persisted approval | No agent may self-approve. |
+| `approval_version` | HumanApprover | HumanApprover | Runtime | Must equal proposal version | Mismatch blocks commit. |
+| `ledger_entry_id` | FinanceLedger | FinanceLedger | Runtime, audit reader | Authoritative after ledger response | Commit uses an idempotency key. |
+| `rollback_status` | WorkflowRuntime | WorkflowRuntime | All components | Current checkpoint plus compensation result | Compensate once after post-commit failure. |
+
+Do not collapse these fields into a transcript. Microsoft Agent Framework documents private and shared state scopes, with other executors seeing a queued shared update in the next superstep. That makes scope and visibility part of the ownership contract, not a detail to infer later ([Microsoft Agent Framework state](https://learn.microsoft.com/en-us/agent-framework/concepts/workflows/state)).
+
+## How do you replay the ownership failures?
+
+Use the same fixture five times. Change one event at a time and record the expected terminal state before you run it.
+
+1. **Normal completion.** Proposal version 1 is approved, the ledger creates one entry, and the workflow becomes `COMMITTED`.
+2. **Duplicate retry.** Repeat the commit with the same idempotency key. The ledger must return the same entry and create no second side effect.
+3. **Interrupted approval.** Stop after the proposal is persisted. Rehydrate from the checkpoint, then approve the recorded version and continue.
+4. **Stale read.** Let an approver read version 1. Change the proposal to version 2 before the approval arrives. Reject the old approval and keep the workflow awaiting approval.
+5. **Rollback.** Interrupt after the ledger effect but before completion. Create one compensation and end in `ROLLED_BACK`.
+
+The harness does not need an LLM. A plain store, a permission check, a version comparison, and an idempotency map are enough to expose the ownership failures. That separation is useful because the OpenAI Agents SDK runner already has its own loop, tool calls, handoffs, sessions, and turn limits. The business runtime still needs to decide which persisted state a retry may consume ([OpenAI Agents SDK running agents](https://openai.github.io/openai-agents-js/guides/running-agents/)).
+
+The smallest executable core looks like this:
+
+```python
+def approve(state, observed_version):
+    if observed_version != state.proposal_version:
+        state.log("approval_rejected_stale")
+        return False
+    write("approval_decision", "HumanApprover", "approved")
+    write("approval_version", "HumanApprover", observed_version)
+    write("workflow_status", "WorkflowRuntime", "APPROVED")
+    return True
+
+def commit(state, key):
+    if key in ledger.entries:
+        state.log("duplicate_commit_ignored")
+        return ledger.entries[key]
+    write("workflow_status", "WorkflowRuntime", "COMMITTING")
+    ledger.entries[key] = ledger.create_once(key, state.proposal_amount)
+    write("ledger_entry_id", "FinanceLedger", ledger.entries[key])
+    write("workflow_status", "WorkflowRuntime", "COMMITTED")
+    return ledger.entries[key]
+```
+
+The full permission map, checkpoint rehydration, rollback path, fixtures, and captured output should become part of the pilot's evidence packet. A production implementation should keep the same observable checks in its own test suite.
+
+## What did the five replays show?
+
+The harness passed all five cases, but the pass is narrow. It shows that the contract makes the selected failures visible and gives each one an expected recovery path.
+
+| Replay | Expected | Observed | Decision signal |
+| --- | --- | --- | --- |
+| Normal completion | `COMMITTED` | `COMMITTED`, `ledger-1` | Basic ownership path works. |
+| Duplicate retry | One ledger entry, same result | `ledger-1` returned twice; 1 entry | Idempotency prevents duplicate effect. |
+| Interrupted approval | Resume from checkpoint | Rehydrated, then `COMMITTED` | Approval can continue from durable state. |
+| Stale read | Reject and await a fresh approval | Rejected; `AWAITING_APPROVAL`; no ledger entry | Freshness rule prevents an old decision. |
+| Rollback | One compensation | 1 compensation; `ROLLED_BACK` | Recovery path is explicit. |
+
+The result is not “the pilot is safe.” It is “this bounded workflow has a testable ownership contract.” That distinction matters when you expand the scope.
+
+## How do you check whether the practice transfers?
+
+Run the exercise on a new scenario without copying the purchase example. Transfer means producing a fresh ownership packet and predicting its failure paths, not renaming `proposal_amount` to another field.
+
+Choose a workflow with one human decision and one external side effect, such as a refund approval, an access request, or an invoice correction. Before looking at the answer below, write down:
+
+1. Every mutable field and its one authoritative owner.
+2. The permitted writers, readers, freshness rule, approval boundary, and recovery action for each field.
+3. The expected terminal state for normal completion, duplicate retry, interrupted approval, stale read, and rollback.
+
+The produced artifact is a file such as `state-ownership-rehearsal.md` containing that matrix, the five case fixtures, and a short transition log for each run. End it with a decision: `GO`, `HOLD`, or `NEEDS EVIDENCE`, plus the exact missing condition. A blank template is not enough. The packet must contain your field owners and expected outcomes for the new scenario.
+
+The transfer check passes only when a teammate can use the packet without help to identify who may write each field, reject one stale decision, and explain how one external effect is compensated. If the teammate needs you to reveal an owner or recovery rule, mark the rehearsal `HOLD`, narrow the scenario, and revise the matrix. This check does not measure learning performance. It tests whether the ownership contract is clear enough to leave its original example.
+
+The exception is a workflow with no reversible side effect. Keep the exercise, but replace rollback with an explicit containment rule, an operator escalation, and a reason the effect cannot be undone. Do not mark that path `GO` merely because the happy path completes.
+
+## When is the workflow ready for a pilot?
+
+Treat readiness as a recorded decision, not a feeling after the happy path. My analysis rule for this fixture is **HOLD** until the real workflow reproduces the five outcomes with its actual persistence, identities, approval queue, and external systems.
+
+NIST ARIA is useful here because its pilot report separates model testing, red teaming, and field testing, and describes dialogue annotation, tester questionnaires, and measurement trees as parts of the evaluation procedure ([NIST ARIA pilot evaluation report](https://www.nist.gov/publications/assessing-risks-and-impacts-ai-aria-pilot-evaluation-report)). The exact ARIA method is not a universal pass threshold. Use it as a reminder to test more than the model response.
+
+Before changing HOLD to GO, require:
+
+- one named owner and an allowlisted writer for every mutable field;
+- a freshness rule that rejects stale approvals and reads where they matter;
+- a durable checkpoint that can be rehydrated without replaying completed side effects;
+- a human approval boundary with a named decision-maker and expiry or invalidation rule;
+- an idempotency key for every retried external write;
+- a rollback or compensating action for each side effect, or an explicit reason it cannot be reversed;
+- logs that let an operator explain the current state, last writer, version, and next recovery action.
+
+NIST's AI RMF says human roles and responsibilities for decision-making and oversight should be clearly defined and differentiated ([NIST AI RMF Appendix C](https://airc.nist.gov/airmf-resources/airmf/appendices/app-c-ai-risk-management-and-human-ai-interaction/)). Its Measure guidance also calls for risk-linked metrics, acceptable limits, corrective action, accountability metrics, and documentation of what cannot be measured ([NIST AI RMF Measure](https://airc.nist.gov/airmf-resources/playbook/measure/)). Those are useful pilot questions, not evidence that this toy fixture covers production risk.
+
+For the next rehearsal, add real concurrency, authorization failures, queue delays, operator corrections, and the irreversible side effect you actually care about. If the owner or recovery answer changes under those conditions, keep the pilot on HOLD.
+
+## What should you do after the rehearsal?
+
+Save the worksheet and replay output beside the pilot proposal. Link each production field to its owner, writer policy, freshness expectation, approval boundary, and recovery action. Then point the team to the broader [AI architecture decisions guide](/blog/ai-architecture-decisions), the existing [AI agent state-machine guide](/blog/how-to-design-an-ai-agent-state-machine), and [failed multi-agent workflow replay guide](/blog/replay-failed-multi-agent-workflow) for adjacent design work.
+
+If your team can run this exercise on its own workflow and explain every result, it has a useful capability milestone. If it cannot, the next step is not another agent. It is a narrower fixture and a clearer owner. Marius Manolachi's [AI learning work](/learn-ai) is built around helping existing people become capable of building AI products on their own work.
