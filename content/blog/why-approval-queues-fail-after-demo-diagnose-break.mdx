@@ -1,0 +1,179 @@
+---
+title: "Why Approval Queues Fail After a Demo: Diagnose the Break"
+date: "2026-09-18"
+updated: "2026-09-18"
+excerpt: "A 14-run local replay shows why approval queues break after the demo: stale payloads and duplicate delivery violate state invariants first."
+answer: "Approval queues fail after demos when the happy path hides a missing production invariant: the pending approval is not durably bound to one assignee, deadline, payload version, decision, and idempotent execution. Diagnose the break by replaying persistence, timeout, routing, rejection, duplicate delivery, payload change, and escalation cases, then repair the first invariant that fails. The exception is review policy: a technically sound queue can still fail when reviewers lack context or ownership."
+targetQuery: "why does approval queues fail after the demo, and how can a team diagnose the break"
+queryAliases:
+  - "how to find the first broken invariant after an approval demo"
+  - "approval queue timeout diagnosis"
+  - "stale approval payload"
+  - "duplicate approval execution"
+intent: "failure diagnosis"
+funnel: "opportunity"
+cluster: "opportunity"
+parent: "/blog/opportunity-approval-queues"
+contentType: "failure-clinic"
+kind: "satellite"
+sourceableAtom: "A 14-run deterministic approval-queue replay reproduced duplicate execution without idempotency and changed-payload execution without payload validation, while persistence resume, escalation, and explicit rejection retry recovered successfully."
+evidenceType: "reproducible test plus worked diagnostic artifact"
+evidenceBasis: "Local dependency-free replay fixture run on 2026-08-24 with 14 deterministic scenarios, raw event traces, first-broken-invariant matrix, and a completed diagnosis worksheet in the research archive. Platform behavior is separately attributed to official documentation."
+tags:
+  - "AI workflows"
+  - "reliability"
+  - "approval queues"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://openai.github.io/openai-agents-python/human_in_the_loop/"
+  - "https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec04-bp02.html"
+  - "https://learn.microsoft.com/en-us/microsoft-copilot-studio/flows-advanced-approvals"
+  - "https://learn.microsoft.com/en-us/microsoft-copilot-studio/faqs-ai-approvals"
+  - "https://arxiv.org/abs/2606.22721"
+faq:
+  - q: "What should happen when an approval expires?"
+    a: "Block the action or route it to a named secondary reviewer. Record the timeout and escalation, then require a decision against the still-current payload. Do not let a late click execute silently."
+  - q: "How do you stop a duplicate approval from executing twice?"
+    a: "Bind the execution to an action id and idempotency key, store the execution result, and make a repeated delivery return the stored result or an ignored status without a second side effect."
+  - q: "What if the action changes after someone approves it?"
+    a: "Store a payload version or hash in the approval object and compare it again before execution. If it changed, mark the approval stale and create a new approval for the current action."
+cover: "/blog/why-approval-queues-fail-after-demo-diagnose-break-approval-queue-failure-hero.webp"
+coverAlt: "Illustration of an approval queue breaking at the boundary between a reviewer decision and a tool execution"
+draft: false
+---
+
+The demo usually proves one thing: a person can click approve and the tool can run. That’s necessary. It isn’t enough.
+
+When I’ve taught product managers to move from writing specs to building and shipping products, I’ve seen the same handoff mistake: the happy path is clear, but nobody can say what happens after the reviewer leaves the screen. That’s a qualitative teaching observation, not a measured study.
+
+## Quick answer
+
+Approval queues fail after a demo when the pending approval isn’t durably bound to one assignee, deadline, payload version, decision, and idempotent execution. Diagnose the break by replaying persistence, timeout, routing, rejection, duplicate delivery, payload change, and escalation cases. Repair the first invariant that fails. A sound queue can still fail if reviewers lack context or ownership.
+
+## The first broken invariant is more useful than the final error
+
+The practical diagnosis is not “the approval queue failed.” It is “the payload identity broke before execution” or “the assignee was never routable.” That wording gives the owner somewhere to look.
+
+I built a small local approval queue with a durable pending object, a reviewer stub, a versioned action payload, a 30-second deadline, an optional escalation reviewer, explicit rejection retry, and an execution ledger. It ran 14 deterministic scenarios on August 24, 2026. No AI model or vendor API was used.
+
+| Result from the replay | What broke first | What it means |
+| --- | --- | --- |
+| Duplicate side effect after a second delivery | `single_execution` | The integration accepted a repeat after the first execution. |
+| Changed amount executed after approval | `payload_identity` | The approval covered version 1, but the tool ran version 2. |
+| Late primary approval blocked | `approval_deadline` | The queue had no valid decision inside its window. |
+| Missing or invalid assignee blocked | `valid_assignee` | The UI could create work nobody could receive. |
+| Rejected attempt retried and succeeded | none | A new approval object made the recovery explicit. |
+| Persisted pending state resumed and executed | none | The pause boundary survived a reload. |
+
+That table is the sourceable result. The complete matrix, code configuration, redacted traces, and worksheet are in the research archive for this post.
+
+![Illustration of the approval state transition from pending to decision to execution](/blog/why-approval-queues-fail-after-demo-diagnose-break-approval-state-transition.webp)
+
+## Why does an approval queue look healthy during the demo?
+
+Because the demo compresses time, state, identity, and ownership into one uninterrupted interaction. The same person proposes the action, approves it immediately, and watches it execute. No message is duplicated. No payload changes. No reviewer is missing.
+
+Production adds boundaries:
+
+- the pending state must survive a process restart;
+- the queue must route to a real, authorized reviewer;
+- the reviewer may answer after the deadline;
+- the proposed action may change while it waits;
+- delivery and resume may happen more than once;
+- rejection must end one attempt without silently reusing its decision;
+- the tool must make a second execution harmless.
+
+OpenAI’s Agents SDK describes this boundary explicitly: an approval can interrupt a run, the paused `RunState` can be serialized, and the original run can resume after a decision. Its documentation also recommends storing a version marker for pending tasks that may outlive changes to models, prompts, or tool definitions. ([OpenAI Agents SDK human-in-the-loop documentation](https://openai.github.io/openai-agents-python/human_in_the_loop/))
+
+The lesson is portable even when your implementation is not. A button is a UI event. A production approval is a durable object with identity and expiry.
+
+## How can a team reproduce the break locally?
+
+Use the same action and the same state contract for every case. Don’t create a separate mock for every failure. The point is to make the first divergence visible.
+
+1. Create an action with an `action_id`, tool name, payload, payload version, and payload hash.
+2. Create a pending approval before delivering the queue item. Store the assignee, deadline, attempt number, and the approved payload hash.
+3. Persist and reload the pending object before at least one approval.
+4. Replay one case at a time with a fixed clock. Advance time instead of sleeping.
+5. Deliver the same approval twice, and resume the same stored state twice.
+6. Change the action after the approval is created, then submit the old approval.
+7. Reject once, create a new attempt, and verify that only the new attempt can execute.
+8. Remove one guard at a time. The negative control should fail with a named invariant, not with a vague exception.
+
+The local fixture uses synthetic reviewer identities such as `reviewer.primary` and `reviewer.secondary`. That keeps the test deterministic. It does not prove that a real directory, email provider, queue, or database has correct permissions.
+
+## How do you diagnose the first broken invariant?
+
+Start with the event immediately before the visible failure. Then walk backward until the state contract stops being true.
+
+### 1. Check state existence
+
+If `approval.created` is missing before `queue.enqueued`, the queue is carrying a notification without durable work behind it. Classify that as a workflow or persistence failure. The repair is to commit the pending object before publishing the delivery event.
+
+### 2. Check routing
+
+An empty, deleted, or unauthorized assignee is an integration failure unless the policy intentionally allows an unassigned triage queue. Microsoft’s approval documentation calls out `Assigned to` as a core stage field and warns that assigning the same approver to multiple stages causes a flow to fail. ([Microsoft multistage approvals documentation](https://learn.microsoft.com/en-us/microsoft-copilot-studio/flows-advanced-approvals))
+
+### 3. Check time
+
+If the decision timestamp is past `deadline_at`, the approval is no longer an ordinary approval. Block it, or move it to a named escalation path with a new deadline. AWS recommends timeout policies, escalation, and a safe fallback, typically blocking the operation when no reviewer responds. ([AWS human-in-the-loop guidance](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec04-bp02.html))
+
+### 4. Check payload identity
+
+Compare the reviewer’s payload hash with the current action hash. Compare it again immediately before execution. If either differs, mark the approval stale. Don’t “update the card” and keep the approval. That makes the reviewer’s decision mean something different from what they saw.
+
+In the replay, the guarded case stopped at `approval.stale_payload`. The unguarded case moved from `approval.approved` to `tool.executed` with the new amount. That is the clearest post-demo failure in the suite because the queue reports success while the control has lost its meaning.
+
+### 5. Check decision and execution idempotency
+
+Approval idempotency and tool idempotency are different checks. The first prevents two decisions from changing state. The second prevents two deliveries from creating two side effects. In the negative control, the first tool call succeeded and the second produced `duplicate_side_effect` because the execution ledger had been disabled.
+
+### 6. Check reviewer context and ownership
+
+An approval can be technically valid and still be a bad control if the reviewer cannot see the proposed action, relevant inputs, consequences, or the owner of the exception. AWS recommends durable decision context and logs containing reviewer identity and timestamps. ([AWS human-in-the-loop guidance](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec04-bp02.html))
+
+Microsoft also documents that AI approval stages can return an analysis failure when criteria conflict or the input is insufficient. Its FAQ recommends missing-field, conflicting-rule, and unusual-case tests before deployment. ([Microsoft AI approvals FAQ](https://learn.microsoft.com/en-us/microsoft-copilot-studio/faqs-ai-approvals))
+
+## What should the team repair first?
+
+Repair in event order, not in the order the error appeared in the UI.
+
+| First broken invariant | Repair | Verification |
+| --- | --- | --- |
+| `pending_exists` | Write the approval before delivery and make delivery retryable. | Restart between create and review; the item remains actionable. |
+| `valid_assignee` | Validate directory identity and stage ownership before enqueueing. | Replay missing, deleted, and unauthorized reviewers. |
+| `approval_deadline` | Add a deadline, safe fallback, and escalation owner. | Approve late through the primary and secondary paths. |
+| `payload_identity` | Store and recheck immutable version or hash. | Change the action after creation; expect `stale`, never execution. |
+| `single_decision` | Make decisions conditional on pending state and approval ID. | Deliver the same decision twice; the second is ignored. |
+| `single_execution` | Add an action idempotency key and durable execution result. | Redeliver after success; no second side effect occurs. |
+| `reviewer_context` | Show the action, inputs, consequences, and reason for escalation. | Ask a reviewer to decide from the queue record alone. |
+
+The repair should come with a new replay case. If the fix cannot be expressed as a deterministic case, it is probably still a demo safeguard.
+
+## What do platform primitives cover, and what must the team still own?
+
+Platforms can provide pause and resume, task tokens, staged routing, callbacks, logging, or an approval UI. They cannot decide your action identity, retry policy, reviewer ownership, or safe response to a changed payload for you.
+
+OpenAI provides a durable paused-run pattern, but its own documentation says pending tasks should carry a version marker when definitions can change. AWS provides several approval patterns and describes task-token callbacks, timeouts, escalation, durable context, and application-level approval logs. Microsoft provides stages, input mapping, AI and manual routing, and configuration warnings. These are supported primitives, not a complete neutral operating contract.
+
+The difference matters at handoff. A vendor can pause the run correctly while your integration resumes the wrong version. A queue can notify the right person while your tool executes twice. A reviewer can make a valid decision while the policy gives them too little context.
+
+A 2026 study of AI-generated code review found a longitudinal question around repeated reviewers and declining scrutiny, using 400 repeat reviewers and 11,429 reviews over seven months. It is useful as a reason to treat reviewer workload and policy as risks, but its population is code review, not business approval queues. ([Habituation at the Gate](https://arxiv.org/abs/2606.22721))
+
+## What should be in the handoff packet?
+
+Before calling the approval queue production-ready, hand over one run contract and one replay packet:
+
+- action ID, tool name, exact input, payload version, and payload hash;
+- approval ID, attempt, assignee, escalation assignee, deadline, and decision;
+- state transitions with timestamps;
+- reviewer identity and decision source;
+- execution ID, idempotency key, result, and retry behavior;
+- raw or redacted events for one success, one recovery, and each reproduced failure;
+- a matrix naming the first broken invariant;
+- a worksheet naming the owner, repair, and verification case.
+
+That packet is smaller than a platform migration and more useful than a screenshot of the demo. The parent page, [opportunity approval queues](/blog/opportunity-approval-queues), covers where this kind of work may be valuable. If you need the broader queue shape, see [how to build a queue-backed AI workflow](/blog/how-to-build-a-queue-backed-ai-workflow). For the tool-side guard, see [how to design idempotent tools for AI agents](/blog/how-to-design-idempotent-tools-for-ai-agents).
+
+If your team wants to own this kind of diagnostic capability, [learn how Marius Manolachi teaches and consults on building AI products](/learn-ai). The useful next step is to bring one real approval failure and replay it with the same worksheet.
