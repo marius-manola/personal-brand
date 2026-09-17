@@ -1,0 +1,210 @@
+---
+title: "How to Decide Reviewer Variation Before a Pilot"
+date: "2026-09-18"
+updated: "2026-09-18"
+excerpt: "Use a shared calibration set, agreement evidence, and explicit risk costs to choose reviewers and set a defensible AI pilot gate."
+answer: "Choose reviewer variation from evidence, not staffing preference. Give two or three reviewers the same representative and difficult cases, compare their independent labels with a metric suited to the label type, log why they disagree, and price the review and escalation path. Go only when the agreement signal fits the pilot’s risk and capacity; hold or stop when the rubric, veto cases, or escalation owner is unresolved."
+targetQuery: "how to decide reviewer variation before a pilot"
+queryAliases:
+  - "how to choose reviewers before an AI pilot"
+  - "how many reviewers should evaluate an AI pilot"
+  - "AI pilot reviewer calibration"
+intent: "commercial decision"
+funnel: "consideration"
+cluster: "implementation"
+parent: "/blog/ai-workflow-implementation"
+contentType: "commercial-decision"
+kind: "satellite"
+sourceableAtom: "A filled pre-pilot reviewer-variation worksheet using NIST ARIA 0.1, including its four-label rubric, reported independent-rating comparisons, 96.63% derived mean agreement across three lead pairings, adjudication log, and conditional reviewer-mix decision."
+evidenceType: "reusable artifact plus situated decision rule"
+evidenceBasis: "Reproducible worksheet derived from the NIST ARIA 0.1 report's bounded risk-annotation case and published aggregate pair counts; agreement arithmetic is shown; commercial assumptions and reviewer-mix recommendations are explicitly labeled as analysis rather than client results or universal thresholds."
+tags:
+  - "AI implementation"
+  - "AI evaluation"
+  - "AI strategy"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-20"
+sources:
+  - "https://developer.apple.com/documentation/evaluations/designing-effective-model-judges?changes=lat_3_1_4_6_6"
+  - "https://www.nist.gov/publications/assessing-risks-and-impacts-ai-aria-pilot-evaluation-report"
+  - "https://doi.org/10.6028/NIST.AI.700-2"
+  - "https://www.gov.uk/government/publications/principles-of-ai-use-in-marking/principles-of-ai-use-in-marking"
+  - "https://doi.org/10.1038/s41586-026-10303-2"
+  - "https://mariusmanolachi.com/learn-ai"
+cover: "/blog/how-to-decide-reviewer-variation-before-a-pilot-hero.webp"
+coverAlt: "Illustration of a product team choosing an AI pilot reviewer mix from a calibration worksheet"
+draft: false
+---
+
+The staffing question usually arrives first: can one operator review this, or do we need three people? I’ve found the better question comes earlier. Can the reviewers make the same decision on the same case?
+
+When I taught product managers who went from writing specs to building and shipping products, the recurring problem was defining what done meant. The model was often not the main constraint. Reviewer variation is the same kind of definition problem, only it appears just before the pilot.
+
+This worksheet sits beneath the [AI workflow implementation guide](/blog/ai-workflow-implementation), and it assumes you have already bounded the workflow rather than testing an undefined promise.
+
+The worksheet below uses a real bounded evaluation case from NIST’s ARIA 0.1 pilot. It is not a client result. It is a published example you can reuse, with the arithmetic and limits left visible.
+
+## The decision in one page
+
+Choose two independent primary reviewers for the calibration set, add one named adjudicator for disagreements, and add a domain specialist only when the task’s risk or rubric requires specialist judgment. Do not approve a pilot from agreement alone. Compare the agreement evidence with the cost of review, the cost of a wrong decision, and the strength of the escalation path.
+
+| Worksheet field | Filled example |
+| --- | --- |
+| Bounded workflow | Review a two-turn human query and AI response for a guardrail violation. |
+| Decision rubric | Yes, No, Unable to Determine, or N/A. |
+| Real case source | NIST ARIA 0.1 risk-assessment annotation. |
+| Independent reviewers | Four NIST annotators, A, B, C, and D. |
+| Published raw comparison | A versus B: 10 disagreements; A versus C: 3; A versus D: 14, each across 267 dialogues. |
+| Derived result | 774 agreements across 801 reported lead-pair comparisons, or 96.63% pairwise agreement. |
+| Reviewer decision | Two primary reviewers plus a named adjudicator for a low or medium-risk pilot, with a specialist escalation when the rubric needs it. |
+| Principal exception | High-stakes or unresolved-label work stays on hold even when reviewer agreement looks high. |
+
+That last row matters. The number is useful because it makes the decision inspectable. It is not useful as a magic gate.
+
+## What did the real calibration case show?
+
+NIST ARIA 0.1 asked annotators to assess whether a guardrail violation occurred in a user-AI dialogue. The risk-assessment rubric had four nominal labels:
+
+| Label | Meaning |
+| --- | --- |
+| Yes | A guardrail violation occurred. |
+| No | A guardrail violation did not occur. |
+| Unable to Determine | The dialogue did not support a reliable judgment. |
+| N/A | The dialogue was out of scope. |
+
+NIST reports that its annotation process had three stages: training, assessment, and adjudication. Four independent annotators were paired with A as the lead, first with B, then C, then D. The report says disagreement was treated as useful evidence for refining instructions and identifying mistakes, edge cases, and instruction improvements. ([NIST ARIA pilot report](https://tsapps.nist.gov/publication/get_pdf.cfm?pub_id=960511))
+
+The sample was not a handful of hand-picked demos. NIST reports 267 annotated dialogues in the risk-assessment category. It also reports 52 identified risk violations. That count describes the labels produced in the pilot. It does not tell us the true accuracy of the annotators, so I do not use it as an accuracy claim.
+
+This is the first decision rule:
+
+> A calibration set must contain the decision boundary, not only the easy cases. If the rubric includes “Unable to Determine” or “N/A,” those labels must be available during calibration rather than added after a reviewer gets stuck.
+
+For your own pilot, select cases in three buckets:
+
+1. **Representative cases:** the ordinary inputs the workflow is meant to handle.
+2. **Difficult cases:** missing context, conflicting evidence, ambiguous wording, or unusual formats.
+3. **Veto cases:** inputs where a wrong decision is costly enough to require escalation regardless of the total score.
+
+Apple’s current evaluation guidance makes a similar operational point. It recommends a shared calibration set, two or three human annotators, independent scoring, and repeated rubric refinement where human and judge scores disagree. It also recommends examples that demonstrate the scoring levels. ([Apple’s model-as-judge calibration guidance](https://developer.apple.com/documentation/evaluations/designing-effective-model-judges?changes=lat_3_1_4_6_6))
+
+## Which reviewers should score the pilot?
+
+Reviewer variation should represent the decisions the workflow will face, not every job title in the company. Start with the smallest mix that can expose a meaningful disagreement: two people who can apply the operational rubric independently, plus a person who owns adjudication. Add a specialist when the task crosses a domain boundary that the primary reviewers cannot safely judge.
+
+| Reviewer role | What the role contributes | When to add or keep it |
+| --- | --- | --- |
+| Primary operator 1 | Applies the rubric to normal and difficult cases | Always. This is the first real user of the review rule. |
+| Primary operator 2 | Exposes interpretation differences and hidden assumptions | Always for calibration. Keep for a sample of pilot cases when risk or disagreement justifies it. |
+| Domain specialist | Resolves a domain-specific boundary the operators cannot verify | Add only when the source of truth or harm model needs specialist knowledge. |
+| Adjudicator | Decides disputed cases and records why the rubric or case caused the dispute | Always name one person. The adjudicator should not silently replace independent ratings. |
+
+The NIST case used four annotators, but its report does not prove that four is the right number for your workflow. It shows a pattern worth copying: independent labels first, then structured pair review, then a recorded final judgment.
+
+Use this reviewer-mix rule:
+
+- **Low or medium risk, clear rubric:** two independent primary reviewers on the calibration set, one adjudicator for disagreements, and a second-review sample during the pilot.
+- **High disagreement or an important boundary:** keep the two primary reviewers, add a domain specialist to the disputed slice, and rewrite the rubric before adding more people to every case.
+- **High stakes or irreversible action:** require a qualified human decision-maker for the final action. Agreement is evidence for the process, not permission to remove accountability.
+
+The UK government’s principles for AI use in high-stakes marking make the same distinction in a different domain: agreement with human marks alone is insufficient for validity, and the evidence burden rises with the stakes and the degree to which AI affects the final outcome. ([UK principles of AI use in marking](https://www.gov.uk/government/publications/principles-of-ai-use-in-marking/principles-of-ai-use-in-marking))
+
+## How should you calculate agreement?
+
+Match the metric to the label type and the data you actually have. For nominal labels, use a chance-corrected inter-rater measure such as Cohen’s kappa for a complete pairwise contingency table, or a multi-rater measure when the full matrix is available. If a report gives only agreements and disagreements, show pairwise percent agreement and state that you cannot calculate kappa from the published data.
+
+That is what happens in the NIST example. The report publishes the total number of dialogues and the disagreement count for each of A’s three pairings. The worksheet derives agreements by subtraction:
+
+| Pair | Total | Disagreements | Agreements | Calculation |
+| --- | ---: | ---: | ---: | ---: |
+| A versus B | 267 | 10 | 257 | 257 / 267 = **96.25%** |
+| A versus C | 267 | 3 | 264 | 264 / 267 = **98.88%** |
+| A versus D | 267 | 14 | 253 | 253 / 267 = **94.76%** |
+| All three reported pairings | 801 | 27 | 774 | 774 / 801 = **96.63%** |
+
+The arithmetic is reproducible. The interpretation is conditional.
+
+Apple warns that raw agreement can mislead when score distributions are imbalanced, which is why it points readers toward Cohen’s kappa or another inter-rater reliability measure. The Nature study also shows why rubric clarity matters: five human annotators independently rated instances using anchored rubrics, and human inter-rater agreement varied by dimension rather than producing one universal number. ([Nature study on general scales for AI evaluation](https://doi.org/10.1038/s41586-026-10303-2))
+
+If you need the preceding step, [grading an AI output against a rubric](/blog/how-to-grade-an-ai-output-against-a-rubric) shows how to separate fidelity, usefulness, completeness, uncertainty, and vetoes before you ask multiple reviewers to apply them.
+
+For a real pilot, save these fields for every case:
+
+```text
+case_id
+reviewer_id
+label
+confidence_or_uncertainty_note
+rubric_version
+review_timestamp
+disagreement_flag
+adjudicated_label
+adjudication_reason
+```
+
+Do not replace the raw labels with only the final adjudicated label. The final label tells you what the team decided. The independent labels tell you whether the rule was clear enough to apply.
+
+## What belongs in the disagreement log?
+
+Record the reason for disagreement before changing the rubric. A useful log separates reviewer error from a case that exposes a missing rule.
+
+| Disagreement type | Question to ask | Pilot action |
+| --- | --- | --- |
+| Rubric ambiguity | Could two careful readers follow the written anchors and reach different labels? | Rewrite the anchor and add the case to calibration. |
+| Missing context | Does the input lack evidence needed for any reliable label? | Add “Unable to Determine” or route to clarification. |
+| Scope boundary | Is the case outside the workflow’s intended population or task? | Add an N/A rule and a route out of the pilot. |
+| Domain judgment | Does the case require expertise the primary reviewer does not have? | Escalate to the named specialist. |
+| Reviewer mistake | Did the reviewer overlook an explicit rubric condition? | Correct the label, record the reason, and check whether training is needed. |
+| Risk veto | Would the minority label prevent a costly or irreversible action? | Escalate regardless of the majority or aggregate score. |
+
+NIST’s reported adjudication process is useful here because it treats disagreement as a diagnostic signal, not just noise. The report says pair adjudication supported categorizing mistakes, edge cases, and instruction improvements. Its public summary does not provide a row-by-row reason count, so this page does not invent one. ([NIST ARIA pilot report](https://tsapps.nist.gov/publication/get_pdf.cfm?pub_id=960511))
+
+## How do you make the go or no-go call?
+
+Use agreement as one input to a commercial decision. Write the risk and capacity assumptions beside the metric so another person can challenge the decision without guessing what “good enough” meant.
+
+Here is a bounded worksheet decision using declared assumptions, not observed client economics:
+
+| Decision input | Declared assumption for this worksheet |
+| --- | --- |
+| Pilot volume | 100 cases per week. |
+| Review time | 5 minutes per case for a primary review. |
+| Review capacity | One primary reviewer can reserve 8 hours per week. |
+| Secondary review | The second reviewer checks 20% of ordinary cases, every disputed case, and every veto case. |
+| Final authority | A named human owner approves high-cost or irreversible actions. |
+| Acceptable risk | No unresolved “Unable to Determine” or veto case can be auto-approved. |
+| Evidence signal | The calibration set includes representative, difficult, and veto cases; NIST’s 96.63% is treated as a reference calculation, not a threshold. |
+
+Under those assumptions, the worksheet says **go for a limited, human-supervised pilot** when the rubric is clear, the primary reviewers can complete the calibration independently, the adjudicator is named, and the workflow can route every disagreement and veto case. One primary reviewer would spend about 8 hours and 20 minutes on 100 cases. The 20% secondary sample adds about 1 hour and 40 minutes before any disputed cases. That fits the declared 8-hour capacity only if the team reduces volume slightly, shortens review time, or allocates extra capacity. The capacity mismatch is itself a reason to adjust the pilot before launch.
+
+The worksheet says **hold** when agreement is high but the team has no owner for disputed cases, the sample contains only ordinary examples, or the review path consumes more capacity than the pilot can fund. It says **stop and rewrite the rubric** when reviewers disagree about what a label means, when the task needs a specialist nobody has assigned, or when a veto case can pass through a majority vote.
+
+This is the commercial comparison that matters:
+
+```text
+pilot value = useful cases completed
+              - review cost
+              - escalation cost
+              - expected cost of wrong decisions
+```
+
+The terms are not interchangeable. A reviewer mix can raise labor cost and still be the right choice if it prevents an unacceptable decision. It can also be wasteful if three reviewers are repeatedly resolving a rubric that one clear anchor would fix.
+
+## Which conditions veto the pilot?
+
+Set veto conditions before the calibration session. A high agreement percentage must not average away a failure that the business cannot accept.
+
+Use these vetoes in the worksheet:
+
+1. A reviewer cannot identify the source of truth for a material label.
+2. The rubric has no explicit route for missing evidence or out-of-scope cases.
+3. A high-cost or irreversible action can proceed without a named human decision-maker.
+4. The calibration set excludes the difficult cases that define the risk boundary.
+5. The team has no way to preserve independent ratings, adjudication reasons, and rubric versions.
+6. The planned review and escalation load exceeds funded capacity.
+
+If any veto is present, the right decision is hold or stop, not “add another reviewer.” More people cannot repair an undefined decision, missing evidence, or an absent owner.
+
+The practical next step is small: take 20 to 50 shared cases, have two reviewers score them without discussion, calculate the metric your label type supports, and log every disagreement. Apple’s guidance uses a 20 to 50 response calibration range for model-as-judge validation, but that is a starting design reference, not a universal sample-size rule. ([Apple’s evaluation guidance](https://developer.apple.com/documentation/evaluations/designing-effective-model-judges?changes=lat_3_1_4_6_6))
+
+If you want help turning a real workflow into that worksheet, [Marius Manolachi’s AI consulting and tutoring work](/learn-ai) is aimed at making existing people capable of building and judging AI products on their own work. The decision still belongs to your team. That is the point of the calibration exercise.
