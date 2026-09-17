@@ -1,0 +1,193 @@
+---
+title: "How to Choose Evidence Quality With Incomplete Records"
+date: "2026-09-18"
+updated: "2026-09-18"
+excerpt: "A worked evidence ledger for incomplete workflow records, with a public 311 case and a sensitivity test that changes the decision."
+answer: "Choose evidence quality for the decision, not for the dataset in the abstract. Record provenance, coverage, missing fields, accuracy against a reference, and relevance before inspection. Then test at least two plausible missingness assumptions. Proceed only when the recommendation stays above your pre-set threshold; otherwise run a bounded test or collect more evidence."
+targetQuery: "how to choose evidence quality with incomplete records"
+queryAliases:
+  - "evidence quality with missing data"
+  - "how to assess incomplete records for an AI workflow"
+  - "data completeness versus accuracy for a decision"
+intent: "informational decision support"
+funnel: "consideration"
+cluster: "opportunity"
+parent: "/blog/ai-opportunity-discovery"
+contentType: "decision-tool"
+kind: "satellite"
+sourceableAtom: "In a 12-record NYC 311 snapshot, deliberately removing descriptor changed a noise-routing check from 8/8 correct when recoverable to 7/8 correct when unavailable, moving the recommendation across a pre-set 90% threshold."
+evidenceType: "Reusable decision artifact with a worked case and reproducible sensitivity test"
+evidenceBasis: "Manual field-level ledger and exact-count sensitivity calculation from 12 public NYC 311 records captured on 2026-08-24, compared with the official API response."
+tags:
+  - "evidence quality"
+  - "incomplete records"
+  - "AI opportunity"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-24"
+sources:
+  - "https://www.nice.org.uk/corporate/ecd9/chapter/assessing-data-suitability"
+  - "https://www.nice.org.uk/corporate/ecd9/chapter/appendix-1-data-suitability-assessment-tool-datasat"
+  - "https://www.cochrane.org/authors/handbooks-and-manuals/handbook/current/chapter-10"
+  - "https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.600-1.pdf"
+  - "https://www.nist.gov/system/files/documents/2024/06/18/DGM%20Profile%20Concept%20Paper%20%2806.18.24%29.pdf"
+  - "https://catalog.data.gov/dataset/311-service-requests-from-2010-to-present"
+  - "https://data.cityofnewyork.us/resource/erm2-nwe9.json"
+  - "https://mariusmanolachi.com/learn-ai"
+faq:
+  - q: "Is a complete dataset automatically high quality?"
+    a: "No. Completeness tells you how often fields are present. It does not tell you whether values are accurate, relevant, timely, or sufficient for the decision."
+  - q: "What should I do when missingness changes the recommendation?"
+    a: "Do not average the scenarios into one confident number. Record the assumption, collect the field if possible, or narrow the workflow to a reversible test with human review."
+  - q: "Should I impute missing records before an AI pilot?"
+    a: "Only when the decision owner accepts the assumption and the result survives plausible alternatives. If imputation changes the go or stop decision, treat the result as conditional and collect more evidence."
+cover: "/blog/how-to-choose-evidence-quality-with-incomplete-records-evidence-ledger-hero.webp"
+coverAlt: "Illustration of an evidence ledger separating provenance, completeness, accuracy, relevance, and missingness"
+draft: false
+---
+
+A dataset can look “good enough” because the spreadsheet opens cleanly and most rows have values. That’s not a decision. It’s a feeling.
+
+When I taught product managers to move from writing specifications to building and shipping, the missing piece was often a definition of done ([Marius Manolachi](https://mariusmanolachi.com/learn-ai)). In an AI workflow, the equivalent question is: what evidence must be present before this decision is allowed to move?
+
+## Treat evidence quality as fit for one decision
+
+Evidence quality is fit for purpose. A record can be accurate but irrelevant, complete but biased, or useful for a read-only test but unsafe for an automatic action. NICE separates provenance, data quality, and relevance for exactly this reason, and says acceptable completeness or accuracy depends on the application rather than one universal threshold ([NICE](https://www.nice.org.uk/corporate/ecd9/chapter/assessing-data-suitability)).
+
+Write the decision before inspecting the records:
+
+> A service-operations lead wants to know whether a public service-request export is sufficient for a read-only shadow test that routes noise complaints to the right agency. No request is sent, closed, or escalated automatically.
+
+Then write the minimum acceptable evidence:
+
+| Gate | Minimum for this worked decision | Why it exists |
+| --- | --- | --- |
+| Record identity | 100% of captured records have a stable key | You must be able to trace a result back to a source record. |
+| Required fields | `created_date`, `complaint_type`, and reference `agency` are present | These define the evaluation slice and comparison label. |
+| Reference agreement | 90% exact agreement on the target slice | The local gate makes the decision explicit before inspection. |
+| Relevance | The fields support coarse agency routing, not location or status automation | A field can be present and still fail the reader’s job. |
+| Safety veto | Missing fields needed for an irreversible action stop the automation proposal | A shadow test and an automatic write are different decisions. |
+
+The 90% number is not a standard. It is a pre-set gate for this low-risk example. Your owner should set a different threshold when the error cost, review capacity, or reversibility changes.
+
+## The worked result: one missing field changes the call
+
+I took the first 12 records returned by the public NYC 311 JSON endpoint on 2026-08-24. The dataset is public, contains complaint type and responding agency, and is updated daily, so the access date matters ([NYC 311 dataset catalog](https://catalog.data.gov/dataset/311-service-requests-from-2010-to-present), [captured JSON endpoint](https://data.cityofnewyork.us/resource/erm2-nwe9.json)).
+
+The working copy kept the record key, creation time, complaint type, and agency reference. I removed `descriptor`, `borough`, and `status` to simulate a workflow export with deliberate gaps. The retained four fields matched the captured API response in 48 of 48 comparisons.
+
+The target slice contained eight noise records:
+
+| Field check | Result |
+| --- | ---: |
+| Noise records | 8 |
+| Reference agency NYPD | 7 |
+| Reference agency DEP | 1 |
+| Simple rule with `complaint_type` only | 7/8 = 87.5% |
+| Rule with recoverable `descriptor` | 8/8 = 100% |
+
+The simple rule routes every noise complaint to NYPD. It misses the one record whose reference descriptor is `Construction` and whose agency is DEP. If the missing descriptor can be recovered before evaluation, the rule can separate that case. If the field is truly unavailable, it cannot.
+
+That is the sourceable result: the same 12-record snapshot supports a shadow test under one missingness assumption and a collect-more decision under another. The difference is not the model. It is what we are willing to assume about one absent field.
+
+![Illustration of an incomplete-record evidence ledger branching into two sensitivity scenarios](/blog/how-to-choose-evidence-quality-with-incomplete-records-evidence-sensitivity-branch.webp)
+
+## Complete the ledger field by field
+
+NICE’s Data Suitability Assessment Tool asks for the research question, source details, data quality method, assessment result, and relevance. NIST’s AI guidance likewise calls for assumptions, limitations, provenance, data quality, and evaluation data in system documentation ([DataSAT](https://www.nice.org.uk/corporate/ecd9/chapter/appendix-1-data-suitability-assessment-tool-datasat), [NIST AI 600-1](https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.600-1.pdf)). Use this smaller ledger for a product or operations decision.
+
+| Ledger field | What to write | Worked value |
+| --- | --- | --- |
+| Decision owner | Person or role who can say proceed, test, or stop | Service-operations lead who owns the routing queue |
+| Decision | The action the evidence will permit | Read-only shadow test for coarse agency routing |
+| Provenance | Source, version or dataset ID, endpoint, extraction date, access rights | NYC 311 `erm2-nwe9`, JSON endpoint, public, 2026-08-24 |
+| Record coverage | Records present divided by records expected in the captured slice | 12/12 = 100%; not population coverage |
+| Required fields | Exact fields needed to evaluate the decision | Key, time, complaint type, reference agency |
+| Missing fields | Field-level counts, not one overall completeness score | Descriptor 0/12 in working copy; borough 9/12; status 0/12 |
+| Accuracy check | Reference source, comparison unit, and agreement count | 48/48 retained-field comparisons |
+| Relevance | What the fields can and cannot support | Coarse agency routing only; not location or status logic |
+| Missingness assumption | Why the field may be absent and what that implies | Recoverable transport omission or irrecoverable loss |
+| Uncertainty | Sample size, live-source risk, threshold choice, and unknowns | 12 rows; live endpoint; local 90% gate; no population claim |
+| Recommendation | Outcome and condition | Proceed only if descriptor recovery is verified |
+
+Completeness is a percentage of records without missing data at a given time. It does not establish accuracy. NICE recommends reporting completeness and accuracy separately and checking accuracy against a reference when possible ([NICE](https://www.nice.org.uk/corporate/ecd9/chapter/assessing-data-suitability)). That distinction prevents a neat-looking 100% count for the wrong field from becoming a false quality claim.
+
+## Run the sensitivity test before you trust the recommendation
+
+Missingness is not a single condition. Cochrane distinguishes assumptions such as missing at random and not missing at random, recommends making assumptions explicit, and recommends sensitivity analysis for reasonable changes to those assumptions ([Cochrane Chapter 10](https://www.cochrane.org/authors/handbooks-and-manuals/handbook/current/chapter-10)).
+
+Use this exact calculation:
+
+1. Define the target slice before looking at the answer. Here, it is records whose `complaint_type` contains `Noise`.
+2. Define the reference label. Here, it is the published `agency` value.
+3. Write the fallback rule with missing fields. Here, every noise record routes to NYPD.
+4. Count exact matches: correct predictions divided by records in the slice. Here, `7 / 8 = 0.875`, or `87.5%`.
+5. Write a plausible recovery rule. Here, `Noise` plus `descriptor = Construction` routes to DEP; the other sampled noise descriptors route to NYPD.
+6. Recalculate with the recovered field. Here, `8 / 8 = 1.00`, or `100%`.
+7. Compare both results with the pre-set gate. `87.5% < 90%`, while `100% >= 90%`.
+8. Record the decision as conditional if the scenarios disagree. Do not average 87.5% and 100% into 93.75%. That would hide the assumption that caused the change.
+
+| Scenario | Assumption | Result | Decision |
+| --- | --- | ---: | --- |
+| Observed export | Descriptor stays missing | 87.5% | Collect more or narrow the test |
+| Recoverable omission | Descriptor is recovered from the same source | 100% | Proceed with read-only shadow mode |
+| Irrecoverable omission | Descriptor cannot be recovered | 87.5% | Do not promote the workflow |
+
+The recommendation is conditional, not uncertain in a vague way. We know exactly which field must be recovered and what result would satisfy the gate.
+
+## Use a bounded action when evidence is conditional
+
+The ledger does not tell you to wait for a perfect dataset. It tells you which action the current evidence supports.
+
+- **Proceed:** the reference check passes and all plausible scenarios keep the result above the threshold. Use shadow mode, human review, and reversible outputs.
+- **Test:** the decision owner accepts a low-risk experiment that will collect the missing field or reveal its impact. Do not let the experiment take an irreversible action.
+- **Collect more:** the recommendation crosses the threshold only under an assumption you have not verified.
+- **Stop:** the missing field affects a safety, privacy, legal, or irreversible decision and no defensible recovery path exists.
+
+The NYC example lands on **test only if the descriptor recovery step is verified**. From the incomplete export alone, it lands on **collect more**. The public data is useful for demonstrating the method, not for authorizing a real agency workflow.
+
+## Copy this blank template into your next review
+
+```text
+Decision owner:
+Decision:
+Allowed action:
+Irreversible action that remains forbidden:
+
+Source name and URL:
+Dataset or export version:
+Extraction date and access date:
+Permission and governance status:
+
+Expected records in the captured slice:
+Records present:
+Duplicate or untraceable records:
+
+Required fields:
+Field-level completeness:
+Reference source for accuracy:
+Accuracy unit and exact-match calculation:
+Relevance to the decision:
+Fields that are present but too coarse:
+
+Missingness scenario A:
+Calculation:
+Recommendation:
+
+Missingness scenario B:
+Calculation:
+Recommendation:
+
+Uncertainty and limitations:
+Final proceed, test, collect-more, or stop decision:
+Condition that would change the decision:
+```
+
+If you can’t fill the “condition that would change the decision” line, the evidence review is probably still describing the dataset rather than governing a decision. For a broader opportunity screen, use this ledger alongside the [AI opportunity discovery guide](/blog/ai-opportunity-discovery). If the workflow may actually be a data problem, compare it with [When Is an AI Workflow Problem Actually a Data Problem?](/blog/when-is-an-ai-workflow-problem-actually-a-data-problem).
+
+## What this ledger does not prove
+
+It does not prove model performance, fairness, population representativeness, or production readiness. It proves only that a named decision was evaluated against named fields, a captured reference, and explicit missingness assumptions.
+
+That boundary matters. NIST recommends documenting data quality and limitations ([NIST AI 600-1](https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.600-1.pdf)), and NICE warns that relevance depends on the research question ([NICE](https://www.nice.org.uk/corporate/ecd9/chapter/assessing-data-suitability)). A complete record set can still be the wrong population or lack the field that defines the outcome. A small record set can still be enough for a reversible smoke test when the decision owner accepts its limits.
+
+The practical rule is simple: choose evidence quality against the action you want to authorize. If the recommendation changes when a plausible missingness assumption changes, the next step is not a more confident summary. It is a recovery check, a narrower test, or more evidence.
