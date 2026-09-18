@@ -1,0 +1,197 @@
+---
+title: 'What Does the Evidence Show About Policy-Changing Workflows in Practice?'
+date: '2026-09-19'
+updated: '2026-09-19'
+excerpt: 'A reproducible 18-record workflow test shows what advisory, enforced, and exception-bearing policy revisions change in reachable actions and evidence.'
+answer: 'The evidence supports observing runtime traces before treating a policy edit as safe. Pre-deployment checks can show whether the rule is valid, and approvals can show who may release it, but runtime enforcement and post-run logs show what became reachable. In my 18-record harness, advisory mode allowed a pending write to reach execution, enforcement blocked it, and an over-broad exception reopened it. This is bounded harness evidence, not proof across production workflows.'
+targetQuery: 'what does the evidence show about policy-changing workflows when the workflow is observed in practice'
+queryAliases:
+  - 'policy changing workflow evidence'
+  - 'observe policy enforcement in practice'
+  - 'policy revision runtime enforcement'
+intent: 'informational / research'
+funnel: 'consideration'
+cluster: 'architecture'
+parent: '/blog/architecture-policy-changing-workflows'
+contentType: 'original-research'
+kind: 'flagship'
+sourceableAtom: 'In a local 18-record replay of six identical bounded workflow cases across three policy revisions, advisory mode let all 6 actions reach the executor, enforced mode blocked 3 of 6 pending or unapproved actions, and an exception-bearing revision reopened 1 pending write through its scoped exception.'
+evidenceType: 'reproducible workflow test with decision-log dataset and worked boundary decision artifact'
+evidenceBasis: >-
+  An archived dependency-free Python harness was run on 2026-08-24 with CPython 3.9.6 on macOS 26.5 arm64. It replayed six fixed workflow fixtures against policy-advisory-001, policy-enforced-002, and policy-exception-003, producing 18 decision records with policy revision, input, deterministic decision ID, approval state, reachable action, latency, exception outcome, and rollback outcome. The full method, raw decision-log projection, command, matrix, and limitations are recorded in research.md.
+tags:
+  - 'AI architecture'
+  - 'AI governance'
+  - 'AI workflows'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-20'
+sources:
+  - 'https://learn.microsoft.com/en-us/azure/governance/policy/concepts/policy-as-code'
+  - 'https://learn.microsoft.com/en-us/azure/governance/policy/concepts/evaluate-impact'
+  - 'https://aws.amazon.com/blogs/security/governing-infrastructure-as-code-using-pattern-based-policy-as-code/'
+  - 'https://learn.microsoft.com/en-us/compliance/assurance/assurance-microsoft-365-change-management'
+  - 'https://www.openpolicyagent.org/docs/management-decision-logs'
+  - 'https://www.frontiersin.org/journals/artificial-intelligence/articles/10.3389/frai.2026.1759211/full'
+faq:
+  - q: 'Does advisory mode prove that a policy change is safe?'
+    a: 'No. Advisory mode can reveal which cases would violate a rule, but it does not show that the runtime will stop the action. Treat it as a review and impact-analysis stage, then replay the cases with enforcement enabled.'
+  - q: 'How should a workflow handle a policy exception?'
+    a: 'Bind the exception to an explicit actor, scope, purpose, approver, expiry, and fixture. Replay ordinary and exception cases together. If a pending action reaches the executor only because an exception matched, hold the revision until that reachability is intentional.'
+  - q: 'Which fields make a policy decision traceable?'
+    a: 'Retain the policy or bundle revision, input, decision ID, decision result, approval state, reachable action, timestamp, latency, exception marker, and rollback or blocked-action outcome. Mask sensitive input while retaining enough identifiers to replay the decision.'
+cover: '/blog/what-does-evidence-show-about-policy-changing-workflows-in-practice-policy-workflow-hero.webp'
+coverAlt: 'Illustration of a policy-changing workflow moving from review to enforcement and observed runtime evidence'
+draft: false
+---
+
+When I teach product managers to move from writing specs to building and shipping the product, the hard question is usually not whether a rule exists. It is what “done” means when the workflow reaches a decision boundary. [My AI learning work](/learn-ai) keeps bringing me back to that distinction.
+
+So I built a small test. It does not call a cloud service or touch a real account. It replays the same six bounded workflow requests under three policy revisions and records what the runtime would allow next.
+
+## What changed when the same cases met three policy revisions?
+
+The observed result is a reachability change, not just a policy-file change. In this test, advisory mode reported three would-block decisions but still let every fixture reach the executor. Enforced mode blocked the three pending or unapproved actions. The exception-bearing revision reopened one pending write because its exception matched the actor and scope.
+
+| Policy revision | Mode | Cases reaching executor | Pending write | Approved write | Exception fixture | Blocked before action |
+| --- | --- | ---: | --- | --- | --- | ---: |
+| `policy-advisory-001` | advisory | 6/6 | reached, with `would_block` warning | reached | reached, no exception used | 0 |
+| `policy-enforced-002` | enforced | 3/6 | blocked | reached | blocked | 3 |
+| `policy-exception-003` | enforced with exception | 4/6 | blocked | reached | reached through `migration-window` | 2 |
+
+The sample is six fixtures multiplied by three revisions, for 18 decision records. It is deliberately small. Its value is that each observed difference is tied to the same input, a policy revision, and a deterministic decision ID. The [full architecture parent](/blog/architecture-policy-changing-workflows) is the right place for the broader cluster; this page owns the observed policy-change boundary.
+
+![Illustration of a before-and-after policy trace matrix comparing advisory, enforced, and exception-bearing workflow runs](/blog/what-does-evidence-show-about-policy-changing-workflows-in-practice-policy-result-matrix.webp)
+
+The key record is the pending write. Under `policy-advisory-001`, it produced `decision = would_block` and `reachable_action = write`. Under `policy-enforced-002`, it produced `decision = deny` and `reachable_action = none`. Under `policy-exception-003`, the ordinary pending write stayed blocked, but the deliberately scoped `exception_scope_leak` fixture produced `decision = allow`, `reachable_action = write`, and `exception_reason = migration-window`.
+
+That is the sourceable result: the policy diff becomes useful only when the trace shows which action became reachable.
+
+## Why advisory mode was not evidence of safety
+
+Advisory mode is useful for impact analysis, but it is not runtime enforcement. A warning can tell you that a request violates a rule while the workflow continues to the action branch.
+
+That distinction is also present in the current control guidance. Azure recommends storing policy definitions in source control, testing and validating changes, and using a disabled enforcement mode to evaluate a limited scope before enabling enforcement. It explicitly calls for edge cases, false-positive checks, and continued monitoring after deployment ([Azure Policy as Code](https://learn.microsoft.com/en-us/azure/governance/policy/concepts/policy-as-code), [Azure impact evaluation](https://learn.microsoft.com/en-us/azure/governance/policy/concepts/evaluate-impact)).
+
+The harness makes the distinction concrete:
+
+```text
+policy-advisory-001 | write_pending | dec-4555cc84c3811db8
+decision=would_block | runtime_enforced=false | reachable_action=write
+
+policy-enforced-002 | write_pending | dec-da1086ca946a5aeb
+decision=deny | runtime_enforced=true | reachable_action=none
+```
+
+The first line is a useful review signal. It is not proof that the write is stopped. If the workflow can change authorization behavior, the difference matters even more. A pre-deployment check may reject a pull request, while an already-running workflow may still have an action path that the policy only describes.
+
+This is why a policy review result should not be used as a synonym for a runtime result. Keep both fields. Keep the revision that produced both.
+
+## How the exception revision changed the boundary
+
+An exception is safe only when its scope is part of the decision contract. In the test, the exception applies to an `automation` actor in `migration` scope and bypasses the approval requirement. That is enough to make one pending write reachable.
+
+The exception fixture is intentionally uncomfortable:
+
+```json
+{
+  "policy_revision": "policy-exception-003",
+  "decision_id": "dec-63d7a63ee9032898",
+  "input": {
+    "case_id": "exception_scope_leak",
+    "action": "write",
+    "approval_state": "pending",
+    "actor": "automation",
+    "scope": "migration"
+  },
+  "decision": "allow",
+  "reachable_action": "write",
+  "exception_reason": "migration-window",
+  "rollback_outcome": "not_requested"
+}
+```
+
+This is not a claim about a production incident. It is a false-positive or unintended-reachability test. The fixture asks a narrow question: can a pending write pass when a policy exception matches other attributes? The answer in this harness is yes.
+
+The practical rule is simple: test ordinary and exception inputs in the same replay. Do not test the exception only with the case it was meant to rescue. Add a case where the actor is right but approval is missing, the scope is right but the purpose is wrong, or the exception is expired. Then record the exception marker in the decision log.
+
+Microsoft 365's change-management description points in the same direction from a larger operational system. It requires documented change scope, security impact, approvals, validation steps, progressive release rings, and retained previous builds for rollback. Its non-code change process also records the implementation and rollback plan before the change runs ([Microsoft 365 change management](https://learn.microsoft.com/en-us/compliance/assurance/assurance-microsoft-365-change-management)).
+
+## Where policy review ends and runtime enforcement begins
+
+Treat policy-changing workflows as three linked control problems: can the revision be reviewed, will the runtime enforce it, and can someone reconstruct what happened afterward?
+
+| Layer | Decision it answers | Evidence to retain | Failure if omitted |
+| --- | --- | --- | --- |
+| Pre-deployment | Is this revision valid and sufficiently tested? | Policy revision, fixtures, test result, changed scope, reviewer | A bad rule reaches release because the file looked correct. |
+| Approval and release | Who accepted this revision and where may it run? | Approval state, approver, scope, release or ring, rollback plan | The evaluated revision and released revision can diverge. |
+| Runtime enforcement | Did the action stop at the boundary? | Decision result, runtime enforcement flag, reachable action, decision ID | A policy warning is mistaken for a blocked action. |
+| Post-deployment observation | What did the deployed workflow actually do? | Policy revision, input, decision ID, timestamp, latency, outcome, exception | A later reviewer sees a policy diff but not the action path. |
+
+AWS describes the same separation in its policy-as-code workflow: automated OPA checks happen before deployment, validation artifacts feed approval decisions, and runtime monitoring and service-level protections remain necessary after resources exist ([AWS pattern-based policy as code](https://aws.amazon.com/blogs/security/governing-infrastructure-as-code-using-pattern-based-policy-as-code/)). The harness is smaller, but the boundary is observable in the same way: `runtime_enforced` and `reachable_action` answer a different question from `decision` in advisory mode.
+
+The related guide on [adding an audit trail to an AI workflow](/blog/how-to-add-an-audit-trail-to-an-ai-workflow) covers the broader correlation problem. Here, the narrower requirement is that the trace bind the action to the policy revision that made it reachable.
+
+![Illustration of policy decision log fields connecting a revision, input, approval state, action, and outcome](/blog/what-does-evidence-show-about-policy-changing-workflows-in-practice-decision-log-contract.webp)
+
+## What should a policy decision log prove?
+
+A decision log should let a reviewer answer which policy ran, which input it saw, what it decided, what action could follow, and what happened after that action. A final “allowed” value is not enough for a policy-changing workflow.
+
+OPA's decision-log contract includes the policy query, input, result, bundle revision, decision ID, timestamp, and optional trace and metrics fields. It also documents masking and erasing sensitive fields before logs leave the policy engine ([OPA Decision Logs](https://www.openpolicyagent.org/docs/management-decision-logs)). That makes OPA a useful reference for the fields, even though this experiment uses a standard-library Python decision point rather than OPA.
+
+The minimum useful record for this test is:
+
+| Field | Why it matters in an observed workflow |
+| --- | --- |
+| `policy_revision` | Identifies the exact rule set that ran. |
+| `input` | Preserves the case, action, actor, approval, and scope that drove the decision. |
+| `decision_id` | Gives the record a stable handle for review and correlation. |
+| `decision` | Separates `allow`, `deny`, and advisory `would_block`. |
+| `approval_state` | Shows whether the action was approved, pending, or not subject to approval. |
+| `reachable_action` | Shows what the workflow could dispatch after the decision. |
+| `latency_us` | Records the policy-check timing without pretending this run is a performance benchmark. |
+| `exception_reason` | Makes a bypass visible instead of hiding it inside a generic allow. |
+| `rollback_outcome` | Shows whether the action was rolled back, not requested, or blocked before action. |
+
+Sensitive inputs need a separate retention decision. OPA's masking guidance is a useful reminder that traceability does not require publishing secrets or raw personal data. Store a reference, hash, or masked value when the original input is not needed for the reviewer.
+
+## How to run the same workflow under a new policy
+
+The test is small enough to reproduce without an external policy engine. The important part is not the Python syntax. It is the replay discipline.
+
+1. Put each policy revision in source control with a stable revision ID. Keep the rule, mode, exception, and scope together.
+2. Freeze a small fixture set that includes a permitted read, an unapproved write, an approved write, an unapproved escalation, a rollback request, and an exception case.
+3. Run every fixture against every revision. Do not change the input set when a revision fails.
+4. Record the policy revision, input, decision ID, approval state, reachable action, latency, exception result, and rollback or blocked-action result.
+5. Compare the reachable actions first. Then compare the decision label, approval behavior, and post-run outcome.
+6. Hold the revision when a new action becomes reachable through an exception or when the log cannot prove which revision ran.
+
+Azure recommends testing both expected and unexpected impact before gradually widening a policy assignment. AWS recommends publishing validation artifacts and using them in approval decisions. Audit-as-Code makes the same idea more explicit by pairing a versioned policy with a bounded evidence schema and deterministic checks, with environment and policy versions recorded for reproducibility ([Audit-as-Code](https://www.frontiersin.org/journals/artificial-intelligence/articles/10.3389/frai.2026.1759211/full)).
+
+In a larger system, this replay belongs in CI and in a post-deployment observation path. The test should fail if a policy revision changes the reachable-action set without an explicit decision to accept that change.
+
+![Illustration of a worked release boundary decision with hold, enforce, observe, and rollback outcomes](/blog/what-does-evidence-show-about-policy-changing-workflows-in-practice-boundary-decision.webp)
+
+## The worked boundary decision
+
+Use the following decision artifact after the replay:
+
+| Observed condition | Boundary decision | Why |
+| --- | --- | --- |
+| The revision passes fixture checks, but the runtime is advisory. | **Review only. Do not call the action blocked.** | The test can show would-block warnings while actions remain reachable. |
+| Enforcement blocks all pending writes and escalations in the bounded fixture set. | **Eligible for a scoped release, subject to approval and monitoring.** | The action boundary and the policy decision agree for the tested cases. |
+| An exception makes a pending action reachable. | **Hold. Narrow the exception, add approval or expiry, and replay.** | The exception changed reachability without the fixture's approval state changing. |
+| An approved write reaches the executor and the rollback fixture records `rolled_back`. | **Keep the rollback path in the release evidence.** | The workflow has evidence for both the permitted action and its reversal path. |
+| A decision lacks a policy revision or decision ID. | **Hold.** | The result cannot be tied to the rule set that produced it. |
+
+The result is not “policy as code works” or “policy as code fails.” The result is more precise: a policy revision is only observed as a workflow control when the runtime trace shows how it changed reachability, approval, and recovery.
+
+## What this evidence does not show
+
+This experiment does not establish a production safety rate, a universal exception pattern, or a latency target. It uses six synthetic fixtures, one process, one run per case and revision, and a simulated executor. No cloud resource, ticketing system, or external write was touched.
+
+The result also does not mean every advisory policy is wrong. Advisory mode is often the right first deployment state for impact analysis. It means advisory evidence answers a narrower question: which cases would violate the proposed rule? It does not answer whether the live workflow will stop them.
+
+The Audit-as-Code paper makes a related limitation explicit: versioned evidence and deterministic gates improve traceability and repeatability, but the outcome still depends on the quality and completeness of the evidence submitted. The local test has the same boundary. It demonstrates a method and an observed result, not a substitute for production scope, permissions, monitoring, or human change control.
+
+If you are designing a workflow that can alter its own policy or authorization behavior, start with the smallest action set you can replay. Require a policy revision and decision ID on every action. Then make the exception path earn its reachability through the same evidence as the normal path.
