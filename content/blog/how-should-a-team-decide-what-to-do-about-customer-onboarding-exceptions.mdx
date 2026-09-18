@@ -1,0 +1,140 @@
+---
+title: "How Should a Team Decide Customer Onboarding Exceptions?"
+date: "2026-09-19"
+updated: "2026-09-19"
+excerpt: "Use a 12-case evidence matrix to choose continue, rework, alternate path, approval, or stop for customer onboarding exceptions."
+answer: "Treat the exception as a decision about evidence, authority, and customer impact, not an automatic escalation. Continue or request missing information when the normal path remains safe; rework or use an alternate path for recoverable failures; obtain approval for policy or risk ambiguity; and stop when identity, security, eligibility, payment risk, or ownership cannot be established."
+targetQuery: "how should a team decide what to do about customer onboarding exceptions"
+queryAliases:
+  - "customer onboarding exception decision matrix"
+  - "what to do with a customer onboarding exception"
+  - "should a customer onboarding exception be escalated"
+intent: "decision support"
+funnel: "consideration"
+cluster: "architecture"
+parent: "/blog/architecture-about-customer-onboarding-exceptions"
+contentType: "decision-tool"
+kind: "satellite"
+sourceableAtom: "A versioned 12-case synthetic B2B onboarding exception matrix maps each trigger to evidence, authority, outcome, stop condition, customer communication boundary, and final audit fields."
+evidenceType: "worked decision artifact with a reproducible labeled case set"
+evidenceBasis: "Frozen onboarding-exception-matrix.v1 with 12 synthetic sanitized cases, explicit rule references, a bounded B2B onboarding completion state, a reproducibility method, source links, and limitations. No observed rates or customer outcomes are claimed."
+tags:
+  - "Customer onboarding"
+  - "AI architecture"
+  - "Decision tools"
+  - "Operations"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://www.ibm.com/docs/en/pamoeskb/9.3.1?topic=caw-process-flow-1"
+  - "https://help.salesforce.com/s/articleView?id=ind.fsc_handle_exceptions_during_the_onboarding_process.htm&language=en_US&type=5"
+  - "https://help.salesforce.com/s/articleView?id=sf.fsc_admin_stage_management_customer_onboarding_example.htm&language=en_US&type=5"
+  - "https://learn.microsoft.com/en-us/partner-center/security/onboarding-new-customer-best-practices"
+  - "https://airc.nist.gov/airmf-resources/airmf/appendices/app-c-ai-risk-management-and-human-ai-interaction/"
+  - "https://www.omg.org/spec/BPMN/2.0.2/"
+faq:
+  - q: "Should every customer onboarding exception be escalated?"
+    a: "No. Continue only when the delayed dependency has no negative signal, an expiry, and a named owner. Request missing information or rework for incomplete or correctable cases. Escalate policy, risk, ownership, and customer-impact decisions. Stop when a hard gate or audit condition fails."
+  - q: "Can AI decide how to handle an onboarding exception?"
+    a: "AI can assemble evidence and recommend a matrix row. It can decide only when the team has written the rule, bounded the action, and named the authority. Identity, security, eligibility, financial risk, and customer-impact exceptions remain human-owned unless that explicit control exists."
+  - q: "What should be recorded after an onboarding exception decision?"
+    a: "Record the case ID, evidence references, rule or policy version, owner, decision authority, outcome, stop condition, decision time, customer communication reference, and any retry, expiry, or alternate-path identifiers. Preserve enough context for a second reviewer to reproduce the outcome."
+cover: "/blog/how-should-a-team-decide-what-to-do-about-customer-onboarding-exceptions-customer-onboarding-exceptions-hero.webp"
+coverAlt: "Illustration of a customer onboarding exception matrix connecting evidence, authority, recovery, and stop decisions"
+draft: false
+---
+
+I’ve seen teams use the word “exception” as if it already contained the answer. It doesn’t. An exception is a change in state that still needs an owner, evidence, and a legal next move.
+
+The [frozen decision matrix v1.0.0](#decision-matrix-v1-0-0) freezes that decision into 12 synthetic B2B onboarding cases. It’s designed to be copied into a workshop, sanitized against real cases, or used as the evidence contract for an AI assistant.
+
+![Illustration of a customer onboarding exception decision matrix with evidence, authority, and stop paths](/blog/how-should-a-team-decide-what-to-do-about-customer-onboarding-exceptions-customer-onboarding-exception-matrix.webp)
+
+## What is the decision a team is actually making?
+
+The decision is not “retry or escalate.” It is whether the normal path is still safe, whether the missing condition can be recovered, who has authority to change the path, and what must stop.
+
+For this article, the bounded B2B path runs from intake to an activated account:
+
+1. Collect the customer and legal-entity evidence.
+2. Verify identity and security controls.
+3. Complete financial-risk and eligibility checks.
+4. Provision the account.
+5. Communicate activation and close the audit record.
+
+IBM’s customer-onboarding example follows the same useful shape: fetch customer information, perform KYC, make a KYC decision, perform a credit check, evaluate eligibility, create the account, and publish the result. Its KYC rejection branch terminates the example workflow, which is a useful reminder that not every exception is recoverable. ([IBM workflow](https://www.ibm.com/docs/en/pamoeskb/9.3.1?topic=caw-process-flow-1))
+
+I call the observable completion state `activated_and_auditable`: identity is verified, security is passed, financial and eligibility checks are complete, the account exists, the customer has an approved activation message, and the decision record is closed. If a team can’t say what “done” means, it can’t safely automate the handoff. When I taught product managers who moved from writing specs to building and shipping, the recurring failure was that definition of done, not a measured onboarding result. That is the bounded judgment I’m carrying into this tool.
+
+## Which evidence and authority should control the outcome?
+
+Use the gates in this order: hard policy and identity stops, recoverability, customer impact, then ownership and communication. An AI system can assemble the packet and recommend a row, but a named authority owns any decision that changes risk, policy, or a customer promise.
+
+Salesforce models onboarding as stages with transition criteria. The next stage opens only after the current stage’s steps are complete. Its exception guidance also creates a Process Exception record, moves the instance to Fix Exceptions, and gives an admin a choice between restarting from the failed stage or finishing with errors. ([Salesforce stage management](https://help.salesforce.com/s/articleView?id=sf.fsc_admin_stage_management_customer_onboarding_example.htm&language=en_US&type=5), [Salesforce exception handling](https://help.salesforce.com/s/articleView?id=ind.fsc_handle_exceptions_during_the_onboarding_process.htm&language=en_US&type=5))
+
+That gives the matrix four operating rules:
+
+| Rule | Apply it when | Result |
+| --- | --- | --- |
+| Hard gate | Identity, MFA, eligibility, acceptable use, or payment-risk evidence fails | Stop, or request the missing control before activation. Never silently waive it. |
+| Recoverable defect | The evidence is incomplete, stale, or technically repairable | Request missing information or return for rework. Record the deadline and owner. |
+| Bounded delay | A dependency is late but has no negative signal | Continue only with an expiry, a named owner, and a review before expiry. |
+| Authority or impact | Policy is ambiguous, ownership is blank, or a customer promise will be missed | Escalate for approval. Pause side effects until authority is recorded. |
+
+Microsoft’s partner guidance is a cross-check, not a complete policy for every business. It recommends credential and background checks, MFA at sign-up, identity tracking, fraud detection, financial-strength checks, and a clear collections policy. It also says acceptable-use violations can lead to service suspension, including immediate suspension when necessary. ([Microsoft onboarding guidance](https://learn.microsoft.com/en-us/partner-center/security/onboarding-new-customer-best-practices))
+
+NIST makes the AI boundary explicit: human roles and responsibilities in decision making and oversight should be defined and differentiated. So let AI extract evidence IDs, compare timestamps, detect missing fields, and draft a recommendation. Do not let a model approve a policy exception, clear a fraud signal, waive MFA, or rewrite a customer promise unless the rule and authority are explicit. ([NIST AI RMF Appendix C](https://airc.nist.gov/airmf-resources/airmf/appendices/app-c-ai-risk-management-and-human-ai-interaction/))
+
+## What does the frozen 12-case matrix decide?
+
+Use the first matching row, apply its stop condition, and record every field in the final audit column. All 12 cases are synthetic and sanitized. They are fixtures for review, not customer observations, rates, or proof that one outcome is more common than another.
+
+### Decision matrix v1.0.0
+
+| ID and class | Normal path and exception trigger | Evidence to inspect | Decision authority and outcome | Stop condition | Customer communication boundary | Final audit fields |
+| --- | --- | --- | --- | --- | --- | --- |
+| **OX-01, missing evidence** | All legal-entity and owner evidence is present. Owner document is absent. | Intake checklist, document IDs, timestamps, entity record. | Onboarding operations owner. **Request missing information.** | Evidence expiry or identity contradiction. | Ask only for the missing document and due date. Do not state a risk conclusion. | Case ID, evidence IDs, requested and due times, owner, decision, reason code, message ID. |
+| **OX-02, missing evidence** | Identity evidence is current, readable, and matched. ID is expired or unreadable. | Document metadata, expiry, quality check, name match. | Identity verification owner. **Return for rework.** | No valid replacement by review deadline. | Ask for a clear current document. Do not expose internal confidence scores. | Case ID, document hash, check version, request time, deadline, owner, decision, reason code. |
+| **OX-03, overdue dependency** | Address verification returns before the next stage. Provider is late with no rejection, mismatch, or risk signal. | Provider status, last poll, response code, negative-signal flag, expiry. | Onboarding operations owner under the bounded-delay rule. **Continue.** | Recorded expiry or any failed or contradictory result. | Say verification is in progress and preserve the expected window. | Case ID, provider request ID, last check, expiry, owner, decision, negative signal, next review. |
+| **OX-04, overdue dependency** | Customer supplies tax or billing evidence before financial review. Form is still missing after reminder. | Requested field, reminder history, response, account state. | Customer onboarding owner. **Request missing information.** | Pause at due date; stop after final policy deadline. | State what is missing, why activation is paused, and the next due date. | Case ID, missing field, reminder IDs, due and final deadline, owner, decision, message ID. |
+| **OX-05, policy or eligibility failure** | Eligibility returns an allowed use case. Declared use case matches a hard disallowed rule. | Policy version, use case, matched rule, review evidence, customer record. | Policy or compliance authority. **Stop.** | Immediately when the hard rule matches or review confirms it. | Communicate the service decision and permitted appeal or alternate service. Do not reveal detection logic. | Case ID, policy version, rule ID, authority, decision time, stop reason, message ID. |
+| **OX-06, policy ambiguity** | Eligibility returns allowed or disallowed. Jurisdiction or category is outside rule coverage. | Jurisdiction, rule coverage, entity type, policy version, prior approval. | Policy owner with compliance approval. **Escalate for approval.** | No activation until allow, deny, or alternate path is recorded. | Say specialist review is required and give the next update point. Do not promise approval. | Case ID, rule version, ambiguity code, evidence IDs, approver, decision, time, update time. |
+| **OX-07, security gate** | MFA and tenant baseline are recorded. MFA is absent or baseline is unverifiable. | MFA enrollment, tenant settings, identity record, sign-up event. | Security owner or onboarding owner under an explicit control. **Request missing information.** | No activation if control remains absent at security deadline. | Ask the customer to enable the control and explain the activation dependency. | Case ID, tenant hash, control ID, observation time, deadline, owner, decision, evidence reference. |
+| **OX-08, financial risk** | Payment and fraud checks pass. Payment is a disallowed prepaid instrument or returns a review signal. | Payment type, fraud result, authorization, financial review, collections policy. | Risk or finance authority. **Use an alternate path.** | No approved instrument or risk disposition. | Request an approved method or explain payment review. Do not label the customer fraudulent. | Case ID, payment class, signal code, risk owner, alternate path, decision, time, message ID. |
+| **OX-09, technical failure** | Provisioning creates one account and returns a durable ID. Timeout leaves commit state unknown. | Idempotency key, provider request, account lookup, response, retries. | Technical owner with operations informed. **Return for rework.** | No retry until commit state is known; stop after retry or reconciliation budget. | Say activation is delayed while account state is checked. Do not claim success. | Case ID, idempotency key, provider request ID, lookup result, attempt, owner, decision, reconciliation time. |
+| **OX-10, technical failure with customer impact** | Account and activation notice complete. Account exists but welcome event fails. | Account ID, event ID, delivery status, template version, contact. | Onboarding operations owner. **Use an alternate path.** | Stop automated retries after budget; use verified manual notice or escalate. | Confirm account state only after lookup, then send approved alternate instructions. | Case ID, account ID, event ID, template version, attempts, channel, owner, sent time. |
+| **OX-11, customer-impacting delay** | Each stage has an owner and update before the activation window. Internal dependency will miss it. | Stage timestamps, promise window, dependency, impact, owner roster. | Onboarding lead and service owner. **Escalate for approval.** | Pause activation or promise changes until an accountable owner decides. | Give current state, impact to the window, and next update time. Do not assign internal blame. | Case ID, stage, promise window, impact, accountable owner, approver, decision, next update. |
+| **OX-12, ambiguous ownership** | Each stage and exception has one owner and authority. Owners disagree or are blank. | Stage definition, exception record, ownership map, last transition, pending action. | Operations leader assigns owner; gated work stays with policy or risk authority. **Escalate for approval.** | Stop all side effects until owner and authority are recorded. | Acknowledge delay and give the next update owner. Do not ask the customer to coordinate internally. | Case ID, stage, prior owners, assigned owner, authority, assignment time, decision, update time. |
+
+The matrix’s six outcomes are deliberately small. They correspond to different evidence states, not different tones for the same escalation:
+
+- **Continue** means a bounded dependency is late but still safe under a recorded expiry.
+- **Request missing information** means the customer or system must supply a required condition.
+- **Return for rework** means the input or failed step can be corrected without changing the policy.
+- **Use an alternate path** means the same gate and audit result can be completed through a different approved route.
+- **Escalate for approval** means a named authority must decide policy, risk, ownership, or customer impact.
+- **Stop** means a hard gate, deadline, or audit condition prevents safe continuation.
+
+The version matters. If a policy, payment control, identity provider, or stage owner changes, create a new matrix version and replay the cases. BPMN 2.0.2 is useful here as a shared process notation reference, but the decision table remains the operating artifact because it exposes evidence and authority, not just flow shapes. ([OMG BPMN 2.0.2](https://www.omg.org/spec/BPMN/2.0.2/))
+
+## How should a team use this matrix before automating it?
+
+Start with 12 real or sanitized exceptions, then ask two reviewers to classify each without seeing the other reviewer’s decision. Preserve disagreements. They reveal missing rules or ownership, not merely reviewer error.
+
+1. Copy the v1 fields into a controlled worksheet. Keep customer identifiers out of the training or test fixture.
+2. Replace the synthetic trigger with a sanitized case while preserving the evidence shape, authority, and stop condition.
+3. Record the rule or team judgment that justifies the outcome. If the team cannot name one, choose “escalate for approval” or “stop,” not an invented confidence threshold.
+4. Compare the two reviewer outcomes. Resolve disagreements by editing the rule, authority, evidence requirement, or customer boundary.
+5. Only then decide whether AI should assemble the packet, recommend a row, or do neither.
+
+This connects to [how to tell if a business process is ready for AI automation](/blog/how-to-tell-if-a-business-process-is-ready-for-ai-automation): exception ownership and a definition of done are readiness artifacts. The assigned canonical parent is [architecture for customer onboarding exceptions](/blog/architecture-about-customer-onboarding-exceptions). For the implementation side, [how to add an audit trail to an AI workflow](/blog/how-to-add-an-audit-trail-to-an-ai-workflow) shows why the final fields in this matrix need durable correlation and version data.
+
+## When should the team refuse to automate the decision?
+
+Refuse autonomous handling when the matrix has no named authority, the evidence is contradictory, the stop condition is not enforceable, or the customer impact cannot be bounded. An AI recommendation is not an approval record.
+
+The right first AI workflow is often read-only evidence assembly: collect the relevant document references, stage timestamps, policy version, provider response, prior decision, and missing field. The system can then show the matching synthetic case and ask the named owner to confirm, rework, use an alternate path, approve, or stop.
+
+If a team has not defined the completion state, owner, and stop rule, the answer is process repair. If it has those controls and the model only prepares a reviewable packet, a constrained pilot may be reasonable. Keep the matrix version beside the workflow version, and review both when a source or policy changes.
+
+The practical next step is simple: bring 12 sanitized onboarding exceptions to one review session and make every outcome explainable from a row. If two reviewers cannot reach the same decision, the process is not ready for an autonomous manager.
