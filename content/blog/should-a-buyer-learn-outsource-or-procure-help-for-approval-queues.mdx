@@ -1,0 +1,171 @@
+---
+title: 'Should a Buyer Learn, Outsource, or Procure Help for Approval Queues?'
+date: '2026-09-19'
+updated: '2026-09-19'
+excerpt: 'Use a five-case approval-queue test to choose internal learning, outsourced implementation, or managed procurement, with a veto for missing ownership.'
+answer: 'Choose based on what you can operate after launch: learn internally when an owner can configure, test, and maintain the queue; outsource implementation when integrations or risk controls exceed that team’s build capacity but keep ownership inside; procure a managed workflow only when its documented controls cover your cases. If nobody owns reviewer load, incidents, policy changes, and maintenance, stop. No buying path fixes that.'
+targetQuery: 'should a buyer learn, outsource, or procure help for approval queues'
+queryAliases:
+  - 'what to include in an approval queue implementation contract'
+  - 'how to verify timeout escalation before buying approval software'
+  - 'how to test an approval queue before procurement'
+intent: 'commercial decision'
+funnel: 'consideration'
+cluster: 'opportunity'
+parent: '/blog/opportunity-approval-queues'
+contentType: 'commercial-decision'
+kind: 'satellite'
+sourceableAtom: 'A five-case approval-queue worksheet scored managed procurement 5/10 on supplied public documentation, while learning internally and outsourced implementation reached 10/10 only with an internal owner, maintenance budget, and explicit acceptance tests.'
+evidenceType: 'reproducible approval-queue decision test plus a worked decision artifact'
+evidenceBasis: 'A documentation-backed desk test on one fully documented SaaS operations change and access queue, with five raw cases, a 12-field comparison worksheet, explicit owner and maintenance assumptions, and primary-source verification of the supported controls and limits.'
+tags:
+  - 'AI strategy'
+  - 'Buying AI services'
+  - 'AI workflow'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-22'
+sources:
+  - 'https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec04-bp02.html'
+  - 'https://learn.microsoft.com/en-us/connectors/advancedapprovals/'
+  - 'https://github.com/microsoft/agent-governance-toolkit/blob/main/docs/tutorials/38-approval-workflows.md'
+  - 'https://airc.nist.gov/airmf-resources/playbook/manage/'
+  - 'https://openai.com/business/workspace-agents/'
+faq:
+  - q: 'Can we procure an approval workflow without an internal owner?'
+    a: 'No. A vendor can provide software or implementation help, but someone inside still needs to own risk tiers, reviewer load, incidents, policy changes, maintenance, and retirement. If that role cannot be named and funded, stop or narrow the queue.'
+  - q: 'What should an outsourced approval-queue implementation hand over?'
+    a: 'Require the queue schema, policy rules, permissions, integration map, five raw cases, decision logs, timeout and escalation behavior, runbook, export procedure, maintenance calendar, and a live session in which the internal owner changes and reruns the policy.'
+  - q: 'When is a managed approval workflow the right purchase?'
+    a: 'Buy it when its public or contract documentation verifies your risk tiers, context fields, reviewer permissions, rejection behavior, timeout and escalation, audit records, limits, and export path. A connector that only proves human input is not yet proof that it can operate your queue.'
+cover: '/blog/should-a-buyer-learn-outsource-or-procure-help-for-approval-queues-approval-queue-decision-hero.webp'
+coverAlt: 'Illustration of a buyer comparing internal learning, outsourced implementation, and managed approval workflow procurement'
+draft: false
+---
+
+An approval queue can look like a small feature until someone asks who owns the policy when the reviewer is unavailable. Then the purchase splits into three different jobs: learning to operate the queue, buying a managed workflow, or paying someone to implement it.
+
+The decision is not about who can make the demo. It is about who can keep risk tiers, reviewer context, failures, and maintenance under control after the demo ends.
+
+## The five-case result
+
+For a fully documented SaaS operations change and access queue, outsourced implementation was the selected route when the buyer could name an internal owner but lacked the time or integration skill to configure the queue. Learning internally also passed. A managed workflow alone did not.
+
+This is the sourceable artifact: a documentation-backed desk test, run on 2026-08-24, using five cases and the same score for every path.
+
+| Path | Five-case score | What the test found | Decision |
+| --- | ---: | --- | --- |
+| Learn and configure internally | 10/10 | Every required behavior can be designed and tested, but integration and maintenance stay inside | Choose if the owner has build capacity |
+| Procure a managed workflow | 5/10 | Approval and rejection are documented, but auto-approval, timeout, and escalation are not verified in the supplied product pages | Do not buy it as the whole answer |
+| Outsource implementation, retain ownership | 10/10 conditional | Every case is supportable when the contract turns the controls and handoff into acceptance tests | Selected for this fixture if the owner and budget exist |
+
+The score is a worksheet result, not a market benchmark. `2` means the supplied primary documentation explicitly supports the behavior. `1` means the behavior is conditional or needs another policy layer. `0` means it is not documented for that path.
+
+The exception is decisive: if nobody inside the company owns reviewer load, incidents, policy changes, and maintenance, every path returns **stop**.
+
+## What did the queue need to do?
+
+The queue handled requests to read, change, export, or delete data and configuration. The required record was:
+
+| Field group | Required fields |
+| --- | --- |
+| Request | ID, requester, team, action, target, scope, justification, evidence links |
+| Risk | Data classification, risk tier, policy version, required approvers |
+| Timing | Requested, timeout, decided, and escalated timestamps |
+| Decision | Auto-approved, approved, held, escalated, or rejected; identity and reason |
+| Execution | Downstream execution reference and whether a side effect occurred |
+
+The policy used four tiers:
+
+- **R0:** read-only work on an allowlisted staging resource. Auto-approval is allowed only when context is complete.
+- **R1:** reversible non-production write. One named reviewer.
+- **R2:** restricted-data export or production write. Two named reviewers, durable context, timeout, and escalation.
+- **R3:** production deletion or prohibited external disclosure. Deny without relying on a reviewer.
+
+This is not an arbitrary safety overlay. AWS recommends deterministic risk classification, risk-tiered approval, meaningful reviewer context, timeout and escalation paths, and logs with reviewer identity and timestamps. [AWS Agentic AI Lens](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec04-bp02.html)
+
+## How did the five cases behave?
+
+The cases were designed to catch the failures a happy-path approval demo hides.
+
+| Case | Input | Required result | Learn | Procure | Outsource |
+| --- | --- | --- | ---: | ---: | ---: |
+| AQ-01 | Complete read-only report request against allowlisted staging data | Auto-approve without a reviewer | 2 | 0 | 2 |
+| AQ-02 | Restricted customer-data export to a named destination | Pause for two approvers with evidence context | 2 | 2 | 2 |
+| AQ-03 | Production write request missing target and data classification | Hold, ask for information, then revalidate | 2 | 1 | 2 |
+| AQ-04 | R2 request with no response before its two-hour deadline | Escalate to backup, record timeout, and block if unresolved | 2 | 0 | 2 |
+| AQ-05 | Production deletion request | Reject or deny with no side effect | 2 | 2 | 2 |
+
+Microsoft's Human in the loop connector documents human input, a multistage approval preview that waits for completion, cancelability, recipient identity formats, and case-sensitive Approve and Reject responses. It does not document the timeout and escalation behavior required by AQ-04 on the page checked. [Microsoft Human in the loop connector](https://learn.microsoft.com/en-us/connectors/advancedapprovals/)
+
+The Microsoft Agent Governance Toolkit tutorial shows the missing implementation behaviors: a `require_approval` policy, named approvers, a 300-second timeout, automatic denial when a handler times out or errors, a direct deny rule, and an audit log containing approver and reason. That makes it useful as an implementation acceptance reference, not as proof that an outsourced supplier will deliver those controls without a contract. [Microsoft Agent Governance Toolkit approval workflow](https://github.com/microsoft/agent-governance-toolkit/blob/main/docs/tutorials/38-approval-workflows.md)
+
+## When should the buyer learn internally?
+
+Learn and configure the queue internally when an Operations Systems Lead can own the schema, policy, integration boundary, evaluation cases, and monthly maintenance. The benefit is control: the team learns where the state lives and can change the queue without a supplier or a product roadmap.
+
+The cost is not a course or a few prompt examples. It is integration, permissions, reviewer experience, durable context, audit logging, escalation, test fixtures, and retirement. NIST says deployment decisions should weigh benefits, risks, alternatives, resources, assigned responsibilities, monitoring, and decommissioning. [NIST AI RMF Manage](https://airc.nist.gov/airmf-resources/playbook/manage/)
+
+Use the internal path when all of these are true:
+
+1. The owner can spend the assumed six hours per month on policy, cases, and incidents.
+2. The team can implement least-privilege permissions and keep the system of record outside the model conversation.
+3. The owner can run the five cases after every policy or integration change.
+4. A decision owner can stop or bypass the queue when risk exceeds tolerance.
+
+If the owner exists but the team cannot safely build the integrations, move to outsourced implementation. Do not move to procurement just to hide an ownership gap.
+
+## When does procuring a managed workflow make sense?
+
+Procure a managed workflow when its documentation and contract verify the controls your cases require. Human input, approval buttons, and an admin console are not enough. The queue also needs a risk policy, context, timeout behavior, audit records, permissions, limits, and an exit path.
+
+OpenAI's Workspace Agents overview lists permissions, approval checkpoints, audit logs, monitoring, and centralized administration. Those controls make the product category worth investigating. The page does not specify the timeout, escalation, or export details needed for this fixture, so those fields stay unverified until a buyer tests or contracts them. [OpenAI Workspace Agents](https://openai.com/business/workspace-agents/)
+
+The managed path can still be the right purchase for a lower-risk R0 or R1 queue. It loses this worksheet because the representative queue includes R2 timeouts, missing context, and an R3 denial rule. Buy it only after the vendor answers these questions with a working case:
+
+- Can incomplete context be held and revalidated without executing the action?
+- What happens when the primary reviewer does not respond?
+- Can the buyer export raw requests, decisions, identities, timestamps, reasons, policy versions, and execution references?
+- Can a buyer-controlled test set rerun after a vendor release?
+- Can the buyer retire the queue and preserve its audit record?
+
+## What must an outsourced implementation deliver?
+
+Outsource implementation when the queue needs integrations or controls the internal team cannot configure safely in the available time, but keep the operating decision inside the company. The purchase is an implementation plus capability transfer, not a black-box workflow.
+
+Put these acceptance items in the statement of work:
+
+1. Queue schema, risk tiers, policy versioning, and a clear system-of-record boundary.
+2. Least-privilege roles, approver identity mapping, and a documented credential boundary.
+3. Durable approval context with source links, proposed action, consequences, and policy version.
+4. The five raw cases, expected outcomes, observed outcomes, and a rerun command or procedure.
+5. Timeout, backup escalation, safe fallback, rejection, and no-side-effect checks.
+6. Decision logs with identity, timestamps, action, reason, escalation, and execution reference.
+7. A runbook, incident path, maintenance calendar, export procedure, and retirement plan.
+8. A live handoff where the internal owner changes a policy, reruns the cases, inspects a rejected trace, and exports the queue record.
+
+NIST treats third-party AI resources as a source of both efficiency and added complexity. It recommends documenting third-party components, testing and monitoring them, maintaining contingency processes, and decommissioning them when risk exceeds tolerance. [NIST AI RMF Manage](https://airc.nist.gov/airmf-resources/playbook/manage/)
+
+The toolkit's fail-safe examples show why these items belong in acceptance. A handler timeout or error auto-denies, and a direct deny rule bypasses the approval handler. A supplier that cannot show that behavior has not passed the queue test, even if the interface looks polished. [Microsoft Agent Governance Toolkit approval workflow](https://github.com/microsoft/agent-governance-toolkit/blob/main/docs/tutorials/38-approval-workflows.md)
+
+## The buyer worksheet and stop rule
+
+Use this compact decision rule after scoring the five cases.
+
+| Result | Buyer action |
+| --- | --- |
+| 8 to 10, owner and maintenance budget exist | Proceed with the path that has the lowest acceptable integration burden |
+| 5 to 7, owner and budget exist | Narrow the queue or add implementation help; do not call the path production-ready |
+| 0 to 4, or any R2/R3 behavior is unverified | Reject the path for this queue |
+| No internal owner or no maintenance budget | Stop. Reassign ownership before learning, procuring, or outsourcing |
+
+For this fixture, the recommendation is **outsource implementation with internal ownership retained**. Learn internally if the Operations Systems Lead can build the integrations and maintain the queue. Procure a managed workflow only for a narrower queue or after the vendor closes the missing evidence. Never outsource the operating decision.
+
+The assigned parent, [opportunity approval queues](/blog/opportunity-approval-queues), is the right place for the broader opportunity context. For the commercial mechanics of portability and exit, use [how to buy an AI pilot without platform lock-in](/blog/how-to-buy-an-ai-pilot-without-platform-lock-in). If you need help turning this worksheet into a team-owned implementation plan, [learn about Marius Manolachi's AI consulting and tutoring](/learn-ai).
+
+## Limits of this decision
+
+This comparison used public documentation and a fully documented fixture. It did not create a Microsoft tenant, deploy OpenAI Workspace Agents, run the toolkit in production, or test a supplier handoff. The 10/10 results for internal learning and outsourcing mean the required behaviors are implementable and contractible under the stated assumptions. They do not prove a live system will be correct.
+
+The Microsoft connector page says access requires authorization, so tenant-specific preview availability and limits still need verification. The OpenAI page is a product overview, not an export or timeout contract. The toolkit tutorial was last reviewed on 2026-04-23 and is implementation guidance, not a service guarantee.
+
+That is enough to make the first commercial decision. Name the owner, reserve the maintenance hours, run the five cases with the chosen path, and reject any proposal that cannot preserve the queue's decision record when the implementation or product changes.
