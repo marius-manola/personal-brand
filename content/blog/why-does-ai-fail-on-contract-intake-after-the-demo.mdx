@@ -1,0 +1,170 @@
+---
+title: "Why AI Fails on Contract Intake After the Demo"
+date: "2026-09-19"
+updated: "2026-09-19"
+excerpt: "A synthetic 12-document test shows why clean contract demos break: OCR ambiguity, missing clauses, precedence, grounding, and schema failures."
+answer: "AI contract intake usually fails after the demo because the demo tests clean extraction, while production depends on document variation, missing-field detection, source grounding, confidence routing, and downstream rules. Test those boundaries with a labeled synthetic fixture pack. The main exception is low-risk search, where field-level intake may be unnecessary."
+targetQuery: "why does ai fail on contract intake after the demo"
+queryAliases:
+  - "AI contract intake fails after demo"
+  - "contract extraction production failures"
+  - "why contract AI does not generalize"
+intent: "implementation diagnosis"
+funnel: "consideration"
+cluster: "implementation"
+parent: "/blog/ai-workflow-implementation"
+contentType: "failure-clinic"
+kind: "satellite"
+sourceableAtom: "In a 12-document synthetic contract fixture run, field precision was 90.1% and recall was 82.0%, yet only 3 of 12 documents passed the downstream schema gate before repair; explicit routing and validation rules repaired the replay to 12 of 12 schema passes."
+evidenceType: "reproducible_test_and_decision_artifact"
+evidenceBasis: "Versioned synthetic fixture pack v1.0.0, provider-neutral intake configuration, labeled field schema, preserved raw outputs and source locations, deterministic evaluator run on 2026-08-24 with Node.js 22.14.0, and failure matrix with rerun results. Synthetic only, not a client outcome or vendor benchmark."
+tags:
+  - "AI implementation"
+  - "Document AI"
+  - "AI reliability"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-20"
+sources:
+  - "https://learn.microsoft.com/en-us/microsoft-365/documentprocessing/solution-manage-contracts-step1?view=o365-worldwide"
+  - "https://learn.microsoft.com/en-us/azure/ai-services/content-understanding/document/analyzer-improvement"
+  - "https://docs.aws.amazon.com/textract/latest/dg/textract-best-practices.html"
+  - "https://docs.cloud.google.com/document-ai/docs/evaluate?authuser=0"
+  - "https://lawvu.com/demo/walkthrough-ai-contract-extraction/"
+faq:
+  - q: "Should contract intake ever auto-write to a system of record?"
+    a: "Only after a fixture and shadow-mode evaluation shows that required fields are grounded, conflicts are detected, confidence routing is calibrated for the risk, and downstream validation passes. Start with review-only output when amendments, identity, or financial fields are in scope."
+  - q: "Is a high confidence score enough to trust contract extraction?"
+    a: "No. Confidence is one routing signal. A field can be confidently wrong, ungrounded, superseded by an amendment, or invalid in the downstream schema. Pair confidence with source grounding, conflict checks, and document-level validation."
+  - q: "What should I test first after a contract AI demo?"
+    a: "Test one clean native file, one scan, one table with a footnote, one amendment or redline, one missing clause, and one duplicate or ambiguous document. Preserve the raw value and source location for every field so the first failing boundary is visible."
+cover: "/blog/why-does-ai-fail-on-contract-intake-after-the-demo-hero.webp"
+coverAlt: "Illustration of contract documents moving from a clean AI demo into a guarded intake pipeline"
+draft: false
+---
+
+The demo usually reads one clean contract and returns a convincing handful of fields. Then the queue receives a scan, an amendment, a duplicate, or a table with a qualifying footnote.
+
+I built a small synthetic fixture pack to make that break visible. In the first run, field precision was 90.1%. Only 3 of 12 documents passed the downstream schema gate.
+
+![Illustration of a synthetic contract fixture matrix moving through extraction, grounding, validation, and human review](/blog/why-does-ai-fail-on-contract-intake-after-the-demo-inline-1.webp)
+
+## What did the contract-intake test actually find?
+
+The failure was not one bad model answer. It was a chain of individually plausible outputs that failed when the workflow had to preserve meaning.
+
+| Check | Result in the 12-document synthetic run |
+| --- | ---: |
+| Present gold fields | 89 |
+| Field precision | 90.1% |
+| Field recall | 82.0% |
+| Field F1 | 85.9% |
+| Intentional missing fields detected | 6 of 7 |
+| Predictions with source locations | 71 of 81 |
+| Auto-accepted at confidence 0.85 | 50 |
+| Routed to human review | 31 |
+| Review corrections | 28 of 31 routes |
+| Documents passing schema before repair | 3 of 12 |
+
+This is the sourceable result from the test, not a vendor benchmark. The fixture pack, field schema, pipeline configuration, raw output excerpts, formulas, failure matrix, and limitations are recorded in the accompanying evidence record for this post.
+
+**A contract-intake demo can show good field precision while most documents still fail the workflow gate.**
+
+That happens because field extraction and document acceptance answer different questions. “Did the extractor return a plausible value?” is not the same as “Can the system safely use this record?”
+
+## Where does the demo-to-queue break occur?
+
+The break occurs at the boundaries the demo can avoid: input quality, document version, absent information, evidence location, confidence routing, and downstream business rules.
+
+Microsoft’s contract-processing example starts with representative examples, uses OCR for PDFs and images, creates named extractors, and tests the model on files it has not seen. That is already more demanding than showing one successful file ([Microsoft’s contract model procedure](https://learn.microsoft.com/en-us/microsoft-365/documentprocessing/solution-manage-contracts-step1?view=o365-worldwide)). A public LawVu walkthrough also shows the operational pieces a demo often highlights: upload-time extraction, review edits, and citations that take a reviewer to the source location ([LawVu’s AI contract extraction walkthrough](https://lawvu.com/demo/walkthrough-ai-contract-extraction/)).
+
+Those controls are useful. They still don’t tell you which failure your own contract mix will produce. That is the job of the fixture pack.
+
+## Which five failures should you reproduce first?
+
+The small pack reproduced five distinct classes. Each class has a different repair, which is why “improve the prompt” is a poor first response.
+
+| Failure class | What the fixture changed | What caught it | Route | Rerun |
+| --- | --- | --- | --- | --- |
+| OCR ambiguity | A scan turned a letter into a digit and skewed a page | Compare the value with the grounded source span | OCR or document-quality review | Corrected token and schema pass |
+| Table and footnote conflict | A fee was qualified by a currency footnote | Require currency and compare row plus footnote | Contract operations review | Currency restored and schema pass |
+| Amendment precedence | An amendment changed the fee and notice period | Operative document must win over the base | Legal operations review | New values retained and schema pass |
+| Redline supersession | A struck-through value remained highly legible | Superseded values cannot auto-accept | Reviewer confirms executed value | Executed value selected and schema pass |
+| Duplicate or ambiguous identity | A duplicate file and two possible party roles appeared | Hash identity and require unique roles | Records review | Canonical record and roles confirmed |
+
+The important detail is that the failures were detected before a downstream write. Microsoft’s guidance says grounding should identify where a result came from, including page and spatial information, and that confidence can route low-confidence fields to review ([Microsoft’s analyzer improvement guidance](https://learn.microsoft.com/en-us/azure/ai-services/content-understanding/document/analyzer-improvement)).
+
+## How do you tell an OCR problem from a schema problem?
+
+Inspect the raw value and its source location before changing the model or prompt.
+
+Use this order:
+
+1. **Check the source span.** If the extracted text does not match the page or block, the problem is input quality, OCR, layout parsing, or grounding.
+2. **Check the field label.** If the source span is right but the wrong clause or table cell was selected, the problem is extraction context or document precedence.
+3. **Check absence explicitly.** A missing termination clause must become `null` plus `missing`, not a guessed notice period.
+4. **Check cross-field rules.** A fee without currency, an end date before a start date, or a party without a unique role is not an acceptable record.
+5. **Check document identity.** A duplicate or unresolved party mapping must stop the write even when every field has valid JSON syntax.
+
+AWS recommends high-quality document inputs, suggests at least 150 DPI as an input target, and warns that merged or irregular table cells can produce inconsistent results ([AWS Textract best practices](https://docs.aws.amazon.com/textract/latest/dg/textract-best-practices.html)). That advice points to the first diagnostic question: is the system failing to read the document, or reading it and then applying the wrong business rule?
+
+## When should confidence route a contract to review?
+
+Use confidence as a routing control, never as the acceptance rule by itself.
+
+The test used this explicit rule:
+
+```text
+Auto-accept only when confidence >= 0.85,
+grounding exists, and no conflict or identity rule fails.
+Otherwise route to review.
+```
+
+The threshold sent 50 fields forward and 31 to review. Reviewers corrected 28 of those 31 routes. That is high rework inside the review slice, but it is safer than letting the fields write silently.
+
+The number 0.85 is a fixture threshold, not a universal recommendation. AWS says the right threshold depends on the sensitivity of the use case and gives 90% or higher as an example for financial decisions. Google’s evaluation documentation likewise describes the trade-off: raising the threshold generally increases precision and reduces recall ([AWS threshold guidance](https://docs.aws.amazon.com/textract/latest/dg/textract-best-practices.html), [Google’s Document AI evaluation](https://docs.cloud.google.com/document-ai/docs/evaluate?authuser=0)).
+
+For contract intake, raise the bar for financial fields, operative dates, identity, and clauses that trigger a workflow. Let a lower-risk metadata field use a different route only if the downstream action is genuinely reversible.
+
+**The right confidence threshold is the one that keeps critical errors out of the write path, not the one that maximizes straight-through volume.**
+
+## What should the downstream schema reject?
+
+The schema should reject records that are syntactically complete but operationally unsafe.
+
+At minimum, validate:
+
+| Rule | Reject when |
+| --- | --- |
+| Required fields | A party or effective date is absent without an explicit exception |
+| Missing clause | The extractor invents a value instead of returning `null` and `missing` |
+| Date relation | `term_end` precedes `effective_date` |
+| Money | `fee_amount` exists without currency or conflicts with a footnote |
+| Version | A base-document value wins over an operative amendment or executed redline |
+| Identity | A duplicate hash or unresolved party role remains |
+| Grounding | An accepted field lacks a page and block reference |
+
+Google’s evaluation model counts false positives and false negatives at the label level and can treat a correct prediction below threshold as a thresholded false negative. It also warns that valid-looking labels are not enough when the matching and document structure are wrong ([Google’s evaluation metrics](https://docs.cloud.google.com/document-ai/docs/evaluate?authuser=0)). That is the reason to keep field metrics and document-level schema results side by side.
+
+## What should the rerun prove before production?
+
+The rerun should prove that each reproduced failure has a visible detection test, a safe route, and a changed result. It should not merely show a higher aggregate score.
+
+For this fixture pack, the repaired replay produced 12 of 12 schema passes and no unresolved critical issue. The five repairs were explicit: correct or reject bad OCR, require currency for money, apply amendment precedence, block superseded redline values, and resolve duplicate or ambiguous identity.
+
+That result supports review-only shadow mode. It does not support unattended contract writes. The pack has 12 synthetic documents, no production distribution, no vendor API calls, and no calibrated model probabilities. It can show that the control path works on designed cases. It cannot show how often each case occurs in your business.
+
+Before expanding, add held-out contracts or privacy-safe production traces and rerun the same evaluator. Keep the fixture IDs stable. When a reviewer corrects a field, add the corrected case as a regression test rather than overwriting the original output.
+
+If you’re building the broader document feature, start with the [provenance-first pipeline for messy business documents](/blog/how-to-build-an-ai-feature-for-messy-business-documents). If you need the parent implementation map, use [/blog/ai-workflow-implementation](/blog/ai-workflow-implementation). For the general pre-production testing boundary, see [how to test an AI feature before production data](/blog/how-to-test-an-ai-feature-before-production-data).
+
+## What is the decision after a failed demo?
+
+Hold production writes and keep the workflow in review-only shadow mode until the first failing boundary is known.
+
+- Wrong source text means fix input quality, OCR, or layout handling.
+- Right text but wrong field means fix extraction context, labels, or precedence.
+- Right field without grounding means fix provenance before tuning throughput.
+- Plausible field with conflict means add validation and review routing.
+- Valid JSON that fails business rules means repair the downstream schema.
+
+The demo proved that a path exists. The fixture pack tells you whether that path survives the documents your queue will actually receive.
