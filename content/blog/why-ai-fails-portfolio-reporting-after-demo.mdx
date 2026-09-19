@@ -1,0 +1,176 @@
+---
+title: 'Why Does AI Fail on Portfolio Reporting After the Demo?'
+date: '2026-09-19'
+updated: '2026-09-19'
+excerpt: 'A clean demo tests model output. A recurring portfolio report tests freshness, KPI definitions, identity, ownership, monitoring, exceptions, and review.'
+answer: 'AI fails on portfolio reporting after the demo when the demo tests only a plausible narrative on clean data, while recurring reporting depends on fresh sources, stable KPI definitions, reconciled entity IDs, named ownership, monitoring, exception routing, and human review. Fix data when source contracts fail, fix workflow when controls fail, narrow scope when the task expands, and reject AI when the decision exceeds a reviewed draft.'
+targetQuery: 'Why does AI fail on portfolio reporting after the demo?'
+queryAliases:
+  - 'AI portfolio reporting failure after demo'
+  - 'portfolio reporting automation fails in production'
+  - 'portfolio reporting workflow demo versus recurring cycle'
+intent: 'informational / implementation diagnosis'
+funnel: 'consideration'
+cluster: 'implementation'
+parent: '/blog/ai-workflow-implementation'
+contentType: 'failure-clinic'
+kind: 'satellite'
+sourceableAtom: 'In a 13-case deterministic synthetic portfolio-reporting harness, all 13 model-output checks passed, but only 3 clean demo cases passed the recurring release gate: 4 required fixing data, 5 required fixing workflow, and 1 required rejecting AI for exceeding scope.'
+evidenceType: 'reproducible test plus worked diagnostic decision artifact'
+evidenceBasis: 'Executed synthetic dataset portfolio-reporting-synth-v1 with workflow gate reporting-gate-v1, prompt configuration portfolio-narrative-v1, 13 cases, raw outputs, validation results, failure taxonomy, and go/no-go decisions.'
+tags:
+  - 'AI implementation'
+  - 'Portfolio reporting'
+  - 'AI reliability'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-22'
+sources:
+  - 'https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence'
+  - 'https://airc.nist.gov/airmf-resources/airmf/5-sec-core/'
+  - 'https://www.gov.uk/guidance/planning-and-preparing-for-artificial-intelligence-implementation'
+  - 'https://www.gov.uk/government/publications/data-ethics-framework/data-and-ai-ethics-framework'
+  - 'https://www.gov.uk/guidance/managing-your-artificial-intelligence-project'
+cover: '/blog/why-ai-fails-portfolio-reporting-after-demo-portfolio-reporting-demo-hero.webp'
+coverAlt: 'Illustration of a portfolio reporting demo passing while recurring-cycle controls stop the report'
+draft: false
+---
+
+A portfolio report can look finished while its operating process is still missing. The model writes a clean narrative, the demo ends, and the first reporting cycle arrives with a stale timestamp or a renamed entity.
+
+I’ve taught product managers who moved from writing specs to building and shipping products and automating work around them. The recurring lesson is simple: “done” includes the checks and the owner, not just the visible output.
+
+The test below makes that lesson concrete.
+
+## The observed result: every model check passed, but 10 recurring cases stopped at the gate
+
+I ran a deterministic synthetic portfolio-reporting harness with 13 versioned cases. It produced a plausible output for every case. The recurring release gate allowed only the 3 clean demo cases to go.
+
+| Decision | Cases | Meaning |
+| --- | ---: | --- |
+| Go | 3 | Clean demo fixtures passed the defined controls. |
+| Fix data | 4 | Freshness, completeness, identity, or input shape was broken. |
+| Fix workflow | 5 | KPI version, exception routing, ownership, monitoring, or review was broken. |
+| Reject AI | 1 | The request exceeded a draft-reporting scope. |
+
+The synthetic data is not a client result or a population estimate. It is a replayable artifact for answering one narrower question: can a plausible report survive the conditions that appear after the demo?
+
+![Illustration of a portfolio reporting workflow moving from a clean demo fixture through data, workflow, review, and scope gates.](/blog/why-ai-fails-portfolio-reporting-after-demo-portfolio-reporting-control-gates.webp)
+
+The most useful case is R-01. Its output was identical to a clean demo: `on_track`, 4.0% revenue growth, 21.0% margin, and “Approve recurring report.” The model-output check passed. The recurring gate rejected it because the source was 16 days old and the freshness limit was 7 days.
+
+That is the post-demo failure in one line: a report can be linguistically correct and operationally inadmissible.
+
+## Why does a clean demo hide recurring reporting failures?
+
+A clean demo fixes the context. Recurring reporting changes the context around the model: source timestamps move, definitions get revised, identifiers drift, exceptions need routing, and someone must own the decision to distribute the report.
+
+This is consistent with the guidance I used to interpret the test. NIST describes AI risk management as iterative across the lifecycle, with governance, mapping, measurement, and management connected rather than completed once at launch. It also says systems should be tested before deployment and regularly while operating. See the [NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/).
+
+The [NIST Generative AI Profile](https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence) names confabulation and value-chain or component integration among risks that can be introduced or worsened by generative AI. In portfolio reporting, the integration problem may be mundane: the model receives a number without the source timestamp, or a narrative with no stable entity key. The prose can still sound confident.
+
+The demo therefore answers only one question: “Can this configuration produce a plausible report from this fixture?” It does not answer:
+
+- Is the source current enough for this cycle?
+- Does the input use the approved KPI definition?
+- Can the entity be reconciled across systems?
+- Is an exception still routed to a person?
+- Is there a named owner when the report is wrong?
+- Is someone monitoring the process after launch?
+- Is the requested action still a report, rather than a consequential decision?
+
+## What did the reproducible test actually check?
+
+The harness used two synthetic entities, three demo or recurring-cycle labels, one base fixture, one controlled defect per recurring case, and no random values or external calls. It deliberately used a deterministic model-output stub instead of a live LLM. That isolates workflow reliability from model variance.
+
+The configuration was versioned as follows:
+
+```json
+{
+  "datasetVersion": "portfolio-reporting-synth-v1",
+  "workflowVersion": "reporting-gate-v1",
+  "promptVersion": "portfolio-narrative-v1",
+  "expectedKpiDefinition": "kpi-v1",
+  "freshnessMaxDays": 7,
+  "reviewRequiredRisk": 2,
+  "aiScope": "draft_report"
+}
+```
+
+Each input contained an entity ID, as-of date, source update date, current and prior revenue, EBITDA margin, headcount, KPI definition version, narrative, exception count, owner, monitoring flag, exception-queue flag, review status, risk level, and requested scope.
+
+The output function calculated revenue growth, assigned `on_track` or `watch`, copied a short narrative summary, and returned either “Approve recurring report” or “Review exception queue before distribution.” The release gate then applied deterministic rules for:
+
+1. Required fields and types.
+2. Source freshness, with a seven-day maximum.
+3. KPI-definition version.
+4. Canonical entity reconciliation.
+5. Narrative shape.
+6. Exception queue presence when an exception exists.
+7. A named owner.
+8. Monitoring enabled.
+9. Human review for risk level 2 or any exception.
+10. AI scope limited to `draft_report`.
+
+The data rules follow the dimensions in [GOV.UK planning guidance](https://www.gov.uk/guidance/planning-and-preparing-for-artificial-intelligence-implementation), which include accuracy, completeness, uniqueness, timeliness, validity, relevance, sufficiency, and consistency. The [GOV.UK Data and AI Ethics Framework](https://www.gov.uk/government/publications/data-ethics-framework/data-and-ai-ethics-framework) also treats data quality as a lifecycle concern and names completeness, uniqueness, consistency, timeliness, validity, and accuracy.
+
+## Which defects are data failures and which are workflow failures?
+
+The raw cases separate the two. That distinction matters because prompt tuning cannot repair a missing owner or a broken entity join.
+
+| Case | Controlled defect | Validation failure | Correct action |
+| --- | --- | --- | --- |
+| R-01 | Source is 16 days old | Freshness | Fix data |
+| R-02 | `headcount` is missing | Required field | Fix data |
+| R-03 | Input uses `kpi-v2` while the workflow expects `kpi-v1` | KPI definition | Fix workflow |
+| R-04 | `ACME001` does not reconcile to a canonical ID | Entity reconciliation | Fix data |
+| R-05 | Narrative is an object, not a string | Narrative shape | Fix data |
+| R-06 | One exception exists but the exception queue is absent | Exception routing | Fix workflow |
+| R-07 | Owner is removed | Ownership | Fix workflow |
+| R-08 | Monitoring is disabled | Monitoring | Fix workflow |
+| R-09 | An exception report skips human review | Human review | Fix workflow |
+| R-10 | The request changes from drafting a report to recommending capital allocation | Scope | Reject AI |
+
+The rule is practical:
+
+> If the source cannot support the report, repair the data. If the process cannot govern the report, repair the workflow. If the requested action exceeds the tested boundary, narrow the task or reject AI.
+
+GOV.UK guidance names data owners, data stewards, data custodians, and AI asset owners as distinct accountability roles. Its project-management guidance also asks who owns the model, who maintains it, who can change it, how performance is monitored, who monitors it, and how often it is assessed. See [Managing your artificial intelligence project](https://www.gov.uk/guidance/managing-your-artificial-intelligence-project).
+
+That is why R-07 and R-08 are workflow failures even though the source values are valid. The report cannot be safely operated without ownership and monitoring.
+
+## What should the go or no-go decision be for the next cycle?
+
+Use the strictest failed rule. Do not average a fresh source against a missing review step, and do not let a good narrative cancel a failed reconciliation.
+
+| Gate result | Release decision | Repair before replay |
+| --- | --- | --- |
+| All rules pass, scope is `draft_report`, required review is complete | Go for the bounded next cycle | Keep the fixture and output for regression replay |
+| Freshness, completeness, identity, or narrative-shape rule fails | No-go, fix data | Repair the source, mapping, or input contract |
+| KPI version, exception route, owner, monitoring, or review rule fails | No-go, fix workflow | Restore the control, name its owner, and replay the case |
+| Request asks for a decision outside a human-reviewed draft | Reject AI for that step | Narrow to evidence assembly or keep the decision human-owned |
+| Same case fails again after repair | Hold expansion | Investigate the control itself, not only the latest record |
+
+The output should carry the failed rule and next action, not just a confidence score. A reviewer needs to know whether to call the data owner, the workflow owner, or the decision owner.
+
+## What should an implementation owner change before handover?
+
+Run the next cycle as a release rehearsal, not as another happy-path demo.
+
+1. Freeze the dataset and workflow versions. Record the as-of date, source update timestamps, KPI definition, entity map, prompt configuration, and reviewer policy.
+2. Replay the three clean demo cases. Keep them as regression fixtures, but do not treat them as production coverage.
+3. Inject one defect at a time. Start with stale data, missing fields, changed definitions, entity mismatches, and malformed narratives.
+4. Remove one control at a time. Test the exception queue, owner, monitoring, and human review independently.
+5. Inspect the raw output before reading the validation result. This shows whether the failure is visible in the prose or hidden behind a plausible report.
+6. Route every failure to one owner and one repair action. If the repair cannot be named, the workflow is not ready for recurring operation.
+7. Replay the repaired case and keep both the original output and the corrected output. That gives the next cycle a regression fixture.
+8. Reconfirm the AI boundary. Drafting a report is different from recommending capital allocation, changing a covenant status, or distributing an unreviewed exception.
+
+This turns the demo into a small operating system: input contract, output, validation, review, owner, and replay. The broader [AI workflow implementation guide](/blog/ai-workflow-implementation) is the right next read for the surrounding implementation work. If the first defect is in the input contract, use [How to Validate AI Agent Inputs Before a Run](/blog/how-to-validate-ai-agent-inputs-before-a-run) for the pre-run validation pattern.
+
+## What does this synthetic test not prove?
+
+It does not prove that a live model will behave this way, that the failure classes occur at these frequencies, or that a client portfolio would have the same fields and controls. It does not test latency, cost, connectors, permissions, duplicate submissions, or reviewer disagreement. It also does not show that every reporting workflow should use AI.
+
+It does show something narrower and useful: a model-output test can pass every case while a recurring release gate catches defects that the demo never exercised. The remedy is not always a better prompt. In this run, four cases needed data repair, five needed workflow repair, and one needed an AI scope boundary.
+
+That is the handover standard I would use: no recurring report goes out because the demo looked good. It goes out because the current data, controls, owner, monitoring, review, and scope all pass the replay.
