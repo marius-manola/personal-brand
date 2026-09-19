@@ -1,0 +1,145 @@
+---
+title: 'Why Does AI Fail on Research Synthesis After the Demo?'
+date: '2026-09-19'
+updated: '2026-09-19'
+excerpt: 'A fixed three-task source-packet test shows the first post-demo break can be task definition, attribution, or review, not writing quality.'
+answer: 'AI fails on research synthesis after the demo because a polished answer hides separate checks for question scope, source coverage, extraction, attribution, evidence ranking, and human acceptance. In my dated three-task reproduction, the first break was a wrong diagnosis of retrieval on a frozen packet, followed by an unqualified citation claim. The exception is bounded extraction from a fixed packet with claim-level checks and human sign-off.'
+targetQuery: 'Why does AI fail on research synthesis after the demo?'
+queryAliases:
+  - 'why does AI research synthesis fail after a demo'
+  - 'how to diagnose AI research synthesis failures'
+  - 'AI research synthesis citation failure'
+intent: 'diagnostic'
+funnel: 'consideration'
+cluster: 'implementation'
+parent: '/blog/ai-workflow-implementation'
+contentType: 'failure-clinic'
+kind: 'satellite'
+sourceableAtom: 'In a dated three-task reproduction using a frozen five-source packet, the first post-demo failure was a wrong retrieval diagnosis on a packet whose coverage was already fixed; the next failures were an unqualified citation-faithfulness claim and a human-review recommendation with no veto condition.'
+evidenceType: 'failure reproduction and worked decision artifact'
+evidenceBasis: 'A three-task, single-pass Codex GPT-5 run on 2026-08-24 used one frozen five-source packet, one fixed prompt, a claim-level scoring rubric, redacted raw excerpts, and a completed triage table recorded in research.md.'
+tags:
+  - 'AI implementation'
+  - 'Research synthesis'
+  - 'AI reliability'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-22'
+sources:
+  - 'https://www.jmir.org/2024/1/e53164/'
+  - 'https://doi.org/10.1007/s00421-025-06100-w'
+  - 'https://journals.sagepub.com/doi/full/10.1002/cl2.70074'
+  - 'https://www.cambridge.org/core/journals/research-synthesis-methods/article/generative-artificial-intelligence-use-in-evidence-synthesis-a-systematic-review/2DACF6D129AA6E46CB8A8740A03D0675'
+  - 'https://arxiv.org/abs/2607.20527'
+cover: '/blog/why-does-ai-fail-on-research-synthesis-after-the-demo-research-synthesis-demo-hero.webp'
+coverAlt: 'Illustration of a research synthesis demo passing a polished answer while source checks stop the release'
+draft: false
+---
+
+A research demo can produce a clean answer before it produces a trustworthy synthesis. That gap is easy to miss when the only test is whether the final paragraph sounds informed.
+
+I ran three bounded tasks through one fixed workflow on one fixed source packet. The first failure was not bad prose. It was a bad diagnosis of the workflow itself.
+
+## What did the failure reproduction show?
+
+The demo-to-decision break appeared when the model treated research synthesis as one task instead of a chain of separate checks.
+
+| Task | Source coverage | Citation faithfulness | Evidence ranking | Synthesis accuracy | First failure |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Scope the workflow | 4/5 | 5/6 claims | 1/2 | 1/2 | Task definition and review boundary |
+| Extract one claim per source | 5/5 | 6/8 claims | 2/2 | 1/2 | Qualifier extraction, then attribution |
+| Choose the next implementation fix | 4/5 | 4/6 claims | 0/2 | 1/2 | Retrieval diagnosis on a fixed packet |
+
+The most useful failure was the decision-task recommendation: “The first fix is better retrieval.” That could not be the first fix under the test conditions. The packet was frozen, complete for the task, and already in the model's context. The output imported a general research risk into a test that was meant to isolate synthesis.
+
+The next failure was quieter. The extraction task wrote, “Recent evaluations show citation faithfulness between 3% and 18%.” The cited preprint reports unsupported-citation rates that changed with verifier strictness. It does not report a universal faithfulness range. The number was present. The qualification was gone.
+
+The result is a diagnostic artifact, not a benchmark. Three tasks and one pass cannot estimate how often a model fails. They can show whether your release conversation is asking the wrong question.
+
+![Illustration of a research synthesis workflow split into question definition, retrieval, extraction, attribution, ranking, synthesis, and human review](/blog/why-does-ai-fail-on-research-synthesis-after-the-demo-research-synthesis-triage-table.webp)
+
+When I taught product managers who went from writing specs to building and shipping products, the recurring problem was an undefined “done,” not the model. Research synthesis has the same dependency. If done means “a fluent answer with citations,” the workflow can pass while the evidence remains unexamined.
+
+## How was the test run?
+
+The test used one frozen five-source packet, one fixed prompt, and three tasks. It did not browse during synthesis or allow a follow-up repair.
+
+The packet contained a 2024 JMIR study of reference retrieval, a 2025 expert review of a Gemini-generated scoping review, the 2025 RAISE position statement, a 2025 systematic review of GenAI in evidence synthesis, and a July 2026 preprint on citation-verifier reliability. The full packet, access dates, and frozen input notes are recorded with this article's evidence artifact.
+
+The model received this instruction for every task:
+
+```text
+You are a research-synthesis assistant. Use only the five source records in PACKET.
+Do not browse, infer missing facts, or treat a source's recommendation as an observed
+measurement. For every material claim, cite one or more source IDs. Preserve qualifiers,
+study type, sample or scope, and uncertainty. Separate task definition, retrieval,
+extraction, attribution, evidence ranking, synthesis, and human review. If the packet
+does not support a claim, write "not supported by packet". Return the requested artifact
+and a short release recommendation. Do not make the recommendation sound stronger than
+the evidence.
+```
+
+The tasks were deliberately different:
+
+1. Decide whether the packet supports using GenAI as the primary autonomous researcher for an evidence synthesis. State the boundary, exception, and acceptance condition.
+2. Extract one claim from each source, preserving the metric, qualifier, evidence type, and source ID.
+3. Recommend the next diagnostic for an operations owner with a working research demo. Choose among task definition, retrieval, extraction, attribution, and human review.
+
+The scoring rule was claim-level. A citation passed only when it supported the sentence as written. A result passed evidence ranking only when it separated peer-reviewed observations, a consensus position, and a current preprint. “Add human oversight” received no review credit unless the output named the reviewer action, veto, and acceptance artifact.
+
+## Why can a complete source packet still produce a bad recommendation?
+
+Because source availability and source use are different checks. Retrieval answers “did the needed source enter the context?” It does not answer “did the model extract the right claim, preserve the qualifier, rank the evidence, and state a conclusion that the sources support?”
+
+The Cambridge systematic review makes this separation visible. Across 19 included studies, reported errors differed by task: searching missed 68% to 96% of studies, with a median of 91%; incorrect data extractions ranged from 4% to 31%, with a median of 14%; and risk-of-bias errors ranged from 10% to 56%. The authors concluded that current evidence does not support evidence synthesis without human involvement or oversight and recommended against GenAI use for searching ([Cambridge systematic review](https://www.cambridge.org/core/journals/research-synthesis-methods/article/generative-artificial-intelligence-use-in-evidence-synthesis-a-systematic-review/2DACF6D129AA6E46CB8A8740A03D0675)).
+
+That baseline does not mean every workflow has a retrieval problem. It means you need a test that can tell retrieval apart from the later stages. In my run, the packet removed retrieval as the immediate cause. The model still reached for it because “research synthesis” was underspecified.
+
+The older JMIR study shows the same danger from another angle. Across 11 systematic reviews and 471 analyzed references, GPT-4 had 13.4% precision, 13.7% recall, and a 28.6% hallucination rate under that study's reference-retrieval setup ([JMIR study](https://www.jmir.org/2024/1/e53164/)). Those figures are not a prediction for this workflow. They are a reason to keep source coverage and citation checks separate rather than calling a cited answer researched.
+
+## Which stage failed first?
+
+Use the first invalid artifact, not the most visible bad sentence, to classify the failure.
+
+| Stage | What must be true | Failure signal | Next test | Release action |
+| --- | --- | --- | --- | --- |
+| Task definition | The question, scope, exclusions, and acceptance condition are explicit | The model gives a broad “AI can assist” answer without a stop condition | Ask for a typed task record before synthesis | Hold until the owner accepts the boundary |
+| Retrieval | Every needed source is present, current, and allowed | A required source is absent, stale, or outside the packet | Re-run with source IDs and a coverage assertion | Fix search or retrieval configuration |
+| Extraction | The source fact, metric, scope, and qualifier are preserved | “Unsupported rate” becomes “faithfulness rate,” or a study result loses its unit | Compare each extracted field with the source record | Fix the extraction schema and keep the failed claim |
+| Attribution | The citation supports the claim as worded | A real source is attached to a broader or different claim | Run claim-to-source entailment checks | Block every unsupported critical claim |
+| Human review | A person has a defined acceptance decision and veto | The output says “review” but names no reviewer, stop rule, or artifact | Require a signed review record for critical claims | Hold until the review record is complete |
+
+The Springer expert review is a useful reminder that a polished manuscript can fail before the writing stage. Reviewers found that a Gemini 2.5 Pro Deep Research scoping review failed to identify specific research questions, follow established methods, implement a trustworthy search, objectively synthesize data, and hierarchize evidence. They also described inaccurate references and an 84% open-access bias in the references ([Springer expert review](https://doi.org/10.1007/s00421-025-06100-w)). The paper is one expert-reviewed manuscript, not a failure rate for all models. Its value here is the stage map.
+
+## Why is citation presence not citation faithfulness?
+
+A citation can be real and still fail to support the sentence. Check the claim and its qualifier together.
+
+The current preprint in the packet reports that identical agent outputs produced unsupported-citation rates of about 3% to 18% depending on verifier strictness. It also reports negative-specific agreement of 0.27 to 0.30 between verifiers. The practical lesson is not that every synthesis has an 18% error rate. It is that a citation checker needs a named verifier, protocol, and calibration target ([Goo et al.](https://arxiv.org/abs/2607.20527)).
+
+That is exactly where the extraction task failed. The model copied the range but changed the thing being measured. A human reviewer checking only whether the URL existed would miss it. A claim-to-source check that asks “does this source support the metric and its qualifier?” would catch it.
+
+The RAISE position statement gives the workflow a clear responsibility boundary. Cochrane, the Campbell Collaboration, JBI, and the Collaboration for Environmental Evidence state that authors remain responsible for the synthesis, AI use should have human oversight, and uses that make or suggest judgments should be transparently reported ([RAISE position statement](https://journals.sagepub.com/doi/full/10.1002/cl2.70074)). That is not a request to add a human at the end as decoration. It is a requirement to make the judgment path inspectable.
+
+## What should you change after the demo?
+
+Change the first broken stage, then rerun the same packet. Do not jump to a larger model or a longer prompt while the failure class is still unclear.
+
+1. **Freeze the packet and task.** Save source IDs, versions or access dates, allowed inputs, exclusions, and the acceptance condition. If the model cannot state the question and stop rule, repair task definition first.
+2. **Test retrieval separately.** Record which sources were available before synthesis. If the packet is complete, mark retrieval as passed for this test and inspect extraction or attribution instead.
+3. **Extract into fields before prose.** Require claim, metric, qualifier, scope, study type, source ID, and “not supported” where appropriate.
+4. **Check attribution at the sentence level.** A valid URL is not enough. Verify that the source entails the claim and that the claim has not become broader than the evidence.
+5. **Rank evidence explicitly.** Separate observed study results, expert review, consensus guidance, and preprint findings. Do not let a recommendation masquerade as a measurement.
+6. **Add human review as an artifact.** Name the reviewer, the critical claims, the veto conditions, and the release decision. “Human oversight” without those fields is an aspiration, not a gate.
+7. **Keep the failing case.** Add the raw output, claim check, and repair decision to a versioned regression set. The guide to [building an evaluation dataset from production traces](/blog/how-to-build-an-evaluation-dataset-from-production-traces) covers the boundary between a trace and a verified regression case.
+
+For the larger implementation decision, use this page alongside the [AI workflow implementation parent](/blog/ai-workflow-implementation) and [AI agent evaluation release gate](/blog/how-to-evaluate-an-ai-agent). The pages solve different jobs. This failure clinic isolates the research-synthesis break. The release gate decides what evidence is enough to expose a broader workflow.
+
+## When is a research-synthesis demo useful enough to continue?
+
+Continue when the task is bounded, the packet is fixed or retrieval is independently measured, every critical claim has a source check, evidence classes are visible, and a named reviewer can veto the conclusion. A demo is useful as a workflow component under those conditions.
+
+Do not treat the demo as evidence that the system can autonomously search, select, extract, rank, and synthesize a body of research. The evidence baseline does not support that leap, and the small reproduction above shows how quickly a model can misclassify the next fix even when all sources are already present.
+
+The exception is a low-consequence, bounded task such as extracting a defined field from a fixed packet for later human use. Even there, preserve the source pointer and the uncertainty. If the output will drive a policy, purchase, clinical, legal, funding, or other consequential decision, keep the human decision boundary explicit.
+
+The next step is small: bring one impressive demo output, freeze its source packet, and fill the triage table. If you cannot name the first invalid artifact, you do not yet know what to fix.
