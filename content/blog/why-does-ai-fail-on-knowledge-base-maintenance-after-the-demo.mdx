@@ -1,0 +1,197 @@
+---
+title: 'Why Does AI Fail on Knowledge-Base Maintenance After the Demo?'
+date: '2026-09-19'
+updated: '2026-09-19'
+excerpt: 'A dated 12-query fixture shows how stale indexes and conflicting revisions break answers after a knowledge-base update, and when to hold release.'
+answer: 'AI fails on knowledge-base maintenance after the demo when the source changes but the index, version metadata, or regression set does not. Treat maintenance as a release gate: identify the source of truth, refresh or filter the index, and rerun fixed queries with citations. Freshness ranking can help, but it is not a hard filter when only the current revision is allowed.'
+targetQuery: 'why does ai fail on knowledge-base maintenance after the demo'
+queryAliases:
+  - 'AI knowledge base stale after update'
+  - 'how to test a knowledge-base update after launch'
+  - 'why does a RAG answer stay stale after a document update'
+  - 'how to verify a knowledge-base change after launch'
+intent: 'diagnostic implementation'
+funnel: 'consideration'
+cluster: 'implementation'
+parent: '/blog/ai-workflow-implementation'
+contentType: 'failure-clinic'
+kind: 'satellite'
+sourceableAtom: 'In a dated 12-query fixture, the pre-update control passed 12/12, a stale post-update index passed 0/12, an unfiltered index containing v1 and v2 passed 0/12, and freshness ranking or a current-version metadata filter passed 12/12.'
+evidenceType: 'reproducible failure reproduction plus a worked maintenance decision artifact'
+evidenceBasis: 'A deterministic fixture was run on 2026-08-24 with an archived v0, superseded v1, current v2, 12 fixed queries, top-k 1 lexical retrieval, no external embedding model, one run per condition, saved traces and answer citations, and a passing 12-query regression check.'
+tags:
+  - 'AI implementation'
+  - 'AI reliability'
+  - 'RAG'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-22'
+sources:
+  - 'https://learn.microsoft.com/en-us/azure/search/agentic-retrieval-how-to-configure-freshness'
+  - 'https://docs.aws.amazon.com/en_en/bedrock/latest/userguide/knowledge-base.html'
+  - 'https://arxiv.org/abs/2410.12812'
+  - 'https://arxiv.org/abs/2604.05096'
+  - 'https://mariusmanolachi.com/learn-ai'
+faq:
+  - q: 'Should I use freshness ranking or a version filter?'
+    a: 'Use freshness ranking when newer content should usually win. Use a metadata filter when the query must only use the current approved revision. Ranking is a preference; filtering is an eligibility rule.'
+  - q: 'Why did refreshing the index not fix the fixture?'
+    a: 'The refreshed unfiltered index contained both superseded v1 and current v2. The retriever could still return the older revision. Refreshing ingestion without version precedence leaves a conflict.'
+  - q: 'What should a maintenance regression test record?'
+    a: 'Record the fixed query, expected answer, source ID, version, last-modified time, ingestion time, index timestamp, retrieved passage, answer citation, latency, and pass or fail result.'
+cover: '/blog/why-does-ai-fail-on-knowledge-base-maintenance-after-the-demo-hero.webp'
+coverAlt: 'Illustration of a knowledge-base update moving from source revision to index, retrieval, and release decision'
+draft: false
+---
+
+The demo answers yesterday's questions. Maintenance starts when someone changes the procedure.
+
+That change can leave the source of truth at v2 while the retriever still serves v1. Or it can put both versions in the index and let the older one win. The final answer may look fluent in either case.
+
+![Illustration of a knowledge-base update moving through source revision, index refresh, retrieval trace, and release decision](/blog/why-does-ai-fail-on-knowledge-base-maintenance-after-the-demo-hero.webp)
+
+## The result: the demo passed, then the update failed
+
+AI fails on knowledge-base maintenance when a document revision is treated as a content edit instead of a release event. The source, ingestion job, index, retriever, citations, and regression set must agree on which version is allowed to answer.
+
+The dated fixture contains a small versioned operations policy and runs the same 12 questions in five conditions. The source changes from v1 to v2. Nine expected answers change.
+
+| Condition | Index contents | Correct answers | Changed answers correct |
+| --- | --- | ---: | ---: |
+| Before update | v1 | 12/12 | 9/9 |
+| After update, stale index | v1 only | 0/12 | 0/9 |
+| Refreshed, no version rule | v1 and v2 | 0/12 | 0/9 |
+| Refreshed, freshness-ranked | v1 and v2 | 12/12 | 9/9 |
+| Current-version metadata filter | v2 only | 12/12 | 9/9 |
+
+This is the sourceable result from the fixture, not a claim about every RAG stack. The raw traces record the source ID, version, last-modified time, ingestion time, index timestamp, passage, citation, and local latency for every query.
+
+The practical answer is a maintenance gate. If a changed query cites a superseded revision, hold the release. Refreshing the index is necessary when the current document is absent, but it is not sufficient when old and new revisions can both answer.
+
+## What failed: source, index, retrieval, or generation?
+
+The first failure in this reproduction was stale retrieval, not generation. The system had a new source-of-truth revision, but the index still contained the old one.
+
+| Trace evidence | Diagnosis | First repair |
+| --- | --- | --- |
+| Source of truth is v2, but the index timestamp predates v2 ingestion | Ingestion or index lag | Refresh the index and record completion |
+| v1 and v2 are both retrieved, and v1 is cited | Version-precedence failure | Filter superseded versions or rank current content |
+| v2 passage is retrieved and cited, but the answer contradicts it | Generation or context-use failure | Freeze retrieval and test prompt or model behavior |
+| No indexed passage contains the required fact | Corpus coverage failure | Add or authorize the source before tuning retrieval |
+
+Amazon Bedrock describes knowledge bases as a path that involves ingestion, indexing, storage, retrieval, and citations to the original data source. That is why a final answer alone is too small a log for maintenance diagnosis. Save the pipeline state that produced it. [Amazon Bedrock's knowledge-base documentation](https://docs.aws.amazon.com/en_en/bedrock/latest/userguide/knowledge-base.html) describes these separate responsibilities and citation support.
+
+When I taught product managers to move from writing specs to building and shipping, the recurring failure was usually an undefined “done,” not the model. A knowledge-base update has the same problem when nobody has defined what “current” means at answer time. This observation is part of Marius Manolachi's locked teaching record, not a measured rate. [Marius's AI teaching page](https://mariusmanolachi.com/learn-ai) is the source for that fact.
+
+## How the dated reproduction worked
+
+The fixture is deliberately small enough to inspect by hand. It has one policy family with three revisions:
+
+- v0 is archived and conflicting.
+- v1 is the pre-update, superseded revision.
+- v2 is the current source-of-truth revision, approved on 2026-08-24 at 09:30 UTC.
+
+The fixed query set contains 12 operational questions. Nine should change after the update: approval thresholds, review SLA, escalation ownership, refund window, and second-review rules, including question variants. Three should stay stable: receipt retention, request system, and emergency channel.
+
+The test configuration was:
+
+| Setting | Value |
+| --- | --- |
+| Model | `fixture-template-v1`, deterministic template generator |
+| Embedding | None, deterministic lexical overlap |
+| Chunking | One policy bullet per passage |
+| Top-k | 1 |
+| Reranker | None |
+| Runs | One per condition |
+| Index refresh | Replace indexed documents and record the index timestamp |
+| Success | Answer text and cited version match the current expected answer |
+
+The generator returned the selected passage as the answer and attached its source ID, version, and passage ID. That keeps the test about maintenance state, not model creativity. The local latency was recorded but is not a service performance result.
+
+The procedure is reusable:
+
+1. Freeze a source-of-truth file and version it.
+2. Write fixed questions with expected answers before changing the document.
+3. Run the control and save retrieved passages, citations, timestamps, and latency.
+4. Change the procedure without changing the questions.
+5. Run again before refreshing the index. This exposes stale-index behavior.
+6. Refresh the index with the new revision and the old revision still present. This exposes duplicate-version behavior.
+7. Apply freshness ranking or a current-version filter.
+8. Run the same questions as a regression check. Do not delete the failing cases after the repair.
+
+The enterprise RAG paper makes a related point from a larger setting: content changes can have a large effect on an enterprise RAG solution, and novel questions require a human-led evaluation approach. The fixture turns that principle into a small maintenance test. [The enterprise RAG paper](https://arxiv.org/abs/2410.12812) is the source for the broader evaluation framing.
+
+## What the failure trace looks like
+
+The clearest failure is the question, “What approval threshold applies to a 30000 EUR request?”
+
+| Field | Stale post-update trace |
+| --- | --- |
+| Source of truth | v2 |
+| Expected answer | amounts above 25000 EUR require finance approval |
+| Index timestamp | 2026-08-24T09:10:00Z |
+| Retrieved source | `policy-ops`, v1, passage `v1-p1` |
+| Retrieved last modified | 2026-08-01T09:00:00Z |
+| Retrieved ingestion time | 2026-08-24T09:10:00Z |
+| Retrieved passage | amounts above 50000 EUR require finance approval |
+| Answer citation | `policy-ops:v1:v1-p1` |
+| Result | Fail |
+
+The answer is not unsupported in the abstract. It is supported by the wrong revision. That distinction changes the repair. Prompt tuning cannot make the current threshold appear in a context packet that contains only v1.
+
+After the current-version filter, the trace cites `policy-ops:v2:v2-p1` and returns the v2 threshold. The same question is now a regression case, not a happy-path demo.
+
+![Illustration of five knowledge-base maintenance test states from stale retrieval to a passing regression check](/blog/why-does-ai-fail-on-knowledge-base-maintenance-after-the-demo-inline-1.webp)
+
+## Why refreshing the index alone can still fail
+
+A refresh can make the new document available while leaving the old document eligible. In the fixture, the refreshed unfiltered index contained both v1 and v2. The deterministic retriever used the same lexical relevance and chose the older version on ties. Every query therefore cited a superseded or wrong passage, producing 0/12.
+
+This is a local tie-break, not a universal vendor behavior. It is useful because it makes a common maintenance ambiguity visible: “indexed” does not mean “authoritative.” A production retriever may choose the current revision, the old revision, or a mixture depending on ranking, filters, chunking, and metadata quality. You need a trace to know which one happened.
+
+Microsoft Azure AI Search documents freshness-aware retrieval as a ranking bias. Newer content is preferred, but older content can still appear when it is strongly relevant. Azure also says freshness data is generated at ingestion time and that missing, stale, or inconsistent `last_modified` values weaken the signal. [Azure's freshness-aware retrieval documentation](https://learn.microsoft.com/en-us/azure/search/agentic-retrieval-how-to-configure-freshness) supports those implementation constraints.
+
+The fixture's freshness-ranked condition passed 12/12. Treat that as a useful mitigation result under these settings, not as a universal guarantee. If a question must use only the current approved policy, use a metadata filter or equivalent eligibility rule. Azure explicitly distinguishes that case from freshness ranking.
+
+## The maintenance decision table
+
+Use this as a release artifact after every material knowledge-base change.
+
+| Check | Evidence to record | Decision |
+| --- | --- | --- |
+| Is there one named source of truth? | Source ID, current version, approver, timestamp | Hold if ownership or version is ambiguous |
+| Is the current revision in the index? | Ingestion timestamp and index refresh timestamp | Hold and refresh if it is absent |
+| Can a superseded revision answer? | Retrieved version, status, and citation | Filter or rank it before release |
+| Did changed queries change as expected? | Expected answer versus output for the fixed set | Hold if any critical changed query stays stale |
+| Does the answer cite the eligible revision? | Source ID and version in the answer trace | Hold if the citation is old or missing |
+| Did the regression set pass after repair? | Query-level result table, not only aggregate score | Go only when the fixed set passes |
+
+For the fixture, the stale state is an immediate hold: the current revision is absent, all 9 changed queries cite stale content, and the answer citation is old. The repaired state is a go for this fixture: the current-version filter passes 12/12 and 9/9 changed queries. That is a worked decision, not a promise that a production launch is safe without access-control, ingestion, and human review checks.
+
+## How to choose freshness ranking versus filtering
+
+Use freshness ranking when newer documents should usually win but older documents remain legitimate evidence. Use a metadata filter when an old revision must be ineligible.
+
+| Requirement | Better control | Why |
+| --- | --- | --- |
+| “Prefer recent runbooks” | Freshness ranking | Recency is a ranking signal alongside relevance |
+| “Answer only from the current approved policy” | Version or status filter | Old content must not be eligible |
+| “Compare v1 and v2 during an audit” | Explicit version filter or dual query | The comparison needs controlled scope |
+| “The current source has not been ingested” | Release hold | Ranking cannot retrieve content that is absent |
+
+This matters because continuous knowledge drift is not only about an old model memory. The drift paper describes changing facts, temporal inconsistency, and limitations of vanilla RAG on evolving evidence. A source revision that never reaches the eligible retrieval set creates the same operational shape at a smaller scale. [The continuous-drift benchmark paper](https://arxiv.org/abs/2604.05096) provides that broader framing.
+
+## Limits of the fixture
+
+The result is strong evidence for the maintenance artifact and weak evidence for universal performance.
+
+- It uses one policy domain, three revisions, 12 authored questions, top-k 1, lexical overlap, and no external embedding model, reranker, index service, or production LLM.
+- It runs once per condition. The measured local latency is useful for trace completeness, not capacity planning.
+- The unfiltered conflict is made reproducible by a documented tie-breaker. Your system may fail through a different rank, filter, parser, or ingestion path.
+- The expected answers are authored controls. A real team still needs a domain owner to verify that the new procedure is correct.
+- The test does not cover permissions, prompt injection, parsing of tables or PDFs, partial ingestion, deletes, concurrent updates, or multi-hop questions.
+
+The honest conclusion is narrow: after a demo, a knowledge-base update should be treated as a versioned release with a query-level regression check. If you cannot show the current source ID, version, ingestion state, retrieved passage, answer citation, and changed-query result, you do not yet know whether the system is maintained.
+
+For the broader implementation path, start with the [AI workflow implementation guide](/blog/ai-workflow-implementation). If the trace already contains the right revision but the answer is still wrong, use [How to Tell Whether a RAG Failure Is Retrieval or Generation](/blog/how-to-tell-whether-a-rag-failure-is-retrieval-or-generation). When the fixed set grows, preserve these cases in [an evaluation dataset built from production traces](/blog/how-to-build-an-evaluation-dataset-from-production-traces).
+
+Marius Manolachi helps teams become capable of building AI products on their own work. For a maintenance review, bring the source files, index metadata, fixed queries, and traces to the [AI learning and consulting page](https://mariusmanolachi.com/learn-ai). The release decision should still remain with the team that owns the procedure.
