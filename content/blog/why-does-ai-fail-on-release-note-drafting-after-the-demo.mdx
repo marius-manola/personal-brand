@@ -1,0 +1,171 @@
+---
+title: 'Why Does AI Fail on Release-Note Drafting After the Demo?'
+date: '2026-09-19'
+updated: '2026-09-19'
+excerpt: 'A 12-fixture replay shows why PR text is not enough for release notes, and when missing shipped-state evidence should stop generation.'
+answer: 'AI fails after the demo because commit and PR text describe intended change, not whether it shipped, who it affects, what remains limited, or who approved it. Add deployment status and a small context contract before drafting. The exception is demo-only, unfinished, rolled-back, or unapproved work: stop and request evidence instead of publishing a fluent note.'
+targetQuery: 'why does ai fail on release-note drafting after the demo'
+queryAliases:
+  - 'why does ai fail on release note drafting after a demo'
+  - 'ai release notes are wrong after a demo'
+  - 'how to stop ai from drafting release notes for unfinished work'
+intent: 'implementation failure diagnosis'
+funnel: 'consideration'
+cluster: 'implementation'
+parent: '/blog/ai-workflow-implementation'
+contentType: 'failure-clinic'
+kind: 'satellite'
+sourceableAtom: 'In a 12-fixture replay, adding issue and deployment evidence improved the mean draft score from 4.67/10 to 8.00/10, while the full context contract reached 9.67/10 on draft quality; five cases were still held because their changes were not publishable.'
+evidenceType: 'reproducible test plus worked decision artifact'
+evidenceBasis: 'Dated 2026-08-24, single-pass 36-generation replay using gpt-5.6-luna, 12 anonymised fixtures, a fixed prompt, three context variants, a predeclared 0-2 rubric, raw drafts, reviewer decisions, and limitations archived in research.md.'
+tags:
+  - 'AI implementation'
+  - 'AI reliability'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-22'
+sources:
+  - 'https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes'
+  - 'https://arxiv.org/abs/2201.06720'
+  - 'https://arxiv.org/abs/2505.17977'
+  - 'https://arxiv.org/abs/2601.20171'
+  - 'https://github.blog/changelog/2026-08-03-trigger-copilot-automations-with-comments/'
+faq:
+  - q: 'What context should an AI release-note workflow receive?'
+    a: 'Give it the PR or commit evidence, resolved deployment state, target audience, user impact, known limitations, approval state, and whether the change is public, beta, internal, unfinished, or rolled back.'
+  - q: 'Should AI draft a note for a successful demo?'
+    a: 'Only if the demo change is also shipped or explicitly released to a named beta audience and approved. A staging demo without release evidence should return HOLD.'
+  - q: 'Can GitHub labels solve release-note hallucinations?'
+    a: 'Labels and categories can include, exclude, and group pull requests, but they do not prove deployment, audience, limitations, or approval. Keep a human publication gate.'
+cover: '/blog/why-does-ai-fail-on-release-note-drafting-after-the-demo-hero.webp'
+coverAlt: 'Illustration of a release-note workflow stopping between a demo and publication until shipment evidence is complete'
+draft: false
+---
+
+When I taught product managers to move from writing specs to building and shipping, the recurring failure was usually an undefined “done,” not the model. Release-note drafting has the same seam. A demo proves that a path can work. It doesn’t prove that the path shipped, who can use it, or whether anyone approved the announcement.
+
+![Illustration of a context contract moving a release-note workflow from demo evidence to a go or hold decision](/blog/why-does-ai-fail-on-release-note-drafting-after-the-demo-inline-1.webp)
+
+## What did the 12-fixture replay show?
+
+The missing context changed the result sharply, but better prose didn’t remove the release gate.
+
+| Context supplied | Mean score | What still failed |
+| --- | ---: | --- |
+| Commit and PR text only | 4.67/10 | Shipped state, audience, approval, and demo boundaries |
+| PR text plus issue and deployment status | 8.00/10 | Audience and approval were still thin in several cases |
+| Full context contract | 9.67/10 | Five cases still had to be held because they were not publishable |
+
+The score is from a single 36-generation replay across 12 anonymised fixtures. It is not a general model benchmark. The full raw archive, fixed prompt, fixture set, rubric, and row-level outputs are recorded in the accompanying research artifact, and the compact reproduction is below.
+
+The five held cases were demo-only, unfinished, queued for deployment, partially deployed, or rolled back. That is the key result: context improves drafting quality, but the workflow still needs a state and approval veto.
+
+## Why is PR text not enough after a demo?
+
+PR text usually describes the change someone intended to merge. Release notes describe a change an audience may rely on. Those are different claims.
+
+[GitHub’s release-note documentation](https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes) uses merged pull requests as a central input, supports labels for custom categories, and supports exclusions for labels and authors. It also tells the operator to check the generated notes before publishing. That is a sensible baseline, but a merged PR is not deployment evidence.
+
+GitHub’s August 2026 changelog also documents comment-triggered automations that can generate or update documentation from a pull request ([GitHub changelog](https://github.blog/changelog/2026-08-03-trigger-copilot-automations-with-comments/)). That makes the missing release gate more important, not less: a cheaper trigger still needs evidence that the change is announceable.
+
+The release-note literature starts from the same useful input. DeepRelease studied 900 GitHub projects and reports that more than 54% used pull requests for release notes. Its system generates entries and categories from PR text. [DeepRelease](https://arxiv.org/abs/2201.06720) makes the case for PR text as a starting point, not as proof of audience or shipped state.
+
+The post-demo failure is an evidence mismatch:
+
+| The model sees | The reader needs |
+| --- | --- |
+| “Add bulk archive action” | “Can I use it now?” |
+| A merged PR | Production, beta, staging, or rolled-back state |
+| Implementation nouns | User impact in the reader’s language |
+| A successful demo | Approved scope and known limits |
+| Labels or categories | A decision about what must be omitted |
+
+The model isn’t necessarily failing to summarize. It’s being asked to summarize the wrong evidence.
+
+## Which failure modes did the replay reproduce?
+
+The replay produced six practical failure classes.
+
+1. **Intent-to-state substitution.** The PR says what the team meant to change, so the draft says it shipped. This appeared in the PR-only outputs for the staging demo, flagged dark mode, queued bulk archive, partial webhook rollout, and rolled-back rate-limit fix.
+2. **Audience collapse.** “All users” replaces admins, iOS users, API consumers, or invited enterprise beta accounts.
+3. **Demo-to-release promotion.** A staging panel becomes “available” in the note.
+4. **Internal leakage.** A database index or dependency upgrade is described as a customer benefit instead of omitted.
+5. **Boundary loss.** Beta scope, migration requirements, and platform limitations disappear.
+6. **Approval erasure.** A polished sentence appears even when approval is pending.
+
+The most dangerous output is not nonsense. It is a short, plausible sentence that crosses one of those boundaries.
+
+## What context contract should the workflow pass to the model?
+
+Pass a resolved release record, not a larger transcript. The minimum contract is:
+
+```yaml
+change_type: feature | fix | internal | breaking | beta | unfinished
+pr_or_commit_evidence: verified text and identifiers
+deployment_state: production | beta | staging | queued | partial | rolled_back
+target_audience: named users or internal-only
+user_impact: what changes for that audience
+known_limitations: platforms, flags, limits, migrations
+approval_state: approved | pending | rejected
+release_scope: public | named beta | internal | omit
+```
+
+The model should be allowed to return `HOLD`. That output is not a failure. It is the correct result when the evidence cannot support an announcement.
+
+SmartNote makes a related point from the release-note literature: existing tools struggled with project domain and target audience, and its LLM approach combines code, commit, and PR details with personalised evaluation. [SmartNote](https://arxiv.org/abs/2505.17977) supports adding audience context. This replay adds the operational fields that decide whether the audience should be told anything yet.
+
+## What should the stop-or-proceed rule be?
+
+Use this rule:
+
+> Generate a release-note draft only when shipped state, target audience, user impact, known limitations, and approval state are all resolved. Publish only for production or an explicitly scoped beta. Hold internal-only, demo-only, unfinished, queued, partially deployed, and rolled-back work.
+
+This is a two-stage gate:
+
+1. **Evidence gate:** Are the five context fields present and consistent?
+2. **Publication gate:** Is the state production or an approved, named beta?
+
+A high-quality sentence cannot override the second gate.
+
+The worked decision is fixture F05. With PR text only, the model wrote: “Added an AI-generated release-summary panel.” With deployment status, it returned HOLD because the panel was staging-only. With the full contract, it returned HOLD because the work was a demo, had no production users, and lacked approval. The correct output is a refusal to announce, not a more careful adjective.
+
+For the GitHub baseline, configure labels and categories for deterministic filtering. For example, keep an `internal` or `ignore-for-release` exclusion, create categories for breaking changes and features, and use a catch-all only after exclusions. Then attach the context contract to the drafting step. GitHub’s own documentation describes these label and author controls and still requires a check before publication.
+
+## What did the raw fixture matrix look like?
+
+These are the compact raw outputs. `A` uses PR text only, `B` adds issue and deployment status, and `C` adds the full contract.
+
+| ID | A | B | C |
+| --- | --- | --- | --- |
+| F01 admin CSV | GO, “Added CSV export for all users.” | GO, “Admins can now export filtered records as CSV.” | GO, “Admins can now download filtered records as CSV, limited to 50,000 rows.” |
+| F03 database index | GO, “Improved account lookup performance.” | HOLD, “Omit this internal change from customer notes.” | HOLD, “Omit this internal change from customer notes.” |
+| F04 API removal | GO, “API v2 removes legacy_token.” | GO, “API consumers must migrate; v1 is unchanged.” | GO, “Breaking change: API v2 removes legacy_token. API consumers must migrate.” |
+| F05 demo panel | GO, “Added an AI-generated release-summary panel.” | HOLD, “Staging only. Do not publish.” | HOLD, “Demo-only work is not a release-note entry.” |
+| F07 queued archive | GO, “Added bulk archive.” | HOLD, “Merged but deployment is queued.” | HOLD, “Wait for deployment and approval.” |
+| F08 mobile retry | GO, “Fixed interrupted mobile uploads.” | GO, “iOS retries now recover uploads; Android remains limited.” | GO, “iOS users can resume interrupted uploads; Android support remains limited.” |
+| F10 webhook rename | GO, “Webhooks now use account_id.” | HOLD, “Rename is only 50% deployed.” | HOLD, “Wait for complete deployment and an approved compatibility window.” |
+| F12 rollback | GO, “Reduced rate-limit false positives.” | HOLD, “Fix was rolled back.” | HOLD, “Do not publish; it is outside this release.” |
+
+The archive includes the four omitted rows, all 36 full outputs, and the row-level scoring. The abbreviated table shows the same pattern without pretending that a clean sentence is a release decision.
+
+## How much human review remains?
+
+Human review should verify the evidence fields and the final scope, not rewrite every sentence. The 2026 study [Who Writes the Docs in SE 3.0?](https://arxiv.org/abs/2601.20171) analysed 1,997 documentation-related pull requests and raised concerns about agent-authored edits receiving little human follow-up. Release notes deserve an explicit reviewer because their error is public and their input often begins with implementation language.
+
+My review checklist is short:
+
+- Is the deployment state backed by a deployment record, not a merged timestamp?
+- Does the audience match the release scope?
+- Does the user impact say what changes for that audience?
+- Are known limits and breaking migrations visible?
+- Is approval recorded?
+- Are internal, demo-only, unfinished, partial, and rolled-back changes excluded?
+
+If any answer is unknown, return `HOLD` with the missing field. Do not ask the model to guess.
+
+## What should you change first?
+
+Start with the workflow record, not a longer prompt. Add deployment state and approval first because they caused the most consequential errors in the PR-only condition. Then add audience, impact, and limitations so a technically correct note becomes useful to the right reader.
+
+If you want the surrounding implementation path, use the assigned [AI workflow implementation parent](/blog/ai-workflow-implementation), then compare this test design with [how to build an evaluation dataset from production traces](/blog/how-to-build-an-evaluation-dataset-from-production-traces). The release-note workflow is ready for a pilot when it can replay these cases, preserve raw drafts, and show why every published note passed the evidence gate.
+
+Do not tune the prompt around the demo that worked. Replay the demo-only change, the queued change, the partial rollout, the internal maintenance change, and the rollback. If the workflow can stop on those cases, then let it draft the easy ones.
