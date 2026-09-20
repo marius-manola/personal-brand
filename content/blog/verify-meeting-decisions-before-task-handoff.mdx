@@ -1,0 +1,172 @@
+---
+title: 'How Should a Team Verify Meeting Decisions Before Task Handoff?'
+date: '2026-09-20'
+updated: '2026-09-20'
+excerpt: 'A 12-fixture failure clinic gives teams a verification gate for meeting decisions, owners, dates, evidence gaps, and safe task handoff.'
+answer: 'A team should verify a meeting decision before task handoff by checking status, explicit owner, explicit date, conditions, evidence, and the latest correction. In a 12-fixture Codex run, 10 fixtures contained a strict capture error. Keep unresolved records out of the task system and project only a human-verified decision record. An explicit decision with an accepted owner, date, and quote can proceed.'
+targetQuery: 'How should a team verify meeting decisions before task handoff?'
+queryAliases:
+  - 'meeting decision verification checklist'
+  - 'how to validate meeting decisions before creating tasks'
+  - 'AI meeting decision record review'
+  - 'verify owners and deadlines from meeting notes'
+intent: 'diagnostic'
+funnel: 'consideration'
+cluster: 'implementation'
+parent: '/blog/ai-workflow-implementation'
+contentType: 'failure-clinic'
+kind: 'satellite'
+sourceableAtom: 'In a 12-fixture, single-pass Codex GPT-5 run using one decision-extraction contract, 10 fixtures contained at least one strict capture error, with failures traceable to status boundaries, unsupported ownership or dates, cross-talk, language variation, shared-screen evidence, and handoff.'
+evidenceType: 'reproducible failure reproduction plus worked decision artifact'
+evidenceBasis: 'Twelve purpose-built transcript fixtures were run through one structured extraction contract in a dated Codex GPT-5 editorial run on 2026-08-24; raw outputs, expected labels, adjudication, limitations, and a tested decision-log-to-task payload are recorded in research.md.'
+tags:
+  - 'AI reliability'
+  - 'Meeting workflows'
+  - 'AI evaluation'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-24'
+sources:
+  - 'https://www.research.ed.ac.uk/en/publications/improving-meeting-summarization-by-focusing-on-user-needs-a-task-/'
+  - 'https://arxiv.org/abs/2307.15793'
+  - 'https://support.google.com/meet/answer/14754931?hl=en'
+  - 'https://support.microsoft.com/en-us/teams/meetings/recap-in-microsoft-teams'
+  - 'https://www.mursa.me/blog/ai-note-taker-meeting-action-items'
+faq:
+  - q: 'Should AI create tasks directly from a meeting transcript?'
+    a: 'Not when the transcript is the only evidence. First verify status, owner, deadline, and any condition or shared-screen dependency. Then project the verified record into the task system with a source quote.'
+  - q: 'What should an AI meeting summary do when no decision was made?'
+    a: 'It should say that the item was tentative, disputed, shelved, or unresolved. It can record a follow-up commitment, but it should not turn discussion into an approved task.'
+cover: '/blog/verify-meeting-decisions-before-task-handoff-meeting-decision-capture-hero.webp'
+coverAlt: 'Illustration of a meeting decision log splitting a polished recap into verified decision, unresolved question, and blocked task handoff'
+draft: false
+---
+
+Verify a meeting decision before task handoff by checking its status, explicit owner, explicit date, conditions, evidence quote, and latest correction. If any of those fields is unresolved, keep the record out of the task system.
+
+When I taught product managers to move from writing specs to building and shipping, the recurring failure was not a weak prompt. It was an undefined definition of done. Meeting capture has the same fault line: a recap can look complete while the team still has no safe task.
+
+I built a small fixture set to find the break. The test is deliberately narrow. It tells you where this workflow fails, not how every meeting model performs.
+
+![Illustration of a meeting decision log splitting a polished recap into verified decision, unresolved question, and blocked task handoff](/blog/verify-meeting-decisions-before-task-handoff-meeting-decision-capture-handoff.webp)
+
+## What should a meeting-decision verification gate catch?
+
+The gate should catch status errors, unsupported owners or dates, missing context, conversation noise, and stale corrections before a task is projected.
+
+| Observed condition | Fixtures | What the raw output did | Repair |
+| --- | --- | --- | --- |
+| Tentative or conditional language | F02, F04 | Promoted an option or conditional approval to a decision | Keep `tentative` and `conditional` as states that cannot create tasks |
+| Missing or unclear accountability | F05, F10, F11 | Used a role, inferred a speaker, or kept an owner after correction | Set owner to `null` unless a named person accepts the work and remains the latest owner |
+| Missing or relative timing | F06, F10, F12 | Captured a review phrase as a task date or left a relative date looking actionable | Preserve the phrase and block handoff until a calendar date is confirmed |
+| Context outside the transcript | F08, F09 | Missed a language-variant decision or ignored a shared-screen evidence gap | Route for review when language or shared material is not fully represented |
+| Conversation noise | F07 | Created an invoice task from cross-talk | Require an acceptance statement and a source quote tied to the task |
+| Corrections and multiple records | F01, F11, F12 | Merged records, kept stale ownership, or omitted a commitment | Split decisions from commitments and apply latest-state adjudication |
+
+In this run, 10 of 12 fixtures contained at least one strict error. F03 and F06 were clean. The raw output marked only F01 as handoff-ready, and even F01 needed a reviewer to split the decision from Luis's runbook commitment. That is a useful result because it identifies the control point: the task connector should receive verified records, not the model's first list of action-looking sentences.
+
+The result fits the broader evidence without pretending to extend it. A decision-focused summarization study found that focused summaries helped users perform decision debriefing more effectively, and a later recap study found that organizational artifacts and personalized context matter to recap usefulness. A shorter or more focused recap is not the same thing as a verified task log. ([University of Edinburgh research](https://www.research.ed.ac.uk/en/publications/improving-meeting-summarization-by-focusing-on-user-needs-a-task-/), [Microsoft-authored recap study](https://arxiv.org/abs/2307.15793))
+
+## Why does a polished recap still lose the decision boundary?
+
+Because the extraction task contains at least four different judgments:
+
+1. What was discussed?
+2. What status did it have: decided, proposed, conditional, disputed, shelved, or unresolved?
+3. Who explicitly accepted the work, and when is it due?
+4. Is there enough evidence to create a task in the system of record?
+
+A generic recap can answer the first question and sound as if it answered the rest. That is the demo trap. “The team discussed moving the threshold to 80” is safe. “The team decided to move the threshold to 80” is a different claim. F02 shows the break.
+
+The research literature points toward task-shaped summaries, not just shorter summaries. The Edinburgh study focused on the decision-debriefing task. The Microsoft recap study describes different recap representations for different work contexts and notes the value of organizational artifacts. ([Edinburgh study](https://www.research.ed.ac.uk/en/publications/improving-meeting-summarization-by-focusing-on-user-needs-a-task-/), [arXiv study](https://arxiv.org/abs/2307.15793))
+
+The implementation rule is simple: keep status, owner, deadline, evidence, and handoff readiness as separate fields. Do not let a fluent sentence collapse them.
+
+## Which meeting conditions should make the workflow stop?
+
+Stop the task handoff when any of these conditions appears:
+
+- The statement is a proposal, brainstorming idea, or question rather than an accepted decision or commitment.
+- Approval depends on a later check, as in F04.
+- The owner is a department, a group, or a person mentioned nearby but not accepting the work, as in F05 and F07.
+- The deadline is missing or only relative, as in F06, F10, and F12.
+- A later speaker withdraws or corrects the owner, as in F11.
+- The decision depends on a slide, chart, file, or other shared material that is absent from the input, as in F09.
+- The transcript language or speaker attribution is not reliable enough for the reviewer, as in F08.
+
+This stop rule is stricter than “the model expressed low confidence.” It is based on missing fields and missing evidence. Google Meet documents that its notes feature supports one spoken language at a time and can include screenshots of shared material only under stated conditions. Microsoft Teams says recap content is based on transcript data and may be inaccurate or incomplete, while some recap features also use attendance and PowerPoint Live data. Those product constraints are reasons to inspect the input contract before tuning the prompt. ([Google Meet Help](https://support.google.com/meet/answer/14754931?hl=en), [Microsoft Teams recap](https://support.microsoft.com/en-us/teams/meetings/recap-in-microsoft-teams))
+
+## What should the extraction contract return?
+
+Use a schema that makes unsafe certainty expensive:
+
+```json
+{
+  "text": "short normalized decision or commitment",
+  "status": "decided|committed|tentative|conditional|disputed|shelved|unresolved",
+  "owner": "exact named speaker or null",
+  "deadline": "explicit calendar date, exact phrase, or null",
+  "owner_basis": "explicit|not_stated|null",
+  "deadline_basis": "explicit|explicitly missing|relative date, not calendar-resolved|null",
+  "evidence_quote": "short exact quote from transcript",
+  "evidence_gap": "missing transcript or shared-screen evidence, or null",
+  "handoff_ready": false
+}
+```
+
+The important field is not `confidence`. It is `handoff_ready`. Set it to true only if the item has an accepted status, an explicit named owner, an explicit date, and sufficient evidence. A model can be confident and still be wrong about who owns the work. F05 and F11 are the counterexamples.
+
+## How do you repair the task handoff?
+
+Split the workflow into two records and one gate:
+
+1. **Decision log:** store the decision or unresolved state, exact evidence quote, conditions, owner, deadline, and evidence gaps.
+2. **Human verification:** confirm status, latest owner, date, and missing material. Edit the decision log without overwriting the raw model output.
+3. **Task projection:** create a task only from the verified record, retaining the source fixture or transcript pointer and quote.
+
+The worked F01 artifact looks like this:
+
+```json
+{
+  "decision_log": {
+    "record_id": "F01-R1",
+    "status": "decided",
+    "decision": "Use the smaller export for the pilot",
+    "evidence_quote": "We will use the smaller export for the pilot",
+    "owner": null,
+    "deadline": null,
+    "review_state": "verified"
+  },
+  "task_payload": {
+    "title": "Update the runbook for the smaller export pilot",
+    "assignee": "Luis",
+    "due_date": "2026-06-16",
+    "source_fixture": "F01",
+    "source_quote": "I will update the runbook by Tuesday, 16 June 2026",
+    "handoff_state": "approved_after_split"
+  }
+}
+```
+
+The split matters. The team decision has no owner or due date. Luis's commitment does. If you create one combined task called “use the smaller export and update the runbook,” you have already blurred authority and accountability.
+
+## What does a useful definition of done look like?
+
+For this workflow, done is not “the recap was generated.” Done means:
+
+- every decision-like statement has a preserved status;
+- every task has a named accepting owner or remains blocked;
+- every due date is explicit or visibly unresolved;
+- every conditional approval retains its condition;
+- shared-screen or language gaps are visible;
+- a reviewer can trace the task to an exact quote;
+- the task system receives only the verified projection.
+
+That is the bounded firsthand observation I bring from teaching product managers: a workflow becomes useful when the team agrees what completion means. The model can fill fields. It cannot decide what your team is willing to call safe enough to hand off.
+
+## What should you test before trusting the demo?
+
+Run the same contract on a small fixture set before connecting a task system. Include one clean explicit commitment, then deliberately add a proposal, a conditional, a disagreement, a missing owner, a missing date, cross-talk, a language change, and a screen-dependent decision. Keep the expected labels outside the model prompt. Review the raw output, not only the final task list.
+
+The test is worth repeating whenever the model, extraction prompt, transcript format, meeting provider, or task connector changes. The official product docs themselves show why: recap behavior depends on transcript availability, language, shared material, access, and the provider's changing feature set. ([Google Meet Help](https://support.google.com/meet/answer/14754931?hl=en), [Microsoft Teams recap](https://support.microsoft.com/en-us/teams/meetings/recap-in-microsoft-teams))
+
+If you are implementing the surrounding workflow, start with the [AI workflow implementation guide](/blog/ai-workflow-implementation), then compare this failure clinic with [the broader diagnosis of AI summaries missing important decisions](/blog/why-do-ai-generated-summaries-miss-the-decision-that-matters). The useful next step is not another demo. It is one replayable fixture set and a definition of done your reviewer will actually enforce.
