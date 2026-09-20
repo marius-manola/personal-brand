@@ -1,0 +1,142 @@
+---
+title: "Why Does AI Fail on Compliance Evidence Collection After the Demo?"
+date: "2026-09-20"
+updated: "2026-09-20"
+excerpt: "A 12-case synthetic run shows why plausible compliance evidence fails: missing provenance, freshness, validation, approval, and replayable traceability."
+answer: "AI fails on compliance evidence collection after the demo when the workflow is optimized to produce a plausible row instead of prove each control-level field. In the dated 12-case synthetic baseline, only 3 cases were collectible, 6 needed human review, and 3 were rejected. The exception is evidence that passes all seven checks for mapping, provenance, freshness, completeness, validation, approval, and immutable traceability."
+targetQuery: "why does ai fail on compliance evidence collection after the demo"
+queryAliases:
+  - "why does ai fail on compliance evidence after the demo"
+  - "ai compliance evidence collection failure"
+  - "compliance evidence workflow fails after demo"
+intent: "diagnostic implementation"
+funnel: "implementation"
+cluster: "implementation"
+parent: "/blog/ai-workflow-implementation"
+contentType: "failure-clinic"
+kind: "satellite"
+sourceableAtom: "In a dated 12-case synthetic baseline run, only 3 of 12 structured evidence outputs were collectible; 6 required human review and 3 were rejected under a seven-field acceptance rubric."
+evidenceType: "reproducible failure reproduction with a worked control-to-evidence decision artifact"
+evidenceBasis: "compliance-evidence-post-demo-v1.0, run-20260824-001, synthetic fixtures, prompt-only-collector-v0.1, synthetic-collector-v0.1, seven binary acceptance fields, raw output history in research.md"
+tags:
+  - "AI implementation"
+  - "compliance"
+  - "evidence collection"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://www.nist.gov/programs-projects/building-evaluation-probes-agentic-ai"
+  - "https://airc.nist.gov/airmf-resources/airmf/5-sec-core/"
+  - "https://airc.nist.gov/airmf-resources/playbook/measure/"
+  - "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32024R1689"
+  - "https://arxiv.org/abs/2604.13767"
+faq:
+  - q: "Can AI collect compliance evidence without a human reviewer?"
+    a: "Only when the output passes every required field check and preserves an accountable approval and replayable trace. Otherwise route it to human review or reject it."
+  - q: "What should be tested after an AI compliance demo?"
+    a: "Run a dated synthetic pack with control mappings, source artifacts, timestamps, required fields, validation rules, approval records, and immutable output references."
+  - q: "When should AI-generated evidence be rejected?"
+    a: "Reject it when the source cannot prove the requested control or when provenance is missing. A polished summary cannot repair a wrong or untraceable source."
+cover: "/blog/why-does-ai-fail-on-compliance-evidence-collection-after-the-demo-compliance-evidence-demo-failure-hero.webp"
+coverAlt: "Illustration of a compliance evidence row being checked against source, timestamp, approval, and trace records"
+draft: false
+---
+
+A compliance demo can return a neat table in seconds. The audit question arrives later: which source proves this row, for which control, as of what time, and who approved it?
+
+This post uses a small synthetic pack to force that question. The result is the useful part.
+
+> In the 12-case baseline, 3 cases were collectible, 6 needed human review, and 3 were rejected. Every case returned a structured-looking row, but only 3 passed all seven evidence checks.
+
+![Evidence routing diagram](/blog/why-does-ai-fail-on-compliance-evidence-collection-after-the-demo-compliance-evidence-routing-gates.webp "Illustration of an AI evidence row moving through collect, human review, and reject gates")
+
+## The demo-to-audit break is an evidence contract failure
+
+AI usually fails here because the demo proves extraction, while the audit needs proof. A JSON row can be syntactically valid and still point to the wrong control, omit the review timestamp, inherit an approval that never happened, or lose the link to the exact source version.
+
+NIST's agentic-AI evaluation work describes the same missing layer: compare outputs with trusted documents and accumulate a machine-readable audit trail. Its example probes separate faithfulness, completeness, and sufficiency rather than treating a citation as proof. [NIST's evaluation probe project](https://www.nist.gov/programs-projects/building-evaluation-probes-agentic-ai) is the basis for this test's field-level rubric.
+
+In my work teaching product managers to move from writing specs to building and shipping products, the recurring failure is usually an undefined meaning of done. For compliance evidence, done cannot mean “the model filled every column.” It must mean “a reviewer can defend every column from a preserved source.”
+
+The acceptance contract used here is:
+
+| Field | The output must prove |
+| --- | --- |
+| Control mapping | The artifact supports this control and scope, not a related topic. |
+| Source provenance | The exact artifact inspected is named and retrievable. |
+| Timestamp and freshness | The artifact falls inside the control's review window. |
+| Completeness | Required fields, scope, owner, and outcome are present. |
+| Validation | The evidence is checked against the control rule. |
+| Human approval | The accountable reviewer and approval event exist. |
+| Immutable traceability | The run, source version or hash, and output history can be replayed. |
+
+[NIST AI RMF](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/) treats governance, mapping, measuring, and managing as lifecycle work. Its Measure guidance also calls for pre-deployment and ongoing testing, documentation, action logging, and auditability. That is why answer quality is not the release gate here.
+
+## What the 12-case reproduction found
+
+The test pack is `compliance-evidence-post-demo-v1.0`, run on 2026-08-24 as `run-20260824-001`. It uses synthetic controls and source artifacts, a fixed prompt, temperature 0, no tools, no retrieval fallback, and no immutable write store. The model label is `synthetic-collector-v0.1`, a deterministic surrogate for isolating the evidence contract. It is not a vendor benchmark.
+
+The prompt told the collector to infer missing fields and return a row instead of refusing. That is a realistic demo bias: optimize for visible completion.
+
+| Case group | Result | Count | What happened |
+| --- | --- | ---: | --- |
+| Collect | 7/7 fields passed | 3 | The artifact, current timestamp, validation, approval, and trace were all present. |
+| Human review | Mapping and provenance passed, repair was possible | 6 | A reviewer had to confirm freshness, approval, completeness, or trace. |
+| Reject | Mapping or provenance failed, or score was 3/7 or lower | 3 | The source could not prove the requested control or could not be tied to a source. |
+
+The full matrix, fixture contents, prompt, configuration, and raw output history are in the [reproduction record](./research.md). The result was 56 passing field checks out of 84. That number belongs to this pack and configuration. It is not an estimate of how often AI fails across compliance programs.
+
+## Three failures that look successful in a demo
+
+### T03: the source is real, but the control mapping is wrong
+
+The baseline returned: “SOC 2 report supports vendor access control.” The source existed. The date existed. The sentence sounded reasonable.
+
+The fixture said the report covered development. The requested control covered production. The report therefore failed control mapping and validation. The correct route was `reject`, not `collect` and not `human_review`.
+
+This is the first post-demo trap: a source citation is not control evidence. The collector needs the control scope and the source scope in the same decision.
+
+### T06: the screenshot has a number, but no provenance
+
+The output said “Firewall rules reviewed” and extracted `rule_count=42`. It had no capture time, source system, hash, reviewer, or stable trace. It scored 1/7 and was rejected.
+
+The image may still help an operator investigate. It cannot carry an audit claim by itself. A human reviewer cannot establish when it was captured or whether it changed after collection.
+
+### T10: almost complete is still a review queue item
+
+The cloud configuration export had a current timestamp, a source hash, and an enforced policy state. It lacked the environment identifier. That missing field changes the meaning of the evidence. The result scored 6/7 and routed to `human_review`.
+
+The repair is narrow: ask for the environment ID, bind it to the same source hash, re-run the control check, and preserve both the original model row and the corrected record. Do not silently overwrite the first output.
+
+## The control-to-evidence routing rule
+
+Use three routes after the demo:
+
+1. `collect` only when all seven fields pass and the source version is preserved.
+2. `human_review` when mapping and provenance pass but a repairable field is missing or stale.
+3. `reject` when the source cannot prove the requested control, provenance is absent, or the result scores 3/7 or lower.
+
+This rule keeps uncertainty visible. It also matches the direction of the primary guidance. The EU AI Act requires relevant high-risk AI systems to support event logging over their lifetime, requires human oversight, and expects accuracy and robustness throughout the lifecycle. The Act is not a universal compliance checklist for every workflow, but it makes the gap concrete: a generated answer is not the same thing as an accountable record. See [Articles 12, 14, and 15 of the EU AI Act](https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32024R1689).
+
+## What to change before connecting production sources
+
+The repair is not “add a better prompt” by itself. Add enforcement around the model:
+
+1. Give every request a control ID, scope, review window, and required-field schema.
+2. Store the source artifact ID, retrieval timestamp, source timestamp, version or hash, and access path.
+3. Validate the evidence against the control rule with deterministic checks where possible.
+4. Make approval an explicit event with an accountable person, time, and decision.
+5. Preserve the raw model output, reviewer corrections, final evidence row, and routing decision as separate versions.
+6. Re-run the same 12 cases whenever the prompt, model, source adapter, or policy changes.
+
+The emerging compliance-as-code literature points in the same direction. A 2026 preprint proposes a machine-readable policy, evidence, and enforcement architecture using OSCAL. It is a preprint and not a universal standard, but the useful design idea is clear: evidence should be structured so another system can validate and replay it, not just display it. [The preprint's architecture](https://arxiv.org/abs/2604.13767) is a design reference, not proof that any particular implementation is compliant.
+
+For a deeper implementation sequence, connect this test to the site's guides on [AI workflow implementation](/blog/ai-workflow-implementation), [attaching source evidence to AI workflow outputs](/blog/how-to-attach-source-evidence-to-ai-workflow-outputs), and [preserving model output after reviewer edits](/blog/how-to-preserve-model-output-after-a-reviewer-edits-extracted-data). Use the [replayable fixture guide](/blog/how-to-build-a-replayable-ai-workflow-fixture-from-a-business-case) when you turn the synthetic pack into a maintained regression test.
+
+## Limits and the next decision
+
+This reproduction is small, synthetic, deterministic, and intentionally harsh. It does not compare commercial models, test production connectors, establish legal sufficiency, or represent every control framework. The fixture URLs are labels inside the pack. Adapt the fields, retention rules, approval policy, and review windows to your own environment.
+
+The decision is still practical. If your demo cannot preserve the seven fields, keep the workflow read-only and route outputs to review or rejection. If it can pass the pack and preserve the output history, connect one low-risk source next, then re-run the same cases after every material change.
+
+If you want an implementation partner, Marius Manolachi's [AI consulting and tutoring work](/learn-ai) is built around making existing people capable of building AI products on their own work. Bring the failed fixture, not only the demo recording.
