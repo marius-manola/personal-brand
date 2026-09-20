@@ -1,0 +1,222 @@
+---
+title: "Why Does AI Fail on Roadmap Prioritization After the Demo?"
+date: "2026-09-20"
+updated: "2026-09-20"
+excerpt: "A fixed five-candidate test shows why demo confidence misranks AI roadmaps, then turns the rank changes into a go, test, defer, or stop record."
+answer: "AI fails on roadmap prioritization after the demo when it sees visible capability and possible value but not the deployment conditions that decide whether the work is fundable. In my fixed five-candidate test, adding data readiness, error cost, ownership, monitoring, and a stop condition moved support-reply drafting to first pilot and access-request routing to STOP. The exception is low-risk, reversible work with strong data and a named owner."
+targetQuery: "Why does AI fail on roadmap prioritization after the demo?"
+queryAliases:
+  - "AI roadmap prioritization after a demo"
+  - "why does an AI roadmap change after the demo"
+  - "AI demo looks good but roadmap decision fails"
+intent: "failure diagnosis and implementation decision"
+funnel: "consideration"
+cluster: "implementation"
+parent: "/blog/ai-workflow-implementation"
+contentType: "failure-clinic"
+kind: "satellite"
+sourceableAtom: "In a fixed five-candidate test, demo-only ranking put renewal-risk recommendation first and access-request routing second; context-complete ranking put support-reply drafting first and access-request routing last, with the raw outputs and worked decision record retained in the evidence package."
+evidenceType: "reproducible test plus worked decision artifact"
+evidenceBasis: "A dated synthetic five-candidate corpus, fixed gpt-5.6-luna prompt with three repeats per condition, separated seven-field rubric, raw demo-only and context-complete rankings, anonymized human adjudication, rank-change table, reproduced failures, and a shadow-mode go decision. This is not a production rate or client result."
+tags:
+  - "AI implementation"
+  - "AI prioritization"
+  - "AI evaluation"
+  - "AI governance"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://arxiv.org/abs/2607.23733"
+  - "https://github.com/mbelcevic/Product-Backlog-Prioritization-survey"
+  - "https://airc.nist.gov/airmf-resources/airmf/5-sec-core/"
+  - "https://www.nist.gov/publications/challenges-monitoring-deployed-ai-systems-center-ai-standards-and-innovation"
+  - "https://www.nist.gov/itl/ai-risk-management-framework/nist-ai-rmf-playbook"
+faq:
+  - q: "Which fields should an AI roadmap prioritization prompt include?"
+    a: "Separate value if successful, likelihood of success, investment, data readiness, error cost, ownership, and post-deployment monitoring. Add a measurable success metric and a stop condition so the ranking can distinguish an attractive demo from a fundable implementation."
+  - q: "Can demo-only prioritization ever be enough?"
+    a: "Only for a low-risk, reversible task where the data is already usable, one person owns the outcome, and a human can review every result. Otherwise, demo-only output is an idea shortlist, not a roadmap decision."
+  - q: "What should happen when the highest-ranked AI candidate has no owner?"
+    a: "Defer it or stop it if the task is high impact. Do not compensate for missing ownership with a higher value score. Name the owner, monitoring metric, reviewer, and stop condition before funding implementation."
+cover: "/blog/why-does-ai-fail-on-roadmap-prioritization-after-the-demo-roadmap-prioritization-hero.webp"
+coverAlt: "Illustration of an AI roadmap ranking changing after deployment context is added"
+draft: false
+---
+
+The demo is usually the cleanest part of an AI project. The data is selected. The path is rehearsed. The exceptions stay off-screen.
+
+That is why the roadmap can fail immediately after the applause. A demo proves that a capability can be shown. It does not prove that the team can own, measure, review, and stop the capability once it meets real inputs.
+
+When I taught product managers who moved from writing specifications to building and shipping, the missing piece was often a definition of done, not a cleverer prompt. The same gap appears here: a roadmap ranking looks precise while its acceptance conditions are missing. ([Marius Manolachi's AI work](/learn-ai))
+
+![Illustration of an AI roadmap ranking changing after deployment context is added](/blog/why-does-ai-fail-on-roadmap-prioritization-after-the-demo-roadmap-prioritization-hero.webp)
+
+## What changed when deployment context was added?
+
+The first choice changed from renewal-risk recommendation to support-reply drafting, and access-request routing fell from second to last.
+
+I froze five synthetic, anonymized candidates and ran them through the same prompt in two conditions. The demo-only input contained only an ID, title, and demo summary. The context-complete input added value, likelihood of success, investment, data readiness, error cost, ownership, monitoring, success metric, and deployment note.
+
+| Candidate | Demo-only rank | Context-complete rank | Change | Human decision |
+| --- | ---: | ---: | ---: | --- |
+| R1 Renewal-risk recommender | 1 | 4 | -3 | DEFER |
+| R2 Support-reply drafter | 3 | 1 | +2 | GO to shadow mode |
+| R3 Invoice-exception classifier | 5 | 3 | +2 | TEST |
+| R4 Meeting-decision extractor | 4 | 2 | +2 | TEST |
+| R5 Access-request router | 2 | 5 | -3 | STOP |
+
+This is the sourceable result: the ranking changed when the fields that govern deployment were supplied. It is a five-candidate synthetic test, not a general failure rate. The raw runs and full decision record are included below.
+
+![Illustration of a rank-change table separating demo confidence from deployment evidence](/blog/why-does-ai-fail-on-roadmap-prioritization-after-the-demo-roadmap-prioritization-rank-change.webp)
+
+## Why does the demo ranking overvalue the wrong candidates?
+
+Demo-only ranking answers, “Which idea looks valuable and buildable?” Roadmap prioritization needs to answer, “Which idea can this team operate safely enough to learn from next?”
+
+That is not a small wording difference. Foster Provost and Panos Ipeirotis describe expected ROI as separate judgments about value if successful, likelihood of success, and investment. Their point is useful here because a large value claim should not hide weak likelihood or heavy implementation cost. ([AI Strategy: How to Choose What AI Product to Implement](https://arxiv.org/abs/2607.23733))
+
+The demo-only prompt had no way to see those missing terms. R1 looked like the biggest commercial bet. R5 looked like an immediate operational win. Once the context arrived, both candidates exposed a different problem:
+
+- R1 had delayed labels, no agreed risk owner, and weak monitoring. Its value stayed high. Its readiness did not.
+- R5 touched access permissions. Its apparent speed did not reduce the cost of a wrong route. No owner, monitoring plan, or stop condition existed.
+
+NIST's AI Risk Management Framework calls for context mapping, measurement, clear accountability, and lifecycle risk management. That is why these fields belong before the ranking, not in a deployment checklist after funding. ([NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/))
+
+## Which fields should the prioritization prompt separate?
+
+Use seven scores, then add a success metric and a stop condition as explicit text. Do not compress them into one vague “readiness” number.
+
+| Field | Score 5 means | What a low score should do |
+| --- | --- | --- |
+| Value | The outcome matters if the workflow works. | Keep the candidate below high-value bets. |
+| Likelihood of success | A credible first slice and test exist. | Require a discovery or feasibility test. |
+| Investment | The first implementation slice is small. | Re-scope before comparing it with smaller work. |
+| Data readiness | Inputs are available, representative, and usable. | Defer until the data question is answered. |
+| Error cost | A wrong result is cheap to reverse or easy to review. | Keep the human boundary explicit. |
+| Ownership | One person owns the outcome and follow-up. | Do not fund the roadmap item yet. |
+| Monitoring and stop condition | A metric, cadence, and written stop rule exist. | Treat the item as a test-design problem. |
+
+The scoring direction matters. Error cost is scored as reversibility, so 5 means cheap to reverse and 1 means high impact or hard to reverse. A high-value candidate can still be a bad first implementation if its other scores are weak.
+
+The product-backlog prioritization survey repository is useful as a reminder that prioritization methods and attitudes toward AI/ML prioritization are empirical questions. It documents a 307-response survey. This test answers a different question: what changes inside one bounded corpus when the input grows from a demo description to deployment evidence? ([Product Backlog Prioritization Survey](https://github.com/mbelcevic/Product-Backlog-Prioritization-survey))
+
+## What prompt reproduces the comparison?
+
+Use the same prompt for both conditions and change only the supplied fields. That keeps the rank change attributable to context, not to a new instruction.
+
+```text
+You are prioritizing a small AI implementation roadmap. Rank all five candidates
+from 1 (fund first) to 5 (fund last). Do not invent missing facts. In the
+demo-only condition, use only id, title, and demo_summary. In the
+context-complete condition, use every supplied deployment field.
+
+For each candidate, return: id, rank, decision_hint, and one-sentence rationale.
+Use GO, TEST, DEFER, or STOP only as a provisional hint. A candidate with a
+high-impact error and no owner, monitoring, or stop condition must not be
+recommended for autonomous implementation. Return JSON only.
+```
+
+The configuration was fixed at `gpt-5.6-luna`, temperature 0, `top_p: 1`, no tools, candidate order R1 through R5, and three repeats per condition on 2026-08-24. The three repeats were identical within each condition. That is a result of this configuration, not evidence that other models or settings will be stable.
+
+## What did the raw model output say?
+
+The first run in each condition shows the model's full compact output. Repeats 2 and 3 returned the same rank order and are retained as raw run records in the evidence package.
+
+Demo-only:
+
+```json
+{"run":"demo-1","ranking":[{"id":"R1","rank":1,"decision_hint":"GO","rationale":"The demo shows high commercial value and a clear recommendation experience."},{"id":"R5","rank":2,"decision_hint":"GO","rationale":"The demo shows immediate routing value for a common access workflow."},{"id":"R2","rank":3,"decision_hint":"TEST","rationale":"Drafting is useful and appears relatively straightforward to implement."},{"id":"R4","rank":4,"decision_hint":"TEST","rationale":"The demo is useful but the value is less direct than the leading candidates."},{"id":"R3","rank":5,"decision_hint":"DEFER","rationale":"The demo is narrower and appears to require more specialist work."}]}
+```
+
+Context-complete:
+
+```json
+{"run":"context-1","ranking":[{"id":"R2","rank":1,"decision_hint":"GO","rationale":"Strong readiness, reversible drafts, clear ownership, and measurable review make this the best first pilot."},{"id":"R4","rank":2,"decision_hint":"TEST","rationale":"The task is reviewable and reversible, but its baseline outcome is not yet defined."},{"id":"R3","rank":3,"decision_hint":"TEST","rationale":"Finance review and more representative data are needed before implementation."},{"id":"R1","rank":4,"decision_hint":"DEFER","rationale":"High value does not compensate for weak labels, missing ownership, and weak monitoring."},{"id":"R5","rank":5,"decision_hint":"STOP","rationale":"Permission-routing errors are high impact and the deployment boundary is not owned or monitored."}]}
+```
+
+The remaining raw repeat records returned these exact rank arrays:
+
+| Run | Raw rank array |
+| --- | --- |
+| demo-2 | `[R1, R5, R2, R4, R3]` |
+| demo-3 | `[R1, R5, R2, R4, R3]` |
+| context-2 | `[R2, R4, R3, R1, R5]` |
+| context-3 | `[R2, R4, R3, R1, R5]` |
+
+The raw repeat records are not a claim about model variance. They are there so a reader can see exactly what the ranking comparison used and rerun the exercise with a different pinned model if needed.
+
+## Which failures did the demo conceal?
+
+Two candidates demonstrate different failure modes.
+
+R1 concealed a readiness failure. The demo's commercial story was strong, so it ranked first. The context-complete record showed that delayed labels and missing ownership made the first implementation hard to validate. The repair is not “ask the model to be more conservative.” The repair is to define the label, owner, and monitoring plan before funding the build.
+
+R5 concealed a risk-boundary failure. Routing access requests sounds like a classification task. In deployment, a wrong route can change who receives permission. Without an owner, a monitoring metric, and a stop condition, the right output is STOP, not a lower-confidence GO.
+
+NIST's 2026 report on monitoring deployed AI systems distinguishes pre-deployment evaluation from the need to validate behavior in real-world conditions, track unforeseen outputs, and see consequences in the deployment context. A demo cannot supply that visibility. ([NIST AI 800-4](https://www.nist.gov/publications/challenges-monitoring-deployed-ai-systems-center-ai-standards-and-innovation))
+
+## How should a human adjudicate the ranking?
+
+Use the model to expose a candidate order. Use a human product or engineering reviewer to decide whether the order satisfies acceptance criteria.
+
+The precommitted rule in this test was:
+
+1. GO to a read-only or shadow pilot only when the total is at least 23/35, data readiness, error cost, ownership, and monitoring are each at least 3, and a reviewer is named.
+2. TEST when the total is 18-22 or one non-critical evidence field is missing.
+3. DEFER when the total is below 18 or a non-trivial candidate lacks data, ownership, or monitoring.
+4. STOP when error cost is 1-2 and there is no human approval boundary, owner, monitoring, or stop condition. STOP overrides the total.
+
+The adjudication for this corpus was:
+
+| Candidate | Score | Decision | Acceptance reason |
+| --- | ---: | --- | --- |
+| R1 Renewal-risk recommender | 14/35 | DEFER | High value does not compensate for weak labels, missing owner, and weak monitoring. |
+| R2 Support-reply drafter | 29/35 | GO to shadow mode | Read-only drafts, strong data readiness, named support owner, and measurable review. |
+| R3 Invoice-exception classifier | 20/35 | TEST | Finance impact requires representative exception cases and review before automation. |
+| R4 Meeting-decision extractor | 27/35 | TEST | Safe to test, but the baseline outcome is not defined. |
+| R5 Access-request router | 16/35 | STOP | Permission-routing errors are high impact and the deployment boundary is not owned or monitored. |
+
+This is the point where a roadmap ranking becomes an implementation decision. The highest score is not automatically the next production release.
+
+## What is the completed go/no-go decision?
+
+The decision is GO for a read-only shadow pilot of R2, not GO for autonomous sending.
+
+```text
+record_id: ROADMAP-DEMO-CONTEXT-2026-08-24
+selected_candidate: R2 Support-reply drafter
+decision: GO to read-only shadow pilot, not production sending
+owner: Support lead
+pilot_slice: 20 historical or sanitized requests, drafts only, human approval required
+acceptance: at least 18 of 20 drafts are acceptable without factual or policy correction; every draft has a source link or is routed for review
+monitoring: correction type, correction count, escalation, unsupported claim, and reviewer time per case
+stop_condition: stop after any unsupported policy claim is sent, any privacy exposure, or two severe factual errors in the first 20 cases
+next_action: prepare the sanitized replay set and baseline review rubric
+```
+
+That decision is deliberately smaller than the demo promise. It turns the best-ranked candidate into a reversible test with a reviewer, a metric, and a stopping rule. NIST describes its AI RMF Playbook as a voluntary companion resource that teams can adapt to their own context and capacity. Use the same principle here: borrow the structure, then set thresholds your team can actually observe. ([NIST AI RMF Playbook](https://www.nist.gov/itl/ai-risk-management-framework/nist-ai-rmf-playbook))
+
+For the next backlog review, keep the candidate schema and run the two-condition comparison before discussing implementation estimates. If the ranking changes, record why. If it does not, the deployment fields still make the decision more defensible.
+
+## How was the repair verified?
+
+The repair was verified by replaying the same frozen corpus with the same prompt and configuration, then checking the result against the precommitted human decision rules. The repair was to add deployment evidence and an explicit human gate, not to ask the model for a more cautious ranking.
+
+| Stage | Trace evidence | Result |
+| --- | --- | --- |
+| Reproduction | Three demo-only runs supplied only the candidate descriptions. | R1 ranked first and R5 ranked second. |
+| Repair | The context-complete condition added the seven rubric fields, a success metric, ownership, monitoring, and a stop condition. | The ranking had the fields needed for an implementation decision. |
+| Retest | Three repeats used `gpt-5.6-luna`, temperature 0, `top_p: 1`, the same candidate order, and the same prompt. | Every repeat returned `[R2, R4, R3, R1, R5]`. |
+| Verification | The human record applied the precommitted thresholds and veto. | R2 was GO to shadow mode, R4 and R3 were TEST, R1 was DEFER, and R5 was STOP. |
+
+This confirms that the bounded rank change and decision change are reproducible within this test record. It does not verify production reliability, model behavior outside this configuration, or the quality of the proposed 20-case shadow pilot. Those require the next replay set and human review.
+
+## What this test does not prove
+
+This corpus is synthetic and anonymized. It does not estimate how often AI roadmap prioritization fails, and it does not compare commercial models.
+
+The test used one model configuration, five candidates, one candidate order, and three repeats per condition. Temperature 0 produced identical repeats here, but another endpoint or prompt could behave differently. The scores are worked judgments, not data from a client backlog. The human review is one anonymized product/engineering adjudication, not a multi-reviewer reliability study.
+
+The useful claim is narrower: if a roadmap prompt receives only demo descriptions, it cannot reason about fields that were never supplied. Add those fields, replay the corpus, and make the human acceptance criteria visible before the demo becomes a funded commitment.
+
+If your team has a candidate backlog but cannot name the owner, success metric, or stop condition, start with the [AI workflow implementation parent](/blog/ai-workflow-implementation), then compare the candidate against the [AI evaluation dataset guide](/blog/how-to-build-an-evaluation-dataset-from-production-traces) and the [AI agent monitoring guide](/blog/how-to-monitor-an-ai-agent-in-production). When I help teams build capability, the useful next step is usually to make one real decision testable, not to add another impressive demo. [Work with Marius Manolachi on that implementation decision](/learn-ai).
