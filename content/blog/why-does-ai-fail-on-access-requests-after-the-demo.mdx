@@ -1,0 +1,172 @@
+---
+title: 'Why Does AI Fail on Access Requests After the Demo?'
+date: '2026-09-20'
+updated: '2026-09-20'
+excerpt: 'A reproducible replay shows why demo access fails later: identity binding, scope, approval, or downstream policy breaks first.'
+answer: 'AI can fail after the demo because the demo used capability-level credentials while production enforces authority. Replay the same request with the production identity, scopes, approval state, and downstream policy. Fix the first boundary reported. The exception is a model or prompt bug only after those four checks pass.'
+targetQuery: 'Why does AI fail on access requests after the demo?'
+queryAliases:
+  - 'AI access request fails after demo'
+  - 'AI agent authorization works in demo but fails in production'
+  - 'AI agent production access denied'
+intent: 'implementation failure diagnosis'
+funnel: 'consideration'
+cluster: 'implementation'
+parent: '/blog/ai-workflow-implementation'
+contentType: 'failure-clinic'
+kind: 'satellite'
+sourceableAtom: 'A local HTTPS/TLS replay of six fixed access requests produced four distinct first-failing production-like boundaries while every demo request passed: identity binding, permission scope, approval, and downstream policy.'
+evidenceType: 'reproducible failure reproduction plus worked decision artifact'
+evidenceBasis: 'Dependency-free Node.js fixture executed on 2026-08-24 with one synthetic user, one agent identity, delegated and service-account paths, six fixed cases, two configurations, twelve HTTPS/TLS request cycles, deterministic trace IDs, redacted output, and four production-like failure classes.'
+tags:
+  - 'AI implementation'
+  - 'AI security'
+  - 'AI agents'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-22'
+sources:
+  - 'https://genai.owasp.org/llmrisk/llm062025-excessive-agency/'
+  - 'https://docs.aws.amazon.com/prescriptive-guidance/latest/govern-architect-agentic-ai/agents-layer.html'
+  - 'https://cheatsheetseries.owasp.org/cheatsheets/AI_Agent_Security_Cheat_Sheet.html'
+  - 'https://learn.microsoft.com/en-us/microsoft-agent-365/developer/get-started'
+  - 'https://www.nccoe.nist.gov/sites/default/files/2026-02/accelerating-the-adoption-of-software-and-ai-agent-identity-and-authorization-concept-paper.pdf'
+faq:
+  - q: 'Should I change the prompt when an AI access request fails after a demo?'
+    a: 'Not first. Replay the request and inspect identity binding, scopes, approval state, and the downstream policy decision. Change the prompt only if the authorization path accepts the normalized request and the failure is actually in tool selection or input construction.'
+  - q: 'What is the difference between delegated and service-to-service access for an AI agent?'
+    a: 'Delegated or on-behalf-of access carries a signed-in user context. Service-to-service access carries the workload or service identity and is suited to background operations. They are different authorization inputs, so a demo that uses one cannot prove the other.'
+  - q: 'What should I log when an AI access request is denied?'
+    a: 'Log the model and prompt versions, normalized tool request, agent identity, authentication mode, user or service subject, scopes, approval state, policy decision, downstream response, timestamp, and trace ID. Redact secrets and sensitive payloads.'
+cover: '/blog/why-does-ai-fail-on-access-requests-after-the-demo-access-request-boundary-hero.webp'
+coverAlt: 'Illustration of an AI access request crossing identity, scope, approval, and downstream policy boundaries'
+draft: false
+---
+
+The demo often proves that the agent can call a tool. Production asks a different question: who is allowed to make this call, for which resource, with which approval, under which policy?
+
+The replay below keeps the prompt, tool definitions, user, and agent identity fixed. Only the access configuration changes. That isolates the break.
+
+## The failure matrix: demo passes, production-like access stops at four boundaries
+
+The smallest useful diagnosis is the first boundary that denies the request. In this fixture, all six demo requests returned `200`, while the six production-like requests returned `403` as expected. The failures were not one problem repeated six times.
+
+| Case | Action and identity path | Demo | Production-like | First failing boundary | Smallest repair |
+| --- | --- | ---: | ---: | --- | --- |
+| AR-01 | Delegated read on a user-owned order | Allow | Deny | Identity binding | Preserve the user's subject through the adapter. |
+| AR-02 | Delegated write on a user-owned order | Allow | Deny | Permission scope | Grant the narrow write scope, if policy allows it. |
+| AR-03 | Delegated high-impact export | Allow | Deny | Approval | Bind a fresh approval to the normalized action. |
+| AR-04 | Service-account read on a user-owned order | Allow | Deny | Downstream policy | Use delegated context or an explicit service policy. |
+| AR-05 | Service-account write | Allow | Deny | Permission scope | Add a narrow service write grant or remain read-only. |
+| AR-06 | Service-account high-impact export | Allow | Deny | Approval | Require approval or remove the high-impact operation. |
+
+This is the sourceable result: one unchanged workflow crossed four different authority boundaries after the demo. The fix depends on the first denial, not on the fact that the model looked successful earlier.
+
+![Illustration of an AI access request moving from a demo identity into production-like identity, scope, approval, and downstream policy checks](/blog/why-does-ai-fail-on-access-requests-after-the-demo-access-request-replay-matrix.webp)
+
+## Why the same request changes after the demo
+
+The demo configuration collapsed authority into a permissive test context. It gave both paths every scope, marked the high-impact action approved, and allowed the service account to read a user-owned resource. The production-like configuration separated those decisions.
+
+That separation is normal. OWASP describes excessive agency as a combination of excessive functionality, permissions, or autonomy. Its mitigations include minimum functionality, user-context execution, approval for high-impact actions, and complete mediation in downstream systems ([OWASP's LLM06:2025 guidance](https://genai.owasp.org/llmrisk/llm062025-excessive-agency/)).
+
+AWS places the same controls around an agent layer: identity propagation, permission boundaries, audit trails, and circuit breakers are part of operating agents, alongside a registry that records capabilities, ownership, versions, permissions, and approval status ([AWS's agents-layer guidance](https://docs.aws.amazon.com/prescriptive-guidance/latest/govern-architect-agentic-ai/agents-layer.html)).
+
+The practical consequence is simple. A successful demo is evidence of capability. It is not evidence that the production identity is authorized.
+
+## How to identify the first failing boundary
+
+Replay the exact request and stop diagnosing at the first denial in this order:
+
+1. **Identity binding:** Is the agent authenticated, and is the intended user or workload subject still present? If a delegated request loses `user-001`, do not inspect scopes yet. The request has no reliable actor context.
+2. **Permission scope:** Does the authenticated subject have the scope required by the normalized action? A read scope does not imply a write scope, and a write scope does not imply a high-impact operation.
+3. **Approval:** Does the action require approval, and is the approval present, current, and bound to this action, resource, and actor? A model saying “approved” is not an approval record.
+4. **Downstream policy:** Does the system of record accept the identity, resource, tenant, and operation together? A gateway can accept a token while the downstream service correctly rejects the action.
+
+This order is a troubleshooting rule derived from the fixture's decision function. It is not a vendor standard. It prevents a common waste of time: tuning a prompt when the request is already denied before the model's output matters.
+
+## Delegated, agent-owned, and service-to-service identities are not interchangeable
+
+Microsoft's Agent 365 quickstart makes the distinction concrete. It asks developers to choose OBO, meaning on-behalf-of a signed-in user, Agentic-User, meaning the agent's own user account, or S2S, meaning service-to-service for background operations. It also says observability must use the same mode as the agent's permission model ([Microsoft's authentication-mode guidance](https://learn.microsoft.com/en-us/microsoft-agent-365/developer/get-started)).
+
+For this diagnosis, use the following test:
+
+| Authentication mode | Authority input | Suitable first question |
+| --- | --- | --- |
+| Delegated / OBO | User plus agent context | Did the user's subject and consent survive the hop? |
+| Agent-owned | Agent's own account and permissions | Is the agent account intentionally allowed to act on this resource? |
+| Service-to-service / S2S | Workload or service account | Is this a background operation, and does the downstream policy permit it without a user? |
+
+Do not “fix” an OBO failure by silently replacing the user token with a broad service account. That changes the authority model and can turn a missing identity binding into excessive permission. OWASP specifically warns about extensions intended to operate in a user's context using a generic privileged identity ([OWASP's user-context mitigation](https://genai.owasp.org/llmrisk/llm062025-excessive-agency/)).
+
+NIST treats these as emerging identity and authorization questions, including how to establish least privilege, prove an agent's authority for a specific action, handle on-behalf-of delegation, bind agent and human identity, and provide verifiable auditability ([NIST's 2026 concept paper](https://www.nccoe.nist.gov/sites/default/files/2026-02/accelerating-the-adoption-of-software-and-ai-agent-identity-and-authorization-concept-paper.pdf)). The right response to that uncertainty is to record the authority inputs explicitly, not to hide them behind a prompt.
+
+## The smallest repair for each failure class
+
+Use the matrix as a repair order. Change one boundary at a time, rerun the same case, and keep the trace ID and configuration version together.
+
+| First denial | Change first | Do not change first | Verification request |
+| --- | --- | --- | --- |
+| Identity binding | Restore the user or workload subject and verify it at the downstream service. | Prompt wording or model version. | Delegated read with a user-owned resource. |
+| Permission scope | Add only the missing operation scope, with consent and policy review. | A broad admin role or every tool. | Delegated write while a read-only request remains allowed. |
+| Approval | Create a server-side approval record bound to actor, action, resource, and expiry. | A system-prompt instruction to ask first. | High-impact export with missing, stale, and valid approval. |
+| Downstream policy | Align tenant, resource ownership, and service policy, or use the correct delegated path. | Retrying the same token. | Service-account read on both user-owned and service-owned resources. |
+
+OWASP's agent security cheat sheet recommends minimum tools, per-tool read/write scoping, explicit authorization for sensitive operations, human approval for high-risk actions, monitoring, and adversarial validation ([OWASP's AI Agent Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/AI_Agent_Security_Cheat_Sheet.html)). Those controls map directly to the four repairs above.
+
+## What to log before changing the model
+
+Log the access decision as a structured event, not as a final chat message. The minimum record is:
+
+```text
+model/provider + version
+prompt version or prompt hash
+normalized tool name and arguments hash
+agent identity and authentication mode
+user subject or service-account subject
+requested and granted scopes
+policy decision and first failing boundary
+approval state, approver, action binding, expiry
+downstream status and error code
+timestamp and trace ID
+```
+
+The fixture's redacted trace for AR-04 shows why this matters:
+
+```json
+{
+  "environment":"production_like",
+  "case_id":"AR-04",
+  "trace_id":"d542a4c28d4fc814ce3acb76fe2b119d",
+  "identity":{"agent_id":"agent-001","authentication_mode":"s2s","subject":"svc-agent-001"},
+  "scopes":["orders:read","orders:high-impact"],
+  "policy_decision":"deny",
+  "first_failing_boundary":"downstream_policy",
+  "approval_state":"missing",
+  "downstream_response":{"status":403,"code":"downstream_policy"},
+  "timestamp":"2026-08-24T09:00:00Z"
+}
+```
+
+The trace tells you that adding a read scope would not fix this case. The service account already has `orders:read`; the downstream policy rejects a service identity on a user-owned resource. AWS also recommends audit trails for agent decisions and actions, plus circuit breakers for abnormal behavior ([AWS's access-control guidance](https://docs.aws.amazon.com/prescriptive-guidance/latest/govern-architect-agentic-ai/agents-layer.html)).
+
+Microsoft's troubleshooting notes add a useful warning: telemetry can appear to disappear even when a request returns HTTP 200 if licensing or the expected root `invoke_agent` span is missing ([Microsoft's troubleshooting guidance](https://learn.microsoft.com/en-us/microsoft-agent-365/developer/get-started)). Treat observability configuration as another access-path dependency. A missing trace is not proof that the request was safe.
+
+## Reproduce the diagnosis in five minutes
+
+Use a harmless resource and synthetic credentials. Do not test this with a production admin token.
+
+1. Freeze the prompt, tool definitions, model/provider version, and six request cases.
+2. Record one user, one agent identity, the delegated/OBO path, and the service-account path.
+3. Run all six cases in the demo configuration and save the response, policy decision, approval state, and trace ID.
+4. Change only the production-like identity, scope, approval, and downstream policy inputs. Run the same six cases again.
+5. Classify the first denial, apply the smallest repair from the table, and rerun only that case plus its nearest control.
+
+If every production-like case fails at the same boundary, inspect the shared adapter or gateway. If failures split across boundaries, keep the fixes separate. A single “authorization is broken” ticket is too coarse to guide a safe repair.
+
+## What this fixture does not prove
+
+The replay is intentionally small. It does not estimate failure rates, test a real OAuth exchange, represent a particular cloud tenant, or prove that every AI workflow has these four boundaries. It shows that one stable request can be accepted under demo authority and denied under production-like authority for different first causes.
+
+That is enough to change the next debugging move. Before changing the prompt or model, compare the identity, scopes, approval record, and downstream decision. If those four checks pass, then investigate tool selection and model behavior.
+
+For the broader implementation path, continue with the [AI workflow implementation collection](/blog/ai-workflow-implementation), then use the existing guides on [least-privilege tool access](/blog/give-ai-agent-least-privilege-tool-access) and [audit trails](/blog/how-to-add-an-audit-trail-to-an-ai-workflow). If the team needs help turning the replay into a bounded internal exercise, Marius Manolachi's [AI consulting and tutoring work](https://mariusmanolachi.com/learn-ai) is the appropriate next step.
