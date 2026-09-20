@@ -1,0 +1,197 @@
+---
+title: "How Should a Team Rank Renewal-Risk Review Before an AI Pilot?"
+date: "2026-09-20"
+updated: "2026-09-20"
+excerpt: "A worked scorecard ranks manual review, human-approved AI assistance, and autonomous renewal-risk actioning before a pilot."
+answer: "Rank renewal-risk review as a source-backed evidence packet first. Choose AI-assisted packet preparation with human approval when signals are timestamped, a human-reviewed baseline exists, a named reviewer owns the decision, and the next action is reversible. Choose manual evidence repair when those conditions fail. Keep autonomous risk/actioning vetoed until evidence, review, and rollback are proven."
+targetQuery: "How should a team rank renewal-risk review before an AI pilot?"
+queryAliases:
+  - "how to prioritize renewal risk review before an AI pilot"
+  - "renewal risk AI pilot decision"
+  - "manual versus autonomous renewal risk review"
+intent: "decision support"
+funnel: "consideration"
+cluster: "architecture"
+parent: "/blog/ai-workflow-architecture"
+contentType: "decision-tool"
+kind: "satellite"
+sourceableAtom: "Across three synthetic account packets, AI-assisted evidence packets with human approval score highest in every raw comparison, although the Juniper path is held until evidence repair; autonomous risk/actioning has the highest raw score for one packet but loses that rank under a no-human-approval veto."
+evidenceType: "worked-decision-artifact"
+evidenceBasis: "An analyst-defined weighted scorecard, Salesforce CSI source-to-signal map, three explicitly synthetic account packets, and reproducible arithmetic. This is decision support, not a churn-prediction benchmark or client outcome."
+tags:
+  - "AI pilots"
+  - "Renewal risk"
+  - "AI workflow architecture"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-24"
+sources:
+  - "https://help.salesforce.com/s/articleView?id=analytics.csi_score_work_overview.htm&language=en_US&type=5"
+  - "https://help.salesforce.com/s/articleView?id=service.concept_cxi.htm&language=en_US&type=5"
+  - "https://airc.nist.gov/airmf-resources/airmf/5-sec-core/"
+  - "https://www.nist.gov/publications/assessing-risks-and-impacts-ai-aria-pilot-evaluation-report"
+  - "https://learn.microsoft.com/en-us/microsoft-cloud/dev/copilot/isv/business-envisioning"
+  - "https://learn.microsoft.com/en-us/microsoft-cloud/dev/copilot/isv/observability-for-ai"
+  - "https://openai.com/business/guides-and-resources/identifying-and-scaling-ai-use-cases/"
+  - "https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents"
+faq:
+  - q: "Is this a churn prediction model?"
+    a: "No. It is an analyst-defined decision aid for choosing a review workflow. Its synthetic scores do not estimate churn probability, precision, recall, retained revenue, or client impact."
+  - q: "What is the safest first AI pilot for renewal risk?"
+    a: "An AI-assisted evidence packet that cites its sources and waits for an accountable human to approve the risk interpretation and next action."
+  - q: "When can autonomous renewal-risk actioning be considered?"
+    a: "Only after the team has source-level evidence, a human-reviewed baseline and evaluation set, a named owner, an audit trail, and a tested dry-run, rollback, or compensation path."
+cover: "/blog/how-should-a-team-rank-renewal-risk-review-before-an-ai-pilot-renewal-risk-scorecard-hero.webp"
+coverAlt: "Illustration of a renewal-risk review scorecard comparing three AI pilot options"
+draft: false
+---
+
+I keep seeing teams start this decision from the word *autonomous*. That puts the model at the center before anyone has agreed on the renewal decision, the evidence, or the person who owns the call.
+
+> **Quick answer:** Rank renewal-risk review as a source-backed evidence packet first. Choose AI-assisted packet preparation with human approval when signals are timestamped, a human-reviewed baseline exists, a named reviewer owns the decision, and the next action is reversible. Choose manual evidence repair when those conditions fail. Keep autonomous risk/actioning vetoed until evidence, review, and rollback are proven.
+
+Here is the worked result from this article's decision aid:
+
+| Option | Eligible result across three synthetic packets | What it does |
+| --- | ---: | --- |
+| AI-assisted evidence packet with human approval | Highest raw score in all three comparisons, 306 points | Extracts and organizes evidence, then waits for a named reviewer; Juniper is held until evidence repair |
+| Manual evidence packet | 2nd, 288 points | Produces the baseline and repairs missing evidence |
+| Autonomous risk/actioning | Blocked, 284 raw points | Scores risk or takes an action without case-by-case approval |
+
+The AI-assisted option has the highest raw score in all three packet comparisons. The Juniper path is held until its evidence is repaired. The autonomous option has the highest raw score for Northwind, but a veto removes it from that packet because the risk and action decision has no named human approval. That rank change is the sourceable result here. The packets and numbers are synthetic fixtures, not a client result or a churn benchmark.
+
+![Illustration of a renewal-risk scorecard with three ranked workflow options and a veto gate](/blog/how-should-a-team-rank-renewal-risk-review-before-an-ai-pilot-renewal-risk-veto-gate.webp)
+
+## What should a renewal-risk review produce before a pilot?
+
+A renewal-risk review should produce a source-backed packet for a specific decision, not a single risk label.
+
+The packet should answer five questions:
+
+1. What renewal decision is due, and by when?
+2. Which sources support the decision?
+3. What changed, and when did it change?
+4. Who reviews the interpretation?
+5. What reversible next action is allowed?
+
+Salesforce's Customer Signals Intelligence documentation describes customer signals arriving from channels such as surveys, voice, chat, email, cases, and custom channels. Its CSI overview separates perception signals from behavioral signals and lists composite categories such as sentiment, journey experience, engagement effectiveness, revenue health, operations, customer health, and churn risk. That makes it a useful vocabulary for mapping evidence, but not a ready-made answer for your account. ([Salesforce CSI Overview](https://help.salesforce.com/s/articleView?id=analytics.csi_score_work_overview.htm&language=en_US&type=5), [Salesforce Customer Signals Intelligence](https://help.salesforce.com/s/articleView?id=service.concept_cxi.htm&language=en_US&type=5))
+
+NIST's AI Risk Management Framework makes the same boundary explicit from a risk perspective: establish context, measure the system, manage the risk, and keep governance across the lifecycle. Its Map function informs an initial go/no-go decision, while Measure includes testing before deployment, documentation, monitoring, and human oversight. ([NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/))
+
+When I teach product managers to move from writing specifications to building and shipping, the recurring failure is not usually the model. It is that nobody can say what done means. For renewal-risk review, “done” means a reviewer can trace each material statement to evidence and approve a reversible next step. That is the boundary this scorecard tests. ([Marius Manolachi's AI learning practice](/learn-ai))
+
+## Which sources belong in the account packet?
+
+Map source records to signal families before you score an AI option. Do not let a composite score hide the records underneath it.
+
+| Signal family | Source records to collect | Renewal-review question |
+| --- | --- | --- |
+| Engagement and customer health | Active users, key-feature adoption, adoption trend, support dependence | Is the customer still using and depending on the product? |
+| Sentiment and Voice of Customer | QBR notes, surveys, emails, call summaries, explicit objections | Is perceived value or relationship quality worsening? |
+| Journey experience | Onboarding, implementation, service, and renewal milestones | Where did the customer stall? |
+| Revenue health and retention outcomes | Renewal date, contract value, expansion or downgrade context, outcome evidence | What commercial decision is actually due? |
+| Operations and support | Case severity, resolution time, unresolved delivery issues | Is an operational problem creating a renewal signal? |
+| Churn-risk indicators | Disengagement, downgrade language, negative trend, payment or renewal warning | Which source-backed warning needs investigation? |
+
+This is an application-specific source-to-signal map using Salesforce CSI categories. It does not copy Salesforce's scoring weights, claim that every organization has the same fields, or turn a CSI score into a churn prediction.
+
+## How should the three workflow options be scored?
+
+Score each option from 1 to 5 on eight criteria, then apply the weights. The weights favor reviewability, action safety, and reversibility because a renewal decision can change a commercial relationship.
+
+| Criterion | Weight | A high score means |
+| --- | ---: | --- |
+| Decision value | 4 | It improves preparation and prioritization of the decision |
+| Signal availability | 3 | Required sources are present, timestamped, and identity-stable |
+| Baseline quality | 3 | Human-reviewed reference packets and an evaluation set exist |
+| Reviewability | 3 | Every material statement can be traced to evidence |
+| Integration effort | 2 | Read-only or manual collection is enough |
+| Action risk | 4 | The workflow stays in review preparation with no external commitment |
+| Reversibility | 4 | The action is draft-only or has a tested rollback or compensation path |
+| Learning value | 3 | Reviewer corrections become useful evaluation cases |
+
+The formula is:
+
+```text
+total = 4D + 3S + 3B + 3R + 2I + 4A + 4V + 3L
+```
+
+The maximum is 130. Scores of 2 or 4 are allowed between the anchor descriptions. These are ordinal analyst scores, not calibrated probabilities. Microsoft similarly recommends defining the business objective, success measures, and accountable sponsor, then considering business value, user experience, and technical feasibility when prioritizing an AI use case. Its observability guidance also recommends test datasets, predefined metrics, a baseline, telemetry, and human validation. ([Microsoft business envisioning](https://learn.microsoft.com/en-us/microsoft-cloud/dev/copilot/isv/business-envisioning), [Microsoft observability for pro-code generative AI](https://learn.microsoft.com/en-us/microsoft-cloud/dev/copilot/isv/observability-for-ai))
+
+OpenAI's use-case guidance also puts collection and prioritization of high-impact opportunities before scaling them. Here, that means ranking the review workflow and its controls before ranking the most autonomous implementation. ([OpenAI, identifying and scaling AI use cases](https://openai.com/business/guides-and-resources/identifying-and-scaling-ai-use-cases/))
+
+## What do three synthetic account packets rank?
+
+The fixtures below keep the decision concrete. Each option uses the same packet, so a higher result comes from the workflow trade-offs rather than a different account.
+
+### Northwind Labs
+
+Renewal is 75 days away. The packet has stable identity, fresh usage and support records, mixed stakeholder sentiment, an absent economic buyer in two meetings, one documented outcome, and a price concern. Its signal availability is 5 and baseline quality is 5.
+
+The autonomous comparator updates an internal risk stage and creates a save-plan task. Both actions are reversible, so its raw score is high. But no named human approves the risk and action decision.
+
+| Option | Weighted score |
+| --- | ---: |
+| Manual evidence packet | 105 |
+| AI-assisted with human approval | 111 |
+| Autonomous raw score | 113, vetoed |
+
+The arithmetic for the AI-assisted option is `4×4 + 3×5 + 3×5 + 3×4 + 2×3 + 4×4 + 4×4 + 3×5 = 111`.
+
+The autonomous raw arithmetic is `4×5 + 3×5 + 3×5 + 3×3 + 2×1 + 4×5 + 4×5 + 3×4 = 113`. The veto changes the winner from autonomous to AI-assisted.
+
+### Juniper Health
+
+Renewal is 42 days away, but the evidence is not ready. Product telemetry is missing for 35% of seats. Two support systems use conflicting account IDs. The CRM renewal date conflicts with the contract record. There is no agreed reference packet or adjudicated reviewer outcome.
+
+| Option | Weighted score |
+| --- | ---: |
+| Manual evidence repair | 84 |
+| AI-assisted with human approval | 90, held until repair |
+| Autonomous | 76, vetoed |
+
+The raw AI-assisted score is not permission to pilot. The missing identity and baseline mean the correct next step is evidence repair. This is the case where the scorecard says “prepare the decision” rather than “automate the review.”
+
+### CedarWorks
+
+Renewal is 180 days away. Usage, support, sentiment, and contract data are present and timestamped, but stakeholder coverage is thin. One human-reviewed packet and a draft evaluation set exist. The proposed autonomous action is only an internal follow-up task, but no rollback rehearsal has been run.
+
+| Option | Weighted score |
+| --- | ---: |
+| Manual evidence packet | 99 |
+| AI-assisted with human approval | 105 |
+| Autonomous | 95, held |
+
+The human-approved option wins without needing a claim about prediction accuracy. It produces a reviewable packet, retains human judgment, and creates better correction data for the next evaluation cycle.
+
+NIST's ARIA pilot report is a useful reminder that evaluation can include multiple testing levels, human testers, expert annotation, and a transparent measurement method. That is why this scorecard requires an evaluation set and reviewer corrections rather than treating a model output as its own baseline. ([NIST ARIA Pilot Evaluation Report](https://www.nist.gov/publications/assessing-risks-and-impacts-ai-aria-pilot-evaluation-report))
+
+## When should the team veto the AI option?
+
+Veto AI-assisted or autonomous renewal-risk actioning if any one of five conditions fails:
+
+1. No named renewal decision or accountable human reviewer exists.
+2. A required source is missing, stale for the decision window, or tied to an unresolved account identity.
+3. No human-reviewed reference packet and replayable evaluation set exist.
+4. The proposed action is external, financially binding, destructive, or lacks a tested dry run, rollback, or compensation path.
+5. The output cannot show the source system, source timestamp, and supporting evidence for each material risk statement.
+
+Manual evidence preparation is still useful after a veto. It becomes the repair path: define the decision, reconcile identities, collect the missing records, and create the first reviewed packets. The veto is not a permanent ban on AI. It is a stop on the current level of authority.
+
+Anthropic's evaluation guidance distinguishes deterministic checks, model-based graders, and human graders. It also notes that model-based grading needs calibration with human graders and that teams can use weighted, binary, or hybrid scoring. That supports a human-approved packet as the learning stage before autonomous actioning. ([Anthropic, Demystifying evals for AI agents](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents))
+
+This is also where a [shadow mode for an AI workflow](/blog/how-to-build-a-shadow-mode-for-an-ai-workflow-before-it-takes-action) helps. Let the system produce the packet and proposed action without writing to the CRM or contacting the customer. Compare it with the human decision, capture corrections, and only then revisit the authority boundary.
+
+## What should the team do next?
+
+Use the scorecard in this order:
+
+1. Write the renewal decision in one sentence.
+2. Map each required signal to a source, timestamp, account identity, and evidence field.
+3. Assemble at least one human-reviewed packet and define the evaluation set.
+4. Score manual, AI-assisted, and autonomous options with the same weights.
+5. Apply the veto before discussing the raw winner.
+6. Pilot the highest-ranked eligible option in read-only or approval-gated mode.
+
+If the team cannot complete step two or three, start with [the smallest evidence set for an AI opportunity decision](/blog/what-is-the-smallest-evidence-set-for-an-ai-opportunity-decision), not a risk predictor. If the team can produce source-backed packets but still debates who owns the decision, use the parent guide on [AI workflow architecture](/blog/ai-workflow-architecture) to make the human and system boundaries explicit.
+
+The honest default is simple: let AI prepare the renewal-risk review before it lets AI own the renewal-risk action. Re-run the scorecard when the evidence, baseline, reviewer, or reversal path changes.
