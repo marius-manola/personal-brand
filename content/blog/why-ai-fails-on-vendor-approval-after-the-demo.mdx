@@ -1,0 +1,205 @@
+---
+title: "How to Replay an AI Vendor Approval Packet After a Demo"
+date: "2026-09-20"
+updated: "2026-09-20"
+excerpt: "Replay a provider-neutral AI vendor approval packet after a demo to catch missing evidence, vague criteria, stale approval, changed actions, and timeout."
+answer: "Replay a provider-neutral packet before connecting a real vendor. Freeze the policy, preserve vendor evidence and intended use, bind the approval to an exact action and expiry, then compare the executor payload with the approved hash. Route missing or conflicting evidence to review, reject ambiguous or stale packets and changed arguments, and escalate a timeout while blocking execution."
+targetQuery: "How to replay an AI vendor approval packet after a demo"
+queryAliases:
+  - "AI vendor approval replay after demo"
+  - "how to validate an AI vendor approval packet before execution"
+  - "how to replay a vendor approval packet"
+intent: "diagnostic implementation"
+funnel: "implementation"
+cluster: "implementation"
+parent: "/blog/ai-workflow-implementation"
+contentType: "failure-clinic"
+kind: "satellite"
+sourceableAtom: "A seven-fixture replay of a provider-neutral vendor-approval packet shows the post-demo break at the decision boundary: complete evidence proceeds, missing or contradictory evidence routes to review, ambiguous criteria and stale approvals reject, changed tool arguments reject, and an approval timeout escalates and blocks."
+evidenceType: "reproducible-implementation-artifact"
+evidenceBasis: "Node.js v24.11.1 replay of seven synthetic fixtures, with the exact packet schema, policy version, approval payload, action hash, executor check, limits, routes, and limitations preserved in research.md; cross-checked against five primary sources and Marius Manolachi's locked F-pms observation."
+tags:
+  - "AI implementation"
+  - "AI governance"
+  - "vendor approval"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://openai.github.io/openai-agents-python/human_in_the_loop/"
+  - "https://learn.microsoft.com/en-us/microsoft-copilot-studio/faqs-ai-approvals"
+  - "https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec04-bp02.html"
+  - "https://aisi.go.jp/assets/pdf/260317_caio_ai_governance_practical_manual_v1.00_en.pdf"
+  - "https://gta-psg.georgia.gov/document/document/procurement-ai-tools-guidelines-responsible-use-gs-25-002/download"
+faq:
+  - q: "Should AI make the final vendor approval decision?"
+    a: "Use AI to prepare and route a bounded decision. Keep the approval owner accountable, and require human review for missing, contradictory, ambiguous, high-risk, or exceptional evidence."
+  - q: "What if the vendor changes after approval?"
+    a: "Invalidate the packet when material evidence, policy, data flow, model limitations, or tool arguments change. Rebuild or re-review it under the current policy version."
+  - q: "What should happen when an approval times out?"
+    a: "Escalate to the defined secondary route and block the proposed action by default. A timeout is not an approval."
+cover: "/blog/why-ai-fails-on-vendor-approval-after-the-demo-hero.webp"
+coverAlt: "Illustration of a vendor approval packet moving from evidence review to an executor check"
+draft: false
+---
+
+The demo worked because the vendor controlled the inputs, the happy path, and the moment of approval. Procurement owns a different question: can this exact vendor, use, data flow, and action be defended after the demo is over?
+
+When I taught product managers who moved from writing specifications to building and shipping products, the recurring break was an undefined definition of done, not necessarily the model. Vendor approval exposes the same gap with higher stakes: a working screen is not an approval record. [My implementation guide](/blog/ai-workflow-implementation) is the parent context; this page focuses on the failure you can replay.
+
+## The replay result: approval failed at the decision boundary
+
+The provider-neutral packet in this post was replayed against seven synthetic fixtures on 2026-08-24. The test is small by design. It demonstrates routing, not a production failure rate.
+
+| Fixture | Classification | Route |
+| --- | --- | --- |
+| Complete evidence | Complete evidence | Proceed |
+| Missing privacy evidence | Missing evidence | Review |
+| Conflicting retention answers | Contradictory answers | Review |
+| “Approve if reasonable” | Ambiguous criteria | Reject |
+| Approval expired before execution | Stale approval | Reject |
+| Executor changed `EU` to `US` | Changed tool arguments | Reject |
+| No reviewer response in window | Approval timeout | Escalate and block |
+
+This table is the page's sourceable artifact. It records a reproducible failure classification and the next route for each boundary condition. The exact inputs, `vendor-approval-policy@2026-08-24`, approval payload, action hash, validator logic, and limits are preserved in the evidence record for this post.
+
+![Illustration of a provider-neutral vendor approval flow showing the evidence packet, reviewer decision, executor hash check, and four failure routes](/blog/why-ai-fails-on-vendor-approval-after-the-demo-inline-1.webp)
+
+The result changes the debugging question. Don't ask only whether the model gave the right answer in the demo. Ask whether the approval packet survives review, time, policy changes, and execution.
+
+## A demo proves capability. Approval needs a bound decision
+
+The first repair is to separate four things that demos often collapse into one:
+
+1. **Evidence:** what the vendor says and what your team verified.
+2. **Criteria:** the rule that turns evidence into a decision.
+3. **Approval:** who approved which policy version, action, and expiry.
+4. **Execution:** what the system actually checked and ran.
+
+Microsoft describes AI approvals as a fit for routine decisions with well-defined criteria, while keeping human stages for critical or exceptional cases. It also warns that unclear instructions, ambiguous inputs, incomplete data, and changing rules can produce incorrect decisions or failures. ([Microsoft's AI approvals guidance](https://learn.microsoft.com/en-us/microsoft-copilot-studio/faqs-ai-approvals))
+
+That is why “the vendor passed the questionnaire” is not enough. The questionnaire may contain evidence, but it does not necessarily bind the evidence to the intended use, the current policy, or the exact action a tool will execute.
+
+AWS makes the execution boundary explicit in its approval guidance: risk classification should be deterministic, reviewers need the proposed operation and enough context to decide, and the approval path should be risk-tiered. OpenAI's Agents SDK likewise surfaces the tool name and arguments in the pending approval and resumes the paused run from saved state. ([AWS Agentic AI Lens](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec04-bp02.html), [OpenAI Agents SDK human-in-the-loop](https://openai.github.io/openai-agents-python/human_in_the_loop/))
+
+The implementation consequence is my rule, not a vendor guarantee: approval should be a structured payload whose exact action can be compared again at execution. A chat message saying “approved” is too weak because it does not tell the executor what must remain unchanged.
+
+## The packet fields that stop approval from dissolving
+
+Use a packet with these minimum fields. Each field closes a different post-demo gap.
+
+| Packet field | What it answers | Failure if absent |
+| --- | --- | --- |
+| Vendor identity | Which legal entity and product are under review? | A security document can belong to another product or entity. |
+| Intended use | What will your team do with it? | A vendor can pass for summarization but fail for customer decisions. |
+| Data flows | What enters, leaves, persists, and reaches subprocessors? | Security review discusses a product, not your actual data path. |
+| Security evidence | Which controls and attestations were checked, and when? | “We are secure” becomes an untestable claim. |
+| Privacy evidence | What are retention, deletion, transfer, and subprocessor conditions? | The approval ignores data obligations that change the risk. |
+| Model limitations | What can the system misread, omit, or not guarantee? | Reviewers see the capability without its boundary. |
+| Criteria | What exact conditions produce proceed, review, or reject? | “Reasonable” becomes a hidden human rule. |
+| Approval owner | Who is accountable for the decision? | The workflow records consent without ownership. |
+| Policy version | Which policy was in force? | A later policy can be mistaken for the one reviewed. |
+| Proposed action | Which tool and exact arguments are approved? | The executor can act on a different payload. |
+| Expiry | How long does this approval remain valid? | An old approval can survive a vendor or policy change. |
+| Execution receipt | What did the executor check and what happened? | The organization cannot prove that the approved action ran. |
+
+The Japan AI Safety Institute's governance manual supports treating vendor risk as continuous throughout the contract, not as a one-time procurement event. Its vendor-risk section covers technical, operational, security and privacy, compliance, ethics, reputation, dependency, and environmental risks, with periodic review after incidents, renewals, major regulatory changes, or material vendor-policy changes. ([AI Governance Practical Manual](https://aisi.go.jp/assets/pdf/260317_caio_ai_governance_practical_manual_v1.00_en.pdf))
+
+Georgia's procurement guidance reaches a similar implementation level. It asks for data-sharing protocols, model functionality and limitations, decision logs and justifications, data collection/storage/usage policies, security assessment, monitoring, error mitigation, and remediation. ([Georgia Technology Authority guidance](https://gta-psg.georgia.gov/document/document/procurement-ai-tools-guidelines-responsible-use-gs-25-002/download))
+
+The packet is not bureaucracy for its own sake. It is the smallest object that lets procurement, security, the approval owner, and the executor discuss the same decision.
+
+## Four failure classes explain most post-demo breaks
+
+Classify the failure by the first boundary that cannot be defended. That gives the team a repair route instead of a vague request to “improve the AI.”
+
+### Missing or contradictory evidence means review
+
+If a required security, privacy, data-flow, or limitation field is empty, route to review. If two vendor answers conflict, route to review with the conflict attached. Do not let the model reconcile the conflict silently.
+
+In the replay, an empty `privacy_evidence` array produced `missing evidence -> review`. A retention conflict produced `contradictory answers -> review`. The reviewer must either resolve the evidence or explicitly reject the use case.
+
+This is where [a vendor data-retention check](/blog/how-to-check-an-ai-vendors-data-retention-before-buying) can feed the packet. It should become a versioned evidence record, not a note copied into a slide deck.
+
+### Ambiguous criteria means reject until the rule is executable
+
+“Approve if reasonable,” “low risk,” and “within normal use” are not approval criteria until someone defines the test. In the replay, the phrase `approve if reasonable` produced `ambiguous criteria -> reject`.
+
+The repair is to replace the adjective with a condition. For example:
+
+```text
+Proceed only when:
+- the product and legal entity match the approved vendor record;
+- the data categories are a subset of the allowed list;
+- the region is in the policy's allowed-region set;
+- security and privacy evidence are present and not expired;
+- the risk tier is low;
+- the proposed tool and arguments match the approved payload;
+- the approval has not expired.
+```
+
+If a human still needs judgment, name the reviewer and route. Human review is a designed branch, not a failure to automate.
+
+### Stale approval means reject and re-review
+
+An approval has a time boundary. In the replay, the approval expired one second before execution and produced `stale approval -> reject`.
+
+The expiry should cover more than the calendar. Invalidate the packet when the policy version changes, a material data flow changes, the vendor changes its relevant terms or subprocessors, a new incident changes risk, or the action arguments change. The Japan AI Safety Institute's continuous vendor-risk guidance supports those review triggers. ([AI Governance Practical Manual](https://aisi.go.jp/assets/pdf/260317_caio_ai_governance_practical_manual_v1.00_en.pdf))
+
+OpenAI's documentation also calls out version markers for pending tasks when agent definitions may change. That is the same operational idea: a paused decision must not resume as if the code and policy were unchanged. ([OpenAI Agents SDK human-in-the-loop](https://openai.github.io/openai-agents-python/human_in_the_loop/))
+
+### Changed tool arguments means reject the execution
+
+This is the most important check after the demo. The reviewer approves `{region: "EU"}`. The executor receives `{region: "US"}`. The packet may still look valid, but the approved action is gone.
+
+In the replay, changing only `region` caused the executor hash to differ from `25ffbc04a749c606`, so the route was `changed tool arguments -> reject`.
+
+AWS describes approval patterns that return the function name and parameter values to the calling application. OpenAI exposes the tool name and arguments in the approval item. The provider-neutral implementation is to store a canonical representation of both, hash it, and compare the current executor payload to the approved hash immediately before the side effect. ([AWS Agentic AI Lens](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec04-bp02.html), [OpenAI Agents SDK human-in-the-loop](https://openai.github.io/openai-agents-python/human_in_the_loop/))
+
+The check must happen in the executor, not only in the reviewer interface. A UI can display one payload while a queue worker or retry path constructs another.
+
+## Replay the packet before connecting a real vendor
+
+Run the failure clinic as a deterministic pre-integration test.
+
+1. **Freeze the policy.** Assign a policy identifier and version. Store it with the packet and approval.
+2. **Fill the packet.** Use synthetic vendor evidence first. Include the exact data flow and the limitation that matters to the intended use.
+3. **Create the action.** Store the tool identity, canonical arguments, allowed tools, and resource limits.
+4. **Approve the packet.** Record the owner, decision, policy version, approval time, and expiry.
+5. **Mutate one boundary at a time.** Remove evidence, create a contradiction, make the criterion ambiguous, expire approval, change an argument, or withhold the response.
+6. **Assert the route.** Missing or contradictory evidence should review. Ambiguity and stale state should reject. Changed arguments should reject. Timeout should escalate and block. Complete evidence can proceed only when the executor check passes.
+7. **Write the receipt.** Record the checked action hash, executor identity, timestamp, policy version, result, and any escalation.
+
+AWS recommends durable decision context, timeout and escalation paths, safe blocking fallbacks, and logs with reviewer identity, timestamps, operation, decision, and escalation events. Those are not optional observability extras for this workflow. They are part of making the approval defensible. ([AWS Agentic AI Lens](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsec04-bp02.html))
+
+The [human-in-the-loop guide](/blog/human-in-the-loop-ai-agents) is useful for the approval interaction itself. This failure clinic adds the procurement object and the executor comparison that the interaction alone does not guarantee.
+
+## What to fix when the workflow fails
+
+Do not tune the model first. Use the route as the repair instruction.
+
+| Route | Repair owner | Next artifact | Release condition |
+| --- | --- | --- | --- |
+| Review | Procurement, security, or domain owner | Resolved evidence record with source and observed date | Reviewer records the conflict resolution or rejects the use. |
+| Reject | Policy owner and engineering | Revised criteria, policy version, or action payload | A new packet passes the fixture that failed. |
+| Escalate and block | Workflow owner | Escalation receipt and blocked execution record | A named secondary route exists, and no side effect occurred. |
+| Proceed | Approval owner and executor | Execution receipt | Current policy, unexpired approval, exact action hash, limits, and evidence all match. |
+
+The point is to make “approval failed” specific. If the packet failed because the evidence is missing, the fix is not a better prompt. If the executor changed the arguments, the fix is not more reviewer training. Add the check where the action crosses into the system of record.
+
+## The post-demo approval gate
+
+Your vendor demo is ready to leave the demo stage when a new synthetic packet can answer these questions without a meeting:
+
+- Which vendor and product did we approve?
+- What will we use it for?
+- What data crosses the boundary, where does it go, and how long is it retained?
+- Which security, privacy, limitation, and performance evidence was checked?
+- Which policy version and approval owner apply?
+- What exact tool action and arguments are allowed?
+- When does approval expire?
+- What does the executor compare before acting?
+- What happens when evidence conflicts, the policy changes, the reviewer times out, or the action changes?
+
+If the answer is “the reviewer knows,” the control is still in the demo. Turn that knowledge into the packet, replay it against the failure fixtures, and make the executor prove that it received the action the reviewer approved.
+
+If your team needs to build this kind of control while keeping ownership in-house, [Marius Manolachi helps existing teams learn to build AI products on their own work](/learn-ai). The useful next step is a packet and replay, not another impressive demo.
