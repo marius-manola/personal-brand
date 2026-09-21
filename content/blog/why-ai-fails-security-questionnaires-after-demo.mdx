@@ -1,0 +1,206 @@
+---
+title: 'Why AI Fails on Security Questionnaires After the Demo'
+date: '2026-09-21'
+updated: '2026-09-21'
+excerpt: 'A 30-row replay shows why questionnaire demos degrade: evidence is not yet scoped, fresh, owned, disclosable, or locked for submission.'
+answer: 'AI fails after a security-questionnaire demo when the demo proves only that a model can find plausible text in a small document bundle. Production must also prove source approval, scope, freshness, ownership, disclosure, and submission state. In a 30-row replay, the safe behavior was to answer only from current in-scope evidence, route uncertainty or commitments, and block restricted export or unresolved submission.'
+targetQuery: 'why does ai fail on security questionnaire handling after the demo'
+queryAliases:
+  - 'AI security questionnaire demo failure'
+  - 'security questionnaire automation fails in production'
+  - 'why does questionnaire automation fail after a demo'
+intent: 'implementation diagnosis'
+funnel: 'consideration'
+cluster: 'implementation'
+parent: '/blog/ai-workflow-implementation'
+contentType: 'failure-clinic'
+kind: 'satellite'
+sourceableAtom: 'The dated SQ-2026-08-24-30 fixture is a reusable 30-row failure matrix that shows how the same questionnaire rows change when a demo bundle gains approved sources, source scope, freshness metadata, owner routing, disclosure rules, and a submission lock.'
+evidenceType: 'failure reproduction plus reusable decision artifact'
+evidenceBasis: 'A sanitized 30-row fixture was run on 2026-08-24 through deterministic-replay/1.0.0 in demo-context and production-context configurations. The archive records configuration, sources, expected labels, raw outputs, cited evidence, reviewer decisions, and failure categories. The harness is not an LLM benchmark.'
+tags:
+  - 'AI workflows'
+  - 'AI security'
+  - 'AI implementation'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-22'
+sources:
+  - 'https://support.secureframe.com/en/articles/15111348-why-some-questions-are-left-blank-after-running-questionnaire-automation'
+  - 'https://airc.nist.gov/airmf-resources/airmf/5-sec-core/'
+  - 'https://cloudsecurityalliance.org/artifacts/ai-consensus-assessments-initiative-questionnaire-ai-caiq-v1-1'
+  - 'https://genai.owasp.org/llmrisk/llm082025-vector-and-embedding-weaknesses/'
+faq:
+  - q: 'Should AI answer every security questionnaire row?'
+    a: 'No. It may draft an answer when approved, current, in-scope evidence supports it. It should abstain or route missing, stale, compound, or scope-mismatched rows, and block restricted disclosure or unresolved submission.'
+  - q: 'What is the most important production control after a questionnaire demo?'
+    a: 'Make answer state explicit. Every row needs evidence IDs, source scope, freshness, an owner, a reviewer state, and a submission state. A plausible answer without those fields is still a draft.'
+  - q: 'Can a security questionnaire assistant make commitments?'
+    a: 'Only when an approved source and accountable owner support the commitment. Otherwise route it to legal, privacy, reliability, product, or security review instead of drafting a promise.'
+cover: '/blog/why-ai-fails-security-questionnaires-after-demo-security-questionnaire-demo-production-hero.webp'
+coverAlt: 'Illustration of a security questionnaire moving from a demo document bundle through evidence, scope, review, and submission gates'
+draft: false
+---
+
+The demo can look right because the bundle is small and the questions are familiar. The handoff exposes the missing contracts.
+
+The failure is not simply “the model hallucinated.” A production questionnaire answer also needs a source boundary, an as-of date, an owner, a disclosure decision, and a release state.
+
+![Illustration of the same security questionnaire row taking a permissive demo path and a controlled production path with evidence, scope, review, and submission gates](/blog/why-ai-fails-security-questionnaires-after-demo-security-questionnaire-failure-matrix.webp)
+
+## What does the demo actually prove?
+
+A questionnaire demo proves that an answer generator can produce plausible text from the supplied bundle. It does not prove that the text is approved for this customer, current enough to send, within the product scope, owned by a named person, or safe to export.
+
+That distinction is visible in the source material. Secureframe describes questionnaire automation as searching a Knowledge Base, approved policies, and prior answers. When it cannot find enough relevant material with confidence, it may intentionally leave a question blank rather than guess. It also calls out specific, compound, conditional, and previously unseen questions as harder cases. ([Secureframe questionnaire automation guidance](https://support.secureframe.com/en/articles/15111348-why-some-questions-are-left-blank-after-running-questionnaire-automation))
+
+CSA's AI-CAIQ v1.1 makes the evidence burden explicit. It includes control specifications, self-assessment questions, an AI lifecycle and asset taxonomy, and justification questions for evidence. A yes/no answer is only one part of the assessment. ([CSA AI-CAIQ v1.1](https://cloudsecurityalliance.org/artifacts/ai-consensus-assessments-initiative-questionnaire-ai-caiq-v1-1))
+
+The practical test is therefore not “did the demo answer?” It is “can another reviewer explain why this row may be answered, by which source, for which scope, as of which date, by whom, and with what release permission?”
+
+## What broke in the 30-row replay?
+
+The same sanitized rows were run on 2026-08-24 through `deterministic-replay/1.0.0`. This is a rules harness, not an LLM benchmark. It isolates the workflow conditions around an answer generator.
+
+| Fixture result | Rows | Production decision |
+| --- | ---: | --- |
+| Supported evidence | 6 | Answer from approved, current, in-scope sources |
+| Missing evidence | 4 | Route to the named control owner |
+| Stale evidence | 4 | Abstain until a current source is approved |
+| Scope mismatch | 4 | Abstain and route to product or legal |
+| Unsupported commitment | 4 | Route to the accountable owner |
+| Retrieval failure on a compound row | 4 | Split or retrieve each subclaim, then route if incomplete |
+| Reviewer handoff | 2 | Hold for security-owner review |
+| Disclosure block | 1 | Block restricted export |
+| Submission lock | 1 | Block unresolved submission |
+
+This is the sourceable artifact: a row-level comparison of demo behavior and production behavior, with expected status, output, cited evidence, reviewer decision, and failure category. The counts describe this bounded fixture only. They are not rates and do not estimate how often live questionnaires fail.
+
+The published matrix below keeps the output labels short. `Yes; bundle match` means the demo produced its generic positive answer. `answer`, `abstain`, `route`, and `block` are the production statuses. The full raw text and adjudication are archived with the fixture.
+
+| ID | Row | Expected | Demo output | Production output | Evidence, owner, or failure |
+| --- | --- | --- | --- | --- | --- |
+| Q01 | Encrypt data at rest | answer | Yes; bundle match | answer | security-overview-v2; supported |
+| Q02 | Encrypt data in transit | answer | Yes; bundle match | answer | security-overview-v2; supported |
+| Q03 | Require workforce MFA | answer | Yes; bundle match | answer | security-overview-v2; supported |
+| Q04 | Test incident response annually | answer | Yes; bundle match | answer | security-overview-v2; supported |
+| Q05 | Name AI inventory owner | answer | Yes; bundle match | answer | ai-controls-approved-v2; supported |
+| Q06 | Log AI retrieval immutably | answer | Yes; bundle match | answer | ai-controls-approved-v2; supported |
+| Q07 | Give breach-notification hours | route | Best-effort yes | route | security-owner; missing evidence |
+| Q08 | State model-integrity-check frequency | route | Best-effort yes | route | ai-product-owner; missing evidence |
+| Q09 | State AI inference RTO | route | Best-effort yes | route | reliability-owner; missing evidence |
+| Q10 | Prove training-data authorization | route | Best-effort yes | route | privacy-owner; missing evidence |
+| Q11 | Give latest penetration-test date | abstain | Yes; old cite | abstain | security-overview-v1; stale evidence |
+| Q12 | Give latest AI risk-register review | abstain | Yes; old cite | abstain | ai-product-owner; stale evidence |
+| Q13 | State audit-log retention | abstain | Yes; old cite | abstain | security-overview-v1; stale evidence |
+| Q14 | Name current classification model | abstain | Yes; old cite | abstain | ai-controls-notes-v1; stale evidence |
+| Q15 | EU residency in enterprise plan | abstain | Yes; generic overview | abstain | product-scope-approved-v2; product-owner; scope mismatch |
+| Q16 | Customer-managed private VPC | abstain | Yes; generic overview | abstain | product-scope-approved-v2; product-owner; scope mismatch |
+| Q17 | HIPAA-regulated deployment | abstain | Yes; generic overview | abstain | product-scope-approved-v2; legal-owner; scope mismatch |
+| Q18 | On-premises deployment | abstain | Yes; generic overview | abstain | product-scope-approved-v2; product-owner; scope mismatch |
+| Q19 | Promise incident notice within 24h | route | Yes; we will | route | none; legal-owner; unsupported commitment |
+| Q20 | Promise custom addendum unchanged | route | Yes; we will | route | none; legal-owner; unsupported commitment |
+| Q21 | Guarantee 99.99% availability | route | Yes; we will | route | none; reliability-owner; unsupported commitment |
+| Q22 | Promise backup deletion at 30 days | route | Yes; we will | route | none; privacy-owner; unsupported commitment |
+| Q23 | Training exclusion and exception approver | route | First clause yes | route | ai-controls-approved-v2; ai-product-owner; retrieval failure |
+| Q24 | Backup encryption and key rotation | route | First clause yes | route | security-overview-v2; security-owner; retrieval failure |
+| Q25 | AI incident testing, reporting, and approval | route | First clause yes | route | ai-controls-approved-v2 + review-register-v1; security-owner; retrieval failure |
+| Q26 | Quarterly privilege review and revocation | route | First clause yes | route | security-overview-v2; security-owner; retrieval failure |
+| Q27 | Security-owner review completed | route | Ready | route | review-register-v1; security-owner; reviewer handoff |
+| Q28 | AI evidence approved for disclosure | route | Ready | route | review-register-v1; security-owner; reviewer handoff |
+| Q29 | Attach restricted penetration-test report | block | Attachable | block | security-overview-v2; restricted; disclosure block |
+| Q30 | Submit with unresolved required rows | block | Ready | block | review-register-v1; unresolved; submission lock |
+
+## How did the failure categories reproduce?
+
+The demo configuration used three small documents and a permissive prompt: answer concisely, cite a matching title, and make a best effort when the bundle seemed relevant. It had no approval state, source scope, freshness metadata, owner routing, disclosure rule, or submission lock.
+
+The production configuration used approved sources, source scope, a 2026-06-01 freshness cutoff, owner routing, disclosure rules, a required reviewer, and a submission lock. Here are the clearest traces.
+
+### Missing evidence became an invented answer
+
+Q07 asked: “After how many hours are customers notified of a suspected breach?” The fixture expected `route` because no approved source supplied a timeline. Demo output: “Yes. The available security material indicates this is handled as standard practice.” It cited a document but not a timeline.
+
+Production output: “Route to `security-owner`; do not draft a commitment without owner evidence.”
+
+Routing rule: if the question asks for a number, named tool, date, or operating detail and no approved source contains that detail, do not fill the gap with policy-sounding language. Route it to the owner of the control.
+
+### Stale evidence became a current claim
+
+Q14 asked which model version handled customer-facing classification. The demo cited `ai-controls-notes-v1`, dated 2025-11-15, and said the older control note was current. The production run abstained because the source fell outside the freshness policy.
+
+Routing rule: a source can be relevant and still be unusable. Preserve the old citation as a stale lead, then request a new approved record from the owner. Do not silently substitute “last found” for “current.”
+
+NIST makes this a governance issue, not just a retrieval issue. Its AI RMF Core treats governance as cross-cutting and calls for documentation, clear roles and responsibilities, monitoring, and periodic review. It also says documentation can improve human review and accountability. ([NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/))
+
+### Scope mismatch became a product promise
+
+Q16 asked whether the service could run in a customer-managed private VPC. The demo answered yes from a generic product overview. The approved source was scoped to `standard-saas`, so production abstained and routed the row to `product-owner`.
+
+Routing rule: compare the question scope with the source scope before generation. Product tier, region, tenant, deployment model, regulated workload, and customer contract are all possible scope keys. If the keys do not match, the answer is not “probably yes.” It is `abstain` plus an owner route.
+
+OWASP documents the security version of this problem: misaligned access controls can expose information across contexts, and retrieval stores should enforce permission-aware partitioning. It also recommends source validation, classification, and immutable retrieval logging. ([OWASP LLM08:2025](https://genai.owasp.org/llmrisk/llm082025-vector-and-embedding-weaknesses/))
+
+### A compound question received a partial answer
+
+Q23 asked whether model inputs were excluded from training and who approved exceptions. The demo answered only the first clause: “Yes. The first part is covered in the supplied material.” The cited evidence did not establish an exception approver.
+
+Routing rule: split compound rows into atomic claims before retrieval. A row passes only when every required subclaim has evidence and the combined answer preserves its scope. If one subclaim is missing, route the whole row or mark the unresolved part explicitly. Never let a supported first clause hide an unanswered second clause.
+
+### Review and export controls exposed the handoff
+
+Q29 requested a restricted penetration-test report as an attachment. Demo output treated the report as attachable. Production blocked external export.
+
+Q30 asked to submit while two required rows were unresolved. Demo output marked the questionnaire ready. Production blocked submission.
+
+Routing rule: answer generation and external submission are separate states. An answer can be a useful draft while the questionnaire remains blocked. The submission lock must inspect unresolved rows, reviewer state, and disclosure state rather than trusting a final model message.
+
+## What should the production router do with each failure?
+
+Use the row status as an explicit contract. The model can propose text, but a deterministic policy decides whether that text is eligible to move forward.
+
+| Condition | Allowed AI behavior | Required next step | Veto |
+| --- | --- | --- | --- |
+| Approved evidence, matching scope, within freshness window | Draft or answer with source IDs | Reviewer checks the row | No external submission without the normal review state |
+| No evidence for a required detail | Say evidence is missing | Route to control owner | No best-effort factual detail |
+| Evidence is stale | Preserve the stale lead | Request refreshed approval | No current claim |
+| Scope does not match | Abstain | Route to product, legal, or privacy | No generic product answer |
+| Commitment or contract language | Draft a question or neutral wording | Route to accountable owner | No promise from model wording |
+| Compound row with incomplete retrieval | Split and label subclaims | Retrieve or route each unresolved claim | No “yes” for the whole row |
+| Restricted evidence requested | Explain that export is blocked | Use the approved disclosure path | No attachment or leakage |
+| Required rows or review state unresolved | Keep questionnaire pending | Resolve or escalate | No submit action |
+
+This aligns with NIST's emphasis on documented accountability and differentiated human-AI oversight. It also turns the blank-answer behavior described by Secureframe into a broader production contract: blank, route, and block are not failures of user experience when they carry a reason and an owner.
+
+## How do you test the handoff before calling the workflow production-ready?
+
+Run the same fixture twice. Do not change the questions between configurations.
+
+1. Freeze the model or answer-generator version, prompt, source bundle, and output schema.
+2. Record each row's expected status before running it. Use `answer`, `abstain`, `route`, or `block`.
+3. Run the demo configuration with the small document bundle. Preserve raw output and cited source IDs.
+4. Add production controls one at a time: approval, scope, freshness, owner, disclosure, reviewer, and submission lock.
+5. Adjudicate each row against the expected label. Record the failure category, not only whether the prose sounded correct.
+6. Inspect the export path. A questionnaire is not ready because every row has text. It is ready when unresolved rows, restricted evidence, and missing approvals cannot pass the lock.
+7. Re-run the fixture after source, prompt, model, or policy changes. The fixture is a regression artifact, not a one-time demo script.
+
+The archive for this run contains the fixture, configuration, source manifest, raw inputs and outputs, failure matrix, expected labels, and reviewer adjudication. It is deliberately small enough to review row by row.
+
+## How do you verify the repair before release?
+
+Verify the repair with the same 30 rows and the same expected labels after each change. The repaired workflow passes only when supported rows can answer, unresolved evidence can route or abstain, restricted disclosure can block, and unresolved required rows cannot reach submission.
+
+| Verification check | Archived evidence | Passing result |
+| --- | --- | --- |
+| Reproduce the input | `fixture.json` and `raw-inputs.json` | The row wording and expected status are unchanged between runs |
+| Compare the configurations | `configuration.json` | The production run adds approval, scope, freshness, owner, reviewer, disclosure, and submission controls |
+| Compare row decisions | `demo-output.json`, `production-output.json`, and `failure-matrix.json` | The six supported rows answer; the missing, stale, scope, commitment, compound, and reviewer cases route or abstain as adjudicated |
+| Check the hard stops | Q29 and Q30 in `production-output.json` and `reviewer-adjudication.json` | Restricted export and unresolved submission remain `block` |
+| Confirm the result record | `run-summary.json` | The run records eight non-supported categories and the route-or-block decision without turning fixture counts into live failure rates |
+
+That is the repair evidence for this fixture, not proof of model accuracy. If the model, prompt, source policy, product scope, or disclosure rule changes, rerun the fixture and review any changed row before release. A passing replay is a regression signal, not permission to skip a human reviewer.
+
+## What does this fixture not prove?
+
+It does not prove that a particular model is accurate, that a real questionnaire platform will produce the same outputs, or that the categories have the same distribution in production. The harness is deterministic and synthetic. Its value is narrower: it makes hidden workflow assumptions visible and gives a team a portable release test.
+
+The next step is not to add more documents to the demo. Take ten to thirty representative rows from your own process, define the expected status and owner for each, then see whether your current system can abstain, route, and block when the evidence contract is incomplete. For broader implementation planning, start with the [AI workflow implementation cluster](/blog/ai-workflow-implementation) and the [AI workflow audit-trail guide](/blog/how-to-add-an-audit-trail-to-an-ai-workflow). If your team needs help turning the fixture into a working practice, Marius Manolachi's [AI consulting and tutoring work](/learn-ai) is the relevant next step.
