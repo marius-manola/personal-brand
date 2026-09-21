@@ -1,0 +1,191 @@
+---
+title: 'How Can a Team Build a Safe Test for Incident Postmortems?'
+date: '2026-09-21'
+updated: '2026-09-21'
+excerpt: 'A blinded four-check rubric and five-document review for finding unsafe language, shallow learning, and unowned postmortem actions.'
+answer: 'Build a blinded document test, not a people score. Review five public or sanitized postmortems against four 0-2 dimensions: incident and impact completeness, systemic depth, blame-safe language and questions, and action specificity and ownership. Pass only when no dimension scores 0 and total is at least 6/8. If blame-safety scores 0, stop and repair before asking for more detail.'
+targetQuery: 'How can a team build a safe test for incident postmortems?'
+queryAliases:
+  - 'safe incident postmortem test'
+  - 'how to evaluate an incident postmortem'
+  - 'blameless postmortem review rubric'
+intent: 'implementation'
+funnel: 'consideration'
+cluster: 'evaluation'
+parent: '/blog/ai-workflow-evaluation'
+contentType: 'implementation-lab'
+kind: 'satellite'
+sourceableAtom: 'A versioned, reproducible postmortem test packet run on five public documents, with a four-dimension rubric, raw scores, disagreements, paired rewrites, and an action ledger for every failed check.'
+evidenceType: 'reproducible test plus worked decision artifact'
+evidenceBasis: 'Versioned artifact v1.0 in research.md: five blinded public postmortems, two review passes, raw 0-2 scoring, quoted examples, paired rewrites, a blank packet, and a completed owner-deadline-verification ledger.'
+tags:
+  - 'Evaluation'
+  - 'Incident response'
+  - 'Reliability'
+author: 'Marius Manolachi'
+nextReviewAt: '2027-02-20'
+sources:
+  - 'https://sre.google/workbook/postmortem-culture/'
+  - 'https://sre.google/resources/practices-and-processes/incident-management-guide/'
+  - 'https://www.atlassian.com/incident-management/handbook/postmortems'
+  - 'https://postmortems.pagerduty.com/culture/blameless/'
+  - 'https://arxiv.org/abs/2008.11192'
+  - 'https://about.gitlab.com/blog/gitlab-dot-com-database-incident/'
+  - 'https://github.blog/news-insights/post-mortem-of-this-morning-s-outage/'
+  - 'https://github.blog/news-insights/company-news/github-availability-report-january-2026/'
+faq:
+  - q: 'Should a team score the people who wrote a postmortem?'
+    a: 'No. Blind the document, remove identities from the scoring copy, and score only completeness, causal depth, language and questions, and action closure. The test is for document safety and usefulness, not individual performance.'
+  - q: 'What should happen when blame-safety fails?'
+    a: 'Pause the request for deeper disclosure. Rewrite the unsafe causal language around roles, systems, and conditions, then rerun the document check before asking for more incident detail.'
+  - q: 'Does a postmortem pass if its action items have no deadlines?'
+    a: 'Only partially. A tracker or owner can earn partial credit, but the full action check needs a concrete action, role owner, time bound, and verification signal. Otherwise the reader cannot tell when the learning is implemented.'
+cover: '/blog/how-can-a-team-build-a-safe-test-for-incident-postmortems-postmortem-safe-test-hero.webp'
+coverAlt: 'Illustration of a blinded incident postmortem review moving through four safety and usefulness checks'
+draft: false
+---
+
+A postmortem can be detailed and still make the next person less willing to speak. It can also be blameless and still produce actions nobody can verify.
+
+When I teach product managers to move from writing specs to building and shipping, the recurring failure is usually an undefined “done,” not the model. I use the same test here: define what a safe, useful postmortem must make possible, then inspect the document without scoring the people in it. ([Marius Manolachi's AI teaching work](https://mariusmanolachi.com/learn-ai))
+
+## The five-document result
+
+I ran a versioned v1.0 packet on five public incident documents, blinded as PM-01 through PM-05. The packet uses four dimensions scored from 0 to 2. Three documents passed. Two were held.
+
+| Document | Completeness | Systemic depth | Blame-safety | Action ownership | Total | Decision |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| PM-01 | 1 | 1 | 0 | 0 | 2/8 | Hold |
+| PM-02 | 2 | 2 | 2 | 1 | 7/8 | Pass |
+| PM-03 | 2 | 0 | 0 | 0 | 2/8 | Hold |
+| PM-04 | 1 | 2 | 2 | 1 | 6/8 | Pass |
+| PM-05 | 2 | 2 | 2 | 1 | 7/8 | Pass |
+
+The result is bounded. Three of five passed this packet, two failed, two had a blame-safety score of 0, and four had less than full action-closure credit. This is not a benchmark of postmortem quality. It’s a worked calibration exercise another team can reproduce.
+
+![Illustration of five blinded incident documents flowing into a four-dimension score table](/blog/how-can-a-team-build-a-safe-test-for-incident-postmortems-postmortem-safe-test-result.webp)
+
+## What should the test score?
+
+Score four properties of the document, in this order: what happened, what the system allowed, whether the language protects useful disclosure, and whether the follow-up can be closed.
+
+| Check | Score 0 | Score 1 | Score 2 |
+| --- | --- | --- | --- |
+| Incident and impact completeness | The incident shape or user impact is missing. | The event is clear, but scope, duration, detection, recovery, or unknowns are incomplete. | A reader can reconstruct the event, impact, detection, recovery, and explicit unknowns or redactions. |
+| Systemic depth | The explanation stops at a person or one proximate fault. | It names a technical cause and one contributing condition. | It connects trigger, conditions, controls, response constraints, and prevention or mitigation. |
+| Blame-safety of language and questions | It names or judges people, or asks why a person acted as the main explanation. | It mixes system language with blame cues. | It uses roles and systems, separates facts from judgments, and asks what allowed the condition. |
+| Action specificity and ownership | Actions are vague, unowned, undated, or unverifiable. | Some closure fields exist, but one or more are missing. | Each action has a verb, scope, role owner, time bound, and verification signal or tracker. |
+
+The first two checks come directly from Google SRE's critique of missing impact numbers, missing recovery detail, and shallow causal explanations. Atlassian's postmortem fields make the same operational need concrete: summary, impact, detection, response, recovery, and a timestamped timeline. ([Google SRE Workbook](https://sre.google/workbook/postmortem-culture/), [Atlassian postmortems](https://www.atlassian.com/incident-management/handbook/postmortems))
+
+The third check is not a tone preference. Atlassian recommends role labels and framing the causal chain around systems, processes, and roles. PagerDuty describes the risk of the “bad apple” view: people may withhold the knowledge a team needs when blame threatens their standing. ([Atlassian blameless postmortems](https://www.atlassian.com/incident-management/handbook/postmortems), [PagerDuty's blameless postmortem guide](https://postmortems.pagerduty.com/culture/blameless/))
+
+The fourth check turns learning into work. Atlassian says actions should be actionable, specific, and bounded. Google's example rejects phrases such as “improve” and “make better,” and points out that unowned actions and missing tracking make follow-up easy to lose. ([Atlassian action guidance](https://www.atlassian.com/incident-management/handbook/postmortems), [Google SRE action items](https://sre.google/workbook/postmortem-culture/))
+
+## What is the pass rule?
+
+Pass only when no dimension is 0 and the total is at least 6/8. Treat D3=0 as a hard stop, even if the other scores are high.
+
+That gives the team two useful outcomes:
+
+1. **Pass:** the document is safe enough to invite a deeper review, subject to the team's own privacy and incident-handling rules.
+2. **Hold:** repair the failed dimension, record the repair as an owned action, and rerun the packet.
+
+The threshold is a test-design choice, not an industry standard. A team can change 6/8, but it should write the rule before seeing the scores. Otherwise the rubric becomes a way to defend a document the reviewers already want to approve.
+
+## How do you run the review without scoring people?
+
+Use a document-only review surface and blind the sources before anyone scores them.
+
+1. **Select five documents.** Use public postmortems or fully sanitized internal documents. Include a mix of strong, partial, and obviously unsafe examples so the rubric has something to distinguish.
+2. **Assign IDs.** Copy each document into a review folder as PM-01 through PM-05. Remove bylines, individual names, email handles, and labels that invite performance judgments.
+3. **Freeze the rubric.** Record the version, date, dimension definitions, and pass rule. Don’t change them after looking at the first score.
+4. **Run two blind passes.** Score each document independently in a raw sheet. Capture one short quote or precise location for every score below 2.
+5. **Resolve disagreements.** Discuss the document evidence, not the author. Keep both raw scores and record why the reconciled score changed or stayed.
+6. **Open the action ledger.** Every failed check gets a role owner, deadline, tracker, and verification signal. The action ledger is part of the test result.
+7. **Make the disclosure decision.** If D3 is 0, stop. If the document passes, decide whether the next step is a deeper document review, a facilitated interview, or no further disclosure yet.
+
+A public incident-response study used a similarly bounded approach to evidence: it qualitatively analyzed 30 incidents, including 15 public reports and 15 interview-based incidents. That supports using public reports as a small learning corpus, not treating five documents as a universal sample. ([Failures and Fixes](https://arxiv.org/abs/2008.11192))
+
+## What did the disagreements reveal?
+
+The disagreements were useful because they exposed where a reasonable reviewer could over-credit a document.
+
+- PM-02 received D4=2 in the skeptical pass because it had role owners and tracking bugs. I reconciled it to 1 because the page did not consistently show a deadline or acceptance signal.
+- PM-03 received D1=2 in the coverage-first pass and 1 in the skeptical pass. The report clearly states six hours of database data loss and distinguishes affected database data from unaffected Git data, but it is an interim report that points to a later postmortem. I kept 2 for this rubric because the D1 question is whether the reviewed page states the incident and impact, not whether it is the final record. ([GitLab database incident](https://about.gitlab.com/blog/gitlab-dot-com-database-incident/))
+- PM-04 received D1=1 in one pass because it lacked an impact measure and D1=2 in the other because it gave service symptoms and restoration time. I kept 1. Explicit scope or an explicit unknown is safer than asking readers to infer the blast radius. ([GitHub outage postmortem](https://github.blog/news-insights/post-mortem-of-this-morning-s-outage/))
+- PM-05 received D2=1 in one pass because it was a monthly summary and D2=2 in the other because it identified two distinct causes and rollback paths. I kept 2 because the document gives enough system explanation for the score, while still scoring D4 as partial because broad follow-up language is not a closure record. ([GitHub January 2026 report](https://github.blog/news-insights/company-news/github-availability-report-january-2026/))
+
+The point of keeping disagreements is not to produce a reliability statistic. It is to show where the test needs calibration before a team uses it on sensitive internal material.
+
+## How should unsafe language be rewritten?
+
+Rewrite the question so it preserves the event but moves the explanation toward conditions, controls, and choices available at the time.
+
+**Before:** “Why did the on-call engineer ignore the safe procedure?”
+
+**After:** “What information, interface, or control made the unsafe procedure available or reasonable at that moment, and which guard would make a repeat invocation fail safely?”
+
+The second question does not erase the action. It makes the action investigable without turning a person into the root cause. That is the distinction Google and Atlassian make when they move from individual attribution to system and role conditions.
+
+## How should a vague action be rewritten?
+
+Turn “Improve monitoring” into a closure test:
+
+**Before:** “Improve monitoring.”
+
+**After:** “Add a bounded alert for the incident's leading failure signal, assign one role owner, set a calendar deadline, link the tracker item, and verify the alert in a replay or staging test that produces the expected signal.”
+
+The actual threshold, owner, date, tracker, and fixture must come from the team's incident evidence. The test should reject a polished sentence that still leaves those fields unknown.
+
+## Blank packet for your next review
+
+```yaml
+packet: incident-postmortem-safe-test
+version: v1.0
+review_date: YYYY-MM-DD
+target_decision: safe to request deeper incident detail
+documents: [PM-01, PM-02, PM-03, PM-04, PM-05]
+
+controls:
+  review_surface: document only
+  identity_rule: remove people and performance labels from scoring copies
+  score_scale: 0 absent or unsafe, 1 partial, 2 clear and usable
+
+for_each_document:
+  - score: D1/D2/D3/D4
+  - evidence: one quote or precise location for every score below 2
+  - disagreement: retain both raw passes before reconciliation
+  - decision: pass if no dimension is 0 and total >= 6/8
+
+action_ledger:
+  - failed_check: ""
+    owner_role: ""
+    deadline: ""
+    verification_signal: ""
+    tracker: ""
+```
+
+The full blank sheet, source list, raw scoring, disagreement notes, and completed ledger are in the versioned evidence record for this post. If your team is building a broader [AI workflow evaluation practice](/blog/ai-workflow-evaluation), treat this as one document-level test inside it. For adjacent system tests, see [how to evaluate an AI agent](/blog/how-to-evaluate-an-ai-agent) and [how to build an evaluation dataset from production traces](/blog/how-to-build-an-evaluation-dataset-from-production-traces).
+
+![Illustration of a blank postmortem test packet with rubric fields and an owner deadline verification ledger](/blog/how-can-a-team-build-a-safe-test-for-incident-postmortems-postmortem-safe-test-packet.webp)
+
+## What should the action ledger contain?
+
+At minimum, each row needs the failed check, document ID, owner role, deadline, verification signal, and tracker or record. In the completed v1.0 ledger, PM-01's blame-safety failure goes to the review facilitator with a rewrite and a second-pass D3 check. PM-04's partial action score goes to the reliability program owner with a dated work item and a replay or staging signal.
+
+This creates a useful separation:
+
+- The **postmortem** explains the incident and the learning.
+- The **rubric** tests whether the document is safe and useful.
+- The **ledger** makes the repair observable.
+
+Google's incident guide says postmortem actions should feed back into the team's backlog after stakeholders agree on completion expectations. A ledger is the small-team version of that handoff. ([Google incident management guide](https://sre.google/resources/practices-and-processes/incident-management-guide/))
+
+## What this test cannot prove
+
+It cannot prove that people feel safe, that a document contains every important fact, or that a completed action prevents recurrence. It cannot turn five public documents into an industry benchmark. It also cannot tell you whether a sensitive internal incident should be shared more broadly.
+
+It can do something narrower and useful: catch missing impact, shallow system learning, blame cues, and unowned actions before the team asks contributors for more detail. That is the decision this packet is designed to support.
+
+Run it first on five sanitized or public documents. Keep the raw scores. Repair the failed checks. Then decide whether your next postmortem review has earned the right to ask for deeper disclosure.
