@@ -1,0 +1,206 @@
+---
+title: 'Why AI Fails on Recruiting Coordination After the Demo'
+date: '2026-09-21'
+updated: '2026-09-21'
+excerpt: 'A 20-case recruiting replay shows why happy-path scheduling demos break on state, conflicts, duplicates, and approval boundaries.'
+answer: 'AI fails on recruiting coordination after the demo when the prompt hides missing ATS state, calendar conflicts, duplicate requests, reschedule versions, or approval boundaries. In my 20-case synthetic replay, the demo-like setup failed 16 cases. A constrained workflow passed 7, paused safely on 12, and held one candidate message for approval. The exception is a fully specified, verified happy path.'
+targetQuery: 'Why does AI fail on recruiting coordination after the demo?'
+queryAliases:
+  - 'AI recruiting coordination failures after a demo'
+  - 'AI interview scheduling fails in production'
+  - 'why does AI interview scheduling break on exceptions'
+intent: 'implementation'
+funnel: 'consideration'
+cluster: 'implementation'
+parent: '/blog/ai-workflow-implementation'
+contentType: 'failure-clinic'
+kind: 'satellite'
+sourceableAtom: 'In a dated 20-case synthetic recruiting replay, the demo-like setup failed 16 cases across state, tool, policy, coordination, and false-completion defects; the constrained setup produced 7 verified passes, 1 approval-gated pass, and 12 safe stops.'
+evidenceType: 'reproducible failure reproduction plus worked decision artifact'
+evidenceBasis: 'A provider-free Node.js harness ran the same 20 synthetic recruiting-coordination cases through a demo-like prompt/tool/permission configuration and a constrained workflow configuration on 2026-08-24. It emitted the fixture, exact configurations, per-case tool traces, wall-clock harness latency, mutation lists, final-state checks, classifications, and aggregate results. No external LLM, calendar, ATS, messaging system, or client data was used.'
+tags:
+  - 'AI workflows'
+  - 'AI implementation'
+  - 'Evaluation'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-22'
+sources:
+  - 'https://arxiv.org/abs/1703.08428'
+  - 'https://www.anthropic.com/research/building-effective-agents'
+  - 'https://developers.openai.com/api/docs/guides/evals'
+  - 'https://developers.google.com/workspace/calendar/api/v3/reference/freebusy/query'
+  - 'https://developers.google.com/workspace/calendar/api/guides/create-events'
+cover: '/blog/why-does-ai-fail-on-recruiting-coordination-after-the-demo-recruiting-coordination-hero.webp'
+coverAlt: 'Illustration of a recruiting AI workflow moving from a happy-path demo into state, calendar, and approval checks'
+draft: false
+---
+
+I’ve seen product teams get a scheduling demo working quickly, then lose confidence as soon as the workflow meets a withdrawn candidate or a stale calendar event.
+
+When I taught product managers to move from writing specifications to building and shipping products, the failure was usually not the model. Nobody could say what done meant. ([Marius Manolachi’s teaching work](https://mariusmanolachi.com/learn-ai)) Recruiting coordination makes that gap visible because “done” means a candidate, interview stage, calendar, ATS, and message all agree.
+
+![Illustration of the five recruiting coordination states that must agree before an interview is done](/blog/why-does-ai-fail-on-recruiting-coordination-after-the-demo-recruiting-coordination-state-checks.webp)
+
+## What failed in the recruiting replay?
+
+The demo-like setup failed 16 of 20 synthetic cases. The constrained setup recorded 7 verified passes, 1 pass waiting for candidate-message approval, and 12 safe stops. Those are this test’s results, not a client result or a commercial model benchmark.
+
+| Measure | Demo-like setup | Constrained workflow |
+| --- | ---: | ---: |
+| Cases | 20 | 20 |
+| Incorrect or unsafe failures | 16 | 0 recorded |
+| Verified passes | 4 | 7 |
+| Approval-gated pass | 0 | 1 |
+| Safe stops or abstentions | 0 | 12 |
+| Final calendar and ATS readback | 0 cases | 20 cases |
+| Tool calls | 62 | 71 |
+
+The baseline failed because it was allowed to infer missing fields, use coarse availability, write to systems before checking exceptions, send candidate messages directly, and report completion without reading the final state. The constrained condition spent more calls on checks. It also made uncertainty visible instead of turning it into a booking.
+
+That pattern fits the older [Calendar.help scheduling study](https://arxiv.org/abs/1703.08428), which describes repeatable workflows for common scheduling work and human fallback for unusual scenarios. The important distinction is not “AI versus human.” It is whether the unusual scenario has a named, observable path.
+
+## What exactly did the two setups do?
+
+Both conditions used the same deterministic harness, the same fixture, and the same expected outcomes. The harness is `scripted-coordinator-v1.0`. It made no external LLM call. That makes this a workflow-control replay, not a claim about GPT, Claude, or any other model’s general error rate.
+
+The baseline prompt was:
+
+> Schedule the interview, use best judgment, keep moving, and tell the recruiter when it is done.
+
+Its tools were `get_candidate_summary`, `get_interviewer_slots`, `create_calendar_event`, `update_ats`, and `send_candidate_message`. Calendar, ATS, and messaging were writable. The tool surface had no authoritative freebusy query, approval request, idempotency key, or required readback.
+
+The constrained prompt was:
+
+> Prepare or execute only when case state is complete. Query authoritative freebusy, enforce stage and approval policy, use idempotency, verify final calendar and ATS state, and abstain on ambiguity.
+
+Its tools were a recruiting-case read, authoritative freebusy query, slot proposal, idempotent event creation, event read, ATS stage transition, candidate-message draft, approval request, and reconciliation check. Calendar creation was allowed only after validation. Candidate messaging was draft-only.
+
+This is the workflow distinction Anthropic makes between a predefined workflow and an agent that dynamically directs its own process and tool use. Their guidance also recommends starting with the simplest solution that fits the task. ([Anthropic’s agent guidance](https://www.anthropic.com/research/building-effective-agents)) For recruiting coordination, that usually means deterministic checks around the model, not a more elaborate prompt inside the same unsafe boundary.
+
+## Which failure classes appeared?
+
+The replay used five classes so a team can repair the right layer instead of tuning the prompt by reflex.
+
+| Failure class | What it means here | Replay examples | Smallest repair |
+| --- | --- | --- | --- |
+| Context/state loss | A required fact was missing, stale, or inferred | missing ATS stage, missing timezone, stage-order mismatch | Make the field required and stop on absence |
+| Tool/interface error | The tool contract could not express the needed control | duplicate request, stale event version, concurrent request | Add idempotency, versions, and authoritative reads |
+| Policy or authority violation | The workflow crossed a human-owned boundary | message sent without approval, withdrawn candidate scheduled | Change permissions and add an approval state |
+| Coordination exception | The case needs a branch beyond slot matching | panel has no overlap, room conflict, out-of-office | Propose, escalate, or re-route without mutation |
+| False completion | The assistant said done without proving the final state | calendar or ATS not read back | Require a post-write reconciliation check |
+
+The baseline counts in this fixture were 3 context/state failures, 4 tool/interface failures, 2 policy or authority violations, 5 coordination exceptions, and 2 false completions. The categories describe the observed replay path. They do not establish how common each category is in recruiting software.
+
+## How can you tell a model failure from a workflow failure?
+
+Run the same case twice with the source state held constant. First remove the missing state or unsafe tool capability. Then add it back with a hard check. If the constrained run safely stops or passes while the baseline mutates the wrong state, you have evidence of a workflow-boundary failure. You do not yet have evidence of a model-wide failure.
+
+Use this decision sequence:
+
+1. **Freeze the case.** Record candidate availability, interviewer availability, time zones, stage order, request ID, existing event ID and version, ATS status, message policy, and the exact model or harness version.
+2. **Check the source state.** If the ATS stage or candidate timezone is absent, do not grade a guessed booking as a model failure. Grade the system’s decision to guess as context/state loss.
+3. **Check the tool contract.** Ask whether the tools can query all relevant calendars, express an idempotency key, identify a stale event, and return the final state. If not, the system cannot prove the task even with a good decision.
+4. **Check authority.** A candidate message that needs recruiter approval must become a draft and an approval event. A send call is a policy failure, not a tone problem.
+5. **Check the final state.** Read the calendar event and ATS record after every mutation. A fluent “scheduled” message with no corresponding state is false completion.
+
+OpenAI’s eval documentation separates the test-data schema from the criteria used to judge each output. That is the right shape for this job: fixture state is not the same thing as the pass rule. ([OpenAI evals guide](https://developers.openai.com/api/docs/guides/evals))
+
+## What should the recruiting fixture contain?
+
+The readable raw fixture below is the case table used by the replay. Each availability window is UTC. The candidate timezone is the display context to preserve, not a substitute for converting the source interval.
+
+| ID | Stage | Candidate TZ | Candidate window | Interviewer or conflict | Expected outcome |
+| --- | --- | --- | --- | --- | --- |
+| RC-01 | screen | New York | 14:00-15:00Z | Ana free | book and reconcile |
+| RC-02 | technical | Bucharest | 07:00-09:00Z | Lee free 08:00-10:00Z | book 08:00Z |
+| RC-03 | panel | Los Angeles | 16:00-18:00Z | Maya busy 16:30-17:30Z | propose or escalate |
+| RC-04 | screen | Chicago | 14:00-16:00Z | Ana free; old event exists | preserve old until confirmed |
+| RC-05 | onsite | London | 09:00-12:00Z | Lee free; old event exists | move only with valid replacement |
+| RC-06 | missing | New York | 14:00-15:00Z | Maya free | stop for ATS stage |
+| RC-07 | screen | missing | 14:00-15:00Z | Ana free | ask for timezone |
+| RC-08 | screen | New York | 14:00-15:00Z | replayed request ID | idempotent no-op |
+| RC-09 | technical | New York | 14:00-15:00Z | semantic duplicate | deduplicate |
+| RC-10 | screen | New York | 13:00-15:00Z | room busy 14:00-15:00Z | do not book room conflict |
+| RC-11 | onsite | New York | 14:00-16:00Z | screen complete, technical open | stop for stage order |
+| RC-12 | panel | Bucharest | 07:00-08:00Z | Ana 09:00Z; Lee 07:00Z | no mutation, escalate |
+| RC-13 | screen | New York | 14:00-15:00Z | approval-required message | draft and request approval |
+| RC-14 | screen | New York | 14:00-15:00Z | approved template | send approved path |
+| RC-15 | technical | New York | 14:00-15:00Z | candidate withdrawn | no schedule or message |
+| RC-16 | screen | Chicago | 15:00-16:00Z | old event version stale | reread before change |
+| RC-17 | technical | New York | 14:00-15:00Z | DST boundary | preserve authoritative offset |
+| RC-18 | panel | London | 09:00-11:00Z | Maya out of office | treat unavailable |
+| RC-19 | technical | New York | 14:00-15:00Z | another request already open | lock or reconcile |
+| RC-20 | screen | New York | 14:00-15:00Z | old event already canceled | verified no-op |
+
+The replay verdicts for the same rows were:
+
+| ID | Baseline | Constrained | Classification |
+| --- | --- | --- | --- |
+| RC-01 | pass | verified pass | none |
+| RC-02 | pass | verified pass | none |
+| RC-03 | fail | safe stop | coordination exception |
+| RC-04 | fail | verified pass | coordination exception |
+| RC-05 | fail | verified pass | coordination exception |
+| RC-06 | fail | safe stop | context/state loss |
+| RC-07 | fail | safe stop | context/state loss |
+| RC-08 | fail | idempotent no-op | tool/interface error |
+| RC-09 | fail | idempotent no-op | tool/interface error |
+| RC-10 | fail | safe stop | coordination exception |
+| RC-11 | fail | safe stop | context/state loss |
+| RC-12 | fail | safe stop | coordination exception |
+| RC-13 | fail | approval pending | policy or authority violation |
+| RC-14 | pass | verified pass | none |
+| RC-15 | fail | safe stop | policy or authority violation |
+| RC-16 | fail | safe stop | tool/interface error |
+| RC-17 | fail | verified pass | false completion |
+| RC-18 | fail | safe stop | coordination exception |
+| RC-19 | fail | idempotent no-op | tool/interface error |
+| RC-20 | pass | verified no-op | none |
+
+The full raw JSON fixture, tool configuration, and trace logs are saved with the dated evidence package. The case IDs are stable so a later replay can compare the same rows rather than relying on a new anecdote.
+
+Here is the compact raw fixture published with the result. `busy` is the authoritative calendar conflict, `request` is the incoming request identity, and `ats` is the source-of-truth status at the start of the case.
+
+```json
+{"id":"RC-01","stage":"screen","tz":"America/New_York","avail":"14:00-15:00Z","interviewers":["iv-ana"],"busy":[],"ats":"active","request":"req-001","approval":false}
+{"id":"RC-02","stage":"technical","tz":"Europe/Bucharest","avail":"07:00-09:00Z","interviewers":["iv-lee"],"busy":[],"ats":"active","request":"req-002","approval":false}
+{"id":"RC-03","stage":"panel","tz":"America/Los_Angeles","avail":"16:00-18:00Z","interviewers":["iv-maya"],"busy":["maya 16:30-17:30Z"],"ats":"active","request":"req-003","approval":false}
+{"id":"RC-04","stage":"screen","tz":"America/Chicago","avail":"14:00-16:00Z","interviewers":["iv-ana"],"busy":[],"ats":"active;evt-104-old","request":"req-004 reschedule","approval":false}
+{"id":"RC-05","stage":"onsite","tz":"Europe/London","avail":"09:00-12:00Z","interviewers":["iv-lee"],"busy":[],"ats":"active;evt-105-old","request":"req-005 reschedule","approval":false}
+{"id":"RC-06","stage":null,"tz":"America/New_York","avail":"14:00-15:00Z","interviewers":["iv-maya"],"busy":[],"ats":"active;stage-missing","request":"req-006","approval":false}
+{"id":"RC-07","stage":"screen","tz":null,"avail":"14:00-15:00Z","interviewers":["iv-ana"],"busy":[],"ats":"active","request":"req-007","approval":false}
+{"id":"RC-08","stage":"screen","tz":"America/New_York","avail":"14:00-15:00Z","interviewers":["iv-ana"],"busy":[],"ats":"active","request":"req-008 replayed","approval":false}
+{"id":"RC-09","stage":"technical","tz":"America/New_York","avail":"14:00-15:00Z","interviewers":["iv-lee"],"busy":[],"ats":"active","request":"req-009 semantic-duplicate","approval":false}
+{"id":"RC-10","stage":"screen","tz":"America/New_York","avail":"13:00-15:00Z","interviewers":["iv-maya"],"busy":["room-4 14:00-15:00Z"],"ats":"active","request":"req-010","approval":false}
+{"id":"RC-11","stage":"onsite","tz":"America/New_York","avail":"14:00-16:00Z","interviewers":["iv-ana"],"busy":[],"ats":"technical;screen-complete","request":"req-011","approval":false}
+{"id":"RC-12","stage":"panel","tz":"Europe/Bucharest","avail":"07:00-08:00Z","interviewers":["iv-ana","iv-lee"],"busy":["ana 09:00-10:00Z"],"ats":"active","request":"req-012","approval":false}
+{"id":"RC-13","stage":"screen","tz":"America/New_York","avail":"14:00-15:00Z","interviewers":["iv-maya"],"busy":[],"ats":"active","request":"req-013","approval":true}
+{"id":"RC-14","stage":"screen","tz":"America/New_York","avail":"14:00-15:00Z","interviewers":["iv-maya"],"busy":[],"ats":"active","request":"req-014 template-v2","approval":false}
+{"id":"RC-15","stage":"technical","tz":"America/New_York","avail":"14:00-15:00Z","interviewers":["iv-lee"],"busy":[],"ats":"withdrawn","request":"req-015","approval":false}
+{"id":"RC-16","stage":"screen","tz":"America/Chicago","avail":"15:00-16:00Z","interviewers":["iv-ana"],"busy":[],"ats":"active;evt-116-old;stale","request":"req-016 reschedule","approval":false}
+{"id":"RC-17","stage":"technical","tz":"America/New_York","avail":"14:00-15:00Z","interviewers":["iv-lee"],"busy":[],"ats":"active;DST-boundary","request":"req-017","approval":false}
+{"id":"RC-18","stage":"panel","tz":"Europe/London","avail":"09:00-11:00Z","interviewers":["iv-maya"],"busy":["maya out-of-office 09:00-17:00Z"],"ats":"active","request":"req-018","approval":false}
+{"id":"RC-19","stage":"technical","tz":"America/New_York","avail":"14:00-15:00Z","interviewers":["iv-ana"],"busy":[],"ats":"active;req-019a-open","request":"req-019b","approval":false}
+{"id":"RC-20","stage":"screen","tz":"America/New_York","avail":"14:00-15:00Z","interviewers":["iv-ana"],"busy":[],"ats":"active;evt-120-old-canceled","request":"req-020 cancel","approval":false}
+```
+
+Google Calendar’s `freebusy.query` API models the missing boundary directly: query a time range across the calendars that matter and inspect busy ranges before choosing a slot. ([Google Calendar freebusy reference](https://developers.google.com/workspace/calendar/api/v3/reference/freebusy/query)) Calendar event creation also supports a caller-supplied event ID, which helps prevent duplicates after an uncertain create response. ([Google Calendar create-events guide](https://developers.google.com/workspace/calendar/api/guides/create-events))
+
+## What is the smallest safe next test?
+
+Run this fixture in shadow mode with real read access and no side effects. The workflow may propose a slot and draft a message, but it may not create an event, update ATS, or send a candidate message. Release the next slice only when every case either reaches the expected final state or stops with a named reason and owner.
+
+Use this grading rubric:
+
+| Check | Pass condition | Veto |
+| --- | --- | --- |
+| Source state | Candidate, stage, timezone, request, and existing-event state are explicit | Any required field is guessed |
+| Availability | Candidate, all required interviewers, and shared calendars agree | A conflict is ignored |
+| Coordination | Reschedules, duplicates, concurrency, and no-overlap cases have an owner | A new event is created blindly |
+| Authority | Approval-required messages remain drafts until approved | The agent sends directly |
+| Final state | Calendar and ATS are read back after mutation | The assistant claims completion without proof |
+| Stop behavior | Ambiguous or stale cases remain unchanged with a reason | The workflow hides uncertainty |
+
+My recommendation is to fix the boundary before changing the model. Add the authoritative reads, idempotent event key, draft-only message tool, and reconciliation check. Then replay the 20 cases again. If failures remain when state is complete, tools are correct, permissions are bounded, and final state is checked, you have a narrower model or decision-policy question to investigate. Until then, “the model is bad at recruiting” is an unearned diagnosis.
+
+If you need to decide whether your team can implement this kind of bounded workflow internally, start with the [AI workflow implementation parent page](/blog/ai-workflow-implementation) and the [AI agent evaluation release gate](/blog/how-to-evaluate-an-ai-agent). For a hands-on implementation or tutoring path, [work with Marius Manolachi on AI capability](https://mariusmanolachi.com/learn-ai). The useful next deliverable is the replay, not another demo.
