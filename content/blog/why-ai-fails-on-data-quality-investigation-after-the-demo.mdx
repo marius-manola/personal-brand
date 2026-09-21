@@ -1,0 +1,145 @@
+---
+title: "Why AI Fails on Data-Quality Investigation After the Demo"
+date: "2026-09-21"
+updated: "2026-09-21"
+excerpt: "A 12-case GA4-shaped test shows why model guesses lose to profiling, validation rules, and a clear next-owner decision after the demo."
+answer: "AI usually fails after the demo because it is asked to diagnose data without the profile, lineage, and validation rules that make a defect observable. Run deterministic checks first, then give the model their outputs and require a next-owner decision. The exception is a descriptive question with no business rule or downstream action."
+targetQuery: "why does AI fail on data-quality investigation after the demo"
+queryAliases:
+  - "why does AI fail on data quality investigation after a demo"
+  - "AI data quality investigation failure"
+  - "why AI cannot find data quality root cause"
+intent: "informational"
+funnel: "consideration"
+cluster: "implementation"
+parent: "/blog/ai-workflow-implementation"
+contentType: "failure-clinic"
+kind: "satellite"
+sourceableAtom: "In a 12-case GA4-shaped investigation fixture, the model-assisted pass passed 4/12 cases while the explicit profile-and-rule pass routed 12/12; the raw cases and next-owner decision table are preserved here."
+evidenceType: "reproducible test plus worked decision artifact"
+evidenceBasis: "One 12-case, one-trial model-assisted pass using the configured gpt-5.6-luna Codex runner, compared with local deterministic profile and validation predicates on a GA4-shaped fixture derived from Google's public sample setup. No production rate, remote BigQuery result, latency, or API cost is claimed."
+tags:
+  - "AI implementation"
+  - "Data quality"
+  - "AI evaluation"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://developers.google.com/analytics/bigquery/web-ecommerce-demo-dataset"
+  - "https://cloud.google.com/bigquery/docs/google-analytics-4-transformation"
+  - "https://docs.cloud.google.com/dataplex/docs/system-rule-templates-list"
+  - "https://docs.cloud.google.com/dataplex/docs/build-policy-as-code-data-quality-workflow"
+  - "https://docs.aws.amazon.com/prescriptive-guidance/latest/gen-ai-lifecycle-operational-excellence/prod-monitoring-insights.html"
+  - "https://arxiv.org/abs/2602.09937"
+faq:
+  - q: "Should I change the model when an AI data investigation is wrong?"
+    a: "Not first. Re-run the case with deterministic profile and validation results, the relevant lineage, and the business rule. Change the model only after data, context, and orchestration checks are correct and the same failure still reproduces."
+  - q: "What should an AI data-quality investigation receive as context?"
+    a: "Give it the schema, source and transformation lineage, profile results, failed rule, representative rows, business definition, permissions, and the required next-owner decision. Without those, a plausible explanation can be impossible to falsify."
+  - q: "How many cases do I need after an AI demo?"
+    a: "Start with a fixed set that includes controls, known defects, missing context, duplicates, schema changes, and ambiguous cases. This test used 12 cases. Treat that number as a bounded starting fixture, not a universal sample-size rule."
+cover: "/blog/why-ai-fails-on-data-quality-investigation-after-the-demo-hero.webp"
+coverAlt: "Illustration of an AI data-quality investigation being checked by profiles, rules, and an owner-routing table"
+draft: false
+---
+
+The demo answered clean questions. Then someone asked why yesterday’s purchase total looked wrong, and the investigation turned into a guessing exercise.
+
+I ran a small reproduction because this failure is easy to describe and hard to pin down. The result was clear enough to act on: a model-assisted pass got 4 of 12 fixed cases right. A profile-and-rule pass routed all 12, including controls, injected defects, and one case that needed a missing policy rather than a guess.
+
+![Illustration of an AI data-quality investigation moving from a plausible model diagnosis to a profile-backed owner decision](/blog/why-ai-fails-on-data-quality-investigation-after-the-demo-inline-1.webp)
+
+## What did the 12-case test actually show?
+
+The model was useful for proposing checks. It was not reliable as the first root-cause authority when the prompt contained only a schema, a few rows, and a short lineage sentence.
+
+| Pass | Result | What it proves |
+| --- | ---: | --- |
+| Model-assisted diagnosis | 4/12 | The model cleared the two controls and two context cases under a strict four-part rubric |
+| Explicit profile and validation rules | 12/12 routed | Deterministic checks exposed the injected defects and sent each case to an owner |
+
+The fixture used the public Google Analytics 4 ecommerce sample setup, but the workspace had no GCP project or BigQuery credentials. I therefore used the documented field shape and injected fixed defects locally. The normalized fields follow Google’s documented GA4 transformation shape ([Google’s GA4 transformation](https://cloud.google.com/bigquery/docs/google-analytics-4-transformation)). The result says nothing about how common those defects are in Google’s sample or in production. Google also warns that its obfuscated sample contains stand-in values and limited internal consistency, which is another reason not to turn it into a prevalence benchmark ([Google’s GA4 ecommerce demo dataset](https://developers.google.com/analytics/bigquery/web-ecommerce-demo-dataset)).
+
+The model saw the normalized schema, one case row or duplicate pair, and the lineage sentence. It did not see the profile result or the rule catalog. The explicit pass saw the same case plus the named check and its result. That is the important comparison. The second pass had better evidence, not a more persuasive prompt.
+
+## Why does a demo pass while the investigation fails?
+
+A demo normally proves that the model can produce a plausible answer for a known path. A data-quality investigation must establish whether the row is wrong, whether the rule is missing, whether the transformation changed the meaning, and who owns the repair.
+
+Those are different jobs. The model can describe a suspicious row. It cannot infer an unstated contract safely from one example.
+
+Google’s Knowledge Catalog rules make the missing layer concrete. The catalog includes checks for schema, freshness, non-null values, uniqueness, ranges, sets, multi-column relationships, and SQL assertions ([Google’s system rule templates](https://docs.cloud.google.com/dataplex/docs/system-rule-templates-list)). Google’s current policy-as-code workflow also puts profiling and human review around AI-generated rules. It specifically warns that a one-day sample can make a null rate or category list look more authoritative than it is ([Google’s policy-as-code workflow](https://docs.cloud.google.com/dataplex/docs/build-policy-as-code-data-quality-workflow)).
+
+My own teaching gives me the same warning from a different angle. When I taught product managers to move from writing specifications to building and shipping, the recurring problem was usually an undefined “done,” not the model ([Marius Manolachi’s Learn AI work](https://mariusmanolachi.com/learn-ai)). Data investigation has the same dependency. If “valid purchase” is never defined as a rule, a model can sound helpful while avoiding the decision.
+
+## Which failures belong to data, context, orchestration, or the model?
+
+Route the first repair to the layer that can falsify the diagnosis most cheaply. Do not treat every wrong answer as a model problem.
+
+| Observed signal | First route | The repair to test | What not to do first |
+| --- | --- | --- | --- |
+| Timestamp/date mismatch, missing purchase revenue, non-purchase revenue, empty purchase items, item arithmetic mismatch, negative purchase quantity | Data or instrumentation | Run the exact rule, inspect source payload, repair the contract or mapping, then rerun | Change the model |
+| Unknown currency, null identifier without consent semantics | Retrieval or context | Attach the reference set, privacy policy, or business definition, then rerun | Label the row corrupt from a guess |
+| Duplicate event key, missing field in a flattened projection | Orchestration or evaluation | Check idempotency, lineage, projection schema, and regression coverage | Add a vague prompt reminder |
+| Same failure after data, context, and orchestration are fixed | Model remediation | Reproduce on the full fixed set, then compare a model change against the old model | Fine-tune from one unexplained row |
+
+This routing follows AWS’s production RCA loop. AWS separates prompt and orchestration failures, knowledge and retrieval failures, and core model limitations, then sends each class back to a different lifecycle stage ([AWS root-cause analysis guidance](https://docs.aws.amazon.com/prescriptive-guidance/latest/gen-ai-lifecycle-operational-excellence/prod-monitoring-insights.html)). My test adds an explicit data-quality layer because the case begins with a row and a rule, not a generic user complaint.
+
+## What did the model miss in the fixed cases?
+
+The common error was not nonsense. It was an attractive alternative explanation that delayed ownership.
+
+| Case | Fixed condition | Model’s raw diagnosis | Why it failed |
+| --- | --- | --- | --- |
+| C03 | `event_date` disagreed with the UTC date from `event_timestamp` | “Likely timezone conversion or late ingestion” | It moved the case to context without first stating that the row failed a deterministic consistency check |
+| C04 | Purchase revenue was null | “Could be a zero-value purchase or missing instrumentation” | It left two incompatible explanations open instead of testing the purchase contract |
+| C05 | A non-purchase event carried purchase revenue | “Revenue may be attached at user or session level” | It invented a semantic explanation that the supplied contract did not support |
+| C07 | A purchase had zero items | “Possible itemless transaction or refund” | It invented an exception rather than treating the injected purchase/items rule as the failing condition |
+| C08 | Item revenue did not equal price times quantity | “Likely rounding or tax/shipping treatment” | It named a plausible explanation but failed to record the mismatch as the defect to reconcile |
+| C11 | A purchase item had negative quantity | “May represent a return” | It used an unstated event taxonomy to avoid routing a bad purchase row |
+| C12 | The flattened projection omitted `event_bundle_sequence_id` | “Field may be optional in some exports” | It missed that the defect was in the transformation and lineage layer |
+
+The model did better on the duplicate key, the unknown currency, and the null identifier with missing privacy context. Those are still useful successes, but they do not cancel the false alternatives in the other cases.
+
+OpenRCA is a useful comparison here, with a boundary. Its 2026 analysis ran the OpenRCA benchmark across five LLMs and 1,675 agent runs, and reports persistent pitfalls including hallucinated data interpretation and incomplete exploration ([OpenRCA](https://arxiv.org/abs/2602.09937)). My fixture is not equivalent. It has 12 authored cases, one model configuration, no live cloud tools, and no benchmark protocol. I use OpenRCA to support the decision to preserve exploration and trace evidence, not to borrow its rates.
+
+## How should the first investigation loop work?
+
+Use the model after the profile, not instead of the profile.
+
+1. **Freeze the case.** Keep the row or duplicate pair, query text, schema version, lineage, model configuration, prompt, and raw output.
+2. **Run deterministic checks.** Start with schema, null, uniqueness, range, set, arithmetic, freshness, and SQL assertion checks that match the data contract.
+3. **Give the model the failing evidence.** Include the exact failed rule, representative rows, source and transformation lineage, and the business definition.
+4. **Require a falsifiable next check.** “Inspect the pipeline” is too vague. Name the query, source field, reference set, or owner that could prove the diagnosis wrong.
+5. **Route the repair.** Send data defects to data or instrumentation, missing meaning to context or retrieval, transformation and coverage defects to orchestration or evaluation, and only isolated residual failures to model remediation.
+6. **Rerun the old case.** The repaired system must pass the original case and the control cases. Keep the failure as a regression fixture.
+
+Verification after repair is a rerun, not a changed prompt that merely sounds more confident. In this fixture, close a case only when the failed SQL assertion passes, both controls still pass, and the archived trace points to the same corrected row or projection. If the case passes only after the profile result is supplied, the rule or context repair is incomplete. If it still fails with complete evidence, model remediation becomes the next test.
+
+Google’s policy-as-code workflow follows the same broad shape: profile, draft rules, review them against business context, then validate and deploy. That sequence matters because profile statistics alone cannot tell you whether a rare value is invalid or merely absent from a small sample ([Google’s data-quality workflow](https://docs.cloud.google.com/dataplex/docs/build-policy-as-code-data-quality-workflow)).
+
+## What should the next-owner decision record contain?
+
+The smallest useful record connects evidence to ownership and closure:
+
+| Field | Example from this test | Why it stays |
+| --- | --- | --- |
+| Case and trace | `C05`, query version `dq-v1` | Makes the failure replayable |
+| Failed check | `purchase revenue only when event_name = purchase` | Replaces a vague complaint with a test |
+| Evidence | Row IDs, source field, flattened view, lineage hash | Lets the owner inspect the right layer |
+| Primary class | `data` | Prevents premature model changes |
+| Next owner | Analytics instrumentation owner | Names the next action |
+| Repair | Fix mapping or reject invalid event payload | Makes the change testable |
+| Closure check | Rerun the SQL assertion and two controls | Stops “fixed” from meaning “prompt changed” |
+
+For this fixture, there was no isolated model-only failure. That is a result worth preserving. The correct model remediation decision is “not yet.” First repair the data contract, reference context, projection, and evaluation assertions. If the same case still fails with complete evidence, then compare models or prompts on the full fixed set.
+
+## When is the model not the problem?
+
+The model is not the first suspect when a deterministic rule already explains the row, the source or transformation can be inspected, or the business definition is missing.
+
+That does not mean models are innocent. It means “model failure” should be the residual category after the cheaper explanations have been tested. AWS makes the same distinction in its RCA loop, and Google’s data-quality workflow treats AI-generated rules as drafts that require human review rather than authority.
+
+The post-demo release gate is simple: don’t ask whether the model can investigate data. Ask whether the workflow can show the failed rule, the supporting evidence, the next owner, and the rerun that closes the case. If it can’t, the demo proved fluency, not investigation.
+
+For the broader implementation path, start with the [AI workflow implementation parent](/blog/ai-workflow-implementation). If your team has no production data yet, use [the pre-production AI feature test guide](/blog/how-to-test-an-ai-feature-before-production-data). For the wider release gate, see [how to evaluate an AI agent](/blog/how-to-evaluate-an-ai-agent). The useful next step is to freeze 12 cases before changing the model.
