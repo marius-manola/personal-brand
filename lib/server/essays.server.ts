@@ -8,7 +8,9 @@ const ESSAYS_DIRECTORY = join(process.cwd(), 'content/essays');
 interface EssayMetadata {
   title: string;
   date: string;
+  displayDate?: string;
   excerpt: string;
+  kind?: 'essay';
 }
 
 export interface Essay {
@@ -38,7 +40,9 @@ export async function getAllEssays(): Promise<Essay[]> {
         metadata: {
           title: data.title,
           date: data.date,
+          displayDate: data.displayDate,
           excerpt: data.excerpt,
+          kind: data.kind,
         },
         content: content.trim(),
       };
@@ -65,11 +69,13 @@ export async function getEssayById(id: string): Promise<Essay | undefined> {
       metadata: {
         title: data.title,
         date: data.date,
+        displayDate: data.displayDate,
         excerpt: data.excerpt,
+        kind: data.kind,
       },
       content: content.trim(),
     };
   } catch {
     return undefined;
   }
-} 
+}

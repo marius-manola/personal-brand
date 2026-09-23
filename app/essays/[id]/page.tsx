@@ -37,7 +37,7 @@ export default async function EssayPage({ params }: PageProps) {
     notFound();
   }
 
-  const formattedDate = new Date(essay.metadata.date).toLocaleDateString('en-US', {
+  const formattedDate = essay.metadata.displayDate ?? new Date(essay.metadata.date).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'long',
     day: 'numeric'
@@ -56,7 +56,7 @@ export default async function EssayPage({ params }: PageProps) {
                   {essay.metadata.title}
                 </h1>
                 <div className="page-subtitle">
-                  {formattedDate}
+                  {essay.metadata.kind === 'essay' ? `Essay · ${formattedDate}` : formattedDate}
                 </div>
               </header>
 

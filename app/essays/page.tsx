@@ -23,9 +23,9 @@ export default async function EssaysPage() {
             <div className="page-stack">
               <header className="page-header">
                 <h1 className="page-title">
-                  <span className="line-through">Essays</span> 1am thoughts
+                  Essays
                 </h1>
-                <p className="page-subtitle">essays, notes, and ideas</p>
+                <p className="page-subtitle">Long essays and 1am thoughts</p>
               </header>
 
               <section>
@@ -37,13 +37,16 @@ export default async function EssaysPage() {
                           {essay.metadata.title}
                         </h2>
                         <div className="text-[0.68rem] uppercase tracking-[0.12em] text-[hsl(var(--muted-foreground))] ml-4 flex-shrink-0">
-                          {new Date(essay.metadata.date).toLocaleDateString('en-US', {
+                          {essay.metadata.displayDate ?? new Date(essay.metadata.date).toLocaleDateString('en-US', {
                             month: 'short',
                             day: 'numeric',
                             year: 'numeric'
                           })}
                         </div>
                       </div>
+                      {essay.metadata.kind === 'essay' && (
+                        <span className="text-[0.68rem] uppercase tracking-[0.12em] text-[hsl(var(--muted-foreground))]">Essay</span>
+                      )}
                     </article>
                   </Link>
                 ))}
