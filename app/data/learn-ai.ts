@@ -162,6 +162,5 @@ export const qualifier = {
 
 export const quietLinks = [
   { label: 'Home', href: '/' },
-  { label: 'AI field notes', href: '/blog' },
   { label: 'LinkedIn', href: profileLink.href, external: true },
 ];

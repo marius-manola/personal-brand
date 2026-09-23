@@ -20,12 +20,12 @@ export const facts: Array<{ text: string; href?: string; label?: string }> = [
     label: 'group',
   },
   {
-    text: 'Shipped NotClass, a consumer app used by more than 10,000 people.',
+    text: 'Building NotClass, an online education app used by more than 10,000 people.',
     href: 'https://notclass.com',
     label: 'NotClass',
   },
   {
-    text: 'Building TryUncle, an AI agent that watches the screen and annotates it live.',
+    text: 'Previously built TryUncle, an AI editing assistant for DaVinci Resolve that could see the screen as you worked.',
     href: 'https://tryuncle.com',
     label: 'TryUncle',
   },
@@ -68,4 +68,4 @@ export const personJsonLd = {
 };
 
 export const description =
-  'Marius Manolachi is an AI consultant and builder who provides company training, workflow implementation, and custom AI solutions. He has taught 109,753 students on Udemy, spoken at the OECD on AI and education, shipped NotClass, and is building TryUncle.';
+  'Marius Manolachi is an AI consultant and builder who provides company training, workflow implementation, and custom AI solutions. He has taught 109,753 students on Udemy, spoken at the OECD on AI and education, is building NotClass, and previously built TryUncle.';
