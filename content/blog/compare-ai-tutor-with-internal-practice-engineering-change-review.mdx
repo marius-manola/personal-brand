@@ -1,0 +1,194 @@
+---
+title: "Compare an AI Tutor With Internal Practice for Engineering Change Review"
+date: "2026-09-26"
+updated: "2026-09-26"
+excerpt: "A five-case matched test shows how to compare tutor-led transfer with internal practice, including the failure, corrected rerun, and ownership gate."
+answer: "Choose internal practice when your team can freeze cases, write a review rubric, and own corrected reruns. Choose an AI tutor when the team cannot yet make those decisions unaided and the tutor contract includes hints, explanations, rubric revision, and a rerun. Keep the veto with an engineer for security-sensitive or ambiguous changes either way."
+targetQuery: "how should a buyer compare an ai tutor with internal practice for engineering change review"
+queryAliases:
+  - "ai tutor versus internal practice for engineering change review"
+intent: "commercial-decision"
+funnel: "decision"
+cluster: "commercial"
+parent: "/blog/commercial-ai-workflow-decisions"
+contentType: "commercial-decision"
+kind: "satellite"
+sourceableAtom: "In a five-case matched packet, tutor-led and internal-practice paths both reached 5/5 final review decisions only after a misleading diff exposed a missing caller-trace rule. The purchase signal was whether the path left an operator able to explain the decision, revise the rule, and rerun the same case."
+evidenceType: "reproducible matched-task test plus worked buyer decision artifact"
+evidenceBasis: "A redacted local five-case packet with frozen inputs, one tutor-led protocol, one internal-practice protocol, rubric versions, first-pass failures, corrected reruns, and limitations, interpreted alongside five primary sources."
+tags:
+  - "AI tutoring"
+  - "engineering change review"
+  - "buyer decision"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-24"
+sources:
+  - "https://arxiv.org/abs/2404.02548"
+  - "https://arxiv.org/abs/2603.15911"
+  - "https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents"
+  - "https://docs.github.com/en/pull-requests/reference/pull-request-reviews"
+  - "https://cdn.openai.com/business-guides-and-resources/building-an-ai-native-engineering-team.pdf"
+faq:
+  - q: "Can an AI tutor replace the engineering reviewer?"
+    a: "No. Use the tutor to improve the operator's review judgment, but keep the merge veto and responsibility for ambiguous or security-sensitive changes with the engineering team."
+  - q: "What is the minimum useful comparison?"
+    a: "Use the same five case patterns, freeze the brief and permissions, record a first-pass failure, revise one rubric rule, and rerun the affected case."
+  - q: "When should a buyer choose internal practice?"
+    a: "Choose internal practice when the team can maintain the case packet, rubric, review record, and named owner without depending on a tutor for the next change."
+cover: "/blog/compare-ai-tutor-with-internal-practice-engineering-change-review-hero.webp"
+coverAlt: "Illustration of a buyer comparing tutor-led and internal engineering change review paths"
+draft: false
+---
+
+An engineering change can look safe because the diff is small. The hard part is knowing whether the reviewer can explain the decision when the requirement changes or the diff hides a boundary case.
+
+When I taught product managers to move from writing specifications to building and shipping, I saw the same break repeatedly: people could describe the workflow, but nobody could say what “done” meant. That is why a tutor demo is not enough for this purchase.
+
+![Illustration of a buyer comparing two engineering change review paths with a visible veto and rerun record](/blog/compare-ai-tutor-with-internal-practice-engineering-change-review-hero.webp)
+
+The useful comparison is a matched test. Give both options the same cases, task brief, repository context, permissions, rubric, and success criteria. Then inspect what survives after the help is gone.
+
+## What did the matched five-case test show?
+
+In this local run, neither path won on first-pass quality. Both paths reached 5/5 final decisions only after the same misleading diff exposed a missing review rule and the affected case was rerun.
+
+| Measure | Tutor-led path | Internal-practice path |
+|---|---:|---:|
+| Same cases completed | 5/5 | 5/5 |
+| Correct first-pass decisions | 4/5 | 4/5 |
+| First-pass failure | Misleading diff, C5 | Misleading diff, C5 |
+| Corrected rerun | C5 after adding R6 | C5 after adding R6 |
+| Final correct decisions | 5/5 | 5/5 |
+| Time or cost measured | No | No |
+
+The result is bounded. One operator ran both protocols on a redacted five-case packet. This is not evidence that tutors and internal programs perform equally across teams. It is evidence that first-pass output did not answer the buying question in this packet.
+
+The buying signal was ownership. Could the operator name the missed behavior, change one rule, rerun the same case, and preserve the explanation? This page belongs to the [commercial AI workflow decisions](/blog/commercial-ai-workflow-decisions) cluster, where the same evidence-first buying discipline applies.
+
+## What should the buyer hold constant?
+
+Hold the work constant before comparing the help. If the tutor gets a cleaner repository, a better prompt, or more permission than the internal path, the comparison measures setup, not capability transfer.
+
+Freeze these inputs:
+
+1. A redacted repository snapshot with the same five change cases.
+2. One task brief: decide approve, request changes, or clarify before merge.
+3. The same initial rubric and case key.
+4. The same read-only permissions. Neither path can edit code, merge, deploy, or access production data.
+5. The same success criteria: correct decision, cited evidence, named risk or ambiguity, and an inspectable explanation.
+
+This structure follows the basic evaluation distinction described by Anthropic: a task has defined inputs and success criteria; a trial is an attempt; a transcript records the trial; and an outcome is the final state, not merely a confident sentence from the system. [Anthropic's evaluation guide](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents) also separates capability tests from regression tests. Your first packet is a capability test. Your later reruns become regression checks.
+
+Do not use a live repository for the first comparison. A buyer needs a reversible, inspectable test. GitHub's review model makes the decision boundary concrete: a reviewer can comment, approve, or request changes, and an approval signals that a change is ready to merge. [GitHub's pull-request review documentation](https://docs.github.com/en/pull-requests/reference/pull-request-reviews) also describes required approvals before merge. Your packet should preserve that visible veto.
+
+## Which cases reveal transfer instead of fluency?
+
+Use cases that force the reviewer to connect a diff to a requirement, a test, a security boundary, and a downstream caller. A happy-path change only measures whether someone can sound confident about familiar code.
+
+| Case pattern | What it tests | Expected decision in the packet |
+|---|---|---|
+| Ordinary change | Requirement and test alignment | Approve when evidence matches |
+| Missing test | Boundary coverage | Request changes |
+| Security-sensitive change | Data exposure and veto discipline | Request changes |
+| Ambiguous requirement | Clarification before implementation | Clarify before merge |
+| Deliberately misleading diff | Caller tracing and hidden defaults | Request changes |
+
+The fifth case did the work in this run. The visible diff lowercased and trimmed an identity value, and its happy-path test was updated. A helper also changed empty-input behavior to a privileged default. Under rubric v1, both paths initially approved it. The operator had checked the visible behavior but not the caller trace.
+
+That failure matters because code review is not only defect screening. A 2026 analysis of 278,790 review conversations across 300 open-source GitHub projects reported that human reviewers supplied additional feedback about understanding, testing, and knowledge transfer. The same study reported 11.8% more review rounds when humans reviewed AI-generated code than human-written code. Those findings do not tell you which purchase to make, but they do support testing review context and transfer instead of counting comments. [Read the code-review study](https://arxiv.org/abs/2603.15911).
+
+## When does an AI tutor win?
+
+Choose the tutor-led path when the team cannot yet produce a usable packet and rubric, but the engagement is designed to make the operator less dependent after the session.
+
+The tutor must be constrained. The operator makes the review first. The tutor can ask where the evidence is missing or which boundary is untested, but cannot supply the verdict. The operator then explains the decision, revises one review rule, and reruns the affected case.
+
+In the local C5 run, the useful hint was not “reject this diff.” It was: inspect the previous behavior for empty identity input and identify the callers that consume the normalized value. That hint exposed the missing question without replacing the review.
+
+This is consistent with the tutoring evidence, but the caveat matters. An exploratory study of an AI tutor in software-engineering education reported timely feedback and scalability as advantages, while also reporting generic responses and concerns that tutoring could inhibit learning progress. [The study is here](https://arxiv.org/abs/2404.02548). A buyer should therefore purchase a transfer protocol, not unlimited answer access.
+
+Ask a tutor vendor or tutor-led service to show these deliverables:
+
+- the frozen case packet and case key;
+- the hint policy, including what the tutor must not reveal;
+- the operator's first decision and explanation;
+- the changed rubric rule;
+- the corrected rerun;
+- the named internal owner who can add the next case.
+
+If the tutor produces a polished review but the operator cannot explain or rerun the decision, the tutor won the session and lost the purchase.
+
+## When does internal practice win?
+
+Choose internal practice when the team can write a rubric, preserve cases, and run a corrected rerun without waiting for an outside guide.
+
+Internal practice is not “let reviewers learn by doing.” It needs a small operating artifact:
+
+1. A versioned case packet.
+2. A written decision rubric.
+3. A case key that someone other than the reviewer can inspect.
+4. A record of the first-pass failure.
+5. A rule change with a reason.
+6. A rerun against the unchanged case.
+7. A named owner for new cases and rubric changes.
+
+In the internal path, C5 failed for the same reason as the tutor path. Rubric v1 checked requirements, tests, security, ambiguity, and decision ownership, but it did not force a trace from a changed identity or fallback branch to every security-relevant caller. The team-style correction added R6 and reran C5 unchanged. The final decision was request changes.
+
+That artifact can compound. Every later review can add a case or sharpen a rule. But internal practice loses if nobody owns the packet, if the rubric is kept in a private document, or if reviewers are rewarded for approval volume instead of evidence quality.
+
+## How should you run the acceptance test?
+
+Run the tutor-led and internal-practice protocols as two lanes over the same packet, then make ownership a hard gate.
+
+### 1. Freeze the packet
+
+Create five redacted cases and write the gold decision before anyone reviews them. Keep the repository context and permissions identical.
+
+### 2. Run first-pass reviews
+
+The operator reviews without being shown the answer. Record the decision, evidence, risk, and explanation. Do not erase an incorrect approval. It is part of the result.
+
+### 3. Apply the path-specific help
+
+In the tutor lane, give a hint without a verdict. In the internal lane, provide only the written rubric and team practice instructions. Keep the operator's review responsibility intact.
+
+### 4. Revise one rule
+
+Require the operator or team to state exactly what the first rubric missed. In this packet, the revised rule was to trace changed identity, default, authorization, or normalization branches through security-relevant callers and test empty or missing inputs.
+
+### 5. Rerun the affected case
+
+Use the unchanged diff. A corrected rerun proves that the change in performance came from the practice rule, not from an easier case.
+
+### 6. Test ownership
+
+Ask the named owner to add a sixth case, update the rubric, run the case, and preserve the record without tutor intervention. The local run did not perform this sixth-case test, so a buyer should treat it as a required acceptance step rather than a claimed result.
+
+Anthropic describes code-based graders as reproducible and easy to debug, while human graders bring expert judgment and can calibrate model-based scoring. For change review, combine the deterministic case key with a human-readable explanation. [The grader comparison is in Anthropic's guide](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents).
+
+## What should go into the purchase decision?
+
+Use a veto-based worksheet. Do not award the purchase to the path with the smoother demo.
+
+| Gate | Pass condition | Buyer evidence |
+|---|---|---|
+| Matched inputs | Same cases, brief, context, permissions, rubric, and success key | Versioned packet |
+| Decision quality | Every final decision matches the key | Case table |
+| Failure visibility | At least one incomplete or wrong decision remains recorded | First-pass note |
+| Corrected rerun | The affected case improves after one named rule change | Rubric diff and rerun |
+| Explanation | The operator can name behavior, evidence, risk, and veto | Decision record |
+| Ownership | The internal owner can add a case and rerun it | Sixth-case exercise |
+
+The rule is simple:
+
+- **Buy the AI tutor** if the team fails the packet because it cannot yet create or apply the review practice, and the tutor contract includes transfer evidence.
+- **Choose internal practice** if the team can create the packet, maintain the rubric, and pass the ownership test without outside help.
+- **Hold the purchase** if both paths can make a good first-pass review but neither leaves a named owner or corrected rerun.
+
+The principal exception is a security-sensitive or ambiguous change. Neither path should turn uncertainty into an approval. OpenAI's engineering-team guide makes the same boundary explicit: ownership of code, especially for new or ambiguous problems, remains with engineers, while agents can assist with analysis and review. [See the guide's ownership guidance](https://cdn.openai.com/business-guides-and-resources/building-an-ai-native-engineering-team.pdf).
+
+The [reviewable AI code-change workflow](/blog/how-to-build-a-reviewable-ai-code-change-workflow) is useful if you still need to design the review mechanics. If the decision is really about whether your team can own the capability, use [the team-capability assessment](/blog/how-to-assess-team-capability-before-buying-an-ai-platform) before you compare vendors.
+
+The local result is deliberately modest: matched cases made the missing ownership rule visible. That is enough to improve a purchase decision. It is not enough to claim a universal tutor advantage or a productivity gain.
+
+If you want help designing the packet or the tutor contract, [Marius Manolachi's AI tutoring and consulting work](/learn-ai) is the relevant next step. Keep the cases, rubric, veto, and rerun record inside your team.
