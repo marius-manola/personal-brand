@@ -1,0 +1,245 @@
+---
+title: 'Evidence Before Testing AI Pricing Exception Review'
+date: '2026-09-26'
+updated: '2026-09-26'
+excerpt: 'Use a governed evidence packet and paired replay scorecard to decide whether AI can review pricing exceptions without owning approval.'
+answer: 'Before testing AI pricing-exception review, collect a permissioned replay corpus or policy-faithful synthetic set, freeze the price-waterfall inputs and expected human decisions, and compare read-only AI review with a manual baseline. Record missing evidence, policy conflicts, routing, correction burden, latency, and cost. The exception is a routine workflow that still keeps ambiguous cases and approval decisions with a person.'
+targetQuery: 'what evidence should a revenue operations leader collect before testing pricing exception review with AI'
+queryAliases:
+  - 'AI pricing exception review evidence'
+  - 'evidence for testing AI deal desk review'
+intent: 'evaluation'
+funnel: 'consideration'
+cluster: 'evaluation'
+parent: '/blog/ai-opportunity-decisions'
+contentType: 'original-research'
+kind: 'flagship'
+sourceableAtom: 'A vendor-neutral pricing-exception preflight artifact: a worked evidence packet, paired replay scorecard, and bounded readiness audit showing which evidence must exist before an AI reviewer can be judged on price-waterfall reconstruction, policy routing, missing-evidence detection, and human handoff.'
+evidenceType: 'source-backed preflight audit and worked decision artifact'
+evidenceBasis: 'A completed audit of one assigned pricing-exception evidence package, four current primary or first-party sources, a field-level replay packet, and a paired scorecard. The audit found no pricing-exception replay cases or model run, so this article reports readiness evidence and no performance result.'
+tags:
+  - 'Revenue operations'
+  - 'AI evaluation'
+  - 'Pricing'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-22'
+sources:
+  - 'https://airc.nist.gov/airmf-resources/airmf/5-sec-core/'
+  - 'https://openai.github.io/openai-agents-python/human_in_the_loop/'
+  - 'https://trailhead.salesforce.com/content/learn/modules/pricing-methods-for-salesforce-cpq/identify-exceptions-to-standard-pricing'
+  - 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/faqs-ai-approvals'
+faq: []
+cover: '/blog/evidence-before-ai-pricing-exception-review-pricing-exception-evidence-hero.webp'
+coverAlt: 'Illustration of a governed pricing exception evidence packet awaiting a read-only AI replay test'
+draft: false
+---
+
+A pricing exception is not a discount number. It is a decision assembled from a quote version, a price book, a sequence of adjustments, a commercial reason, a policy, and an approval route. If those pieces cannot be reconstructed, an AI review demo can look useful while testing an incomplete case.
+
+The practical starting point is a read-only evidence packet. Put the same frozen cases through a manual baseline and an AI-assisted reviewer, then compare reconstruction, policy routing, missing-evidence detection, correction burden, latency, and cost. The [canonical AI opportunity decisions guide](/blog/ai-opportunity-decisions) gives the broader opportunity-selection context. This article narrows the job to the evidence needed before one pricing-exception test.
+
+## What is the minimum evidence packet for a pricing-exception test?
+
+The minimum packet is a versioned case that lets another reviewer reconstruct the quote, the rule applied, the requested exception, and the final human disposition without asking the original deal owner for missing context.
+
+The packet should contain these fields:
+
+| Packet field | What to preserve | Why the reviewer needs it |
+| --- | --- | --- |
+| Case identity | De-identified case ID, quote ID, quote version, and observation date | Separates revisions and makes a replay traceable |
+| Price inputs | Price book, list prices, quantities, currencies, discount layers, and net price | Reconstructs the price waterfall rather than judging one discount in isolation |
+| Policy context | Policy version, effective date, relevant rule, and explicit exceptions | Makes the expected rule reproducible |
+| Commercial rationale | The stated reason for the request and the evidence supplied with it | Distinguishes a policy-supported exception from an unsupported preference |
+| Approval path | Required approver, escalation rule, approval record, and final disposition | Tests routing and keeps authority separate from recommendation |
+| Evidence state | Source timestamps, missing fields, conflicting documents, and unresolved questions | Lets the reviewer detect when the case is not ready for a decision |
+| Test metadata | System version, prompt or configuration version, and read-only permissions | Defines what the AI reviewer actually saw and could do |
+
+Salesforce's CPQ material is a useful reminder that pricing exceptions sit on top of a selected price book and successive price-waterfall adjustments. It is documentation for one product, not a universal data model, so adapt the fields to the organization's own quoting system and policy ([Salesforce CPQ pricing exceptions](https://trailhead.salesforce.com/content/learn/modules/pricing-methods-for-salesforce-cpq/identify-exceptions-to-standard-pricing)).
+
+![Illustration of the input schema for a pricing exception replay case](/blog/evidence-before-ai-pricing-exception-review-pricing-exception-schema.webp)
+
+Do not add a field merely because a platform exposes it. Keep a field when its absence could change reconstruction, policy interpretation, routing, or the decision to stop and request more evidence. That rule keeps the packet small enough to review and complete enough to replay.
+
+## Which pricing inputs must be frozen before replay?
+
+Freeze every input that can change the price waterfall or the approval route, including the quote version, price book, discount layers, policy version, and source timestamps. A current policy pasted over an old quote creates a new case, not a faithful replay.
+
+Freeze these items together:
+
+1. **The quote state.** Preserve the exact version, line items, quantities, currency, list prices, and calculated net price used in the original decision.
+2. **The adjustment sequence.** Record every discount, uplift, manual override, bundle rule, and derived amount in the order the system applied it.
+3. **The rule state.** Identify the policy version and effective date. Store the rule text or an approved reference that the reviewer can access during replay.
+4. **The request state.** Preserve the requested exception, its commercial rationale, and the evidence the requester supplied.
+5. **The authority state.** Record who could approve, who actually approved or rejected, what escalation was required, and whether the final disposition changed the quote.
+6. **The evidence clock.** Keep timestamps for the quote, policy, source documents, approval, and final disposition. A document that arrived after the decision should not silently become evidence for it.
+
+This is a version-control requirement, not a Salesforce-specific rule. NIST's AI Risk Management Framework says test sets, metrics, methods, and limitations should be documented, and that measurement should be tied to the system's context and risks ([NIST AI RMF](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/)). In a pricing review, versioned inputs are what make that documentation meaningful.
+
+The exception is a workflow whose price and policy inputs are generated deterministically at run time. Even there, retain the versions and the generated snapshot used by the test. Determinism in the application does not make an old test case current.
+
+## How should the expected human decision be labeled?
+
+Label the decision before the AI sees the case, and separate the business outcome from the reason and the required route. A single label such as `approved` cannot show whether the reviewer reconstructed the price correctly or merely guessed the final outcome.
+
+Use a case label with at least four parts:
+
+```yaml
+expected_decision:
+  disposition: approve | reject | request_more_evidence | escalate
+  price_waterfall: reconstructed | not_reconstructed
+  policy_application: correct | incorrect | indeterminate
+  approval_route: correct | incorrect | indeterminate
+  quote_mutation_allowed: false
+  rationale: "Short explanation written by the adjudicating reviewer"
+  adjudicated_by: "Role, not a customer or employee name"
+```
+
+The `indeterminate` state matters. If the human reviewer cannot decide because a policy version or commercial document is missing, that is evidence about the case, not a forced negative label. A test that turns uncertainty into rejection will reward the AI for making a confident choice where the process requires a pause.
+
+The adjudicator should inspect the case packet, record the decision and rationale, and then freeze the label. If two reviewers disagree, preserve the disagreement and resolve the rule or escalate the case. Do not average conflicting judgments into a label that nobody owns.
+
+Microsoft's AI approvals guidance recommends historical data, edge cases, missing fields, conflicting rules, and sandbox testing before deployment. It also distinguishes routine, well-defined criteria from critical or ambiguous cases that need human oversight ([Microsoft AI approvals](https://learn.microsoft.com/en-us/microsoft-copilot-studio/faqs-ai-approvals)). Those distinctions belong in the labels, not only in a paragraph about limitations.
+
+## What should the paired replay method compare?
+
+Run the same frozen packet through two lanes: a manual baseline and a read-only AI-assisted review. Keep the input, policy snapshot, permissions, and decision labels constant. The comparison is useful only if the lanes differ in reviewer method, not in the evidence they receive.
+
+Use this method:
+
+1. **Freeze the case set.** Redact or minimize the packet, record the case version, and lock the expected human decision.
+2. **Run the manual baseline.** Ask a qualified reviewer to use only the packet and approved policy sources. Record their reconstruction, route, questions, correction work, elapsed time, and cost basis.
+3. **Run the AI lane in read-only mode.** Give the reviewer the identical packet, policy access, and task boundary. Record the AI output, retrieved evidence, proposed route, unanswered questions, and trace.
+4. **Adjudicate both outputs.** Check the price waterfall, policy application, missing-evidence detection, route, unsupported recommendation, and whether the quote stayed unchanged.
+5. **Record correction burden.** Measure the work needed to reach an accepted human disposition. Keep detection and correction separate when the workflow supports it.
+6. **Preserve failures.** Store the case, trace, reviewer correction, and failure category as a regression fixture after removing sensitive data.
+7. **Decide scope.** Continue, hold, or stop based on written vetoes and thresholds. Do not let a favorable average cancel an approval bypass or an untraceable recommendation.
+
+OpenAI's Agents SDK documents a human-in-the-loop flow that pauses sensitive tool calls until a person approves or rejects them, then serializes and resumes the run. That supports the boundary needed here, but it does not prove that a pricing reviewer is correct ([OpenAI Agents SDK human-in-the-loop](https://openai.github.io/openai-agents-python/human_in_the_loop/)).
+
+![Illustration of paired manual and AI-assisted pricing exception replay lanes ending at a human-owned route decision](/blog/evidence-before-ai-pricing-exception-review-pricing-exception-replay-modes.webp)
+
+If the AI lane can change the quote, create an approval, or send a customer-facing commitment during the test, it is no longer a read-only review experiment. Reduce permissions before measuring quality.
+
+## Which scorecard fields expose an AI review failure?
+
+Use a scorecard that keeps correctness, uncertainty, human effort, and operating cost visible as separate fields. The audit behind this article produced the scorecard below, but no pricing-exception run was available, so the result column is intentionally a recording contract rather than a fabricated score.
+
+| Measure | Case-level observation to record | Release question |
+| --- | --- | --- |
+| Price-waterfall reconstruction | Each input, adjustment, and net-price calculation that the reviewer recovered or missed | Can a reviewer verify how the proposed price was formed? |
+| Policy application | Rule version cited, rule outcome, and any conflict or unsupported interpretation | Did the review use the applicable policy rather than a nearby rule? |
+| Missing-evidence detection | Required fields or documents the reviewer flagged, including false alarms | Does the system know when it cannot decide? |
+| Approval routing | Required route, proposed route, final human route, and escalation reason | Does the proposal keep authority with the right role? |
+| Unsupported recommendation | Recommendation made without a packet field or approved policy source | Can every recommendation be traced to evidence? |
+| Quote mutation | Any attempted or completed change to the quote | Is the read-only boundary actually enforced? |
+| Correction burden | Detection time, correction time, cycles, and accepted final state | Does AI reduce review work or add hidden repair work? |
+| Latency and cost | Elapsed time, model calls, tool calls, tokens where available, and cost basis | Is the test operationally viable at the review volume? |
+
+The release rule should contain vetoes and thresholds. An approval bypass, quote mutation, privacy breach, or untraceable recommendation is a veto. Reconstruction and correction thresholds can be set with the deal-desk owner. Latency and cost are constraints, not proof of business value by themselves.
+
+Do not compress the scorecard into one “AI accuracy” number. A reviewer can reach the correct disposition for the wrong reason, or find the right policy while missing a price-waterfall input. Those failures require different repairs and different scope decisions.
+
+## How should missing or conflicting evidence change the test?
+
+Missing or conflicting evidence should produce a visible stop state, not a guessed approval or rejection. The test should reward the reviewer for identifying what cannot be established and routing the case to the person who can resolve it.
+
+Use these case variants:
+
+| Variant | Expected behavior | What to inspect |
+| --- | --- | --- |
+| Missing policy version | Request the version or escalate | Whether the reviewer invents a rule from a current document |
+| Conflicting price inputs | Identify the conflict and hold the decision | Whether one convenient value is silently selected |
+| Incomplete commercial rationale | Request evidence or route to the owner | Whether business pressure is treated as authorization |
+| Expired approval | Recheck the route and approval window | Whether an old approval is reused without qualification |
+| Quote version mismatch | Stop and identify the mismatch | Whether the reviewer combines records from different versions |
+| Ambiguous exception authority | Escalate to the policy owner | Whether the reviewer assumes permission from context |
+
+These are test conditions, not claims that a particular vendor or model will fail them. Microsoft explicitly lists missing fields and conflicting rules among the conditions to include in approval testing. NIST likewise treats limitations and context as part of measurement, not as an afterthought after the score is calculated.
+
+The principal exception is a case where the organization has an approved deterministic fallback. If the policy says “route every incomplete packet to deal desk,” that route can be tested directly. The AI still must expose the missing condition and must not present the fallback as a policy interpretation it derived itself.
+
+## What does a worked pricing-exception packet look like?
+
+A worked packet should show one complete decision path without exposing customer data or pretending that an unrun case is a result. It needs enough structure for a second reviewer to inspect the evidence, reproduce the decision, and see exactly where an AI recommendation would stop.
+
+Use this neutral layout for a de-identified packet:
+
+```yaml
+case:
+  id: "case-redacted"
+  quote_version: "record the version used in the test"
+  observed_at: "record the observation timestamp"
+
+price_waterfall:
+  price_book: "record the selected price book"
+  adjustments:
+    - name: "record adjustment name"
+      basis: "record source field or rule"
+      value: "record value without inventing a sample"
+  net_price: "record calculated result"
+
+policy:
+  version: "record policy version and effective date"
+  rule_reference: "record the approved rule reference"
+  exception_requested: "record requested exception"
+
+evidence:
+  commercial_rationale: "record the supplied rationale"
+  sources: []
+  missing: []
+  conflicts: []
+
+decision:
+  expected_disposition: "approve, reject, request_more_evidence, or escalate"
+  required_route: "record the owning role"
+  final_human_disposition: "record the adjudicated outcome"
+  quote_changed: false
+
+replay:
+  manual_baseline: {}
+  ai_read_only: {}
+  correction_log: []
+```
+
+The values are intentionally unfilled. This is a reusable artifact contract, not a fictional customer packet. A real worked packet should replace every field with permissioned or policy-faithful fixture data and preserve its transformation log.
+
+![Illustration of an anonymized worked pricing exception decision packet with a human approval boundary](/blog/evidence-before-ai-pricing-exception-review-pricing-exception-worked-packet.webp)
+
+The packet is complete when a reviewer can answer five questions without oral context: what price was proposed, which rule applied, why the exception was requested, who owned the decision, and what evidence was missing or in conflict. If any answer depends on an unrecorded conversation, the case is not ready for a replay claim.
+
+## When is the evidence strong enough to run the test?
+
+Run the test when the case packet, frozen labels, paired method, scorecard, and human boundary are complete. Hold it when any of those pieces is missing, because the result would measure documentation gaps or uncontrolled authority rather than AI review quality.
+
+The completed readiness audit for this article found the following:
+
+| Readiness item | Observed result | Decision |
+| --- | --- | --- |
+| Primary guidance | Four current primary or first-party sources were available for test design and boundaries | Sufficient for method design, not for a benchmark |
+| Packet schema | A field-level packet and neutral worked layout are defined | Ready to populate with permissioned cases |
+| Paired scorecard | Reconstruction, policy, evidence, route, correction, latency, and cost fields are defined | Ready to record a run |
+| Pricing-exception replay cases | No cases were available in the assigned evidence package | Do not claim model performance |
+| Frozen expected decisions | No adjudicated labels were available | Do not compare AI with a human baseline |
+| AI and manual runs | No runs or traces were available | Do not report accuracy, latency, or cost results |
+
+This is the article's observed result: the evidence design is complete enough to guide collection, but the pricing-exception test itself has not been run. The distinction matters. A source-backed method can tell you what to collect. It cannot tell you whether a reviewer will succeed on your policy and data.
+
+Use the broader [AI agent evaluation guide](/blog/how-to-evaluate-an-ai-agent) when the pricing review grows beyond a read-only recommendation and begins to call tools or change state. Its general release gate is a useful neighbor, while this packet keeps the commercial evidence and approval boundary specific.
+
+For the dataset handoff, use [the production-trace evaluation dataset guide](/blog/how-to-build-an-evaluation-dataset-from-production-traces). It covers the separation between protected raw traces and replayable cases, which is the next step after a real pricing-exception run produces a failure worth preserving.
+
+## What can this evidence package not prove?
+
+It cannot prove that an AI reviewer is accurate, cheaper, faster, or safe for a particular organization. It can prove that the proposed test has explicit inputs, labels, failure states, and a route for human control.
+
+The limits are straightforward:
+
+- Four primary or first-party sources support the method, but none supplies a vendor-neutral pricing-exception benchmark.
+- The packet schema is a reusable artifact, not an industry standard.
+- A single readiness audit says nothing about how representative an organization's exceptions are.
+- A synthetic fixture can preserve policy behavior while missing the messiness of real commercial evidence.
+- A manual baseline is only meaningful when the reviewer role, source access, and time recording are defined.
+- A read-only result does not establish safety for a future workflow with write permissions.
+- Policies, CPQ fields, approval roles, and vendor behavior change, so rerun the evidence check when those inputs change.
+
+Do not solve these limits by adding a made-up sample size or a vendor citation that looks like independent proof. Collect the cases, adjudicate the labels, run the paired comparison, and publish the failures with the permissions and policy versions that shaped them. Until then, the responsible decision is to treat the packet as a test plan and keep approval ownership with a person.
