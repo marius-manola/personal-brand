@@ -1,0 +1,219 @@
+---
+title: "How Should an Operations Manager Set AI Approval Authority?"
+date: "2026-09-27"
+updated: "2026-09-27"
+excerpt: "A completed rehearsal shows how an operations manager can set AI approval boundaries, measure human load, and decide when a workflow is safe to expand."
+answer: "Learn to bound one workflow, map who may approve, edit, reject, escalate, and stop it, route cases by risk, and count all reviewer effort. Expand only when every consequential action has a named authority and demand stays below available capacity. If evidence is stale or a failure can bypass review, narrow scope or stop until the path is repaired."
+targetQuery: "What should an operations manager learn to define authority for AI-assisted operational decisions?"
+queryAliases:
+  - "AI approval authority for operations managers"
+  - "how should an operations manager set approval boundaries for AI-assisted work"
+  - "operations manager AI decision authority"
+intent: "capability transfer and implementation decision"
+funnel: "consideration"
+cluster: "implementation"
+parent: "/blog/implementation-ai-human-review"
+contentType: "capability-guide"
+kind: "satellite"
+sourceableAtom: "A dated synthetic rehearsal of eight review cases required 243 reviewer-minutes per hour against 90 available, so the worked decision was to narrow scope rather than continue the full queue."
+evidenceType: "reproducible learning exercise + worked decision artifact"
+evidenceBasis: "Provider-neutral packet run on 2026-08-24 with eight synthetic fixtures, documented reviewer effort, queue ages, corrections, escalations, escaped-error rework, one disagreement branch, two injected failures, and a narrow-scope recalculation."
+tags:
+  - "AI implementation"
+  - "human review"
+  - "operations"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-24"
+sources:
+  - "https://airc.nist.gov/airmf-resources/airmf/5-sec-core/"
+  - "https://arxiv.org/abs/2605.27202"
+  - "https://mlflow.org/docs/latest/genai/assessments/review-queues/"
+  - "https://docs.langchain.com/oss/python/langchain/human-in-the-loop"
+  - "https://eskilab.com/human-review-queue-design-ai-operations/"
+cover: "/blog/how-operations-managers-set-ai-approval-authority-review-queue-capacity-hero.webp"
+coverAlt: "Illustration of an operations manager reviewing AI queue capacity, risk tiers, and reviewer workload"
+draft: false
+---
+
+I’d test this capability with a packet, not a course completion badge. I built and ran a provider-neutral review-queue rehearsal with eight synthetic cases, including ambiguity, high risk, and deliberately injected failures.
+
+The result was clear: the full queue needed 243 reviewer-minutes per hour against 90 available. The right decision was to narrow the scope, not to celebrate fast drafts and continue.
+
+**Worked result:** at the observed full-scope arrival rate, reviewer demand was 270% of available capacity. Restricting the queue to normal and ambiguous cases reduced modeled utilization to 65%, leaving high-risk and failure cases for manual handling until their authority and evidence paths are repaired.
+
+## What must an operations manager be able to own?
+
+An operations manager can own AI review work independently when they can define the boundary, assign decision rights, measure human attention, and stop expansion from a documented rule. Prompt writing is useful, but it is not the release test.
+
+The packet below tests six capabilities:
+
+1. Bound the workflow.
+2. Map system, reviewer, policy-owner, and stop authority.
+3. Route items by risk and reversibility.
+4. Calculate direct review, correction, escalation, and escaped-error rework.
+5. Run normal, ambiguous, high-risk, and failing cases through the same path.
+6. Make a continue, narrow, staff, or stop decision that another person can audit.
+
+This is consistent with the [NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/), which treats governance, context mapping, measurement, and risk management as connected work with documented roles and human oversight.
+
+## The completed packet and its decision
+
+The bounded workflow is AI-assisted operational request triage. The AI prepares a classification, evidence summary, proposed route, and reviewer questions. It has no system-of-record write access and takes no external action. The reviewer owns the final route.
+
+| Workflow step | Owner | Authority |
+| --- | --- | --- |
+| Intake and boundary | Operations manager | Define what enters the queue and what is out of scope |
+| AI preparation | Implementation owner | Maintain prompt, schema, version, and input checks |
+| Queue admission | Operations manager | Decide which risk tiers can enter review |
+| Review | Reviewer | Approve, edit, reject, or escalate within the rubric |
+| Exception resolution | Policy or domain owner | Settle ambiguity, high-risk work, and missing authority |
+| Capacity decision | Operations manager | Continue, narrow, staff, or stop expansion |
+
+The reviewer rubric is short on purpose:
+
+| Check | Pass condition | Failure action |
+| --- | --- | --- |
+| Evidence | Every material field has a source or says unknown | Reject or request information |
+| Scope | The request fits the workflow boundary | Escalate out of queue |
+| Reversibility | The route has no unapproved external side effect | Hold for the named owner |
+| Risk | The tier has an explicit review path | Escalate high risk |
+| Route | The proposed route matches evidence and policy version | Edit if safe, otherwise reject |
+| Audit | Decision, reason, reviewer, and correction are recorded | Keep the item open |
+
+The risk rule is the authority boundary. Normal cases can move through the queue. Ambiguous cases need an edit or request-information path. High-risk cases go to a named owner. Stale, missing, or contradictory evidence is a rejection or escalation, not a low-confidence approval.
+
+## How do you measure review-queue capacity?
+
+Use reviewer-minutes as the common unit. Count every human action that the AI workflow creates or leaves behind.
+
+```text
+reviewer demand per hour
+= arrival rate per hour
+  x (direct review minutes
+     + correction minutes
+     + escalation minutes
+     + escaped-error rework minutes) per item
+
+utilization = reviewer demand per hour / available reviewer-minutes per hour
+```
+
+For the rehearsal, I assumed 18 arrivals per hour and two reviewers with 45 usable minutes each per hour. Available capacity was therefore 90 reviewer-minutes per hour.
+
+| Measure | Eight-case total | Average per item | Full-scope demand at 18/hour |
+| --- | ---: | ---: | ---: |
+| Direct review | 48 min | 6.00 min | 108.0 min/h |
+| Corrections | 14 min | 1.75 min | 31.5 min/h |
+| Escalations | 30 min | 3.75 min | 67.5 min/h |
+| Escaped-error rework | 16 min | 2.00 min | 36.0 min/h |
+| Total | 108 min | 13.50 min | 243.0 min/h |
+| Available capacity |  |  | 90.0 min/h |
+
+Full-scope utilization was 243 / 90 = 270%. The queue would add 153 reviewer-minutes of work per hour under these assumptions. The case queue ages ranged from 2 to 18 minutes, averaging 10.25 minutes.
+
+The point is not the number 270%. It is the calculation boundary. The [Queue & AI paper](https://arxiv.org/abs/2605.27202) argues that fast first drafts can coexist with worse workflow delay when review and escaped-error rework compete for scarce human attention. Your worksheet should make that hidden work visible.
+
+## What cases should the learner run?
+
+Run a small fixture set that tests the review path, not just the happy path.
+
+| Case | Class | Condition | Queue age | Review | Correction | Escalation | Rework | Decision |
+| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |
+| N-01 | normal | Complete evidence, reversible route | 2 min | 3 min | 0 | 0 | 0 | approve |
+| N-02 | normal | Complete evidence, wording variation | 4 min | 2 min | 0 | 0 | 0 | approve |
+| A-01 | ambiguous | Two plausible classifications, evidence resolves one | 7 min | 5 min | 2 | 0 | 0 | edit and approve |
+| A-02 | ambiguous | Missing context creates disagreement | 10 min | 6 min | 2 | 6 | 0 | escalate |
+| H-01 | high-risk | Customer-impacting route | 12 min | 8 min | 0 | 6 | 0 | escalate |
+| H-02 | high-risk | Sensitive data and unclear authority | 15 min | 9 min | 3 | 6 | 0 | escalate |
+| F-01 | failure | Output cites stale policy version | 14 min | 7 min | 4 | 6 | 8 | reject and escalate |
+| F-02 | failure | Evidence is absent but output sounds complete | 18 min | 8 min | 3 | 6 | 8 | reject and escalate |
+
+![Illustration of a provider-neutral AI review queue with risk tiers, reviewer decisions, and a capacity worksheet](/blog/how-operations-managers-set-ai-approval-authority-review-queue-capacity-map.webp)
+
+The [MLflow review-queue documentation](https://mlflow.org/docs/latest/genai/assessments/review-queues/) uses the same useful operating idea: shared review questions, assigned reviewers, shared status, and answers logged to the underlying trace. The provider is optional. The discipline is not.
+
+## How do you reproduce a failure instead of describing one?
+
+Use F-01. Give the workflow a request that carries policy version 2.1. Make the generated evidence cite version 2.0 while proposing a ready route. Keep the output fluent and structurally valid.
+
+The reviewer must compare the evidence version, reject the route, record the stale-source correction, and escalate it to the policy owner. The eight minutes of escaped-error rework stay in the worksheet. If you remove them because the draft looked good, you have removed the cost you were supposed to learn to own.
+
+Use A-02 for a second branch. Run the same case through two rubric passes. One pass selects needs-information. The other selects escalate. The adjudication rule resolves uncertainty about authority or evidence to escalation. This is a deliberately injected disagreement branch, not a claim about real reviewer agreement.
+
+Human oversight needs explicit choices. LangChain's current documentation describes approve, edit, reject, and respond decisions, plus persisted state for pausing and resuming. The provider-neutral version here uses approve, edit, reject, and escalate because escalation is an operational destination rather than a model response. ([LangChain human-in-the-loop](https://docs.langchain.com/oss/python/langchain/human-in-the-loop))
+
+## What decision should the operations manager make?
+
+Do not hide the result in a score. Write the decision and the condition that would change it.
+
+For this rehearsal, the decision was **narrow**. Continue only with normal and ambiguous cases. At the observed half-mix arrival assumption of 9 items per hour, those four cases required 26 reviewer-minutes in total, or 6.5 minutes per item. Demand becomes 9 x 6.5 = 58.5 reviewer-minutes per hour. Against 90 available, modeled utilization is 65%, leaving 31.5 reviewer-minutes of slack.
+
+High-risk and failure cases remain manual. The queue should not expand until the team repairs the stale-source and missing-evidence paths, names the authority for high-risk routes, and reruns the same fixture set. If demand is still above capacity after repair, the next choice is staff. If the failure creates an unapproved external side effect or no owner can be named, stop.
+
+The four-way rubric is:
+
+| Decision | Use it when |
+| --- | --- |
+| Continue | Demand is below available capacity, every risk tier has authority, and no failure bypasses review |
+| Narrow | The bounded low-risk slice fits capacity but high-risk or failure cases do not |
+| Staff | The workflow is worth keeping and the failure paths are controlled, but demand exceeds available capacity |
+| Stop | Authority is missing, a high-impact failure bypasses review, or the workflow cannot fail safely |
+
+NIST's framework supports this kind of documented management choice, including recalibration, mitigation, or removal when measurement shows that the system does not fit its intended risk context. ([NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/))
+
+## What is the blank schema?
+
+Copy this structure into a worksheet or review tool and leave empty fields visible until the learner completes them.
+
+```yaml
+configuration:
+  date:
+  workflow_boundary:
+  arrival_rate_per_hour:
+  reviewer_count:
+  usable_minutes_per_reviewer_per_hour:
+  risk_tiers:
+ownership:
+  workflow_owner:
+  reviewer_authority:
+  escalation_owner:
+  stop_authority:
+reviewer_rubric:
+  evidence_check:
+  scope_check:
+  reversibility_check:
+  route_check:
+  audit_check:
+fixtures:
+  - id:
+    class:
+    expected_route:
+    injected_condition:
+review_log:
+  - fixture_id:
+    queue_age_minutes:
+    direct_review_minutes:
+    correction_minutes:
+    escalation_minutes:
+    escaped_rework_minutes:
+    reviewer_decision:
+capacity_result:
+  demand_minutes_per_hour:
+  available_minutes_per_hour:
+  utilization:
+  decision:
+limits:
+  synthetic_or_production:
+  untested_conditions:
+```
+
+The worksheet is more useful than a skills list because it creates a decision record. It tells you what the learner had to do, what happened to each case, and which assumption still needs testing.
+
+## What are the limits of this ownership test?
+
+This is a small synthetic rehearsal, not a production benchmark. The arrival rate, reviewer availability, fixture mix, queue ages, and effort values are assumptions made for a reproducible learning exercise. The run does not estimate model accuracy, legal risk, fairness, or real inter-rater reliability. It also does not prove that the narrow scope will hold under bursty demand, policy changes, or multiple time zones.
+
+That limitation is intentional. Independent ownership does not mean predicting every queue state. It means knowing what to measure, who may decide, when evidence is insufficient, and how to stop expansion without waiting for a vendor to explain the failure.
+
+When I taught product managers who moved from writing specs to building and shipping, a shared definition of done was often part of the work. That is a bounded teaching observation, not a measured rate or a client result. For an operations manager, the equivalent is a shared definition of a reviewable, routable, and capacity-safe decision.
+
+The broader [AI human-review implementation guide](/blog/implementation-ai-human-review) covers system design. The [human-review capacity estimator](/blog/how-to-estimate-human-review-capacity-for-ai-automation) covers the staffing calculation in more depth. If you need to transfer this capability onto a real workflow, Marius Manolachi's [AI consulting and tutoring work](/learn-ai) is the next step. The packet remains useful without it.
