@@ -1,0 +1,161 @@
+---
+title: "Why Reviewable AI Workflows Fail on Contradictory Feedback"
+date: "2026-09-26"
+updated: "2026-09-26"
+excerpt: "A failure clinic for product teams: trace flattened feedback, repair the workflow with a conflict ledger, and verify every decision field before routing it."
+answer: "Implement it as a reviewable ledger, not a one-shot summary. Keep each feedback item linked to source, date, segment, problem, and outcome context; label the contradiction; require an owner, uncertainty, decision, veto, and next evidence step. The main exception is unresolved evidence: route it to defer or collect more evidence instead of forcing a roadmap choice."
+targetQuery: "How can product team implement a reviewable AI workflow for contradictory customer feedback?"
+queryAliases:
+  - "reviewable AI workflow for contradictory customer feedback"
+  - "contradictory customer feedback AI decision workflow"
+intent: "implementation"
+funnel: "evaluation"
+cluster: "implementation"
+parent: "/blog/implementation-ai-workflows"
+contentType: "failure-clinic"
+kind: "satellite"
+sourceableAtom: "The contradiction ledger and verification gate in this article preserve raw evidence, segment context, contradiction type, owner, veto, and next action before a product team chooses decide, defer, or collect more evidence."
+evidenceType: "reproducible workflow test plus worked decision artifact"
+evidenceBasis: "A bounded, hand-checkable failure fixture and repair artifact are documented in this post. The fixture is derived from the supplied workflow contract and the NIST and OpenAI evaluation requirements; it is illustrative, not a customer corpus, production run, or measured improvement."
+tags:
+  - "AI workflows"
+  - "product feedback"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://airc.nist.gov/airmf-resources/airmf/5-sec-core/"
+  - "https://airc.nist.gov/airmf-resources/playbook/measure/"
+  - "https://developers.openai.com/api/reference/resources/graders"
+  - "https://www.productboard.com/glossary/customer-feedback-analysis/"
+  - "https://www.productboard.com/blog/how-to-trust-ai-outputs/"
+cover: "/blog/reviewable-ai-workflow-contradictory-customer-feedback-contradictory-feedback-hero.webp"
+coverAlt: "Illustration of contradictory customer feedback entering a review gate"
+draft: false
+---
+
+When customer feedback conflicts, an AI summary can sound useful while removing the information a product team needs to choose safely. The fix is to make the workflow preserve the conflict and produce a decision record, not to ask for a more persuasive summary.
+
+This article uses a bounded, hand-checkable fixture rather than real customer data. The records are deliberately illustrative. They show the failure trace, the repair artifact, and the verification checks a team can replay against its own de-identified feedback. No customer corpus, production run, accuracy rate, or improvement claim is presented.
+
+The general implementation context belongs in [the guide to implementing AI workflows](/blog/implementation-ai-workflows). This page stays narrower: what breaks when contradictory feedback reaches an AI workflow, and what evidence must survive before anyone turns the output into a roadmap decision.
+
+## The workflow fails when it compresses disagreement into one theme
+
+The first failure is information loss. A topic summary can group two opposing requests under one label and leave the team unable to tell what the label means for different segments.
+
+Here is a small reproduction fixture. It is not a customer transcript. It is a pair of structured records used to make the failure visible.
+
+| Record | Segment | Problem statement | Outcome context | Request |
+| --- | --- | --- | --- | --- |
+| F-01 | Billing administrator | The invoice review screen hides the fields needed for a monthly check. | The user needs a complete review before approval. | Show more fields in the review screen. |
+| F-02 | Occasional buyer | The invoice review screen exposes too many fields for a quick purchase. | The user needs a fast check before payment. | Show fewer fields by default. |
+
+A topic-first baseline can reduce both records to: “Users find invoice review confusing. Improve the review experience.” That sentence is fluent, but it is not a decision. It hides the segment difference, removes the opposing requests, and gives the next person no way to tell whether a single interface change helps both groups.
+
+The trace has four observable points:
+
+1. The input contains two linked records with different segments and different outcome contexts.
+2. The baseline output contains one theme and no links back to F-01 or F-02.
+3. The proposed action is singular even though the requests point in opposite directions.
+4. The owner cannot state what evidence would veto the action or which group would be harmed.
+
+That is the failure to reproduce. It does not require a benchmark. A reviewer can inspect the two inputs and the summary, then confirm that the summary cannot support the choice it appears to recommend. The problem is not that the model used the wrong adjective. The problem is that the output has no traceable decision unit.
+
+## The diagnosis is a missing contradiction type, not a missing prompt adjective
+
+The diagnosis should name the missing field that caused the decision to fail. In this fixture, the missing field is contradiction type, supported by segment and outcome context.
+
+Not every disagreement means the product has one broken requirement. Classify the disagreement before asking the workflow to route it.
+
+| Contradiction type | What the trace shows | Safe next question |
+| --- | --- | --- |
+| Segment conflict | Different groups need different defaults or modes. | Can the product expose a role, mode, or preference without harming either group? |
+| Context conflict | The same group needs different behavior in different situations. | Which task state changes the requirement? |
+| Outcome conflict | The requests differ because users optimize for different outcomes. | Which outcome is the current release responsible for? |
+| Evidence conflict | The records disagree about what happened, not what should happen. | Which source or follow-up observation can resolve the factual dispute? |
+
+The fixture is a segment conflict with an outcome difference. That diagnosis changes the repair. The workflow should not choose “more fields” or “fewer fields” from the combined theme. It should record a conditional choice, a missing owner decision, or a route for collecting more evidence.
+
+This is consistent with the measurement discipline in the [NIST AI Risk Management Framework](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/), which treats context, lifecycle work, and different perspectives as part of responsible AI risk work. NIST's [Measure Playbook](https://airc.nist.gov/airmf-resources/playbook/measure/) also emphasizes documenting test sets, metrics, tools, traceability, and repeatability. Those sources do not prove that this fixture is accurate. They support the requirement to preserve enough context for another reviewer to inspect the reasoning.
+
+An exception matters here. If both records belong to the same segment, describe that as a different diagnosis. Do not label every disagreement a segment conflict because the label sounds precise. The label must be supported by the fields in the ledger.
+
+## The repair is a contradiction ledger with a worked decision record
+
+Repair the workflow by making each decision depend on a complete ledger row. A theme may be useful as an index, but it cannot replace the records, links, context, owner, and next action underneath it.
+
+The minimum ledger for this failure clinic is:
+
+| Field | Required content | Why it is decision-critical |
+| --- | --- | --- |
+| `evidence_id` | Stable identifier such as F-01. | Lets a reviewer replay the trace. |
+| `source` and `date` | Source reference and collection date. | Separates provenance from recollection. |
+| `segment` | The relevant role, customer group, or use context. | Prevents majority-theme collapse. |
+| `problem` and `outcome_context` | What failed and what the person was trying to achieve. | Separates symptoms from desired outcomes. |
+| `contradiction_type` | Segment, context, outcome, or evidence conflict. | States what kind of disagreement is being handled. |
+| `interpretation` | The reading supported by the linked records. | Makes analysis inspectable. |
+| `uncertainty` | What the records do not establish. | Prevents a clean sentence from becoming false certainty. |
+| `owner` | The person accountable for the next decision. | Keeps the workflow from assigning ownership to “the team.” |
+| `decision` | Decide, defer, or collect more evidence. | Forces a real route instead of a theme. |
+| `veto` | Evidence that would stop or change the decision. | Defines the release boundary. |
+| `next_action` | The smallest follow-up that changes the evidence state. | Turns uncertainty into work. |
+
+The worked decision record for the fixture can now stay conditional:
+
+| Decision field | Worked record |
+| --- | --- |
+| Evidence | F-01 and F-02, linked to their separate segment and outcome fields. |
+| Diagnosis | Segment conflict with different review-speed requirements. |
+| Owner | Product owner for the invoice review experience. |
+| Decision | Defer a single global default; investigate role-aware or user-selected views. |
+| Uncertainty | The fixture does not establish how often each segment uses the screen or whether the system can support two views. |
+| Veto | Reject the change if one view is forced on both groups and removes a required approval field. |
+| Next action | Check the current workflow for a safe mode boundary and collect the missing usage context. |
+
+This is the type-specific artifact: a contradiction ledger plus a worked decision record. It is reusable, but the decision is not presented as a customer result. The artifact says what a real workflow must retain before it chooses. It does not pretend that the illustrative pair answers the product question.
+
+![Illustration of a contradiction ledger routing evidence to decide defer or collect more evidence](/blog/reviewable-ai-workflow-contradictory-customer-feedback-contradiction-ledger-inline-1.webp)
+
+If the team already owns a broader [AI feedback opportunity analysis](/blog/how-to-find-ai-product-opportunities-in-customer-feedback), use that page for finding candidate opportunities. Do not let the discovery summary become the decision record. The repair here begins after a conflict has been found.
+
+## Verification catches a repaired workflow that only sounds accountable
+
+Verification must replay the same fixture and check every decision-critical field against the input. A paragraph about human review is not verification. A reviewer needs pass conditions that can fail.
+
+Use this four-part verification procedure:
+
+1. **Reproduce the input.** Load the same de-identified records, stable identifiers, segment fields, outcome context, and dates. Confirm that the workflow receives the conflict rather than a pre-collapsed theme.
+2. **Trace the output.** For each proposed decision, follow every evidence link back to a source record. Mark the field as failed if the output refers to a theme without naming the records beneath it.
+3. **Diagnose the missing field.** Check contradiction type, uncertainty, owner, decision route, veto, and next action separately. A decision fails if any one of those fields is absent or unsupported.
+4. **Repair and retest.** Add the missing ledger field, replay the same input, and confirm that the output routes to decide, defer, or collect more evidence. Confirm that the route changes when a required input is removed.
+
+The gate can be written as a small review table:
+
+| Check | Pass condition | Failure evidence |
+| --- | --- | --- |
+| Source trace | Every decision points to one or more stable evidence IDs. | A theme appears without source IDs. |
+| Context preservation | Segment and outcome context remain visible in the output. | Opposing requests are merged into “users want X.” |
+| Uncertainty | Unknowns are written as unknowns. | The workflow presents the illustrative fixture as a measured result. |
+| Ownership | One accountable role is named. | “The team” is the only owner. |
+| Veto | A condition can stop or change the proposed decision. | The recommendation has no stopping rule. |
+| Route | Decide, defer, or collect more evidence is explicit. | The output ends with a theme or priority score only. |
+
+The [OpenAI graders reference](https://developers.openai.com/api/reference/resources/graders) is useful when this gate is implemented in an evaluation system because it documents structured grader inputs and grader models. It does not validate the contradiction ledger by itself. The review still needs the raw records, the field-level checks, and a human who can reject an unsupported route.
+
+NIST's measurement guidance gives the same boundary from a different angle: document the test set and method so another person can repeat the check. Here, repeatability means the same fixture produces the same field-level inspection, not that a model will always make the correct product decision.
+
+## Decide, defer, or collect more evidence is the product decision
+
+The workflow is complete only when it can choose a route that matches the evidence. Decide when the records support a bounded change and the owner can name its veto. Defer when the conflict is real but belongs in a later product decision. Collect more evidence when a missing fact could change the route.
+
+| Route | Use it when | Required record |
+| --- | --- | --- |
+| Decide | The conflict is understood, the owner accepts the scope, and the veto is testable. | Chosen action, owner, scope, veto, and linked evidence. |
+| Defer | The issue matters but competes with a better-defined release decision. | Reason for deferral, owner, revisit condition, and linked evidence. |
+| Collect more evidence | A missing source, segment, outcome, or usage fact could reverse the decision. | Missing fact, collection method, owner, and stopping condition. |
+
+Do not turn these routes into confidence labels. A high-confidence summary can still be the wrong artifact if it erased the opposing record. The question is whether the workflow preserved enough information for a person to accept, reject, or postpone the next action.
+
+That is also the boundary of this article's evidence. The ledger, trace, repair, and verification procedure are complete as a review artifact. The fixture is not a customer study. Before using it in production, replace the illustrative records with de-identified feedback, record the configuration and date, run the replay, and keep the reviewer audit beside the output.
+
+If your team needs help deciding whether it can own that implementation, [Marius Manolachi's AI learning and consulting work](/learn-ai) is the next step. The article is still complete without that conversation: first preserve the conflict, then make the decision traceable.
