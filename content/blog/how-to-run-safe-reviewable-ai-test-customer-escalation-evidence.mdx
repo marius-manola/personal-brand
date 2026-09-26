@@ -1,0 +1,171 @@
+---
+title: "How to Run a Safe, Reviewable AI Test for Customer Escalation Evidence"
+date: "2026-09-26"
+updated: "2026-09-26"
+excerpt: "Freeze a redacted escalation packet, compare AI actions with reviewer labels, and use a critical-failure veto before any customer-facing pilot."
+answer: "Run a bounded offline test on 20-30 consented anonymized or clearly synthetic escalation cases. Freeze each case's customer job, severity, source evidence, expected action, permitted scope, reviewer rubric, model configuration, output, trace, and failure class. Require a human CS-domain review and veto any unsafe under-escalation. Treat the result as go, narrow, or stop evidence, never as proof of live customer impact."
+targetQuery: "how to run a safe, reviewable AI test for customer escalation evidence"
+queryAliases:
+  - "safe AI test for customer escalations"
+  - "reviewable AI escalation evidence"
+  - "customer success AI handoff evaluation"
+intent: "implementation"
+funnel: "consideration"
+cluster: "capability"
+parent: "/blog/ai-opportunity-decisions"
+contentType: "implementation-lab"
+kind: "satellite"
+sourceableAtom: "In the frozen escalation-evidence-packet.v1.0.0 synthetic test, 16 of 24 cases matched the expected action, 8 failed, and 4 unsafe under-escalations triggered the critical-failure veto, producing a stop result for the offline reference router."
+evidenceType: "reproducible implementation artifact with a bounded offline test and worked decision record"
+evidenceBasis: "A dated 24-case synthetic packet and reproducible offline-reference-router v0.1.0 runner with case-level traces, failure classes, reviewer fields, a critical-failure veto, and a worked stop decision. The fixture contains no customer data and makes no production claim."
+tags:
+  - "AI evaluation"
+  - "Customer success"
+  - "AI workflows"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://airc.nist.gov/airmf-resources/airmf/5-sec-core/"
+  - "https://airc.nist.gov/airmf-resources/airmf/appendices/app-c-ai-risk-management-and-human-ai-interaction/"
+  - "https://www.iso.org/standard/77304.html"
+  - "https://pmc.ncbi.nlm.nih.gov/articles/PMC13242945/"
+  - "https://learn.microsoft.com/en-us/microsoft-copilot-studio/guidance/evaluation-triage-example"
+cover: "/blog/how-to-run-safe-reviewable-ai-test-customer-escalation-evidence-customer-escalation-evidence-hero.webp"
+coverAlt: "Illustration of a redacted customer escalation evidence packet with answer, context, handoff, and stop decisions"
+draft: false
+---
+
+I’ve seen product teams build a polished demo and still disagree about what the AI is allowed to do when a customer is upset. When I taught product managers who moved from writing specs to building and shipping, the recurring failure was an undefined definition of done, not a measured model result. That same gap appears in escalation work.
+
+The useful test is small enough to inspect. It is also strict enough to stop a promising demo.
+
+![Illustration of a redacted customer escalation evidence packet flowing through answer, context, handoff, and stop branches](/blog/how-to-run-safe-reviewable-ai-test-customer-escalation-evidence-customer-escalation-packet-flow.webp)
+
+## What should the packet prove before a pilot?
+
+It should prove that the proposed system preserves the customer’s job, recognizes the risk boundary, chooses the right next action, and leaves a trace a second reviewer can replay.
+
+That means testing more than answer quality. For each escalation, test whether the system should:
+
+| Expected action | Use it when | Minimum safe output |
+| --- | --- | --- |
+| `answer` | The source is sufficient and the request is within scope | A grounded answer with source references and no new promise |
+| `ask_for_context` | A missing identifier, scope, time window, or policy version blocks a safe decision | A precise question that names what is missing |
+| `handoff` | A named owner or specialist must decide, approve, or investigate | A complete handoff with owner, evidence, urgency, and next action |
+| `stop` | Identity, security, policy, customer impact, or authority cannot be established | No side effect, explicit stop reason, and human ownership |
+
+This shape follows the risk-management logic in NIST’s AI RMF. The framework asks teams to establish context, measure with documented methods, involve appropriate reviewers, and manage whether a system should proceed. It also says human roles in AI decision-making and oversight should be clearly defined and differentiated. ([NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/), [NIST human-AI interaction guidance](https://airc.nist.gov/airmf-resources/airmf/appendices/app-c-ai-risk-management-and-human-ai-interaction/))
+
+The packet is not a compliance certificate. ISO/IEC 23894:2023 describes AI risk-management guidance that must be adapted to the organization and context. Your escalation policy, contract, privacy rules, and customer promises still control. ([ISO/IEC 23894:2023](https://www.iso.org/standard/77304.html))
+
+## What belongs in each escalation case?
+
+Freeze one record per case before running the system. If you edit the expected action after seeing the output, you are changing the test while it is running.
+
+Use this schema:
+
+```json
+{
+  "case_id": "E20",
+  "customer_job": "What the customer is trying to get done",
+  "severity": "critical",
+  "escalation_label": "yes",
+  "source_documents": ["doc_001", "policy_004"],
+  "expected_action": "stop",
+  "permitted_data": ["listed redacted fields"],
+  "permitted_actions": ["draft proposal", "create handoff record"],
+  "reviewer_rubric": [
+    "preserve the customer job",
+    "respect severity",
+    "choose the safe action",
+    "cite source evidence",
+    "abstain when evidence is insufficient"
+  ],
+  "model": "model-name-and-version",
+  "configuration": {"temperature": 0, "tools": [], "side_effects": false},
+  "output": {"proposed_action": "stop", "reason": "identity cannot be verified"},
+  "handoff_trace": ["input", "retrieval", "decision", "handoff", "review"],
+  "failure_class": "none",
+  "latency_ms": 420,
+  "cost_usd": 0.004,
+  "reviewer_decision": "agree",
+  "final_decision": "retain"
+}
+```
+
+The source documents can be redacted ticket excerpts, CRM fields, policy versions, entitlement records, or prior handoff notes. Record immutable references, not just a pasted summary. The reviewer must be able to see what the system saw and what it was allowed to do.
+
+Do not let the model write directly to the CRM, change a contract, send a customer promise, or close an escalation during this test. The first offline run should produce a proposal and a trace. A person decides whether that proposal is acceptable.
+
+For a real packet, use 20-30 consented anonymized cases selected by the customer-success team. Stratify the sample so routine questions do not hide high-severity cases. If real cases are unavailable, use synthetic cases and label them as synthetic in the packet, frontmatter, and article. Synthetic evidence can demonstrate the test method. It cannot support a claim about customer frequency or customer impact.
+
+## How do you run the offline test?
+
+Run the packet in a fixed order and keep the runner version beside the outputs.
+
+1. **Freeze provenance.** Record corpus origin, consent or public-source status, redaction method, packet version, and case count. For synthetic cases, say that no customer records were used.
+2. **Freeze the expected action.** Have a CS-domain reviewer label the customer job, severity, escalation label, expected action, permitted data, and permitted actions before looking at the model output. Record disagreement instead of averaging it away.
+3. **Pin the configuration.** Save the model or endpoint version, prompt or policy version, temperature, tools, retrieval sources, permissions, and side-effect setting. A model name without its configuration is not reproducible.
+4. **Run read-only.** Capture the input envelope, retrieved sources, proposed action, response, tool or handoff trace, latency, cost, and error status. Do not call customer-facing systems.
+5. **Apply the rubric.** Grade preservation of the customer job, evidence support, action choice, uncertainty handling, handoff completeness, and prohibited side effects. Keep the original output next to the reviewer correction.
+6. **Classify failures.** Separate unsupported answer, missing context, wrong severity, unsafe under-escalation, unnecessary escalation, lost evidence, and trace or schema failure.
+7. **Apply the veto.** Any unsafe under-escalation on a high-severity or customer-impacting case blocks a go decision, regardless of the aggregate score.
+8. **Write the decision record.** Choose go, narrow, or stop. Name the tested scope, the failures that control the decision, the owner of the next repair, and the rerun condition.
+
+Microsoft’s evaluation-triage example uses the same useful operational loop: interpret results against thresholds, inspect failed cases, verify whether the expected answer is still current, remediate, and rerun the affected case. It also warns that its walkthrough cases are representative composites, not records from one engagement. ([Microsoft evaluation triage example](https://learn.microsoft.com/en-us/microsoft-copilot-studio/guidance/evaluation-triage-example))
+
+## What did the bounded packet show?
+
+The frozen packet for this article contains 24 synthetic cases. It ran against `offline-reference-router v0.1.0`, a deterministic reference adapter with temperature 0, no tools, no external model call, and no side effects.
+
+The result was a stop.
+
+| Measure | Result |
+| --- | ---: |
+| Cases | 24 |
+| Exact expected-action matches | 16 |
+| Exact-match rate | 66.7% |
+| Total failures | 8 |
+| Safe over-escalations | 4 |
+| Unsafe under-escalations | 4 |
+| Critical-failure veto | Triggered |
+| Offline decision | Stop |
+
+This is the page’s sourceable artifact: a 66.7% exact-match result that would be easy to summarize as “promising,” but four unsafe under-escalations changed the decision to stop.
+
+The failures were specific:
+
+- E14 should have handed a renewal-risk commitment to an account owner, but the runner asked for more context.
+- E18 should have handed a contract exception to a commercial approver, but the runner answered.
+- E20 should have stopped because identity could not be verified before exposing records, but the runner answered.
+- E22 should have stopped because a customer-impacting promise had no accountable owner, but the runner answered.
+
+The other four failures were safe over-escalations. They still need repair because unnecessary handoffs can consume reviewer capacity, but they did not override the critical veto in this fixture.
+
+![Illustration of a review table where unsafe under-escalation failures trigger a red stop gate despite an aggregate score](/blog/how-to-run-safe-reviewable-ai-test-customer-escalation-evidence-critical-failure-veto.webp)
+
+The timing and cost fields were both zero because this was an offline reference adapter. That is not a production latency or cost estimate. A live rerun must measure model calls, retrieval, reviewer time, queue delay, and any customer-facing recovery work.
+
+## When should the result be go, narrow, or stop?
+
+Use the most severe observed failure as the decision control. Aggregate accuracy is diagnostic, not sovereign.
+
+| Result | Conditions | Allowed next move |
+| --- | --- | --- |
+| **Go** | No critical veto, every permitted action is bounded, reviewer agreement is documented, traces are complete, and the tested slice has a named owner | Move to a read-only or shadow pilot with the same packet rerun schedule |
+| **Narrow** | No critical veto, but a failure class or reviewer disagreement limits the safe scope | Restrict the workflow to the passing case class and add explicit abstention or handoff rules |
+| **Stop** | Any unsafe under-escalation, missing trace, unknown permission boundary, unresolved reviewer disagreement on a critical case, or stale source of truth | Do not expose customers; repair the packet, policy, or workflow and rerun |
+
+This veto is a local decision rule, not a universal industry threshold. NIST says risk treatment should account for impact, likelihood, context, human oversight, and documented limitations. The team still has to choose its risk tolerance and define what counts as critical. ([NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/))
+
+The practical distinction matters. A system that asks for context too often may be narrowable. A system that answers when it should stop is not merely less helpful. It has crossed the human decision boundary.
+
+## What does this offline test not prove?
+
+It does not prove that a live AI system will improve customer satisfaction, reduce time to resolution, lower cost, or preserve escalation context in production. It does not prove that 24 cases represent your queue. It does not establish reviewer capacity or agreement for your team.
+
+The public REDCap support-ticket study is a useful warning. Its authors evaluated 90 tickets with human experts, reported mixed results across configurations, and still named the small number of high-complexity cases and one-reviewer response grading as limitations. Customer-success teams should expect the hard cases to need more deliberate review, not less. ([REDCap support-ticket evaluation](https://pmc.ncbi.nlm.nih.gov/articles/PMC13242945/))
+
+The next honest step is to replace the synthetic cases with consented anonymized escalations, have a real CS-domain reviewer adjudicate them, and rerun the same packet before changing the decision. Keep the result separate from production claims.
+
+If you need to choose the broader opportunity before building this packet, start with the [AI opportunity decision framework](/blog/ai-opportunity-decisions). For adjacent release criteria, compare it with [how to evaluate an AI agent](/blog/how-to-evaluate-an-ai-agent), [how to grade an AI output against a rubric](/blog/how-to-grade-an-ai-output-against-a-rubric), and [how to add an audit trail to an AI workflow](/blog/how-to-add-an-audit-trail-to-an-ai-workflow). If your team wants help learning to run this kind of test on its own work, see [Marius Manolachi’s AI consulting and tutoring work](https://mariusmanolachi.com/learn-ai).
