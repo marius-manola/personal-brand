@@ -1,0 +1,168 @@
+---
+title: "What Should a Professional Learn to Own AI Vendor-Dispute Evidence?"
+date: "2026-09-27"
+updated: "2026-09-27"
+excerpt: "A six-case synthetic replay shows what to learn, what to automate, and when recurring vendor-dispute evidence still needs a specialist."
+answer: "Learn to build and audit a reviewable evidence packet: extract fields with cited spans, compare invoice to PO, receipt, tax, and contract terms, classify the mismatch, flag missing proof, and route the owner. AI can prepare the packet, but a person must approve a dispute, unresolved tax treatment, contract interpretation, or any message sent to a vendor."
+targetQuery: "What should a professional learn to own founder ai opportunity evidence for recurring vendor disputes without relying on a specialist"
+queryAliases:
+  - "learn AI evidence for recurring vendor disputes"
+  - "founder AI opportunity vendor dispute workflow"
+  - "own invoice dispute evidence without a specialist"
+intent: "capability learning and AI opportunity evaluation"
+funnel: "problem-aware"
+cluster: "opportunity"
+parent: "/blog/founder-ai-opportunity-evidence-for-recurring-vendor-disputes"
+contentType: "capability-guide"
+kind: "satellite"
+sourceableAtom: "The versioned vd-0.1 six-case replay and packet schema show that an AI-assisted workflow reached the correct final disposition on 4 of 6 cases before review, produced 2 unsupported conclusions, and reached 6 of 6 only after reviewer correction."
+evidenceType: "reproducible workflow test with a worked decision artifact"
+evidenceBasis: "Synthetic versioned replay vd-0.1 with six mismatch cases, a packet schema, baseline checklist, AI-assisted prompt and raw outputs, reviewer corrections, a 9/10 decision rubric, and an explicit no-autosend boundary."
+tags:
+  - "AI workflows"
+  - "opportunity evaluation"
+  - "finance operations"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/prebuilt/invoice?view=doc-intel-4.0.0"
+  - "https://help.sap.com/docs/CONCUR_INVOICE/5d4d01ab28704a4fbfa543f20b66966c/8b35a33f70891014bbdd65f9448c9095.html"
+  - "https://help.sap.com/docs/CONCUR_INVOICE/a6206255684440caa35c329b87b4945c/f72c61b0c4ce4af69892f879d5b98b06.html?locale=en-US&version=LATEST"
+  - "https://airc.nist.gov/airmf-resources/airmf/5-sec-core/"
+  - "https://airc.nist.gov/docs/AI_RMF_Playbook.pdf"
+cover: "/blog/professional-learn-ai-opportunity-evidence-vendor-disputes-vendor-dispute-evidence-hero.webp"
+coverAlt: "Illustration of a professional reviewing a vendor-dispute evidence packet"
+draft: false
+---
+
+When I teach product managers to move from writing specs to building and shipping products, the hard part is rarely the model. It is deciding what “done” means when the evidence is incomplete. Vendor disputes make that problem concrete.
+
+![Illustration of a reviewable vendor-dispute evidence packet with invoice, purchase order, receipt, and routing fields](/blog/professional-learn-ai-opportunity-evidence-vendor-disputes-vendor-dispute-packet-flow.webp)
+
+## The smallest useful capability is packet ownership, not model selection
+
+To own this opportunity without a specialist, learn to assemble and challenge the evidence packet before you learn to choose a model.
+
+The packet is a structured record of what the documents say, where they say it, what does not match, what is missing, who owns the next decision, and what must not happen automatically.
+
+| Packet part | What you must be able to do | What AI may help with | What remains yours |
+| --- | --- | --- | --- |
+| Source blocks | Keep invoice, PO or contract, receipt or service proof, and communication together | Find likely fields and spans | Confirm the document and page or line reference |
+| Extracted fields | Normalize vendor, IDs, dates, quantities, prices, tax, and totals | Produce structured JSON | Correct missing, merged, or misread values |
+| Mismatch | Compare values and classify price, quantity, duplicate, tax, missing proof, or contract change | Suggest a class | Check arithmetic, identity, effective dates, and policy |
+| Missing evidence | State what is absent without turning absence into a negative fact | Highlight gaps | Decide whether the gap blocks payment or needs escalation |
+| Route and disposition | Assign an owner and a hold, request, reject, or escalate state | Draft a proposed route | Approve the operational decision and any vendor communication |
+
+Microsoft's invoice documentation describes extraction of key fields and line items from invoices and purchase orders, and its output includes structured results. It also describes key-value pairs as text spans, which is why a reviewable packet should preserve citations rather than only a clean summary. [Microsoft's invoice model documentation](https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/prebuilt/invoice?view=doc-intel-4.0.0) is evidence for the extraction capability, not for a dispute conclusion.
+
+The capability boundary is simple: you can own evidence assembly and verification without owning every specialist judgment. That distinction is the opportunity.
+
+## What the six-case replay actually showed
+
+In the `vd-0.1` synthetic replay, the AI-assisted workflow got 4 of 6 final dispositions right before review, made 2 unsupported conclusions, and reached 6 of 6 only after a reviewer corrected the packets.
+
+| Run | Correct disposition before review | Unsupported conclusions | Corrections | Correct after review |
+| --- | ---: | ---: | ---: | ---: |
+| Manual checklist | 6/6 | 0 | 0 | 6/6 |
+| AI-assisted initial packet | 4/6 | 2 | 2 | 6/6 |
+| AI-assisted after correction | 6/6 | 0 | 2 | 6/6 |
+
+The failures were not dramatic OCR errors. In the tax case, the workflow turned unresolved treatment into an “overcharge” conclusion. In the contract-change case, it treated a price difference as a simple variance and missed that the amendment started halfway through the service period.
+
+That is the sourceable result: extraction can make the packet faster to inspect, but the first-pass classification still needs a reviewer who can recognize an unsupported conclusion.
+
+The timing field was preserved in the packet. The fixed replay took 3.734 ms for the manual checklist loop and 3.983 ms for the AI-assisted packet loop on the run host. Those are machine elapsed times, not a person's wall-clock review time. Do not use them to claim savings or ROI.
+
+## What must a professional learn to verify?
+
+Learn five things in order: provenance, extraction, deterministic comparison, evidence sufficiency, and routing.
+
+1. **Provenance.** Keep the original evidence block and cite the exact span used for each important field. A total without its invoice span is not a reviewable fact.
+2. **Extraction.** Normalize units, dates, currencies, quantities, tax amounts, invoice IDs, PO IDs, and service periods. Keep the original string next to the normalized value.
+3. **Deterministic comparison.** Calculate quantity and price differences, check duplicate keys, compare tax codes, and evaluate contract effective dates with explicit rules.
+4. **Evidence sufficiency.** Distinguish “no receipt was supplied” from “the goods were not received.” Distinguish “the amendment says EUR 1,500 after July 1” from “the full period is billable at EUR 1,500.”
+5. **Routing.** Send tax questions to tax or accounting, contract interpretation to the contract owner, missing service proof to the service owner, and duplicate candidates to AP. A route is not a conclusion about liability.
+
+SAP's matching documentation makes the same operational distinction in system terms. Two-way matching checks an invoice against a purchase order. Three-way matching also checks received quantities, and the rules can raise an exception when a line has no associated receipt. [SAP Concur's matching overview](https://help.sap.com/docs/CONCUR_INVOICE/5d4d01ab28704a4fbfa543f20b66966c/8b35a33f70891014bbdd65f9448c9095.html) and [three-way matching rules](https://help.sap.com/docs/CONCUR_INVOICE/a6206255684440caa35c329b87b4945c/f72c61b0c4ce4af69892f879d5b98b06.html?locale=en-US&version=LATEST) support the comparison logic. They do not decide what your company should say to the vendor.
+
+If you want the broader decision context, start with the [founder AI opportunity evidence parent guide](/blog/founder-ai-opportunity-evidence-for-recurring-vendor-disputes). This page narrows that opportunity into a capability test.
+
+## How to run the test without production access
+
+Use synthetic cases first. The purpose is to learn the decision boundary, not to paste confidential invoices into a model.
+
+1. **Create six cases.** Include one each for price, quantity, missing receipt or service proof, duplicate, tax, and contract change. Give every case four evidence blocks: invoice, PO or contract, receipt or service proof, and communication.
+2. **Write the gold packet.** Record fields, cited spans, mismatch class, missing-evidence flags, owner route, and final disposition before asking AI to process anything.
+3. **Run the manual checklist.** Read the evidence blocks in the same order for every case. Check arithmetic, identity, receipt coverage, tax treatment, and effective dates. Record the disposition and any time field.
+4. **Run the AI-assisted extraction.** Use a structured prompt that forces citations, allows abstention, and forbids legal, tax, contract, or vendor-intent conclusions.
+5. **Review the raw output.** Compare every field and proposed route with the gold packet. Keep the initial output. Do not overwrite it with the corrected version.
+6. **Apply a decision rubric.** Score evidence completeness, deterministic checks, classification and route, reviewability, and boundary safety. A read-only pilot can proceed only when the evidence and boundary scores are both 2 and the total is at least 8/10.
+
+The useful artifact is not the prompt alone. It is the before-and-after packet. The correction is part of the evidence.
+
+## Where deterministic checks should replace model judgment
+
+Use rules for arithmetic, duplicate identity, and date boundaries. Use AI for document normalization and candidate linking, with a human review gate.
+
+| Mismatch | Deterministic check | AI's safe role | Stop condition |
+| --- | --- | --- | --- |
+| Price | Compare invoice unit price with PO or approved amendment | Find the relevant line and amendment | Price change has no effective date or approval |
+| Quantity | Compare invoice quantity with PO and received quantity | Link line descriptions and receipt references | Invoiced quantity exceeds received quantity |
+| Missing proof | Check whether the required receipt or service record exists | Identify the expected evidence type | Missing evidence is treated as a blocking gap, not a negative fact |
+| Duplicate | Compare vendor, invoice ID, PO, date, amount, and service period | Find candidate prior records | Candidate match needs an AP owner to confirm |
+| Tax | Recalculate arithmetic only where the tax rule is known | Extract tax code, rate, and jurisdiction fields | Tax treatment or jurisdiction is unresolved |
+| Contract change | Compare effective dates and period coverage | Find the amendment and quote its span | Period crosses an amendment boundary without a proration rule |
+
+This division follows the evidence structure in the source systems. A model can propose that two lines look alike. It should not silently decide that a tax line is wrong or that a contract amendment applies to an entire period.
+
+## The specialist boundary is part of the product
+
+The workflow should escalate tax treatment, disputed contract meaning, effective-date proration, and any external message. Those are not embarrassing exceptions. They are the safety boundary that makes the packet useful.
+
+NIST's AI Risk Management Framework describes governance, mapping, measurement, and management as connected functions. It also calls for clear responsibilities, human oversight, documentation, testing, and stated limitations. [NIST's AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/) is a useful control reference here, while the [NIST AI RMF Playbook](https://airc.nist.gov/docs/AI_RMF_Playbook.pdf) provides voluntary implementation suggestions. Both treat accountability as part of the system, not as a sentence added after the model output.
+
+My own product work reinforces the point. [TryUncle](https://tryuncle.com) has to watch a screen and act in time, so latency and human approval are product constraints, not finishing touches. The same principle applies here: the packet may be AI-assisted, but the accountable decision boundary must be visible before a pilot starts.
+
+The no-autosend rule is non-negotiable:
+
+- No automatic vendor email.
+- No automatic approval, rejection, credit-note demand, or tax assertion.
+- No payment-state change from a model-generated conclusion.
+- No claim that missing evidence proves non-delivery.
+- No specialist bypass for tax or contract interpretation.
+
+## Is this opportunity worth a bounded pilot?
+
+Use a worked scorecard. It should decide the first safe slice, not produce a flattering AI score.
+
+| Criterion | Score for `vd-0.1` | Why |
+| --- | ---: | --- |
+| Evidence completeness | 2/2 | All six cases preserve the four evidence blocks, fields, spans, flags, route, and disposition |
+| Deterministic comparison | 2/2 | Price, quantity, duplicate, tax, and effective-date comparisons are explicit |
+| Classification and route | 1/2 | Two initial conclusions required reviewer correction |
+| Reviewability | 2/2 | Initial outputs and corrections remain visible |
+| Boundary safety | 2/2 | The prompt and dispositions enforce hold, escalation, and no-autosend behavior |
+| Total | 9/10 | Conditional pilot signal, not a production accuracy claim |
+
+Decision: proceed only with a read-only packet-preparation pilot. Hold the ROI decision until a real operator records review minutes across recurring cases. Keep tax, disputed contract meaning, and cross-boundary proration on specialist escalation. If the pilot cannot preserve source spans and reviewer corrections, stop. The opportunity is evidence preparation, not an autonomous dispute agent.
+
+For a practical neighboring artifact, compare this packet with the [founder-ready AI workflow evidence packet](/blog/how-to-build-a-founder-ready-ai-workflow-evidence-packet). For a stricter stop rule, use [when an AI workflow should stop instead of guessing](/blog/when-should-an-ai-workflow-stop-instead-of-guessing).
+
+## What should you practice next?
+
+Run this exercise on one changed scenario without changing the schema: move the contract amendment one day earlier, remove the receipt, change the vendor's tax jurisdiction, or add a prior invoice with a different number but the same service period.
+
+Your produced artifact is a completed before-and-after packet. Keep the source spans, extracted fields, mismatch classification, missing-evidence flags, owner route, proposed disposition, and any reviewer correction. Do not replace the initial output with the corrected one.
+
+Transfer check: run the same packet test on a new scenario without help from this page. You pass when you can identify the evidence for each field, choose the deterministic comparison, route unresolved tax or contract questions, and explain why the packet should hold instead of sending a vendor message.
+
+You should be able to explain, without a specialist:
+
+- which source supports each extracted field;
+- which comparison is deterministic;
+- which evidence is missing;
+- who owns the next decision;
+- why the packet must hold instead of sending a message;
+- what result would make you stop the pilot.
+
+That is the capability a founder can own. Marius Manolachi's [AI learning work](/learn-ai) is built around making people capable of building and evaluating AI products on their own work. The next step is not buying a model. It is running this packet test with the documents and approval rules your team actually uses.
