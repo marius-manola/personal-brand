@@ -1,0 +1,147 @@
+---
+title: "How Can a Product Engineer Practice Owning an AI Workflow?"
+date: "2026-09-27"
+updated: "2026-09-27"
+excerpt: "Use a dated two-track fixture to test whether a product engineer can run, explain, correct, and safely hand off an AI workflow without the author's context."
+answer: "A product engineer can practice independent AI workflow ownership with a fixed case set, explicit output contracts, raw and corrected records, exception routes, and a transfer check. Run the same cases through a baseline and AI-assisted workflow, then own implementation only when you can explain failures, rerun the test, preserve evidence, and route consequential actions to the accountable human."
+targetQuery: "How can a product engineer practice owning an AI workflow independently?"
+queryAliases:
+  - "product engineer AI workflow ownership practice"
+  - "how to practice owning an AI workflow independently"
+intent: "capability ownership decision"
+funnel: "consideration"
+cluster: "architecture"
+parent: "/blog/architecture-ai-workflow-decomposition"
+contentType: "capability-guide"
+kind: "satellite"
+sourceableAtom: "A dated ten-case fixture and completed comparison show that extraction ownership requires field-level evidence and correction replay, while decision-support ownership requires option framing, uncertainty, reviewer effort, and a human authority boundary."
+evidenceType: "reproducible learning exercise + worked decision artifact"
+evidenceBasis: "fixture/cases.json, fixture/workflow-config.json, fixture/raw-baseline.json, fixture/raw-ai-assisted.json, fixture/corrections.json, fixture/reviewer-rubric.md, fixture/run-log.md, and fixture/comparison.md, run 2026-08-24"
+tags:
+  - "AI architecture"
+  - "product engineering"
+author: "Marius Manolachi"
+nextReviewAt: "2027-02-24"
+sources:
+  - "https://www.anthropic.com/engineering/building-effective-agents"
+  - "https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents"
+  - "https://airc.nist.gov/airmf-resources/airmf/5-sec-core/"
+  - "https://megagon.ai/humans-in-the-information-extraction-loop/"
+  - "https://developers.openai.com/api/reference/cli/resources/evals/methods/create"
+  - "https://arxiv.org/abs/2412.14232"
+cover: "/blog/product-engineer-ai-workflow-ownership-practice-img-01.webp"
+coverAlt: "Illustration of separate extraction evidence and decision-support authority paths"
+draft: false
+---
+
+To practice owning an AI workflow independently, a product engineer needs more than a prompt that works once. Use a fixed case set with a contract, raw output, correction log, exception route, and transfer check. The paired exercise below uses extraction and decision support as two tracks because ownership fails in different ways.
+
+In the first, the engineer must prove that a value came from the input. In the second, the engineer must show what the reviewer can decide, what remains unknown, and who has authority to act.
+
+> **Quick answer:** Practice independent AI workflow ownership with a fixed case set, explicit contracts, raw and corrected records, exception routes, and a transfer check. Run the same cases through a baseline and an AI-assisted workflow. Own implementation only when you can explain failures, rerun the test, preserve evidence, and route consequential actions to the accountable human.
+
+## The result of the two-track exercise
+
+The useful artifact is a small paired test, not a list of tools to study. I ran five extraction cases and five decision-support cases through a fixed baseline and a provider-neutral AI-assisted workflow on 2026-08-24.
+
+| Track | Extraction fields correct | Decision contract checks correct | Unsupported claims | Correct exception routes | Corrections | Review-time proxy |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Fixed baseline | 16/23 | 0/30 | 0 | 1/4 | 9 | 39.2 seconds |
+| AI-assisted | 20/23 | 3/30 | 4 | 2/4 | 7 | 25.5 seconds |
+
+The strict score is intentionally not a model benchmark. It checks whether the output obeys the contract. Both tracks failed. The baseline dropped explicit currency, changed an approval boundary, suppressed a date conflict, and made unsupported recommendations. The AI-assisted track improved extraction coverage but invented a missing account ID and severity, added an unsupported renewal term, and selected options when policy or security evidence was missing.
+
+That is the sourceable result here: extraction and decision support need different definitions of “done.” The full fixture preserves the inputs, expected outputs, raw outputs, corrections, rubric, run log, and comparison table.
+
+![Illustration of two AI workflow tracks separating field evidence from decision authority](/blog/product-engineer-ai-workflow-ownership-practice-img-02.webp)
+
+## Why the contracts must differ
+
+Extraction asks, “What does the source say?” Decision support asks, “Given what the source says, what options should a person consider?”
+
+That distinction changes the system boundary. Anthropic describes workflows as predefined code paths and agents as systems that dynamically direct their process and tool use. It also recommends starting with the simplest solution and adding complexity only when it improves outcomes. [Anthropic's agent guidance](https://www.anthropic.com/engineering/building-effective-agents) supports a useful rule for this exercise: make the acceptance contract harder to misunderstand before making the architecture more autonomous.
+
+For extraction, a reviewer should be able to point from every field to a source span. For decision support, a reviewer should be able to separate facts, options, uncertainty, recommendation, and authority. NIST's AI Risk Management Framework makes the same shape explicit: document context and knowledge limits, define human oversight, document test sets and metrics, and define roles and responsibilities. [NIST's AI RMF core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/) is a useful reference for the second contract.
+
+## What a product engineer must learn for extraction
+
+The minimum extraction skill is not prompt writing. It is schema design plus provenance and correction handling.
+
+| Skill to practice | Acceptance question | Failure that must route |
+| --- | --- | --- |
+| Define a typed output | Are fields, nulls, enums, and boundaries explicit? | A valid-looking output with the wrong shape |
+| Attach evidence | Can a reviewer find the exact source span for every populated field? | A value with no provenance |
+| Preserve absence | Does missing information stay null instead of becoming “unknown,” “high,” or a guess? | Invented missing value |
+| Preserve conflict | Are contradictory dates or records retained and routed? | The latest or most convenient value silently wins |
+| Replay corrections | Can the raw output and the human correction be compared later? | The corrected record overwrites the model output |
+
+The fixture's extraction cases make those skills concrete.
+
+- E1 is an invoice. The baseline missed the explicit EUR currency. The correction is mechanical and local.
+- E3 is a support message that does not state account ID or severity. The expected output keeps both values null and routes follow-up. The AI-assisted run filled both anyway.
+- E5 contains two shipment dates and no approved change record. The expected output preserves both candidates and sends the case to review. A guessed date is not a successful extraction.
+
+This is consistent with Megagon's study of information extraction work. Its participants repeatedly moved through viewing, assessing, hypothesizing, pursuing, and verifying. The study also identifies provenance and comparison across iterations as recurring problems. [Megagon's information-extraction study](https://megagon.ai/humans-in-the-information-extraction-loop/) is why the fixture stores source spans and corrections instead of only a final JSON object.
+
+Extraction ownership is ready for an independent handoff when the engineer can add a new case, explain the field contract, rerun the workflow, inspect the raw output, apply a correction, and show the before-and-after record.
+
+## What a product engineer must learn for decision support
+
+The minimum decision-support skill is not “make the model more confident.” It is designing a reviewable recommendation envelope.
+
+| Field in the contract | What it protects |
+| --- | --- |
+| Recommendation type | Prevents a forced choice when the right answer is hold, escalate, or collect more evidence |
+| Options | Gives the reviewer something concrete to compare |
+| Evidence | Keeps the recommendation tied to observed facts |
+| Uncertainties | Shows what could change the recommendation |
+| Authority boundary | States who may approve, deny, release, spend, or grant access |
+| Next step | Turns uncertainty into a reversible investigation or explicit escalation |
+
+The decision cases show why this is different from extraction.
+
+- D1 has eight of ten checks passing, but authentication expiry and rollback verification are still failing. The baseline turns the pass rate into “go.” The contract requires “hold,” evidence for the hold, and a release owner who decides.
+- D2 contains an outage and a compensation request, but no policy or customer tier. The AI-assisted output invents a standard outage policy. The correct result is to collect the missing policy and tier.
+- D5 asks for production administrator access with no approval or expiry. The engineer can prepare a scoped temporary-access option and route it to security. The engineer cannot grant the access.
+
+The research paper [Human-in-the-loop or AI-in-the-loop?](https://arxiv.org/abs/2412.14232) makes the broader point: evaluation can overemphasize the machine component and neglect the human expert's active role. That is why this fixture measures reviewer corrections and authority boundaries, not only output similarity.
+
+## How to run the exercise on your own workflow
+
+Use the same ten-row shape with your own safe, synthetic, or redacted cases.
+
+1. **Choose five extraction cases.** Include one clean record, one missing field, one boundary, one conflict, and one messy input.
+2. **Choose five decision-support cases.** Include one go or hold decision, one missing-policy case, one comparison with unknown criteria, one prioritization case, and one request that could create a side effect.
+3. **Declare the contracts before using AI.** Write required fields, allowed nulls, evidence rules, reviewer rubric, and owner. For decisions, add options, uncertainty, authority, and next step.
+4. **Run a fixed baseline.** Use deterministic parsing, a spreadsheet, or a simple script. The baseline reveals whether the problem is already underspecified.
+5. **Run the AI-assisted track on the same inputs.** Keep model configuration, prompt, tools, and date. Store raw output separately from corrections.
+6. **Review blind to track if possible.** Score the output against the contract. Count corrections, unsupported claims, exception routes, and the time proxy. Do not let a polished explanation hide a missing route.
+7. **Test transfer.** Give the fixture to the product engineer without the author's explanation. Ask them to rerun it, explain one failure, add one case, and state who owns the final decision.
+
+An evaluation is useful only when the test case has defined inputs and success criteria. [Anthropic's eval guidance](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents) also distinguishes trials, graders, transcripts, and outcomes. Your artifact should preserve those boundaries even if the first version is a folder of JSON and Markdown files. OpenAI's [eval creation reference](https://developers.openai.com/api/reference/cli/resources/evals/methods/create) is another reminder that evaluation configuration is an implementation object, not a paragraph hidden in a design document.
+
+## The ownership decision matrix
+
+Use the following decision rule after the paired run.
+
+| Capability | Engineer may own independently when | Keep another owner in the loop when |
+| --- | --- | --- |
+| Extraction implementation | Field contract, evidence spans, nulls, conflicts, raw outputs, corrections, and reruns are all explicit | Source authority is unclear, conflicts affect a business record, or correction rules are not agreed |
+| Extraction quality gate | Required-field checks and exception routing pass on new cases | The engineer cannot explain why a field is present or absent |
+| Decision-support implementation | Options, evidence, uncertainty, reviewer effort, authority, and next step are explicit | The output can approve, deny, spend, publish, grant access, or change a record |
+| Decision-support evaluation | The engineer can compare recommendations with the rubric and replay missing-evidence cases | The business owner has not agreed what a safe recommendation means |
+| Final business decision | Not established by this exercise | The accountable product, operations, security, or release owner decides |
+
+The exception is low-impact, reversible decision support where the accountable owner has explicitly delegated the choice and the workflow logs the delegation. That is a new authority decision, not something the model score can grant.
+
+The parent guide, [AI workflow decomposition](/blog/architecture-ai-workflow-decomposition), explains where workflow boundaries belong. For the implementation contract, see [how to build a typed task contract for an AI workflow](/blog/how-to-build-a-typed-task-contract-for-an-ai-workflow). Those pages are useful prerequisites. This exercise adds the ownership handoff and the evidence needed to make it.
+
+## What this run does not prove
+
+The fixture is small. It does not estimate production accuracy, latency, cost, privacy risk, multilingual performance, or live integration reliability. The AI-assisted outputs were captured during this dated run without a provider-specific API. Another model or prompt may fail differently.
+
+The review-time numbers are a scripted correction-pass proxy, not staffing guidance. A real handoff should repeat the exercise with a domain reviewer, timed human review, and cases sampled from the intended workflow. Keep the raw output even after the reviewer corrects it. Otherwise the next engineer sees a clean record and loses the evidence of where the workflow was unsafe.
+
+When I taught product managers to move from writing specifications to building and shipping, the blockage was usually not the model. It was that nobody could say what done meant. The same lesson applies here. Extraction is not done when the JSON parses. Decision support is not done when the recommendation sounds sensible.
+
+If you want to turn this fixture into a live practice session on your own workflow, [learn how Marius Manolachi helps teams build AI capability on their own work](/learn-ai). The useful next step is a bounded case set and an authority decision, not a larger prompt.
