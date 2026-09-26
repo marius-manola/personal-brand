@@ -1,0 +1,166 @@
+---
+title: "What Compliance Leaders Should Practice Before an AI Intake Rehearsal"
+date: "2026-09-27"
+updated: "2026-09-27"
+excerpt: "A five-artifact rehearsal shows what compliance leaders should test before an AI intake pilot, what to correct, and what still needs authorized review."
+answer: "Before an AI intake rehearsal, learn to define required fields, freeze a review date and control registry, trace every field to its source, preserve raw output, and route stale, missing, conflicting, privacy-sensitive, or legally interpretive cases. The rehearsal succeeds when you can explain every accept, correction, and escalation, not when AI produces clean JSON."
+targetQuery: "What should a compliance leader practice before an AI intake rehearsal?"
+queryAliases:
+  - "what should compliance leaders practice before an AI intake rehearsal"
+  - "how to rehearse an AI intake workflow safely"
+  - "compliance AI pilot rehearsal skills"
+intent: "informational"
+funnel: "consideration"
+cluster: "opportunity"
+parent: "/blog/opportunity-ai-compliance-evidence"
+contentType: "capability-guide"
+kind: "satellite"
+sourceableAtom: "In a five-artifact synthetic intake, the constrained AI pass reduced the defined reviewer-effort proxy from 36 to 22 units, but it still required corrections for stale-date handling and control mapping; the final rule accepted only the fully traceable artifact and escalated the other four."
+evidenceType: "reproducible test plus worked decision artifact"
+evidenceBasis: "A five-artifact synthetic evidence pack run manually and through a constrained read-only AI workflow on 2026-08-24, with input hashes, raw CSV results, corrections, escalations, a worked register, and a reviewer-effort proxy preserved in research.md."
+tags: ["AI governance", "compliance"]
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://airc.nist.gov/airmf-resources/playbook/"
+  - "https://airc.nist.gov/airmf-resources/airmf/5-sec-core/"
+  - "https://eur-lex.europa.eu/eli/reg/2024/1689/oj?locale=en"
+  - "https://www.iso.org/home/insights-news/resources/iso-42001-explained-what-it-is.html"
+  - "https://www.edpb.europa.eu/system/files/2024-06/ai-auditing_checklist-for-ai-auditing-scores_edpb-spe-programme_en.pdf"
+faq:
+  - q: "Can a compliance leader approve an AI system's legal interpretation?"
+    a: "No. A compliance leader can own intake controls, provenance checks, evidence registers, reviewer corrections, and escalation routing. An authorized legal or technical owner must approve legal interpretation, system categorization, high-risk treatment, and production control changes."
+  - q: "Does a synthetic evidence fixture prove production readiness?"
+    a: "No. It proves that a team can rehearse a bounded decision with known exceptions. Production readiness also requires approved data handling, access controls, live monitoring, representative test cases, and role-specific legal and technical review."
+cover: "/blog/what-compliance-leaders-should-practice-before-ai-intake-rehearsal-compliance-evidence-intake-hero.webp"
+coverAlt: "Illustration of a compliance leader reviewing an AI evidence register with accepted and escalated records"
+draft: false
+---
+
+Before a compliance leader runs an AI-assisted evidence intake, they need a rehearsal that makes the boundary visible. They don't need to become model engineers. They do need to know exactly where extraction ends and an accountable decision begins.
+
+The capability test below is built around that boundary. It uses five synthetic artifacts, including a stale model card, conflicting logging records, and an incomplete oversight attestation. The point is not to show that AI can read documents. The point is to show what the reviewer must still be able to prove.
+
+I taught product managers who moved from writing specs to building and shipping products, and the hard part was usually not the model. It was making “done” concrete. Evidence intake has the same failure mode. “The AI extracted it” is not a finished compliance record. A finished record has provenance, a control mapping, a reviewer decision, and a named next owner. [That capability-transfer pattern](https://mariusmanolachi.com/learn-ai) is why this exercise starts with a work artifact rather than a prompt list.
+
+## The rehearsal should teach bounded evidence triage
+
+Start with a read-only intake rehearsal. A compliance leader is ready to move beyond practice when they can trace every accepted field to a source, map it to an agreed control, challenge exceptions, preserve the raw AI result, and route decisions outside their authority. They should not independently approve a legal interpretation, declare a system high-risk, change a production control, or accept evidence whose source, date, or ownership cannot be verified.
+
+That boundary matches the shape of the governing material. The [NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/) treats governance as cross-cutting and calls for documented roles, human oversight, test sets, metrics, uncertainty, and repeatable measurement. The [NIST Playbook](https://airc.nist.gov/airmf-resources/playbook/) is voluntary guidance, not a checklist. The [ISO/IEC 42001 explanation](https://www.iso.org/home/insights-news/resources/iso-42001-explained-what-it-is.html) describes an AI management system with responsibilities, documentation, performance evaluation, monitoring, and continual improvement.
+
+This is the decision the rehearsal must teach:
+
+> **Preserve the evidence state. Do not silently take ownership of the legal or technical decision that the evidence informs.**
+
+## The five-artifact fixture shows where AI helps and stops
+
+In the recorded run, the constrained AI pass reduced a defined reviewer-effort proxy from 36 to 22 units, a 38.9% reduction. It did not reduce the number of final decisions or remove escalation. It also made two errors that a reviewer had to correct.
+
+| Fixture case | Manual result | AI first result | Final result | What the reviewer had to do |
+| --- | --- | --- | --- | --- |
+| E1, well-formed AI policy | Accept | Accept | Accept | Verify source, dates, owner, and control mapping |
+| E2, stale model card | Escalate | Accept | Escalate | Restore the omitted valid-through date and apply the stale rule |
+| E3, 180-day logging policy | Escalate as conflict | Escalate as conflict | Escalate as conflict | Correct a plausible but unsupported control mapping |
+| E4, 90-day log export | Escalate as conflict | Escalate as conflict | Escalate as conflict | Compare it with E3 and retain the missing operator-ID issue |
+| E5, incomplete oversight attestation | Escalate as missing | Escalate as missing | Escalate as missing | Confirm that blank approver fields cannot be inferred |
+
+The sourceable result is narrow: **on this five-item fixture, AI reduced transcription-like review actions, but the acceptance boundary still depended on human provenance checks, exception classification, correction logging, and escalation.** This is not a production accuracy claim, a legal conclusion, or a reason to remove an authorized reviewer.
+
+![Illustration of a compliance evidence register with accepted, corrected, and escalated rows](/blog/what-compliance-leaders-should-practice-before-ai-intake-rehearsal-compliance-evidence-register-boundary.webp)
+
+The raw hashes, source labels, manual CSV, AI CSV, and correction log are preserved in the companion research record for this publication package. The fixture URLs are intentionally synthetic. A real register would replace them with permissioned sources and access timestamps.
+
+## What the intake record must preserve
+
+The record must preserve the path from artifact to decision. If a reviewer cannot replay why a field was accepted, the field is not audit-ready merely because it is formatted as JSON.
+
+Use one row per artifact, with separate raw and reviewed values. At minimum, preserve:
+
+| Field | Why it matters | Owner of the check |
+| --- | --- | --- |
+| Artifact ID and input hash | Proves which file was reviewed and prevents an edited replacement from looking like the original | Compliance intake owner |
+| Source link and access timestamp | Lets another reviewer retrieve the source and see when it was available | Compliance intake owner |
+| Owner, issued date, valid-through date | Makes freshness and accountability visible | Compliance intake owner, with source owner where unclear |
+| Extracted field and source location | Separates what the document says from what the workflow inferred | AI workflow plus human reviewer |
+| Control mapping and mapping basis | Shows whether the artifact supports the control or merely resembles it | Compliance reviewer, technical or legal owner when interpretation is needed |
+| Confidence and uncertainty | Prevents a plausible extraction from masquerading as a verified fact | AI workflow, challenged by reviewer |
+| Raw AI result and reviewer correction | Makes the correction burden and failure mode replayable | Workflow owner |
+| Status, escalation, decision owner, timestamp | Makes the human boundary operational | Authorized decision owner |
+
+This record is a practical intersection of the sources, not a claim that any one source prescribes this exact schema. NIST says roles and responsibilities, human oversight, test sets, metrics, and measurement results should be documented. The [EDPB AI Auditing checklist](https://www.edpb.europa.eu/system/files/2024-06/ai-auditing_checklist-for-ai-auditing-scores_edpb-spe-programme_en.pdf) gives auditors a useful vocabulary around model cards, system maps, responsibilities, and evidence. ISO/IEC 42001 adds the management-system view: assign responsibility, document the process, monitor performance, and improve it over time.
+
+For logging cases, be precise about scope. The [EU AI Act](https://eur-lex.europa.eu/eli/reg/2024/1689/oj?locale=en) includes record-keeping and automatically generated logs for high-risk AI systems, including a minimum six-month period for providers keeping logs under their control, subject to applicable law. That does not let an intake reviewer decide that every internal AI workflow is high-risk or that six months is the only applicable retention rule. It tells you why a logging artifact needs a technical and legal path when the facts conflict.
+
+This is an operating exercise, not legal advice. Confirm applicability, system category, retention, and approval authority with the people who hold those responsibilities.
+
+## Use this acceptance rubric before you trust an extracted field
+
+Accept an item only when every required field is traceable, current for the stated review window, mapped to an agreed control, and free of unresolved conflict. Otherwise record the best-supported state and escalate.
+
+| Check | Accept | Correct and re-review | Escalate immediately |
+| --- | --- | --- | --- |
+| Provenance | Source link, hash, and access time are present | Link or hash can be confirmed from the source owner | Source is missing, inaccessible, or cannot be tied to the artifact |
+| Completeness | Required fields are present | A transcription error is visible in the source | A required approval, owner, date, or scope field is absent |
+| Freshness | Valid-through date covers the review date | Date format needs normalization and source confirms it | Artifact is stale or its review interval is unknown |
+| Consistency | No other in-scope source disagrees | Two labels differ but the source owner can reconcile them | Records conflict on a control, retention period, scope, or system identity |
+| Control mapping | Mapping is in the approved registry and supported by the artifact | Reviewer can point to the exact source passage | Mapping requires legal interpretation or technical assurance |
+| Authority | Intake reviewer may record the evidence state | Authorized reviewer can approve the correction | Decision changes system risk, legal position, production behavior, or regulatory filing |
+
+The acceptance rule is deliberately strict because a compliance register has a different job from a search summary. A summary can be useful while uncertain. An accepted evidence item must be reviewable by somebody who was not in the original intake.
+
+## Run the capability exercise in two passes
+
+The exercise should teach the leader to challenge the workflow, not memorize a prompt. Run the same fixture twice and keep both outputs.
+
+1. **Freeze the task and run date.** State the required fields, control registry, freshness rule, escalation options, and who is authorized to decide each exception. Hash every input before extraction.
+2. **Run the manual baseline.** Read each artifact, write the extracted fields, map controls, label status, state uncertainty, and record the next owner. Do not look at the AI output first.
+3. **Run the constrained AI pass.** Give the workflow read-only access to the fixture text and the approved control registry. Instruct it not to infer missing values, approve legal conclusions, or overwrite source material.
+4. **Compare raw outputs before correction.** Count accepted, stale, missing, and conflicting rows. Check whether every output includes a source link, hash, control mapping, confidence, uncertainty, and escalation.
+5. **Review field by field.** Preserve the AI result. Put every correction in a separate log with the old value, new value, reason, reviewer, and timestamp.
+6. **Apply the authority rule.** Accept only the fully traceable row. Escalate everything that needs a legal interpretation, technical assurance, approval, or source-owner reconciliation.
+7. **Measure reviewer effort.** Use a transparent proxy such as source inspections, exception checks, control checks, corrections, and decision notes. Do not call this elapsed time unless you actually time independent reviewers.
+8. **Repeat with one changed case.** Change the review date or replace one source with a newer version. The learner passes only if they can explain which rows changed and why.
+
+The last step is the transfer check. A leader who can reproduce the first result but cannot explain the changed case has learned a script, not the capability.
+
+## What a compliance leader may own, and what still needs help
+
+The decision is not “AI or no AI.” It is which part of the evidence workflow the compliance leader can operate without borrowing authority they do not have.
+
+| Work item | Compliance leader may own independently | Authorized technical or legal review remains necessary when... |
+| --- | --- | --- |
+| Intake schema | Define required fields and evidence states | The schema changes a regulatory, contractual, or production obligation |
+| Read-only extraction | Run the constrained workflow and preserve raw output | Personal, confidential, or restricted data needs a new processing approval |
+| Provenance review | Check hashes, source links, dates, owners, and source locations | Source access, identity, or chain of custody is disputed |
+| Control mapping | Apply an approved mapping registry and record the basis | The mapping interprets law, creates a new control, or claims technical assurance |
+| Reviewer correction | Correct a transcription or classification error and retain both values | The correction changes the meaning of a policy or assurance statement |
+| Escalation routing | Assign the right queue and document the question | The queue owner, risk category, or decision authority is unclear |
+| Acceptance decision | Accept an in-scope, traceable artifact after the required review | Acceptance would sign off a legal interpretation, system category, risk treatment, or production change |
+
+This split also reflects NIST's distinction between documenting human oversight and managing risk through accountable roles. It keeps the compliance leader close to the evidence while keeping authority explicit.
+
+## The constrained run failed in two useful ways
+
+The first AI failure was quiet. The model omitted the stale artifact's `validThrough` value and then marked the record acceptable. The JSON was structurally clean. The decision was not. A schema check alone would have missed the risk.
+
+The second failure looked sophisticated. The workflow mapped the logging policy to `NIST-MEASURE-2.1`, a plausible testing and documentation concept, instead of the fixture's agreed `EU-AI-ACT-LOGGING` label. The mapping sounded reasonable, but it was unsupported by the supplied registry. The reviewer corrected it and kept the conflict escalation.
+
+These are the failures a compliance leader should learn to spot:
+
+- A missing value is converted into a null that nobody treats as missing.
+- A stale date disappears during normalization.
+- A plausible control name replaces the control actually under review.
+- Two sources are summarized separately, so their conflict never becomes a case.
+- A confidence label is present but has no stated rule.
+- The reviewer overwrites the AI result, erasing the correction burden.
+
+The [parent guide on AI compliance evidence opportunities](/blog/opportunity-ai-compliance-evidence) gives the broader opportunity context. For the rehearsal question, the test is simple: can the leader preserve the evidence state and stop the workflow at the right boundary?
+
+## When this exercise does not transfer
+
+Do not treat the fixture as permission to run production intake with arbitrary data. Stop and get specialist review when the artifacts contain personal or sensitive information, when the result affects an individual, when the system category is uncertain, when a source is under legal hold, when a contract defines a different evidence standard, or when the workflow can write to a system of record.
+
+The exercise also does not replace an AI management system, an audit, a data-protection assessment, or a technical evaluation. It rehearses one capability inside those larger processes. The [independent-work capability guide](/blog/what-should-an-ai-learner-be-able-to-do-without-a-tutor) is useful for the same reason: independence means showing work, handling a changed case, and knowing when to ask for help.
+
+The next step is practical. Copy the fixture shape into a private sandbox, replace the synthetic source labels with approved test documents, and have the compliance leader produce the register without seeing the expected outcomes. If they can explain every accept, correction, and escalation, they are ready to own the intake boundary. If not, train that missing judgment before buying more automation.
