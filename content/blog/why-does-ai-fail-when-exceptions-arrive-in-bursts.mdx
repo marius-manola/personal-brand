@@ -1,0 +1,173 @@
+---
+title: "Why Does AI Fail When Exceptions Arrive in Bursts?"
+date: "2026-09-27"
+updated: "2026-09-27"
+excerpt: "A pinned pricing-exception replay separates model mistakes from queue saturation and shows when to buffer, reduce automation, or keep a human gate."
+answer: "AI fails in bursts for two separate reasons: its decision policy can mishandle rare exception states, and arrival spikes can saturate model or reviewer capacity. In a pinned 30-case replay, five unsupported approvals stayed constant, but burst arrivals raised mean review latency from 2.25 to 7.23 ticks and left three cases unresolved by the 10-tick horizon. Buffer or keep a human gate when either condition appears."
+targetQuery: "why does ai fail when exceptions arrive in bursts"
+queryAliases:
+  - "bursty pricing exception queue"
+  - "AI pricing exceptions under burst load"
+intent: "diagnose why a pricing-exception workflow degrades when demand arrives in bursts"
+funnel: "opportunity"
+cluster: "opportunity"
+parent: "/blog/how-to-test-ai-for-pricing-exceptions"
+contentType: "failure-clinic"
+kind: "satellite"
+sourceableAtom: "A pinned 30-case pricing-exception replay kept five unsupported approvals constant across schedules, but burst arrival raised AI review latency to 7.23 ticks and left three cases unresolved at the horizon."
+evidenceType: "reproducible test and worked decision artifact"
+evidenceBasis: "pricing-exception-replay-v1, run 2026-08-24, with a deterministic baseline and a transparent deterministic AI surrogate"
+tags:
+  - "AI evaluation"
+  - "operations"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://arxiv.org/abs/2508.07935"
+  - "https://research.google/blog/towards-reliability-in-deep-learning-systems/"
+  - "https://arxiv.org/abs/2608.06135"
+  - "https://doi.org/10.1145/3786335.3813193"
+cover: "/blog/why-does-ai-fail-when-exceptions-arrive-in-bursts-pricing-exception-burst-hero.webp"
+coverAlt: "Illustration of a pricing exception queue separating model decisions from reviewer capacity"
+draft: false
+---
+
+I don’t trust a pricing-exception demo that only runs one request at a time. When I taught product managers to build and ship, the failure was usually an undefined “done,” not the model itself. The same problem appears here: a workflow can make a bad approval, or it can make a good escalation too late.
+
+![Illustration of a pricing exception queue separating decision errors from review capacity](/blog/why-does-ai-fail-when-exceptions-arrive-in-bursts-pricing-exception-burst-hero.webp)
+
+**The replay result:** a 30-case synthetic pricing-exception run kept five unsupported approvals in steady, clustered, and burst schedules. The burst schedule still changed the operational outcome: mean review latency rose from 2.25 to 7.23 ticks, max pending work reached 30, and three AI-assisted cases were unresolved at the 10-tick horizon.
+
+That distinction is the answer to [how to test AI for pricing exceptions](/blog/how-to-test-ai-for-pricing-exceptions). A burst does not automatically mean the model got worse. It may mean the queue, retries, or reviewer capacity could not absorb the same work.
+
+## Why do exceptions expose a different failure than ordinary traffic?
+
+Exceptions combine low-frequency states with high consequence decisions. Missing evidence, conflicting policy versions, duplicate requests, and unclear authority are not just unusual inputs. Each one changes what the workflow is allowed to do.
+
+The supplied research points to three separate reliability requirements. Models need to represent uncertainty, generalize outside familiar distributions, and fail usefully when the input is unsupported, as Google Research describes in its reliability framework. Exception handling research also treats recovery as a combination of classification, flow control, escalation, and state recovery, not just another prompt retry. ([Google Research](https://research.google/blog/towards-reliability-in-deep-learning-systems/), [SHIELDA](https://arxiv.org/abs/2508.07935))
+
+Bursts add a fourth problem: time. A case that would eventually reach a reviewer may miss the business decision window when many cases arrive together. Recent inference work explicitly notes that constant-rate arrival assumptions fail for dynamic, bursty traffic. ([LLM Inference Under Bursty Workload Distribution](https://arxiv.org/abs/2608.06135))
+
+That is why a steady demo is weak evidence. It tests whether a single case can be classified. It does not test whether the system can preserve state, route uncertainty, and finish review while work accumulates.
+
+## What did the pinned replay actually test?
+
+The harness used 30 disclosed synthetic cases and replayed the identical case set three ways. The deterministic baseline applied the case rules directly. The AI-assisted path used a transparent scripted surrogate, three named tools, four model workers, a fixed retry policy, and two reviewers.
+
+The surrogate is important to state plainly. This is not a claim about a current commercial model. It is a reproducible stand-in that lets the reader inspect the workflow mechanics without confusing a fixture result with a provider benchmark.
+
+The case schema had stable IDs, an exception type, a gold action, an arrival tick, attempt count, route action, final action, and end tick. The case mix was deliberately balanced so each failure class could be inspected:
+
+| Case type | Count | Expected behavior |
+|---|---:|---|
+| Ordinary exception | 10 | Approve 8 clear cases, reject 2 outside-authority cases |
+| Missing evidence | 5 | Escalate |
+| Conflicting policy versions | 5 | Escalate |
+| Duplicate requests | 5 | Escalate |
+| Ambiguous discount authority | 5 | Escalate |
+
+The schedules were equally explicit:
+
+| Schedule | Arrival pattern |
+|---|---|
+| Steady | One case per tick from 0 through 29 |
+| Clustered | Five cases at ticks 0, 6, 12, 18, 24, and 30 |
+| Burst | All 30 cases at tick 0 |
+
+The replay recorded decision accuracy, unsupported approvals, correct escalation, max pending queue, max review queue, mean review latency, retry amplification, and unresolved cases at a defined horizon. Multi-step agent evaluations also separate completion, accuracy, efficiency, waste, and speed because a workflow can produce a correct answer with too many calls or fail before reaching its terminal step. ([Forge](https://doi.org/10.1145/3786335.3813193))
+
+## What changed when the same cases arrived in a burst?
+
+The deterministic baseline preserved decision quality across schedules, but its review queue grew sharply. The AI-assisted surrogate had the same five unsupported approvals in every schedule. Under burst arrival, its queue and latency changed, and three cases missed the horizon.
+
+| Workflow | Schedule | Accuracy by horizon | Unsupported approvals | Correct escalations | Max pending | Max review queue | Mean review latency | Retry amplification | Unresolved |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Deterministic baseline | steady | 1.00 | 0 | 20 | 1 | 1 | 1.00 | 0.00 | 0 |
+| Deterministic baseline | clustered | 1.00 | 0 | 20 | 5 | 5 | 1.80 | 0.00 | 0 |
+| Deterministic baseline | burst | 1.00 | 0 | 20 | 20 | 20 | 5.50 | 0.00 | 0 |
+| AI-assisted surrogate | steady | 0.83 | 5 | 16 | 3 | 2 | 2.25 | 1.17 | 0 |
+| AI-assisted surrogate | clustered | 0.83 | 5 | 16 | 5 | 2 | 2.50 | 1.17 | 0 |
+| AI-assisted surrogate | burst | 0.73 | 5 | 16 | 30 | 5 | 7.23 | 1.17 | 3 |
+
+The result has two layers:
+
+1. **Decision defects existed before the burst.** The surrogate made five unsupported approvals under steady traffic too. Prompt tuning aimed only at burst handling would miss this. The workflow needs a hard rule or human gate around unresolved evidence, policy, duplicate status, and authority.
+2. **The burst created a capacity defect.** The AI path went from three pending cases under steady traffic to 30 at the burst peak. Mean review latency more than tripled, and three cases were still unresolved at the cutoff even though the semantic error count did not increase.
+
+This separation is the sourceable result. The replay does not say “bursts make the model hallucinate more.” It shows how to test whether the burst changed the model decision, the state transition, or the time available to complete the workflow.
+
+![Illustration of a steady, clustered, and burst replay branching into model errors and queue saturation](/blog/why-does-ai-fail-when-exceptions-arrive-in-bursts-pricing-exception-burst-replay.webp)
+
+## Which failure traces should you inspect first?
+
+Start with one trace from each mechanism. Do not look only at the final answer.
+
+### M03: missing evidence became an approval
+
+M03 arrived at tick 0. Its gold action was escalate because the evidence packet was incomplete. The surrogate approved it at tick 4, so the case never reached a reviewer. This is a decision-quality failure and an unsafe state transition. A larger queue did not cause it.
+
+### C02: conflicting policies were collapsed
+
+C02 also required escalation. Two policy versions were present, but the surrogate returned approve at tick 5. The important trace fields are the policy IDs read by `policy_lookup_v1`, the conflict flag, the route action, and the absence of a human gate. A valid JSON response would not make this safe.
+
+### D03: a retry added work to an already busy path
+
+D03 correctly routed to escalation, but it used two attempts. It reached review at tick 8 and completed at tick 10. The retry did not create the semantic error. It delayed a state-sensitive case and increased the amount of work competing for the same processing capacity.
+
+Exception handling systems need to preserve the difference between a malformed call, a valid request with missing data, and a state that must remain open. That is the practical lesson behind structured exception patterns such as SHIELDA, and it is why the replay stores route, attempts, tool results, reviewer arrival, and final state separately. ([SHIELDA](https://arxiv.org/abs/2508.07935))
+
+## How do you reproduce, diagnose, repair, and verify this failure?
+
+Treat the failure as two linked tests. Reproduce the same cases under different arrival schedules, trace the state transitions, repair the unsafe approval boundary and queue path, then verify the change against a deterministic baseline. Do not call a prompt change a repair until the replay shows what changed.
+
+| Stage | Evidence from the pinned replay | Reader decision |
+|---|---|---|
+| Reproduction | `pricing-exception-replay-v1` runs the same 30 synthetic cases under steady, clustered, and burst schedules. Five unsupported approvals occur in every schedule. Burst arrival reaches 30 pending cases, 7.23 ticks of mean review latency, and 3 unresolved cases. | Keep case content fixed and change arrival timing only. |
+| Trace | M03 is approved at tick 4 without reviewer arrival. C02 is approved at tick 5 despite conflicting policy versions. D03 uses two attempts, reaches review at tick 8, and completes at tick 10. | Inspect state transitions and tool results, not only the final answer. |
+| Diagnosis | The five unsupported approvals do not increase under burst traffic, but unresolved cases appear only under burst traffic. | Treat semantic failure and capacity failure as separate release blockers. |
+| Repair | Add deterministic hard stops for missing evidence, policy conflict, duplicate status, and ambiguous authority. Keep a human approval gate until unsupported approvals reach zero. Add buffering or admission control for burst arrivals. | Use the repair as a release boundary for this fixture. It is not a claim of production deployment. |
+| Verification | The deterministic baseline records 0 unsupported approvals and 0 unresolved cases in every schedule. Its burst max review queue is 20, which verifies the decision boundary while leaving capacity sizing visible. | Rerun the AI path after implementing the guards and queue control. Accept only a result that meets the stated horizon and approval policy. |
+
+The verification is intentionally bounded. The baseline is evidence that the fixture's hard decision rules can prevent unsupported approvals, not evidence that a commercial model has been fixed. The next run should preserve the case IDs, schedules, horizon, and metric definitions so the before-and-after comparison remains valid.
+
+## Should you reduce automation, add buffering, or keep a human gate?
+
+Use the result table as a release decision, not as a score to celebrate.
+
+| Replay signal | Decision | What to change |
+|---|---|---|
+| Unsupported approvals are above zero in any schedule | Reduce automation and keep a human gate for approval | Make unresolved evidence, policy conflict, duplicate status, and authority ambiguity hard escalation states. |
+| Unsupported approvals stay flat, but burst max pending or unresolved cases increase | Add buffering, admission control, or a larger review window | Queue before model execution, bound concurrency, expose age, and define what happens at the horizon. |
+| Review latency rises, but decisions stay correct and unresolved remains zero | Keep the workflow, then size capacity | Add a burst schedule to the release test and compare reviewer capacity against the expected window. |
+| Metrics stay flat across all three schedules | Keep the automation slice, but retain the replay | A null burst effect is useful only when the case mix and capacity assumptions are disclosed. |
+
+For this fixture, the release decision is not “add a better prompt.” It is:
+
+- Keep deterministic rules ahead of approval for policy conflict, missing evidence, duplicates, and ambiguous authority.
+- Keep AI in a prepare-and-route role until unsupported approvals reach zero on the replay.
+- Add a buffer or admission limit because the burst path produced 30 pending cases and 3 unresolved cases at the horizon.
+- Repeat the test after changing the model, prompt, tool schemas, retry policy, or reviewer capacity.
+
+This is also where the distinction from [rehearsing AI review capacity before launch](/blog/rehearse-ai-review-capacity-before-launch) matters. Capacity rehearsal tells you how much work reviewers can absorb. This replay tells you whether the model is sending the right work to that queue in the first place.
+
+## How can you rerun this test on your own workflow?
+
+Build the smallest replay that can expose the decision you need to make.
+
+1. Freeze the case set. Give every case a stable ID, a gold action, evidence fields, policy version IDs, duplicate keys, authority fields, and a known arrival tick.
+2. Include the cases people remove from demos. At minimum, add missing evidence, conflicting policies, duplicate requests, and ambiguous authority alongside ordinary exceptions.
+3. Pin the workflow configuration. Record the model or surrogate, runtime date, prompt, tools, concurrency, retry policy, reviewer capacity, and completion horizon.
+4. Replay the identical cases under steady, clustered, and burst schedules. Change arrival timing only. Keep the case content fixed.
+5. Log transitions, not just answers. Record tool inputs and outputs, attempt number, queue arrival, route action, reviewer start, final action, and unresolved state.
+6. Compare against a deterministic baseline. If the baseline cannot finish the cases, the workflow problem may be state or capacity rather than AI quality.
+7. Read the decision table before tuning. A semantic error calls for a rule or human boundary. A queue error calls for buffering or capacity. More prompt text is not a universal repair.
+
+The parent guide, [How to Test AI for Pricing Exceptions](/blog/how-to-test-ai-for-pricing-exceptions), is the right place to expand the case set and acceptance criteria. The narrower burst replay belongs in the release packet because arrival shape is a workload condition, not a prompt variant.
+
+## What does this replay not prove?
+
+It does not prove that a particular commercial model fails at a particular rate. The AI path is a deterministic surrogate, the case set is synthetic, and simulation ticks are not latency measurements. It also does not model reviewer disagreement, outages, provider throttling, or changes in the policy source of truth.
+
+It does prove something smaller and useful: a burst test can separate unchanged decision defects from burst-created queue pressure. That is enough to choose the next experiment.
+
+If unsupported approvals remain, keep the human approval boundary. If decisions are sound but cases age out, add buffering and capacity controls. If both remain stable, keep the automation slice and carry the replay forward as a regression test.
