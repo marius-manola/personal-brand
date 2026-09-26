@@ -1,0 +1,240 @@
+---
+title: "Why Do Approved AI Actions Execute Against Stale State?"
+date: "2026-09-27"
+updated: "2026-09-27"
+excerpt: "Approved AI actions can hit stale state when approval is treated as permanent permission. Revalidate the exact action, authorization, and record version before execution."
+answer: >-
+  Approved AI actions execute against stale state when approval is stored as a past decision instead of a binding to the exact action, authorization context, and target version that produced it. Store that contract, revalidate it immediately before the write, and block when the record, policy, or permissions changed. Read-only actions are the main exception.
+targetQuery: "why do approved AI actions execute against stale state"
+queryAliases:
+  - "approved ai action uses stale state"
+  - "how to stop ai actions on stale records"
+  - "ai approval target state changed"
+intent: "informational implementation diagnosis"
+funnel: "implementation"
+cluster: "implementation"
+parent: "/blog/how-to-implement-dry-run-ai-actions"
+contentType: "failure-clinic"
+kind: "satellite"
+sourceableAtom: "In a dated dependency-free fixture, approval alone did not authorize execution: 8 of 10 calls were blocked, and only calls whose canonical tool, arguments, authorization, and target-state version still matched executed."
+evidenceType: "failure-reproduction"
+evidenceBasis: "Dependency-free Node.js v20.11.0 fixture run on 2026-08-24; raw JSON, matrix, and executable reproduction are saved with the research artifact."
+tags:
+  - "AI agents"
+  - "human-in-the-loop"
+  - "implementation"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://openai.github.io/openai-agents-python/human_in_the_loop/"
+  - "https://docs.langchain.com/oss/python/langchain/human-in-the-loop"
+  - "https://learn.microsoft.com/en-us/agent-framework/agents/tools/tool-approval"
+  - "https://modelcontextprotocol.io/specification/draft/server/tools"
+  - "https://modelcontextprotocol.io/specification/draft/client/elicitation"
+  - "https://www.rfc-editor.org/rfc/rfc9110.html#name-if-match"
+  - "https://www.postgresql.org/docs/current/transaction-iso.html"
+faq:
+  - q: "What should an AI approval bind to?"
+    a: "Bind approval to the exact tool identity, canonical arguments, authorization context, target-state version, and an expiry time. A later mismatch requires a new preview."
+  - q: "Can a reviewer edit an AI tool call after preview?"
+    a: "Yes, but treat the edit as a new proposed call. Recompute the preview and canonical hash, then request approval for the edited call. Do not execute an edited payload under the old approval."
+  - q: "What should happen when the target changes after approval?"
+    a: "Block execution, report the target-state drift, refresh the target, and create a new preview. Do not silently apply the old decision to the new state."
+cover: "/blog/why-do-approved-ai-actions-execute-against-stale-state-preview-approval-contract.webp"
+coverAlt: "Illustration of an AI tool-call preview being checked again before execution"
+draft: false
+---
+
+I’m building TryUncle, an AI agent that watches the screen and annotates it live. That makes timing and human approval part of the product boundary, not paperwork added after the tool works.
+
+The failure I wanted to isolate was smaller: what happens between an approval click and the actual side effect?
+
+> **Observed fixture result:** On 2026-08-24, a dependency-free Node.js fixture ran 10 preview and approval cases. All 10 expected gates matched. Eight calls were blocked, and two executed. The two executions passed a final check of the canonical call, authorization context, schema, semantic rules, and target-state version. This is a fixture result, not a production rate.
+
+![Illustration of an AI preview failure matrix with blocked and revalidated execution paths](/blog/why-do-approved-ai-actions-execute-against-stale-state-preview-failure-matrix.webp)
+
+## Reproduce the stale-state failure and read the trace
+
+Run the dependency-free fixture, then inspect the saved JSON for the approved hash, current hash, target version, and final outcome. The trace makes the failure concrete instead of treating approval as an abstract UI event.
+
+```bash
+node preview-gate-fixture.js > preview-gate-output.json
+```
+
+The important traces are:
+
+| Case | Trace | Outcome |
+| --- | --- | --- |
+| Argument mutation | Approved hash `a69be249...`; current hash `36916e96...`; target version stayed 7 | Blocked as `approved_call_changed` |
+| Target drift | Approved at target version 7; execution saw version 8 | Blocked as `target_state_drift` |
+| Serialized resume | Approved hash and current hash both `9637ff97...`; target version matched; schema and semantic checks passed | Executed |
+
+The fixture tests the other boundaries too: malformed arguments stop before hashing, semantic policy failures stop before approval, rejected and cancelled calls never revalidate, expired approvals stay blocked, and a rejected sibling in a multi-call pause does not execute. The hashes above are shortened for readability; the complete values remain in [the raw fixture output](preview-gate-output.json).
+
+## Diagnosis: approval is a contract, not a boolean
+
+Approval should bind to the exact action the reviewer saw. If any part of that action changes, the approval is no longer valid. The bug is not that the reviewer clicked the wrong button; it is that the executor treats a past decision as permission for a possibly different call.
+
+The contract in the fixture contains four values:
+
+```text
+approved = hash(
+  tool identity,
+  canonical arguments,
+  authorization context,
+  checked target state
+)
+```
+
+The tool identity is not only `refund_invoice`. It includes its version. The arguments are canonicalized before hashing, so key order does not create a false mismatch. The authorization context includes the actor, role, and tenant. The target state includes the invoice version that produced the preview.
+
+This matches the useful part of current framework guidance. The OpenAI Agents SDK surfaces the tool name and arguments in a pending approval and scopes a stored decision to a specific call. It also supports serializing and reloading paused state. [OpenAI’s human-in-the-loop documentation](https://openai.github.io/openai-agents-python/human_in_the_loop/) describes those mechanics.
+
+The design addition is the final invariant: the executor must compare the approved contract with the current contract. A UI can display the right preview and still be unsafe if the worker later executes a different payload.
+
+## The failure matrix shows where approved actions break
+
+The fixture separates preview-time failures from approval-to-execution failures. That distinction tells you where to repair the system.
+
+| Case | What changed or failed | Observed gate |
+| --- | --- | --- |
+| Schema-valid but unsafe | Amount was valid JSON and matched the shape, but exceeded the semantic refund policy | Block before approval |
+| Malformed arguments | JSON could not be parsed | Block before hashing |
+| Argument mutation | Approved amount changed before execution | Block on hash mismatch |
+| Target-state drift | Invoice version changed from 7 to 8 | Block on target-state mismatch |
+| Two pending calls | One call was approved and one rejected | Execute only the approved call after its own revalidation |
+| Cancellation or expiry | The reviewer cancelled, or the approval window ended | Block without execution |
+| Serialized resume | Pending state was saved and loaded again | Execute only after the same revalidation |
+
+The raw output records each proposed call, hash, preview, decision, revalidation result, and outcome in [the fixture JSON](preview-gate-output.json). The [test matrix](preview-gate-test-matrix.md) gives the same cases in a compact form.
+
+That artifact is the sourceable result here. Another engineer can run the fixture, change one gate, and see which invariant disappeared.
+
+## Schema validation does not prove that an action is safe
+
+Schema validation answers whether the arguments have the expected shape. Semantic validation answers whether the requested action is allowed for this target, actor, and state.
+
+The fixture uses a deliberately obvious example. This argument is schema-valid:
+
+```json
+{
+  "invoiceId": "INV-100",
+  "amountCents": 150000,
+  "currency": "EUR"
+}
+```
+
+It is still unsafe because the fixture's policy rejects refunds above 1000 EUR. The preview reports `schemaValid: true` and `semanticSafe: false`, then blocks the call before asking a reviewer to approve it.
+
+Malformed input fails earlier. The OpenAI Agents SDK documents fail-closed behavior when approval logic cannot safely inspect malformed JSON or a non-object value. [That behavior is documented here](https://openai.github.io/openai-agents-python/human_in_the_loop/). The executor should keep the same boundary even if a different framework lets malformed data travel farther.
+
+MCP makes a similar separation visible in its protocol shape: a tool has a name and an input schema, then a `tools/call` request carries the name and arguments. [The MCP server-tools specification](https://modelcontextprotocol.io/specification/draft/server/tools) defines those fields. The schema says what can be parsed. Your policy still has to decide what may run.
+
+## Revalidate immediately before execution
+
+The approval gate is only complete when the worker checks the same contract again.
+
+Use this sequence:
+
+1. Parse the proposed arguments. Reject malformed input.
+2. Validate the argument schema. Reject missing, wrong-type, or out-of-range fields.
+3. Validate semantic safety against the current target and policy. Do not ask a person to approve a call that policy already forbids.
+4. Render the intended effect, exact arguments, actor, tool version, expiry, and target version.
+5. Store the canonical payload hash with the approval decision.
+6. At execution time, fetch the current target and authorization context.
+7. Recompute the hash and rerun schema and semantic validation.
+8. Execute only if the hash, authorization, target version, and validations still match.
+
+The last step is the one demos often skip. A reviewer may approve `INV-100` at version 7. A worker may later load version 8. The old preview is now a description of history, not permission for the current write.
+
+If you use a framework that supports edited approvals, preserve the same boundary. Current LangChain guidance allows approve, edit, and reject decisions, and requires a separate decision for each pending action. [Its human-in-the-loop documentation](https://docs.langchain.com/oss/python/langchain/human-in-the-loop) also describes persistence for pause and resume. An edit must create a new canonical payload and a new preview. It must not inherit the old hash.
+
+## Multiple pending actions need separate decisions
+
+Treat a pause containing several calls as a set of independent approval records, not one batch-level yes.
+
+In the fixture, two refund calls were pending. The first was approved and executed after revalidation. The second was rejected and never reached revalidation or execution. This keeps a reviewer from accidentally authorizing a sibling call by approving the batch.
+
+The same rule appears in current LangChain guidance: when multiple tool calls are paused, each action needs its own decision, in the order supplied by the interrupt. Microsoft’s Agent Framework likewise exposes the function call and its arguments and tells the caller to continue checking for approval requests after each run. [See Microsoft’s tool-approval guidance](https://learn.microsoft.com/en-us/agent-framework/agents/tools/tool-approval).
+
+Store these fields per call:
+
+| Field | Why it exists |
+| --- | --- |
+| `callId` | Prevents a decision for one call being applied to another |
+| `approvedPayloadHash` | Binds approval to the exact preview |
+| `decision` | Separates approve, reject, cancel, and expiry |
+| `expiresAt` | Prevents an old preview from becoming permanent permission |
+| `targetVersion` | Detects state changes between preview and execution |
+| `stateVersion` | Lets resume code reject incompatible serialized state |
+
+## Resume is safe only when state is still current
+
+Serialization preserves a pause. It does not make the paused decision timeless.
+
+The OpenAI Agents SDK supports durable `RunState` serialization and advises storing a version marker when pending work may sit for a while. That lets the application route old state to a compatible code path. [The same documentation covers long-running approvals and versioning](https://openai.github.io/openai-agents-python/human_in_the_loop/).
+
+MCP’s elicitation flow shows a related multi-round-trip pattern: a tool can request structured input, and the client retries with the response and request state. [The MCP elicitation specification](https://modelcontextprotocol.io/specification/draft/client/elicitation) defines that exchange. Collecting more input is not the same as reauthorizing a side effect. The retry still needs a current target check before a write.
+
+On resume, use this decision tree:
+
+| Resume condition | Action |
+| --- | --- |
+| Same tool version, same hash, same authorization, same target version, unexpired | Revalidate and execute |
+| Arguments edited | Discard the old approval and preview the edited call |
+| Target version changed | Block, refresh state, and preview again |
+| Tool or policy version changed | Route through the current compatibility path or require a new decision |
+| Rejected, cancelled, or expired | Keep the call non-executable |
+| Serialized state cannot be trusted or parsed | Fail closed and ask for a new run |
+
+## Repair at the executor boundary
+
+You do not need to redesign the whole agent to fix this class of failure. Put the invariant at the boundary where a proposed call becomes a side effect.
+
+```text
+preview(call, context, target)
+  -> parse
+  -> schema check
+  -> semantic policy check
+  -> render exact effect
+  -> hash canonical contract
+  -> wait for decision
+
+execute(approvedCall)
+  -> load current context and target
+  -> recompute canonical contract
+  -> compare hash and expiry
+  -> rerun schema and semantic checks
+  -> execute or block with a reason
+```
+
+Keep the block reason visible: `approved_call_changed`, `target_state_drift`, `approval_expired`, or `semantic_policy_failure`. A generic “approval invalid” message makes the next repair harder and weakens the audit trail.
+
+## Verify the repair with the same fixture
+
+The repair is verified when every expected gate matches and no call executes without a passing final revalidation. Rerun the fixture after changing the executor, then check the summary in [the saved output](preview-gate-output.json):
+
+| Verification check | Required result |
+| --- | --- |
+| `calls` | 10 |
+| `expectedMatches` | 10 |
+| `allExpectedGatesMatched` | `true` |
+| `executed` and `blocked` | 2 and 8 in this dated fixture |
+
+The two executions are useful only as positive controls. They passed because the canonical hash, authorization context, schema, semantic policy, and target-state version still matched. The eight blocked cases verify that mutation, drift, malformed input, rejection, cancellation, expiry, or policy failure cannot cross the side-effect boundary. This fixture does not verify database isolation, concurrency, latency, or model behavior, so those require separate tests.
+
+If you are starting from a dry-run design, use [the parent guide on implementing dry-run AI actions](/blog/how-to-implement-dry-run-ai-actions). If your failures happen before approval, [validate AI agent inputs before a run](/blog/how-to-validate-ai-agent-inputs-before-a-run). This post covers the boundary between an approved action and a side effect against a possibly changed record.
+
+The same stale-state rule has established forms outside agent frameworks. HTTP `If-Match` lets a server require a matching entity tag before a state-changing request, and PostgreSQL documents how concurrent updates interact with transaction visibility. For a versioned record, make the version check part of the write condition, not only a preflight read. [HTTP Semantics](https://www.rfc-editor.org/rfc/rfc9110.html#name-if-match) and [PostgreSQL's transaction-isolation documentation](https://www.postgresql.org/docs/current/transaction-iso.html) provide the underlying patterns.
+
+The short rule is simple: approval authorizes one canonical call against one checked state. When the call or the state changes, stop. Preview again.
+
+## Primary sources
+
+- [OpenAI Agents SDK human-in-the-loop](https://openai.github.io/openai-agents-python/human_in_the_loop/)
+- [LangChain human-in-the-loop](https://docs.langchain.com/oss/python/langchain/human-in-the-loop)
+- [Microsoft Agent Framework tool approval](https://learn.microsoft.com/en-us/agent-framework/agents/tools/tool-approval)
+- [Model Context Protocol server tools](https://modelcontextprotocol.io/specification/draft/server/tools)
+- [Model Context Protocol elicitation](https://modelcontextprotocol.io/specification/draft/client/elicitation)
+- [HTTP Semantics: If-Match](https://www.rfc-editor.org/rfc/rfc9110.html#name-if-match)
+- [PostgreSQL transaction isolation](https://www.postgresql.org/docs/current/transaction-iso.html)
