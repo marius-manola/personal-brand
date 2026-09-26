@@ -1,0 +1,157 @@
+---
+title: "Why Does AI Fail When Systems Disagree?"
+date: "2026-09-27"
+updated: "2026-09-27"
+excerpt: "A three-case fixture shows why AI cannot safely choose between conflicting CRM, billing, and support records without authority and abstention rules."
+answer: "AI fails when systems disagree because a model can compare records but cannot infer which system owns the business truth. Give each field an explicit authority, check identity and freshness before generation, and abstain when identity is ambiguous or concurrent updates have no causal order. If records are complementary and the entity is unambiguous, merge the fields instead of abstaining."
+targetQuery: "why does AI fail when systems disagree"
+queryAliases:
+  - "why does ai fail when data sources conflict"
+  - "how should AI handle conflicting CRM billing and support records"
+  - "which system should an AI workflow trust when records disagree"
+intent: "diagnostic architecture"
+funnel: "architecture evaluation"
+cluster: "architecture"
+parent: "/blog/how-to-choose-ai-architecture-with-conflicting-records"
+contentType: "failure-clinic"
+kind: "satellite"
+sourceableAtom: "In a deterministic three-case fixture, duplicate identity abstains, a newer authoritative billing status defers the workflow, and same-timestamp competing updates abstain."
+evidenceType: "reproducible-failure-fixture-and-worked-decision-artifact"
+evidenceBasis: "Dependency-free JSON and Python validator run on 2026-08-24; three expected outputs matched and were saved as JSON and CSV tables."
+tags:
+  - "AI architecture"
+  - "data consistency"
+  - "RAG"
+  - "AI reliability"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://research.google/pubs/dragged-into-a-conflict-detecting-and-addressing-conflicting-sources-in-retrieval-augmented-llms/"
+  - "https://arxiv.org/abs/2506.08500"
+  - "https://aclanthology.org/2026.acl-long.11/"
+  - "https://docs.aws.amazon.com/entityresolution/latest/userguide/transitive-matching.html"
+  - "https://www.cs.cornell.edu/Projects/Quicksilver/public_pdfs/Data_Consistency_Challenges_in_AI_Systems_and_Machine_Learning_Services.pdf"
+faq:
+  - q: "Should the newest system always win when records disagree?"
+    a: "No. Use the newest value only when that source owns the field and its timestamp or version is trustworthy. Otherwise abstain and route the conflict to the field owner."
+  - q: "When should an AI workflow abstain on conflicting records?"
+    a: "Abstain when identity is ambiguous, authority is undefined, or competing updates have no reliable causal order. Continue only when the entity and field authority are explicit."
+cover: "/blog/why-does-ai-fail-when-systems-disagree-hero-conflict-authority-map.webp"
+coverAlt: "Illustration of CRM, billing, and support records converging on an authority and abstention decision"
+draft: false
+---
+
+An AI pilot can retrieve three records, quote all three, and still make the wrong call. The missing component is usually not a better prompt. It is a policy that says which system owns which field, and what the workflow must do when that policy cannot resolve the conflict.
+
+![Illustration of CRM, billing, and support records converging on an authority and abstention decision](/blog/why-does-ai-fail-when-systems-disagree-inline-three-conflict-cases.webp)
+
+## The failure is an authority problem, not a language problem
+
+AI fails when systems disagree because a language model can reconcile text without knowing which database has the right to decide. Retrieval gives it evidence. It does not give it ownership.
+
+That distinction matters in a customer workflow. CRM may describe the relationship, billing may determine entitlement, and support may describe the current incident. Those are different fields. “The newest record wins” is not a complete policy because the newest record can still come from the wrong owner.
+
+I saw a version of this while teaching product managers to move from writing specifications to building and shipping products. The hard question was often not whether the model could produce an answer. It was whether the team could define what done meant. Here, “done” means the workflow records an authority, a conflict class, an expected action, and an abstention rule.
+
+## What the three-case fixture actually does
+
+The fixture uses one synthetic customer, `alex@example.com`, represented in CRM, billing, and support. It does not call a model. It tests the decision boundary before an LLM is allowed to summarize or act.
+
+| Case | Conflict | Authority | Expected action | Validator output |
+| --- | --- | --- | --- | --- |
+| Duplicate identity | CRM contains two matching customer records. | None | Abstain and resolve identity. | `ABSTAIN: duplicate identity` |
+| Stale status | CRM says active, while newer billing data says entitlement past_due. | Billing for entitlement. | Defer to billing and request payment review. | `DEFER: billing says past_due` |
+| Simultaneous updates | CRM, billing, and support publish competing states at the same timestamp. | None | Abstain and route to the owner. | `ABSTAIN: simultaneous updates` |
+
+All three expected outputs matched in the executed run. That is the sourceable result on this page. It is a reproducibility claim about this fixture, not a production error rate or a claim about a particular model.
+
+## The smallest policy that makes the test meaningful
+
+The policy is deliberately plain:
+
+```json
+{
+  "entity_key": "email",
+  "authority_policy": {
+    "identity": "crm",
+    "entitlement_status": "billing",
+    "support_context": "support",
+    "tie_rule": "abstain_when_competing_updates_share_a_timestamp"
+  }
+}
+```
+
+This policy does two jobs. It names the authority for a field, and it says when the workflow must stop. Without both, a prompt such as “compare the systems and decide” asks the model to invent governance.
+
+The identity rule is strict: zero or multiple CRM matches means no write. The entitlement rule is scoped: billing wins only for entitlement status. The concurrency rule is conservative: equal timestamps plus competing versions mean no automatic decision.
+
+## How to reproduce the validator
+
+Save the policy above as `fixture.json`, save the three cases as `cases.json`, and run:
+
+```text
+python3 validator.py --fixture fixture.json --cases cases.json --output results.json
+```
+
+The validator first checks identity cardinality. It then checks whether competing updates share a timestamp. Otherwise it compares the billing entitlement timestamp with the CRM lifecycle timestamp and applies the field authority. It writes a JSON result set and a CSV result table with the selected authority, conflict class, expected action, abstention rule, validator output, and pass or fail result.
+
+The essential decision function is small enough to inspect:
+
+```python
+def validate(case, policy):
+    records = case["records"]
+    email = next(r["email"] for system in records.values() for r in system if "email" in r)
+    crm_matches = [r for r in records["crm"] if r.get("email") == email]
+    if len(crm_matches) != 1:
+        return "none", "duplicate_identity", "abstain_and_resolve_identity"
+    updates = [r["updated_at"] for system in records.values() for r in system]
+    if len(set(updates)) == 1:
+        return "none", "simultaneous_updates", "abstain_and_route_to_owner"
+    if records["billing"][0]["updated_at"] > crm_matches[0]["updated_at"]:
+        return policy["entitlement_status"], "stale_status", "defer_to_billing_and_request_payment_review"
+    return "none", "unclassified", "abstain_and_route_to_owner"
+```
+
+The reproducibility record for this post contains the complete input table, policy, validator logic, and observed result table. The executed validator also records human-readable output strings and verifies every case against its expected result.
+
+## How these failures relate to conflict research
+
+Google's CONFLICTS work is a useful warning against treating every disagreement as the same problem. Its taxonomy distinguishes complementary information, conflicting opinions or research outcomes, outdated information, and misinformation, and assigns different response behaviors to each category. Freshness should prioritize current information. Complementary information can be consolidated. Conflicting opinions should be represented neutrally. [Google Research describes the taxonomy and benchmark](https://research.google/pubs/dragged-into-a-conflict-detecting-and-addressing-conflicting-sources-in-retrieval-augmented-llms/), while the [paper's taxonomy details the expected behavior](https://arxiv.org/abs/2506.08500).
+
+The stale-status case is closest to their freshness category, but it adds an operational condition: billing wins because the policy assigns billing ownership of entitlement. “Newer wins” alone would be unsafe if CRM were the authoritative entitlement system.
+
+ConfRAG makes a related point about evaluation. Its benchmark contains 1,814 real-world questions paired with an average of 9.58 retrieved paragraphs, and 57.2% of its questions contain explicit contradictions. It evaluates answer clustering, answer coverage, and reason coverage over conflicting web references. [The ACL Anthology record reports those benchmark details](https://aclanthology.org/2026.acl-long.11/).
+
+That is not the same task as updating a customer record. ConfRAG asks whether a model can organize and explain contradictory evidence. This fixture asks whether an AI workflow has earned the right to proceed at all.
+
+## Why identity must be resolved before status
+
+The duplicate-identity case is not a prompt disagreement. It is an entity-resolution failure. AWS documents a similar multi-source risk: a waterfall matching approach can behave poorly when sources have different attributes, while combining all matching logic into one permissive rule can incorrectly group records that are not true matches. [AWS explains this failure mode in its Entity Resolution documentation](https://docs.aws.amazon.com/entityresolution/latest/userguide/transitive-matching.html).
+
+The repair is not to ask the model to choose the more plausible name. First make identity a deterministic prerequisite. Require one canonical match, a stable identifier, and a traceable merge or resolution event. If the match count is zero or greater than one, the workflow can prepare an investigation packet, but it should not update a customer, change entitlement, or send a customer-facing conclusion.
+
+## Why freshness and concurrency need different rules
+
+The stale-status case is about time and ownership. The simultaneous-updates case is about causality. Treating both as “use the latest text” hides the difference.
+
+Cornell's data-consistency discussion frames evolving AI state as a systems problem. It notes that consistency becomes harder when state changes over time, that staleness can be unsuitable when an AI needs correct and explicable behavior, and that time-indexed access can trade latency for temporal consistency and reproducibility. [The Cornell paper discusses those consistency obligations and trade-offs](https://www.cs.cornell.edu/Projects/Quicksilver/public_pdfs/Data_Consistency_Challenges_in_AI_Systems_and_Machine_Learning_Services.pdf).
+
+For a business workflow, the practical consequence is simple:
+
+1. Use a field-level authority map, not one global “source of truth.”
+2. Require an identity check before reading business state.
+3. Compare timestamps only within the field's authority policy.
+4. Require causal metadata or a version rule for concurrent updates.
+5. Return `abstain` with the conflicting records attached when the rule cannot choose.
+
+That boundary belongs before generation and before tool execution. An LLM can explain the conflict after the validator finds it. It should not be the component that silently resolves it.
+
+## The limits of this failure clinic
+
+This fixture is intentionally small. The records are synthetic, the identity key is only an email, and the test set contains three hand-designed cases. It does not measure how often these conflicts occur, how any model performs, or which authority policy your company should adopt.
+
+Production systems need stronger identity keys, merge history, event IDs, source-clock handling, sequence or causal metadata, deletion rules, access controls, and a named owner for each business field. Billing may own entitlement in one company and not in another. Support may own incident state without owning payment state.
+
+The useful part to carry forward is the shape of the artifact. Before a pilot can act on conflicting records, make its authority map and stop rules executable. If the team cannot fill those fields, the architecture decision is not ready.
+
+If you are choosing between retrieval, a workflow, or an agent for this kind of data, use this fixture as the small test before expanding the design. The broader architecture decision belongs in [How to Choose AI Architecture With Conflicting Records](/blog/how-to-choose-ai-architecture-with-conflicting-records). For the evidence-quality question that follows, see [How to Choose Evidence Quality When Source Data Conflicts](/blog/how-to-choose-evidence-quality-when-source-data-conflicts).
