@@ -1,0 +1,226 @@
+---
+title: 'What Evidence Should Engineering Teams Collect for Legacy API Migration?'
+date: '2026-09-26'
+updated: '2026-09-26'
+excerpt: 'A nine-case replay fixture shows why schema compatibility is not migration evidence, and what to preserve before a go or no-go decision.'
+answer: 'Collect a frozen legacy and target contract, representative and adversarial request fixtures, the pinned model and prompt configuration, the candidate adapter revision, deterministic contract and outcome graders, traces for failures, security and error checks, latency and cost measurements, human code-review findings, and a named owner’s decision. In the lab below, 9/9 structural checks passed but only 4/9 outcomes matched, so the migration was rejected and narrowed.'
+targetQuery: 'What evidence should engineering team collect to evaluate AI for legacy API migration?'
+queryAliases:
+  - 'evidence for AI legacy API migration'
+  - 'how to evaluate AI for legacy API migration'
+  - 'legacy API migration replay fixture'
+intent: 'implementation'
+funnel: 'consideration'
+cluster: 'evaluation'
+parent: '/blog/evaluation-ai-workflows'
+contentType: 'implementation-lab'
+kind: 'satellite'
+sourceableAtom: 'In a frozen nine-case legacy API fixture, the AI candidate passed 9/9 structural contract checks but only 4/9 semantic outcome checks and changed a legacy 403 into a 200, so the decision was reject broad migration and narrow the next slice.'
+evidenceType: 'reproducible test and worked decision artifact'
+evidenceBasis: 'A local fixture repository and compact appendix with OpenAPI 3.2.0 legacy and target contracts, nine replay cases, a pinned gpt-5.6-luna high-effort generation configuration, candidate adapter revision legacy-api-replay-2026-08-24-r1, deterministic graders, raw results, failure traces, human code-review findings, and a named-owner decision record.'
+tags:
+  - 'AI evaluation'
+  - 'Legacy systems'
+  - 'API migration'
+author: 'Marius Manolachi'
+nextReviewAt: '2026-11-22'
+sources:
+  - 'https://spec.openapis.org/oas/latest.html'
+  - 'https://docs.pact.io/getting_started/matching'
+  - 'https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents'
+  - 'https://developers.openai.com/api/docs/guides/evals'
+  - 'https://owasp.org/API-Security/editions/2023/en/0x11-t10/'
+faq:
+  - q: 'Is an OpenAPI diff enough to approve an AI migration?'
+    a: 'No. OpenAPI can describe request, response, and security shapes, but it does not prove undocumented business rules, legacy rounding, authorization scope behavior, timeout semantics, or equivalence of side effects. Replay the same fixtures against both paths and compare outcomes.'
+  - q: 'What should fail a legacy API migration evaluation immediately?'
+    a: 'Treat unauthorized success, data exposure, forbidden side effects, missing audit evidence, or an unbounded timeout or retry path as vetoes. A lower cost or higher structural pass rate cannot compensate for a security or business-rule regression.'
+  - q: 'How many cases should a first API migration fixture contain?'
+    a: 'Start with the smallest set that covers normal behavior, boundaries, malformed input, authentication and authorization, timeout behavior, and unknown or undocumented behavior. Expand it with every confirmed failure. The nine cases in this lab are a worked starting point, not a universal sample size.'
+cover: '/blog/what-evidence-engineering-teams-collect-ai-legacy-api-migration-legacy-api-migration-hero.webp'
+coverAlt: 'Illustration of a legacy API migration candidate passing a contract gate and failing an outcome gate'
+draft: false
+---
+
+I built a small replay fixture because an AI-generated adapter can look correct while changing the rule that matters. The fixture has two OpenAPI contracts, nine request cases, a pinned candidate adapter, deterministic graders, and a decision record.
+
+The result came first: every candidate response passed the structural contract. Only four of nine preserved the legacy outcome. One authorization case changed a legacy `403` into a candidate `200`.
+
+![Illustration of a legacy API migration evidence packet flowing from contracts to replay results](/blog/what-evidence-engineering-teams-collect-ai-legacy-api-migration-legacy-api-migration-packet.webp)
+
+## The minimum evidence packet
+
+Collect enough evidence to answer five different questions: can the candidate be called, does it preserve the result, does it preserve failure behavior, does it keep the same security boundary, and can an accountable owner explain the decision?
+
+| Packet item | What to freeze | Why it matters |
+| --- | --- | --- |
+| Legacy contract | OpenAPI description, observed examples, status classes, auth scheme | Establishes the interface you are actually replacing |
+| Target contract | New paths, fields, status classes, auth scheme, compatibility rules | Makes the proposed change reviewable |
+| Replay cases | Normal, boundary, malformed, authorization, timeout, unknown behavior | Exposes rules that a happy-path demo hides |
+| AI run | Model/version, prompt, configuration, tools, code revision | Defines which system produced the candidate |
+| Graders | Contract, outcome, error, security, human review definitions | Prevents one score from standing in for every question |
+| Preserved evidence | Raw results, traces, code-review findings, timing and cost | Lets another engineer reproduce and challenge the decision |
+| Decision record | Owner, go or hold rule, scope, exceptions, next repair | Turns test output into an engineering action |
+
+This is the sourceable artifact from the lab: a versioned fixture, a candidate adapter, replay results, a representative failure trace, and a bounded decision. It is more useful than a migration checklist because it records what the test actually showed.
+
+## Start with two contracts, not one schema
+
+Write the legacy and target contracts separately, then record the behavior that neither contract can express.
+
+[OpenAPI](https://spec.openapis.org/oas/latest.html) describes a language-agnostic HTTP interface and supports documentation, code generation, and testing. It also models security schemes. That makes it a good boundary for the fixture. It does not make the fixture complete. The specification calls out undefined and implementation-defined behavior, which is exactly where undocumented legacy rules can hide.
+
+The lab uses `POST /v1/quotes` as the legacy endpoint and `POST /api/quotes` as the target. Both accept a segment, a dollar amount in cents, a currency, and a priority. The auth schemes differ: an `X-API-Key` on the legacy path and a bearer token on the target path.
+
+The contract deliberately leaves two rules in the executable oracle:
+
+1. Retail tax is `ceil(subtotalCents * 0.2)`, so a one-cent request produces one cent of tax.
+2. Wholesale requests ignore `rush`, even when the request includes that value.
+
+Those rules belong in executable expected outcomes, not in a model's interpretation of field names. The contract also records `401`, `403`, and `504` responses so the adapter cannot quietly turn an authorization or availability failure into a success.
+
+Pact's matching guidance distinguishes exact matching from type matching and recommends strict request matching when the sender controls the data ([Pact matching guidance](https://docs.pact.io/getting_started/matching)). Use that distinction deliberately. Be strict about auth headers, status classes, enum values, and business-critical fields. Allow variation only where the target contract explicitly permits it.
+
+## Replay behavior, not just schema shape
+
+Replay the same input and authorization context through the legacy oracle and the candidate path. Grade the response shape first, then compare the observable outcome.
+
+The nine-case fixture covers the minimum first pass:
+
+| Case | Class | Contract | Outcome | Error behavior | Security |
+| --- | --- | --- | --- | --- | --- |
+| representative-retail | representative | pass | pass | pass | pass |
+| representative-wholesale | representative | pass | pass | pass | pass |
+| boundary-one-cent | boundary | pass | **fail** | pass | pass |
+| boundary-wholesale-rush | boundary | pass | **fail** | pass | pass |
+| malformed-missing-amount | malformed | pass | **fail** | pass | pass |
+| authorization-missing | authorization | pass | pass | pass | pass |
+| authorization-wholesale-scope | authorization | pass | **fail** | **fail** | **fail** |
+| timeout | timeout | pass | **fail** | **fail** | pass |
+| unknown-priority | unknown behavior | pass | pass | pass | pass |
+
+The result is not a percentage to average into a green dashboard. It is a failure map:
+
+- Contract compatibility: 9/9.
+- Semantic outcome parity: 4/9.
+- Error behavior parity: 7/9.
+- Security checks: 8/9.
+- Decision: reject a broad migration and narrow the next experiment to a repaired read-only retail slice.
+
+The local harness replay took 0.18 seconds in one run. That is a harness timing, not an API latency claim. Model-generation latency and token cost were not captured, so the lab makes no cost-saving claim.
+
+## The failure a contract grader missed
+
+The most useful failure is `boundary-wholesale-rush` because the candidate is structurally valid:
+
+```json
+{
+  "request": {
+    "segment": "wholesale",
+    "amount": {"value": 10000, "currency": "USD"},
+    "priority": "rush"
+  },
+  "legacy": {"status": 200, "totalCents": 10000, "expedited": false},
+  "candidate": {"status": 200, "total": 11500, "expedited": true},
+  "contract": "pass",
+  "outcome": "fail"
+}
+```
+
+The candidate applied the rush fee to every segment. The legacy service applied it only to retail. No JSON schema check can infer that rule from the word `priority`.
+
+The authorization failure is a veto. For `authorization-wholesale-scope`, the legacy path returned `403 wholesale_scope_required`. The candidate returned `200` with a valid quote. OWASP's API security risks include broken object-level authorization, broken authentication, unrestricted resource consumption, and broken function-level authorization, so authorization cases belong in the replay, not in a later security review ([OWASP API Security Top 10](https://owasp.org/API-Security/editions/2023/en/0x11-t10/)).
+
+![Illustration of a contract pass splitting into a semantic failure and an authorization veto](/blog/what-evidence-engineering-teams-collect-ai-legacy-api-migration-legacy-api-migration-failure-split.webp)
+
+## Grade in layers, then review the generated code
+
+Use deterministic graders first. Add human review where the test cannot decide business-rule equivalence.
+
+Anthropic's evaluation guidance separates code-based, model-based, and human graders. Code-based checks are fast, cheap, objective, and reproducible, but can be brittle. Model graders handle nuance but need calibration. Human graders are slower and more expensive, but they are the right backstop for disputed or high-impact judgment ([Anthropic's eval guidance](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)).
+
+For this fixture:
+
+1. **Contract grader:** is the target response parseable and inside the declared status and body shape?
+2. **Outcome grader:** do subtotal, tax, total, currency, and expedited state match the legacy oracle?
+3. **Error grader:** does a missing key remain unauthorized, does a missing wholesale scope remain forbidden, and does a timeout remain a timeout?
+4. **Security grader:** do outputs avoid test secrets, and do authorization cases preserve their status boundary?
+5. **Human code review:** inspect rounding, authorization branches, timeout mapping, secret handling, and assumptions not represented in the schema.
+
+OpenAI's eval guidance describes a similar loop: describe the task, run it with test inputs, then analyze the results. It treats the test-data schema and testing criteria as core ingredients ([OpenAI's eval guidance](https://developers.openai.com/api/docs/guides/evals)). Freeze those ingredients before looking at the score. Otherwise the team can quietly move the goalposts after seeing a plausible diff.
+
+The generated-code review found four concrete defects:
+
+- `Math.round` changed the one-cent retail result where the legacy oracle uses `Math.ceil`.
+- The rush fee was applied to wholesale requests.
+- The candidate omitted the wholesale scope check and turned `403` into `200`.
+- A legacy `504 upstream_timeout` became a candidate `500 internal_error`.
+
+The review also found a compatibility question, not necessarily a defect: legacy errors use an `error` field while candidate errors use `code`. Decide whether error equivalence means status only, a mapped error class, or exact consumer-visible fields. Record that rule before the next replay.
+
+When I taught product managers to move from writing specs to building and shipping, the recurring failure was usually an undefined “done,” not the model. The same lesson applies here. “The response validates” is not done. “The old service and candidate preserve the approved business outcome and security boundary for this case set” is closer.
+
+## Turn the result into a bounded decision
+
+Use vetoes for security and authority, thresholds for quality and operations, and scope reduction when the evidence is incomplete.
+
+| Condition | Decision |
+| --- | --- |
+| Candidate is structurally invalid | Hold and repair the contract or adapter |
+| Any unauthorized success, forbidden side effect, data exposure, or missing audit evidence | Reject the tested scope |
+| Any known business-rule mismatch | Hold broad migration; repair or narrow the scope |
+| Error or timeout semantics differ without an approved mapping | Hold |
+| Contract, outcome, error, and security checks pass, with code review signed | Consider a read-only or shadow release |
+| Latency or cost is not measured | Do not claim efficiency; collect the missing measurement before an economic decision |
+| Legacy behavior is unknown and no owner can define acceptance | Reject or investigate; do not infer equivalence from the model output |
+
+The worked decision for this fixture is:
+
+> **Owner:** Marius Manolachi for the public fixture. A production team must name its accountable service owner.
+>
+> **Decision:** Reject broad migration. Repair rounding, rush scoping, authorization, timeout mapping, and error equivalence. Rerun the same nine cases, then consider only a read-only retail slice if every veto and outcome check passes.
+>
+> **Known:** structural compatibility passed; semantic and error parity did not; a 403-to-200 authorization regression exists.
+>
+> **Unknown:** production failure rate, undocumented legacy behavior outside the fixture, model generalization, load latency, migration cost savings, and write-side-effect safety.
+
+That distinction is the point of the packet. The replay can establish what happened in the frozen cases. It cannot establish that the legacy system has no other behavior.
+
+## What to publish with the decision
+
+Keep the fixture close to the code and make the run reproducible. The compact appendix used for this lab freezes the following configuration:
+
+```yaml
+fixture_revision: legacy-api-replay-2026-08-24-r1
+model: gpt-5.6-luna
+generation_config: high-effort, no external tools
+prompt: >
+  Propose a thin adapter from the legacy quote API to the target quote API.
+  Preserve status classes, authorization behavior, rounding, business rules,
+  and timeout semantics. Return only adapter code and a short mapping note.
+run: node _fixture/replay.js > _fixture/results.json
+graders: [contract, outcome, error, security, human_code_review]
+owner: named engineering owner required before production go/no-go
+```
+
+Publish or attach:
+
+1. The legacy and target contracts.
+2. The case manifest and setup data.
+3. The exact model, prompt, configuration, and candidate code revision.
+4. The grader definitions and thresholds.
+5. The raw result table and representative failure traces.
+6. The code-review findings, timing and cost measurements, and limitations.
+7. The signed decision record with the next permitted scope.
+
+Do not hide the rejected result. A narrow-scope or hold decision is useful evidence when it names the observed failure and the missing evidence required to continue.
+
+## What this test cannot prove
+
+This fixture is intentionally small. It has one legacy oracle, one candidate adapter, nine cases, one pinned generation run, and no live traffic. It does not estimate a production failure rate. It does not show that the model generalizes to undocumented endpoints, concurrent load, data migrations, or write-side effects. Its one local timing does not measure service latency, and its missing token-cost record prevents an economic conclusion.
+
+If the legacy behavior is not known well enough to write an outcome oracle, that is itself a result. Mark the case as unknown, assign an owner to investigate it, and narrow the migration boundary. Do not label the candidate equivalent because both paths return valid JSON.
+
+For the broader release gate, see [How to Evaluate an AI Agent](/blog/how-to-evaluate-an-ai-agent). For the parent evaluation cluster, use [AI workflow evaluation](/blog/evaluation-ai-workflows). If the first failures come from user correction rather than API behavior, compare them with [Why AI Evals Pass While Users Still Fail](/blog/why-do-ai-evals-pass-while-users-still-fail).
+
+The practical next step is small: freeze the packet, run the replay, preserve the first failure, and ask the named owner to sign the scope the evidence actually supports.
