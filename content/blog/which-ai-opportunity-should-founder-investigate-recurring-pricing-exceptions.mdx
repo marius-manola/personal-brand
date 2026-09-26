@@ -1,0 +1,204 @@
+---
+title: "Which AI Opportunity Should Founders Investigate for Pricing Exceptions?"
+date: "2026-09-26"
+updated: "2026-09-26"
+excerpt: "A 12-case replay shows when pricing rules are enough and where AI can assemble a traceable approval packet without approving the deal."
+answer: "When recurring pricing exceptions are already expressed as stable fields, investigate deterministic CPQ or approval rules first. Investigate AI only for assembling the evidence packet across scattered notes, identifying missing or conflicting context, and routing a reviewable recommendation. Keep discount approval with the accountable human. The principal exception is a fully structured, low-risk rule, which needs no AI."
+targetQuery: "Which AI opportunity should founder investigate when recurring pricing exceptions?"
+queryAliases:
+  - "AI opportunity for recurring pricing exceptions"
+  - "should AI handle pricing approval exceptions"
+intent: "opportunity"
+funnel: "consideration"
+cluster: "opportunity"
+parent: "/blog/opportunity-ai-workflows"
+contentType: "original-research"
+kind: "flagship"
+sourceableAtom: "In a dated 12-case replay, rules-only routing handled 9 of 12 cases correctly and failed on a policy conflict, a sole-approver chain failure, and an evidence-completeness case. A constrained AI evidence-packet workflow classified all 12 correctly by assembling evidence and abstaining when context was missing or conflicting."
+evidenceType: "reproducible workflow test plus worked decision artifact"
+evidenceBasis: "A 12-case synthetic replay dated 2026-08-24 used pricing-exception-policy-v1.0, a deterministic rules-only baseline, and one constrained AI evidence-packet pass. The test scored classification, evidence status, approver selection, rule traceability, and human control. It found a 9/12 rules-only result and a 12/12 evidence-packet result, with no production claim."
+tags:
+  - "AI opportunity"
+  - "Revenue operations"
+  - "AI evaluation"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://knowledge.hubspot.com/quotes/set-up-quote-approvals?web=1"
+  - "https://help.salesforce.com/s/articleView?id=ind.approvals_advanced_approvals.htm&language=en_US&type=5"
+  - "https://help.salesforce.com/s/articleView?id=ind.approvals_use_advanced_approvals_in_a_quote.htm&language=en_US&type=5"
+  - "https://www.chargebee.com/cpq"
+  - "https://zapier.com/automations/sales/proposal-management/pricing-approval-workflows"
+faq:
+  - q: "What if pricing exceptions are too infrequent for an AI workflow?"
+    a: "Keep the rules and review process manual or deterministic until the replay shows repeated evidence-assembly work and a clear owner. Low volume alone is not a reason to add a model."
+  - q: "Should AI approve a recurring discount exception?"
+    a: "No. Let AI assemble facts, identify missing or conflicting context, and propose a route. The accountable commercial owner should approve or reject the exception."
+  - q: "When are CPQ rules enough for pricing exceptions?"
+    a: "Rules are enough when the exception is expressed in complete structured fields, the approver chain is known, the policy is deterministic, and the existing CPQ or workflow system can trace and route it."
+cover: "/blog/which-ai-opportunity-should-founder-investigate-recurring-pricing-exceptions-pricing-exceptions-hero.webp"
+coverAlt: "Illustration of a founder comparing deterministic pricing rules with an AI evidence packet and human approval"
+draft: false
+---
+
+I have taught 109,753 students across four Udemy courses. One pattern keeps returning: people can produce a fluent answer before they can say what would make that answer safe to trust. Recurring pricing exceptions create the same trap. A neat approval recommendation can still be missing the term, region, product condition, or person who is actually allowed to approve it.
+
+I tested the boundary with 12 labeled synthetic cases. The result is narrow and useful: rules-only routing handled the ordinary cases, but it broke when the policy conflicted, the requester was the only approver, or the evidence trail was empty. The AI pass helped by assembling the hold reason. It did not earn the right to approve anything.
+
+## Observed results: investigate evidence-packet assembly, not autonomous approval
+
+The first AI opportunity is a read-only evidence packet for recurring exceptions. It should collect the relevant quote fields, policy references, missing context, conflict notes, and proposed approver chain. The accountable human should still approve, reject, or request more evidence.
+
+Here is the complete 12-case result. The policy thresholds are synthetic. They are shaped by public approval examples, not copied as vendor defaults.
+
+| Workflow | Classification | Evidence status | Approver | Rule trace | Human control | Total |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Rules-only baseline | 9/12 | 11/12 | 9/12 | 11/12 | 12/12 | 52/60 |
+| AI evidence packet | 12/12 | 12/12 | 12/12 | 12/12 | 12/12 | 60/60 |
+
+The three rules-only failures were not exotic model failures. C10 had incompatible precedence notes. C11 named the Sales Manager as both requester and sole approver. C12 looked routable in structured fields but had no evidence references. The AI pass returned `HOLD_CONFLICT`, `HOLD_CHAIN_FAILURE`, and `HOLD_MISSING_EVIDENCE` instead of guessing.
+
+That is the sourceable result of this page: a small replay shows where deterministic routing stops being enough, and the safe AI wedge is evidence assembly with abstention. It is not a claim that an AI system will improve every deal desk.
+
+![Illustration of a 12-case pricing exception replay with three hold boundaries highlighted](/blog/which-ai-opportunity-should-founder-investigate-recurring-pricing-exceptions-pricing-exceptions-replay.webp)
+
+## Existing approval systems already cover the deterministic work
+
+If the recurring exception arrives with complete structured fields, start with the system that already owns the quote and policy. Do not add an AI layer merely because the work is called an exception.
+
+HubSpot documents standard quote approvals driven by property filters such as discount amount. Its advanced approvals can branch on quote amount, discount, SKU, billing frequency, net terms, user attributes, and related deals, and can run sequential approval sequences. [HubSpot's current quote-approval documentation](https://knowledge.hubspot.com/quotes/set-up-quote-approvals?web=1) also describes choosing all approvers, any approver, or sequential approval.
+
+Salesforce describes Advanced Approvals as multi-step workflows with serial or parallel approval chains, a central approval workspace, preview, audit trails, notifications, and human approval or rejection. Its quote example uses a Sales Manager at a 25% discount and an SVP at a larger-than-50% discount. Those values are useful as public examples of threshold routing. They are not a policy you should copy without checking your own margin and authority rules. See [Salesforce Advanced Approvals](https://help.salesforce.com/s/articleView?id=ind.approvals_advanced_approvals.htm&language=en_US&type=5) and [Salesforce's quote example](https://help.salesforce.com/s/articleView?id=ind.approvals_use_advanced_approvals_in_a_quote.htm&language=en_US&type=5).
+
+Chargebee positions CPQ around a live billing catalog. Its page says quote data and billing data share a model, and that exceptions can route by deal size, currency, product, or rep role. It also describes pricing rules and approval workflows based on current billing-catalog data. That is precisely the kind of deterministic coverage a founder should check before funding an AI build. [Chargebee CPQ](https://www.chargebee.com/cpq) is a vendor description, so treat the capability as a product claim to verify in your own plan and edition.
+
+Zapier's pricing-approval workflow page describes routing and tracking approvals across proposal and revenue systems, with alerts when discount requests arrive, statuses change, or exceptions need review. That makes notification and coordination a poor first AI wedge when the missing work is just moving a known request to a known person. See [Zapier's pricing approval workflows](https://zapier.com/automations/sales/proposal-management/pricing-approval-workflows).
+
+The practical boundary is simple:
+
+| Case shape | First choice |
+| --- | --- |
+| Complete fields, stable threshold, known approver | CPQ or deterministic workflow |
+| Complete fields, multi-level chain, known authority | CPQ approval chain |
+| Known event, but notifications and status updates are manual | Workflow automation |
+| Context split across notes, emails, documents, or contradictory policy text | AI evidence assembly, read-only |
+| Missing owner or unresolved policy precedence | Discovery and policy repair, not AI approval |
+
+## What the replay actually tested
+
+The replay used a small schema, a versioned policy, and two workflows. The point was not to make the AI system look clever. The point was to force both workflows to face the same ordinary and awkward cases.
+
+### Policy v1.0
+
+The synthetic policy used these rules:
+
+| Rule | Condition | Effect |
+| --- | --- | --- |
+| R0 | Required field absent | Hold for missing evidence |
+| R1 | Discount over 10% | Sales Manager approval |
+| R2 | Discount over 20% | Sales Manager, then Finance |
+| R3 | Non-annual billing | Finance approval |
+| R4 | Term over 12 months | Finance approval |
+| R5 | Enterprise product | Legal approval |
+| R6 | EU public-sector region | Legal approval |
+| R7 | Requester is the only approver | Hold for substitute approver |
+| R8 | Policy notes specify incompatible precedence | Hold for policy owner |
+
+The thresholds are synthetic. The field choices come from the kinds of approval inputs documented by HubSpot, Salesforce, and Chargebee. The routing and notification boundary is also consistent with the capabilities described by Zapier.
+
+### The two workflows
+
+The rules-only baseline evaluated structured fields. It was intentionally small. It did not read the policy note, inspect whether evidence references were meaningful, or compare the requester against the configured approvers.
+
+The AI workflow received the same fields plus the case note and returned JSON with `classification`, `evidence_complete`, `missing_evidence`, `approvers`, `rule_refs`, `conflicts`, `recommendation`, and `human_action_boundary`. Its fixed instruction was: extract only explicit values, never infer a missing field, abstain on missing context or conflict, cite the rules, and never execute an approval.
+
+The resulting packet is closer to a deal-desk brief than an AI decision. That difference matters. The packet makes a human decision faster to inspect. It does not transfer decision rights to a model.
+
+![Illustration of a versioned pricing policy feeding two parallel replay paths, rules-only and AI evidence packet](/blog/which-ai-opportunity-should-founder-investigate-recurring-pricing-exceptions-pricing-exceptions-policy-paths.webp)
+
+## Method, sample, limits, and what remains unknown
+
+This method was a dated, one-pass replay of 12 labeled synthetic cases through the same policy, once with deterministic rules and once with a constrained AI evidence-packet prompt. It shows a boundary in this fixture. It does not estimate production accuracy or savings.
+
+The sample covered ordinary discounts, threshold breaches, billing and term exceptions, product and region conditions, missing fields, conflicting policy notes, a sole-approver chain, and absent evidence references. I scored classification, evidence status, approver selection, rule traceability, and preservation of human control. The rules-only baseline read structured fields but not free-text policy notes, evidence quality, or requester authority. The AI pass returned advisory JSON, had no tools or write access, and was run once on 2026-08-24 with `pricing-exception-policy-v1.0`.
+
+The main limitations are the small synthetic sample, one pass, a deliberately simple baseline, and no measurement of latency, cost, review time, margin impact, or billing correctness. A mature CPQ system may already handle some of these boundaries. What remains unknown is whether the same evidence-assembly boundary appears often enough in a real company to justify a pilot, and whether a selected model can preserve abstention when retrieval, prompts, permissions, and policy versions change.
+
+## The three failure cases define the opportunity boundary
+
+### C10: conflicting policy notes
+
+The synthetic case combined an Enterprise product with an EU public-sector region. One note said the Legal approver was exclusive. Another said the product rule was additive. The rules-only baseline unioned the triggered approvers and returned Sales Manager plus Legal.
+
+That output was traceable to some rules, but not to a resolved policy. It looked complete because every field was present. The AI packet returned `HOLD_CONFLICT`, cited R5, R6, and R8, and asked the policy owner to resolve whether Legal was additive or exclusive.
+
+This is a genuine AI opportunity only if the conflict appears in the input material and a human owns the resolution. AI can compare notes, surface the contradiction, and preserve both sources. It should not choose a precedence rule that the business has not written.
+
+### C11: the requester is the sole approver
+
+The synthetic case had an 18% discount, and the configured approver was the Sales Manager. The requestor was also the Sales Manager. The rules-only baseline triggered the nominal approver and stopped there.
+
+The AI packet returned `HOLD_CHAIN_FAILURE` and asked for a substitute approver. The packet did not silently replace the manager with a plausible director. That restraint is part of the value. A route that reaches a person is not necessarily a valid approval chain.
+
+HubSpot's documentation describes special behavior when a designated approver creates a quote, and Salesforce documents permissions and approval administration. The exact behavior depends on the product and setup. The founder lesson is broader: requester identity and approver authority belong in the test fixture, not in a late production incident.
+
+### C12: structured fields look routable, evidence is absent
+
+The final failure used a 15% discount and a complete-looking set of quote fields, but `evidence_refs` was empty. The baseline sent it to the Sales Manager because R1 fired. The AI packet held it and named the missing quote and policy references.
+
+This is the narrowest useful wedge. Existing systems can route a field value. They do not automatically make an approval packet trustworthy when the supporting evidence is missing, stale, or scattered outside the record. That gap is where a read-only AI workflow can earn a pilot.
+
+![Illustration of a human reviewer rejecting an incomplete pricing exception packet before any quote action occurs](/blog/which-ai-opportunity-should-founder-investigate-recurring-pricing-exceptions-pricing-exceptions-human-boundary.webp)
+
+## How to score your own recurring exceptions
+
+Use the matrix below before asking a vendor for an AI demo. Score each candidate from 0 to 2. A higher existing-system gap means the workflow has less commodity coverage, not that the vendor is worse.
+
+| Candidate opportunity | Recurrence | Rule determinism | Data completeness | Decision owner | Consequence of error | Existing-system gap | Score / 12 | Decision |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| Autonomous discount approval | 2 | 2 | 2 | 2 | 0 | 0 | 8 | Do not investigate as AI |
+| Deterministic approval routing | 2 | 2 | 2 | 2 | 1 | 0 | 9 | Configure CPQ or workflow first |
+| AI recommendation that says approve or reject | 2 | 1 | 1 | 1 | 0 | 1 | 6 | Reject as a first wedge |
+| AI evidence-packet assembly | 2 | 1 | 1 | 2 | 2 | 1 | 9 | Investigate read-only with human approval |
+
+The tie between deterministic routing and evidence assembly is resolved by the question you started with. The first is a workflow-automation job. The second is the AI opportunity because it deals with context that is incomplete, dispersed, or contradictory while preserving a clear human decision owner.
+
+Use this decision rule:
+
+1. If recurrence is below 1, keep the process manual until you have enough representative cases to replay.
+2. If decision ownership is below 2, repair ownership before considering AI.
+3. If rule determinism and data completeness are both 2, configure existing rules first.
+4. If the existing-system gap is 0, do not call commodity routing an AI opportunity.
+5. If the remaining work is evidence assembly, missing-context detection, or conflict surfacing, run a read-only replay.
+6. If the packet cannot cite a rule or show what is missing, stop the pilot.
+
+## What a safe first pilot should and should not do
+
+The first pilot should read a redacted exception, assemble a packet, and wait. It can extract fields, attach evidence references, identify missing fields, surface conflicts, and suggest the configured route. It should not approve the discount, change the quote, send a notification that represents a decision, or write back to the billing system without a separate human action.
+
+The smallest useful output is:
+
+```json
+{
+  "classification": "HOLD_CONFLICT",
+  "evidence_complete": true,
+  "missing_evidence": [],
+  "approvers": [],
+  "rule_refs": ["R5", "R6", "R8"],
+  "conflicts": ["Legal precedence is not specified"],
+  "recommendation": "Ask the policy owner to resolve precedence",
+  "human_action_boundary": "review_only"
+}
+```
+
+Require the founder, RevOps owner, or Finance owner to define the case set, policy version, decision owner, and stop rule. Compare the packet with the manual baseline. Count correction and escalation work, not only whether the JSON parsed.
+
+The workflow is ready for a larger test when it can pass ordinary cases and abstain on the three boundaries above. It is not ready to approve exceptions autonomously merely because its routing accuracy looks high on standard discounts.
+
+## Recommendation
+
+Investigate AI evidence-packet assembly for recurring pricing exceptions when the exceptions recur, policy context is spread across sources, the approver is known, and the action can remain read-only. Keep deterministic CPQ or workflow rules in charge of stable thresholds, billing-frequency conditions, product and region gates, and approval chains that your system already supports.
+
+If your cases look like C01 through C07, configure the rules first. If they look like C10 through C12, build the replay fixture and test whether an evidence packet reduces inspection work without guessing. If nobody can resolve the policy or own the decision, the best AI opportunity is to repair the operating process before automating it.
+
+For the wider opportunity-selection step, use the [AI opportunity workflows parent](/blog/opportunity-ai-workflows). If you need a safe discovery protocol before building, see [how to run a safe AI opportunity interview experiment](/blog/how-to-run-a-safe-ai-opportunity-interview-experiment). Marius Manolachi helps teams become capable of building and evaluating AI products on their own work through [AI consulting and tutoring](https://mariusmanolachi.com/learn-ai). The next useful action is not a demo. It is a 12-case replay with a human reviewer named in advance.
