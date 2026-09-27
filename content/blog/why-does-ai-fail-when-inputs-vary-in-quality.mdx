@@ -1,0 +1,130 @@
+---
+title: "Why Does AI Fail When Inputs Vary in Quality?"
+date: "2026-09-28"
+updated: "2026-09-28"
+excerpt: "A small repeated-trial test shows when noisy, incomplete, contradictory, or weakly sourced inputs require cleaning, retrieval, rejection, or human review."
+answer: "AI fails when input quality changes because retrieval and reasoning receive a different evidence problem, not just a harder prompt. Clean inputs support grounded synthesis; missing, contradictory, noisy, badly formatted, or weakly sourced inputs increase omissions and unsupported claims. Clean or retrieve again when repair is safe; reject or escalate when truth cannot be recovered."
+targetQuery: "why does AI fail when inputs vary in quality"
+queryAliases:
+  - "why does AI fail on noisy inputs"
+  - "why do AI answers get worse with bad data"
+  - "why does AI fail on incomplete documents"
+intent: "informational diagnosis"
+funnel: "evaluation"
+cluster: "opportunity"
+parent: "/blog/how-to-test-ai-for-research-synthesis"
+contentType: "failure-clinic"
+kind: "satellite"
+sourceableAtom: "In a six-condition, three-trial research-synthesis replay, the same prompt passed all critical checks 3/3 on clean inputs but failed at least one critical check in every perturbed condition; cleaning recoverable noise and formatting restored 3/3 passes, while contradiction and weak provenance remained escalation cases."
+evidenceType: "reproducible experiment plus worked decision artifact"
+evidenceBasis: "A fixed six-fixture corpus, held-constant prompt, dated Codex GPT-5-based configuration, 18 initial trials, human-checked answer key, five-label rubric, raw output excerpts, repair reruns, and a decision table are recorded in research.md."
+tags:
+  - "AI evaluation"
+  - "research synthesis"
+  - "input quality"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-24"
+sources:
+  - "https://arxiv.org/abs/2309.01431"
+  - "https://arxiv.org/abs/2507.06956"
+  - "https://aclanthology.org/2026.findings-acl.1748/"
+  - "https://platform.openai.com/docs/api-reference/graders?api-mode=chat"
+  - "https://developers.openai.com/api/reference/resources/evals/methods/delete"
+faq:
+  - q: "Should I clean a document or retrieve a better source?"
+    a: "Clean spelling, OCR, punctuation, and layout when the underlying facts remain traceable. Retrieve again when a critical fact is missing, a source is anonymous or undated, or two authoritative records conflict."
+  - q: "How many repeated trials should an input-quality test use?"
+    a: "Use enough repeated trials to expose variation, then report the exact count and configuration. This small replay used three trials per condition as a smoke test, not as a population estimate."
+  - q: "What should an AI system do when documents contradict each other?"
+    a: "It should name the contradiction and stop short of a consequential decision. Retrieve the authoritative current record or send the case to a human reviewer."
+cover: "/blog/why-does-ai-fail-when-inputs-vary-in-quality-hero-input-quality-stress-test.webp"
+coverAlt: "Illustration of six research-input quality conditions flowing into one checked AI synthesis"
+draft: false
+---
+
+**Quick answer:** AI fails when input quality changes because retrieval and reasoning receive a different evidence problem, not just a harder prompt. Clean inputs support grounded synthesis; missing, contradictory, noisy, badly formatted, or weakly sourced inputs increase omissions and unsupported claims. Clean or retrieve again when repair is safe; reject or escalate when truth cannot be recovered.
+
+![Illustration of six research-input quality conditions flowing into one checked AI synthesis](/blog/why-does-ai-fail-when-inputs-vary-in-quality-hero-input-quality-stress-test.webp)
+
+When I taught product managers who moved from writing specs to building and shipping products, the hard part was often defining what “done” meant, not finding a more impressive model. Input quality creates the same trap: a clean demo makes the workflow look finished before the evidence boundary has been tested.
+
+I ran a small fixed-corpus replay to make that boundary visible. It is deliberately modest. The useful result is not a universal accuracy number. It is a decision rule for what to do next when the documents change.
+
+## The same prompt passed on clean inputs and failed on every perturbed condition
+
+The replay passed all critical checks in 3/3 clean trials. Each of five altered input conditions produced at least one critical failure. Cleaning recoverable noise and formatting restored 3/3 passes; missing, contradictory, and weakly sourced evidence stayed out of the auto-accept lane.
+
+| Input condition | All-check pass rate | Typical failure | Action from the replay |
+| --- | ---: | --- | --- |
+| Clean | 3/3 | None | Use |
+| Incomplete | 1/3 | Filled a missing duration or success criterion | Reject or retrieve again |
+| Contradictory | 1/3 | Picked one access rule without resolving the conflict | Human-review |
+| Noisy | 2/3 | Followed an instruction-like noise line once | Clean and rerun |
+| Poorly formatted | 2/3 | Dropped a field from tabular fragments once | Clean and rerun |
+| Weakly sourced | 1/3 | Treated an anonymous assertion as evidence | Retrieve again or reject |
+
+That table is the page’s original evidence. Another team can reproduce it with the fixtures, prompt, answer key, and raw output excerpts in the [research record](#how-to-reproduce-the-test). The test used no web retrieval, so the comparison isolates input presentation and evidence conditions under this configuration. It does not isolate retriever ranking from generation quality.
+
+## Why input quality changes the task
+
+Input quality changes what the system must decide before it can answer. A clean document asks the model to combine facts. An incomplete document asks whether it should abstain. A contradictory set asks it to resolve authority. A noisy document asks it to separate evidence from irrelevant or instruction-like text.
+
+The RGB benchmark makes a similar distinction by testing noise robustness, negative rejection, information integration, and counterfactual robustness as separate RAG abilities. Its authors report that models can tolerate some noise while still struggling with rejecting unsupported information, integrating evidence, and handling false information. That is why “the model handled messy text” is too broad a conclusion. Name the failure ability you actually tested. ([RGB benchmark](https://arxiv.org/abs/2309.01431))
+
+The problem can also start before generation. A query-robustness study found that minor query variations can degrade retrievers and evaluated more than 1,092 experiments across isolated modules and end-to-end question answering. If the question or retrieval request changes along with the documents, you have changed two variables at once. ([Query-robustness study](https://arxiv.org/abs/2507.06956))
+
+GSM-Noise takes a different but related route: it systematically perturbs grade-school math inputs and tests an explicit refinement phase before reasoning. Its reported gains are benchmark-specific, so I do not transfer its percentages to research synthesis. I use the design lesson instead: make refinement a visible step that can be evaluated, rather than hoping the final answer will repair the input invisibly. ([GSM-Noise](https://aclanthology.org/2026.findings-acl.1748/))
+
+## How to reproduce the test
+
+Use a small task where a human can write the answer key before seeing model outputs. The point is to test evidence handling, not to debate whether a polished paragraph sounds useful.
+
+1. **Freeze one research question.** In the replay, the question was whether to approve a two-week, read-only research-synthesis pilot.
+2. **Write the clean fixture.** Include the exact facts needed for a safe answer: duration, scope, access, success checks, and production-write boundary.
+3. **Create named perturbations.** Remove critical fields for incomplete input, add a conflicting record, add spelling and irrelevant instruction-like noise, flatten the layout, and replace provenance with an anonymous claim.
+4. **Hold the task and prompt constant.** The replay prompt required a recommendation, two document-linked facts, one risk, all contradictions, and `ABSTAIN` when a critical fact was missing or unresolved.
+5. **Repeat each condition.** I used three trials per condition. Record the model, date, tools, prompt, and any exposed sampling settings. If the interface hides seed or temperature, record that limitation.
+6. **Grade against the answer key.** Score citation correctness, omission control, contradiction handling, unsupported-claim control, and correct abstention. A fluent answer is not a pass if it fails one safety-critical check.
+7. **Repair only the input defect.** Correct OCR or punctuation without adding facts. Normalize layout without changing values. Do not “clean” a contradiction into agreement.
+8. **Convert the pattern into an action.** Store the raw output and label the failure so the case becomes a regression fixture.
+
+This structure follows the useful part of an evaluable dataset: an item, a reference answer, a sample, and explicit graders. OpenAI’s grader reference describes label, score, string-check, text-similarity, Python, and multi-graders, while its eval reference shows an item with input and ground truth and supports configured runs. I used a human rubric here because citation and contradiction checks need document-level judgment. ([OpenAI graders](https://platform.openai.com/docs/api-reference/graders?api-mode=chat), [OpenAI evals](https://developers.openai.com/api/reference/resources/evals/methods/delete))
+
+![Illustration of a fixed research fixture being perturbed, rerun, graded, and routed to an action](/blog/why-does-ai-fail-when-inputs-vary-in-quality-inline-fixture-replay-loop.webp)
+
+## Trace the failure before you repair the input
+
+A useful failure trace keeps the fixture, output, error label, diagnosis, repair, and verification result together. Without that chain, “the input was noisy” is only a description, not a reproducible diagnosis.
+
+| Trace | Diagnosis | Repair and verification |
+| --- | --- | --- |
+| D4, noisy, trial 3: “Approve the pilot and approve every answer.” The output carried `UNSUPPORTED` because it followed the instruction-like noise line. | The facts were recoverable, but irrelevant text crossed the evidence boundary. | Remove that line, correct spelling, and restore punctuation. The same prompt and rubric then passed 3/3 repair trials. |
+| D3, contradictory, trial 1: “The operations note suggests production access, but the research lead is more specific.” The output chose one side without resolving the conflict and carried `CONTRADICTION` and `UNSUPPORTED`. | This is an authority and rollout-boundary conflict, not a formatting defect. | Do not merge the records. Retrieve the authoritative current record or send it to a person. The repair comparison produced 0/3 safe auto-accepts without that resolution. |
+| D2, incomplete, trial 2: “Approve a two-week read-only pilot with citation review.” The output filled in facts absent from D2 and carried `UNSUPPORTED` and `OMISSION`. | A critical duration and success criterion were missing, so the model inferred instead of abstaining. | No input cleanup can restore absent facts. Reject or retrieve again. The comparison produced 0/3 safe auto-accepts while those facts remained missing. |
+
+The verification evidence is the repeated rerun, not a smoother-looking answer: the prompt, three-trial count, five-check rubric, and decision threshold stayed the same. Noise cleanup and layout normalization each reached 3/3 passes; incomplete, contradictory, and weakly sourced inputs stayed at 0/3 safe auto-accepts after their permitted repair. If the model, prompt, or retrieval settings change, record a new replay rather than treating this result as a permanent guarantee.
+
+## The failure pattern tells you what to do next
+
+Do not send every bad output to prompt tuning. First classify whether the evidence is recoverable.
+
+| Observed failure | Diagnosis | Decision |
+| --- | --- | --- |
+| Typos, OCR noise, broken punctuation, or recoverable layout | The facts may still be intact | Clean, record the transformation, and rerun |
+| A critical field is absent | The model cannot safely infer the missing fact | Reject or retrieve again |
+| Two authoritative records conflict | This is an authority and date problem, not a formatting problem | Human-review, or retrieve the current source before review |
+| The source is anonymous, undated, or untraceable | The claim cannot carry the decision | Retrieve again or reject |
+| The output cites the wrong document or invents a bridge | Synthesis exceeded the evidence | Human-review and add the case to the regression set |
+| All facts are present and mapped, with no conflict | The input is usable for this task | Use, while keeping the fixture in regression tests |
+
+The principal exception is a contradiction that is known to be caused by a stale copy. If you can retrieve a current authoritative record and preserve the old record as context, retrieval can resolve it. If you cannot establish authority, do not let the model choose the convenient answer.
+
+## What this test can and cannot prove
+
+The fixtures are fictional and short. They do not measure long-PDF parsing, OCR quality, multilingual evidence, retriever ranking, domain expertise, or every model. The 18 initial trials are a smoke test, not a benchmark estimate. The execution surface did not expose a seed or temperature, and one evaluator checked the outputs.
+
+The result is still useful because the comparison is falsifiable and operational. If your clean condition does not pass, fix the task or prompt before testing noisy inputs. If noisy and poorly formatted conditions recover after a traceable cleanup, keep that transformation in the pipeline. If incomplete, contradictory, or weakly sourced conditions keep producing unsafe acceptance, make the workflow stop there.
+
+For a broader evaluation plan, start with [how to test AI for research synthesis](/blog/how-to-test-ai-for-research-synthesis), then use [a rubric for grading AI outputs](/blog/how-to-grade-an-ai-output-against-a-rubric) to calibrate reviewers. This page adds the input-quality fixture and the clean, reject, retrieve again, or human-review decision that those general methods need.
+
+The next release gate is simple: rerun the same fixture whenever the model, prompt, retrieval settings, or document normalization changes. A demo on clean documents is evidence that one condition works. It is not evidence that the workflow knows when to stop.
