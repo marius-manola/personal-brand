@@ -1,0 +1,174 @@
+---
+title: "Why Does AI Fail When Approval Work Hides Exceptions?"
+date: "2026-09-28"
+updated: "2026-09-28"
+excerpt: "A 24-case approval test shows how a green status can execute hidden exceptions, and what an exception-aware decision record must expose."
+answer: "AI fails when approval work reduces a changing workflow to one green boolean. In a bounded 24-case synthetic test, that gate executed 15 of 16 exception cases. An exception-aware gate rechecked evidence, payload, scope, timeout, retries, identity, idempotency, schema, and target state, executing all eight normal cases and none of the exceptions."
+targetQuery: "why does ai fail when approval work hides exceptions"
+queryAliases:
+  - "why does AI fail when approval status hides exceptions"
+  - "how to revalidate a changed AI payload after approval"
+intent: informational
+funnel: opportunity
+cluster: opportunity
+parent: "/blog/how-to-test-approval-work-as-an-ai-opportunity"
+contentType: failure-clinic
+kind: satellite
+sourceableAtom: "In a dated 24-case synthetic approval fixture, an approval-status-only gate executed 15 of 16 exception cases, while an exception-aware gate executed none of those 16 cases and preserved all eight normal executions."
+evidenceType: "reproducible test plus worked decision artifact"
+evidenceBasis: "2026-08-24 deterministic approval-exception harness, Node.js v24.11.1, 24 named synthetic cases, two gates, compact traces, and worked decision record in research.md; no external model call or production data."
+tags:
+  - AI evaluation
+  - approval workflows
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://openai.github.io/openai-agents-python/human_in_the_loop/"
+  - "https://openai.github.io/openai-agents-js/guides/human-in-the-loop/"
+  - "https://docs.aws.amazon.com/nova-act/latest/userguide/hitl.html"
+  - "https://www.microsoft.com/en-us/research/publication/willful-disobedience-automatically-detecting-failures-in-agentic/"
+  - "https://aclanthology.org/2026.findings-acl.1330/"
+faq:
+  - q: "Should an approved request execute after a timeout?"
+    a: "No. Treat an expired approval as a new review unless an explicit renewal rule has been tested."
+  - q: "Is valid JSON enough for an approval decision?"
+    a: "No. JSON syntax does not prove evidence completeness, payload identity, target freshness, scope, or idempotency."
+  - q: "What should a reviewer see before approving?"
+    a: "Show the exact action and payload, target version, evidence freshness, scope, retry count, approval age, reviewer identity, schema version, and idempotency status."
+cover: "/blog/why-does-ai-fail-when-approval-work-hides-exceptions-approval-exception-hero.webp"
+coverAlt: "Illustration of a green approval status hiding changed evidence and target state"
+draft: false
+---
+
+Approval is easy to demo because the screen can end with one green status. The harder question is whether that status still describes the action the system is about to take.
+
+I'm building TryUncle, an AI agent that watches the screen and annotates it live. That work makes latency and human approval product constraints, not decorative workflow steps. I used the same constraint here to test the control boundary around an AI proposal.
+
+![Illustration of a simple approval gate beside an exception-aware gate with evidence and state checks](/blog/why-does-ai-fail-when-approval-work-hides-exceptions-approval-exception-matrix.webp)
+
+> **Sourceable result:** In a dated 24-case synthetic fixture, a gate that checked only `approval = approved` executed 15 of 16 exception cases. The exception-aware gate executed zero of those 16 cases and preserved all eight normal executions. This is a synthetic control result, not production evidence.
+
+## What is the diagnosis when approval hides an exception?
+
+Because approval is a decision about a particular payload, evidence set, scope, and target state. If any of those change while the request is waiting, the word `approved` can remain true while the approved action is no longer the action in front of the executor.
+
+The failure is a control-boundary problem before it is a model problem. A model can propose a valid-looking action. A reviewer can approve it. The workflow can still execute the wrong or unsupported action if it never rechecks what changed.
+
+OpenAI's Agents SDK documentation describes approval as a pause, an interruption, and a later resume from stored run state. Its JavaScript guide also documents pre-approval guardrails and versioning for long-lived pending tasks. Those patterns make the waiting period explicit, but they do not turn a stored approval into proof that the current payload still matches it. [OpenAI's Python HITL documentation](https://openai.github.io/openai-agents-python/human_in_the_loop/) and [JavaScript HITL guide](https://openai.github.io/openai-agents-js/guides/human-in-the-loop/) show that pause boundary.
+
+The diagnosis is specific: the executor treats approval as a current authorization instead of a claim that must be revalidated against the current action.
+
+## How can you reproduce and trace the failure?
+
+Replay one base approval record through both gates, changing one exception condition at a time. The trace must show the proposal, reviewer decision, changed state, revalidation result, and final route before any simulated side effect.
+
+1. Pin the deterministic fixture, Node.js `v24.11.1`, schema version `1`, and 300-second approval TTL.
+2. Start with the recorded base input, then apply each N01-N08 or E01-E16 mutation without passing the expected route into either gate.
+3. Run the same record through the status-only and exception-aware gates.
+4. Save the compact trace and compare each result with the predeclared route: execute for normal cases, and hold, reject, escalate, or duplicate for exceptions.
+
+The E03 trace is the reproduction: `load(hash-drift) > approve > simple-execute / aware-hold`. The approval stayed green, but the current payload hash changed. That reproduces the unsafe execution without calling an external model.
+
+## What did the 24-case test catch?
+
+The simple gate caught an explicit rejection and nothing else. It executed every exception whose approval field stayed green. The exception-aware gate made the same normal decisions, then routed every exception before the simulated side effect.
+
+| Gate | Normal cases executed | Exception cases executed | Exception cases routed safely | Result |
+| --- | ---: | ---: | ---: | --- |
+| Approval-status-only | 8/8 | 15/16 | 1/16 | 15 unsafe executions in this fixture |
+| Exception-aware | 8/8 | 0/16 | 16/16 | 24/24 expected routes |
+
+The exception-aware routes were 12 holds, two rejects, one escalation, and one duplicate response. Its rule was simple: execute only when the approval is current, inspectable, tied to the current payload and target, within scope, within its time limit, and not already consumed.
+
+The result is deliberately bounded. It does not estimate how often approval exceptions occur in a company. It shows what a binary gate cannot see when its input is only a status field.
+
+## Which cases should be in an approval test?
+
+Use normal approvals as control cases, then mutate one condition at a time. The case name tells you what changed; the expected route tells you what the executor must not do.
+
+| Cases | Hidden condition | Expected route |
+| --- | --- | --- |
+| N01-N08 | Complete evidence, current payload, matching target, valid reviewer, unused key | execute |
+| E01 | Missing evidence | hold |
+| E02 | Stale context | hold |
+| E03 | Payload hash drift | hold |
+| E04 | Scope expansion | hold |
+| E05 | Approval older than 300 seconds | hold |
+| E06 | Reviewer rejection | reject |
+| E07 | Third retry | escalate |
+| E08 | Duplicate request key | duplicate |
+| E09 | Malformed arguments | reject |
+| E10 | Target version changed | hold |
+| E11 | Missing reviewer identity | hold |
+| E12 | Conflicting evidence | hold |
+| E13 | Wrong target | hold |
+| E14 | Reused approval ID | hold |
+| E15 | Stale evidence with a fresh session | hold |
+| E16 | Tool schema version mismatch | hold |
+
+The full inputs, prompt contract, tool schema, pseudocode, and compact traces are recorded in the dated sourceable artifact for this post. If your own system cannot express these cases as replayable records, it is not ready for a meaningful approval comparison.
+
+## What should the reviewer see before execution?
+
+The reviewer should see the proposed action and the facts that can invalidate it, not just a confidence score or green label.
+
+For the payload-drift case, the worked decision record contains the approved hash `sha256:approved-1200-eur` and the current hash `sha256:current-1800-eur`. Both payloads refer to the same target and the approval is only 30 seconds old. The simple gate executes because the decision says approved. The exception-aware gate holds because the action changed.
+
+That is the useful artifact. It lets a reviewer answer one concrete question: “Is the thing I am approving still the thing the executor will send?”
+
+AWS's Nova Act guidance treats reviewer-visible state, timeouts, rejection handling, retries, and comprehensive logs as implementation concerns for human-in-the-loop workflows. [AWS's HITL guidance](https://docs.aws.amazon.com/nova-act/latest/userguide/hitl.html) supports making those fields visible and traceable.
+
+Use this compact record shape:
+
+```yaml
+request_id: stable request identifier
+action: exact tool action
+target: id and version at approval, plus current version
+payload: exact proposed arguments
+payload_hash: approved hash and current hash
+evidence: IDs, status, observed_at, and freshness limit
+scope: approved scope and current scope
+reviewer: stable reviewer identity and decision
+approval: ID, age, expiry, and consumed flag
+retries: count and escalation threshold
+tool_schema_version: version used to validate arguments
+state_transitions: ordered trace from proposal to final route
+final_execution_decision: execute, hold, reject, escalate, or duplicate
+```
+
+## Why do traces matter more than a final pass rate?
+
+Because a final `approved` or `rejected` label can hide the transition that made it unsafe. The trace needs to show what the reviewer saw, what changed during the pause, and why the executor did or did not run.
+
+The Microsoft Research AgentPex paper makes the same distinction: outcome-only benchmarks can miss procedural failures such as incorrect routing, unsafe tool use, or violations of prompt-specified rules. It reports evaluation across 424 traces, but that number belongs to their study, not this fixture. [Read the AgentPex paper](https://www.microsoft.com/en-us/research/publication/willful-disobedience-automatically-detecting-failures-in-agentic/).
+
+The ACL 2026 survey also identifies safety, reliability, and fine-grained scalable evaluation as open gaps. For approval work, a small traceable case set is more useful than a large pass rate that never tests stale evidence or changed state. [Read the ACL survey](https://aclanthology.org/2026.findings-acl.1330/).
+
+## What is the repair before you automate approval work?
+
+Use approval work as an AI opportunity only when the workflow can name its exception owner and prove the preconditions immediately before execution.
+
+Run the comparison in this order:
+
+1. Capture eight to ten normal approvals that should execute.
+2. Add one bounded mutation for each known exception.
+3. Run both a status-only gate and a revalidating gate.
+4. Require the simple gate to show every unsafe execution. This is a diagnostic baseline, not a target.
+5. Reject expansion if the exception-aware gate cannot route each exception to a named human or deterministic recovery path.
+6. Keep the executor simulated or read-only until the decision record survives replay.
+
+The parent guide, [how to test approval work as an AI opportunity](/blog/how-to-test-approval-work-as-an-ai-opportunity), covers the broader opportunity decision. For choosing the first narrow slice, use [how to choose a safe first AI slice for approval work](/blog/how-to-choose-a-safe-first-ai-slice-for-approval-work).
+
+This is also the point where an AI consulting or tutoring engagement should transfer capability, not hide the cases behind a demo. Marius Manolachi's [AI consulting and tutoring work](/learn-ai) helps existing people build and evaluate AI products on their own work.
+
+## How do you verify the repair?
+
+Verify the repair against a predeclared safety rule: all eight normal cases execute, none of the 16 exception cases executes, and every exception reaches its expected non-execution route.
+
+The recorded rerun met that rule. The status-only gate executed 15 exception cases. The exception-aware gate executed zero, matched all 24 expected labels, and routed the exceptions as 12 holds, two rejects, one escalation, and one duplicate. Retest after changing the schema, TTL, revalidation fields, or route policy. A green pass rate without these traces is not verification.
+
+## What this test does not prove
+
+The fixture did not call an external model, use production data, measure reviewer time, or compare vendors. It cannot tell you your exception frequency, business loss, or acceptable timeout. It tests the narrower question in the query: whether a green approval status can hide exceptions that should stop execution.
+
+It can. In this fixture, the status-only gate executed 15 of 16 exception cases. Start there, then replace the synthetic inputs with redacted cases from your own workflow and keep the same decision-record fields.
