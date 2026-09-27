@@ -1,0 +1,254 @@
+---
+title: "What Evidence Should Technical Buyers Collect About MCP or API?"
+date: "2026-09-28"
+updated: "2026-09-28"
+excerpt: "A reproducible MCP-versus-API test packet for permissions, traces, failure recovery, rollback, cost fields, ownership, and veto decisions."
+answer: "Technical buyers should collect a versioned packet from the same workflow through both surfaces: fixture, contract or tool inventory, scopes, object permissions, exact calls, latency and request cost, approval behavior, failure and retry traces, rollback, audit events, owners, and vetoes. Choose the surface that passes those checks. The principal exception is a missing or untestable rollback path, which should block approval for either option."
+targetQuery: "what evidence should technical buyers collect about mcp or api"
+queryAliases:
+  - "mcp or api evidence checklist"
+  - "what to verify before buying an mcp integration"
+  - "api versus mcp proof packet"
+intent: "informational architecture procurement"
+funnel: "consideration"
+cluster: "architecture"
+parent: "/blog/how-to-choose-mcp-or-a-custom-api"
+contentType: "original-research"
+kind: "flagship"
+sourceableAtom: "A dated, reusable MCP-versus-API buyer evidence packet from one identical approval workflow, including raw fixture, traces, comparison table, permission checks, induced retry and rollback, and owner-and-veto decision record."
+evidenceType: "reproducible comparative test plus reusable decision artifact"
+evidenceBasis:
+  - "Dated local paired run on 2026-08-24 using the same synthetic approval fixture"
+  - "Python 3.9.6 runner with in-process HTTP-shaped API and JSON-RPC 2.0 MCP dispatch"
+  - "Official MCP authorization, tools, and elicitation specifications, OpenAPI 3.2.0, and OWASP API Security Top 10"
+tags: ["MCP", "APIs", "Architecture", "Security"]
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization"
+  - "https://modelcontextprotocol.io/specification/2025-11-25/server/tools"
+  - "https://modelcontextprotocol.io/specification/2025-11-25/client/elicitation"
+  - "https://spec.openapis.org/oas/latest.html"
+  - "https://owasp.org/API-Security/editions/2023/en/0x11-t10/"
+faq:
+  - q: "Should buyers compare MCP and API on the same workflow?"
+    a: "Yes. Use the same fixture, acceptance criteria, permissions, failure injection, and rollback test. Otherwise the comparison measures different business problems instead of different integration surfaces."
+  - q: "Does an MCP tool replace an API contract?"
+    a: "No. MCP adds a discoverable tool surface with schemas and JSON-RPC calls. The underlying system still needs an owned authorization, data, failure, and audit contract."
+  - q: "Are local latency numbers enough to choose MCP or API?"
+    a: "No. A local harness can expose extra protocol steps and measurement fields. Production choice requires network, proxy, runtime, concurrency, rate-limit, and provider-cost evidence too."
+cover: "/blog/what-evidence-should-technical-buyers-collect-about-mcp-or-api-mcp-api-evidence-hero.webp"
+coverAlt: "Illustration of a technical buyer comparing an MCP tool surface with an API contract using a redacted evidence packet"
+draft: false
+---
+
+I ran one approval workflow twice, once through an API-shaped interface and once through an MCP tool surface. The result was less dramatic than most comparison charts. Both paths could pass the workflow. The useful difference was in the proof they made me collect before I could trust the result.
+
+![Illustration of a technical buyer comparing an MCP tool surface with an API contract using a redacted evidence packet](/blog/what-evidence-should-technical-buyers-collect-about-mcp-or-api-mcp-api-evidence-hero.webp)
+
+## Observed results from the paired workflow
+
+The bounded run did not produce a universal winner. It produced a minimum evidence packet.
+
+| Run on 2026-08-24 | API path | MCP path |
+| --- | ---: | ---: |
+| Surface requests recorded | 9 | 10 |
+| Request bytes | 192 | 1,139 |
+| Response bytes | 1,570 | 2,991 |
+| Total local dispatch time | 0.079 ms | 0.070 ms |
+| Approval prompt | accepted | accepted |
+| Approval attempts | 2, including one induced 503 | 2, including one induced failure |
+| Rollback | `approved` to `pending` | `approved` to `pending` |
+| Token cost | Not applicable | Not applicable |
+
+The extra MCP request was protocol setup and tool discovery: `initialize` and `tools/list`. The larger MCP payloads came from JSON-RPC envelopes and tool descriptions. Those are observations from this harness, not production latency or price estimates.
+
+Observed result: both surfaces rejected a token issued for the other surface; denied `req-002` because it was outside the test principal's object boundary; allowed a read-only token to read `req-001` but not approve it; failed the first approval attempt with a retryable 503; reached `approved` after one retry; and rolled the record back to `pending`.
+
+That is the sourceable result on this page: a buyer can compare MCP and API without arguing from protocol labels. Run the same state transition twice, then keep the traces and the veto conditions.
+
+## What should technical buyers collect before choosing MCP or API?
+
+Collect evidence about the workflow, contract, authority, execution, recovery, and ownership. A vendor answer is useful only when it points to a reproducible field in the packet.
+
+| Evidence area | What to collect | What it lets you decide |
+| --- | --- | --- |
+| Workflow fixture | Sanitized input, expected states, hidden fields, acceptance criteria | Whether both paths solve the same job |
+| Contract | OpenAPI document or MCP initialization and `tools/list` output, versions, schemas | Whether a reviewer can inspect and diff the interface |
+| Authority | Audience, principal, scopes, object boundary, 401 and 403 behavior | Whether the caller can do only what it should |
+| Data boundary | Returned fields, excluded fields, tenant or object rules | Whether sensitive data crosses the surface |
+| Execution | Exact endpoint or tool call, transport, settings, timestamps, latency, bytes, cost basis | What actually happened, not what the demo implied |
+| Human control | Approval prompt, elicitation, decision, cancellation, and call binding | Whether side effects need an accountable human decision |
+| Failure recovery | Induced failure, retry policy, retry count, state before and after | Whether the system fails in a bounded way |
+| Rollback | Compensating command, result, and final state | Whether an error is reversible |
+| Audit | Redacted events with principal, scope, object, action, status, and timestamp | Whether an incident can be reconstructed |
+| Decision record | Owner, acceptance criterion, veto condition, date | Who can say go, hold, narrow, or reject |
+
+If a row is blank, the buyer doesn't have integration evidence yet. They have a promise.
+
+## How did the API and MCP paths differ?
+
+The API path exposed three OpenAPI operations: read a request, set its decision, and roll it back. The MCP path exposed three tools with JSON Schemas: `get_approval_request`, `set_approval_decision`, and `rollback_approval_decision`. The business workflow was equivalent, but the inspection surface differed.
+
+The [OpenAPI Specification](https://spec.openapis.org/oas/latest.html) describes the paths and operations that make up an API contract. In the test packet, that contract made the HTTP verbs, paths, operation IDs, and response cases inspectable before execution.
+
+The [MCP tools specification](https://modelcontextprotocol.io/specification/2025-11-25/server/tools) uses `tools/list` for discovery and `tools/call` for invocation. It also allows annotations such as read-only, destructive, and idempotent hints. Those hints helped the client policy decide when to show an approval prompt, but the specification says clients must treat tool annotations as untrusted unless they come from trusted servers. A buyer should therefore record the annotation and the independently enforced permission, not accept the annotation as proof of safety.
+
+The evidence question is not “does MCP have tools?” or “does the API have endpoints?” It is “can the team show the exact inventory, schema, permission, and side-effect behavior for the tool or endpoint that owns this workflow?”
+
+![Illustration of equivalent approval workflow states mapped to API endpoints and MCP tool calls with matching inputs and outputs](/blog/what-evidence-should-technical-buyers-collect-about-mcp-or-api-mcp-api-equivalent-workflow.webp)
+
+## Which authorization and permission checks belong in the packet?
+
+The packet needs both identity checks and action checks. A valid token is not evidence that the caller is allowed to read this object or invoke that mutation.
+
+The [MCP authorization specification](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization) says HTTP-based MCP implementations that support authorization should follow its flow. It calls for protected-resource metadata discovery, bearer tokens in the `Authorization` header, audience validation, and distinct handling for invalid authorization and insufficient scope. In the local run, I used pre-issued test tokens to exercise the request-time audience and scope checks. I did not run an external OAuth server or a PKCE exchange, and the packet says so.
+
+The test exercised four checks for each surface:
+
+1. A read token with `requests:read` could read `req-001`.
+2. The same read token could not approve `req-001`; the API returned HTTP 403 and MCP returned a JSON-RPC error with insufficient-scope data.
+3. The read token could not read `req-002`, which was outside the principal's object boundary.
+4. A token for the other surface was rejected as the wrong audience.
+
+This maps to the [OWASP API Security Top 10](https://owasp.org/API-Security/editions/2023/en/0x11-t10/), especially broken object-level authorization, broken function-level authorization, and improper inventory management. It also catches a common procurement mistake: asking whether a vendor supports OAuth without asking which object and function checks run after the token is accepted.
+
+The evidence fields should include the token audience, principal, requested scope, effective scope, object ID, operation or tool name, expected status, actual status, and redacted `WWW-Authenticate` response where relevant. Never publish or store the raw bearer token in a trace.
+
+## What should count as a human approval prompt?
+
+Record the approval mechanism separately from protocol authorization. Authorization answers whether a caller may act. Approval answers whether a person accepted this particular side effect.
+
+The local client policy showed this prompt before the mutation:
+
+```text
+Approve the requested mutation for req-001?
+Decision: accepted
+Operation: mutating approval
+```
+
+That was a client policy prompt, not an MCP elicitation exchange. The distinction matters. The [MCP elicitation specification](https://modelcontextprotocol.io/specification/2025-11-25/client/elicitation) describes form and URL modes for collecting information or directing a user to a sensitive out-of-band interaction. It also distinguishes that from authorizing the MCP client to access the MCP server. If a product says “human in the loop,” ask for the exact message, the operation it binds to, what decline and cancel do, and whether the server or client owns the decision record.
+
+For an API, the approval may live in the application that calls the endpoint. For MCP, a client may mediate the approval before `tools/call`. Neither arrangement is automatically safer. The packet must show the boundary and the state transition.
+
+## Method and sample
+
+The sample was one synthetic approval workflow run once through each surface, with fresh in-process state for each run. In other words, this is `n = 1` paired workflow per surface, not a production benchmark. The method was to dispatch equivalent HTTP-shaped API requests and JSON-RPC 2.0 MCP messages, using the same fixture, client policy, tokens, scopes, approval prompt, induced 503, retry limit, and rollback assertion.
+
+Run the same fixture and inspect the dated outputs. The harness is deliberately small so a reviewer can understand the entire path.
+
+```bash
+cd .content-studio/jobs/1787560708050-fd7550ed
+python3 scripts/run_comparison.py
+```
+
+The run writes:
+
+```text
+fixtures/approval-request.json
+scripts/run_comparison.py
+traces/api-2026-08-24.json
+traces/mcp-2026-08-24.json
+artifacts/comparison.json
+artifacts/decision-record.json
+artifacts/evidence-packet-template.md
+```
+
+The raw fixture is synthetic and contains no customer data:
+
+```json
+{
+  "fixture_version": "2026-08-24.1",
+  "workflow": "read an approval request, attempt an approval with insufficient permission, approve after a client confirmation, then roll back",
+  "request": {
+    "id": "req-001",
+    "requester": "user-redacted-001",
+    "department": "engineering",
+    "category": "software",
+    "amount": 1250,
+    "currency": "EUR",
+    "status": "pending",
+    "policy": "amount_over_1000_requires_procurement_review",
+    "internal_note": "DO NOT EXPOSE: synthetic fixture secret"
+  },
+  "unavailable_request": {
+    "id": "req-002",
+    "owner": "other-team",
+    "reason": "used to test object-level authorization"
+  },
+  "expected": {
+    "initial_status": "pending",
+    "approval_status": "approved",
+    "rollback_status": "pending",
+    "hidden_fields": ["internal_note"]
+  }
+}
+```
+
+The fixture deliberately includes `internal_note` as a sentinel. Both implementations must omit it from the returned payload. That is a data-boundary assertion, not a claim about a real secret.
+
+## What did the failure and rollback traces contain?
+
+The API trace used HTTP status codes. The MCP trace used an outer HTTP success for the JSON-RPC envelope and carried permission or backend errors inside the JSON-RPC response. A buyer should normalize both into the same comparison fields.
+
+```json
+[
+  {"label": "object authorization denied", "status": 403, "reason": "object_not_allowed"},
+  {"label": "write denied", "status": 403, "reason": "insufficient_scope"},
+  {"label": "approve attempt 1", "status": 503, "retryable": true},
+  {"label": "approve attempt 2", "status": 200, "after": "approved"},
+  {"label": "rollback", "status": 200, "after": "pending"}
+]
+```
+
+The block above uses normalized application statuses so API and MCP can share one table. For MCP, the transport status was 200 because the JSON-RPC envelope was valid. The equivalent permission failure was recorded inside that envelope:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "error": {
+    "code": -32003,
+    "message": "insufficient_scope",
+    "data": {"error": "insufficient_scope", "required_scope": "requests:write"}
+  }
+}
+```
+
+The raw traces also contain redacted audit events. Each event keeps a timestamp, surface, principal, scope list, object ID, action, status, and before or after state where a mutation occurred. The authorization token is represented as `REDACTED`.
+
+![Illustration of a redacted API and MCP trace showing a permission denial, one retry, approval, and rollback](/blog/what-evidence-should-technical-buyers-collect-about-mcp-or-api-mcp-api-redacted-traces.webp)
+
+## When should the buyer veto both options?
+
+Use the decision record to assign a person or role to each material risk. A score without a veto owner is still an unowned demo.
+
+| Risk | Owner | Evidence required | Veto condition |
+| --- | --- | --- | --- |
+| Wrong audience or excessive scope | Security owner | Audience, scopes, 401 and 403 results, token redaction | Veto if another audience's token works, read scope mutates, or a raw token is logged |
+| Object or function authorization | System owner | Out-of-bound object and read-only mutation tests | Veto if `req-002` is readable or read permission invokes approval |
+| Contract or inventory drift | Integration owner | Versioned OpenAPI paths or MCP `tools/list`, schemas, and operation names | Veto if the executable contract cannot be diffed |
+| Unreviewed side effect | Workflow owner | Mutation classification, prompt, decision, and call binding | Veto if mutation can execute without explicit approval |
+| Failure and rollback | Service owner | Induced failure, retry limit, state transition, rollback result | Veto if retry is unbounded, state is unknown, or rollback is unproven |
+| Data boundary and audit | Security owner | Excluded-field check and redacted event trail | Veto if sensitive fields cross the boundary or the action cannot be reconstructed |
+
+The reusable packet template in this job directory follows the same order: scope, contract, authorization, execution, recovery, audit, and decision. It is intentionally boring. Boring evidence is easier to review than a polished demo.
+
+When I taught product managers to move from writing specifications to building and shipping, the failure was usually not the model. It was that nobody could say what “done” meant. That observation from Marius Manolachi's teaching experience is a framing device here, not a rate or a security result. Define done as acceptance criteria and vetoes before a vendor demo starts.
+
+![Illustration of a buyer-ready evidence packet with named owners, acceptance criteria, and veto conditions beside an MCP or API decision](/blog/what-evidence-should-technical-buyers-collect-about-mcp-or-api-buyer-evidence-decision-record.webp)
+
+## Limitations and unknowns
+
+This `n = 1` paired run shows how to collect comparable evidence. It does not prove that API calls are faster, that MCP calls cost more, or that one surface is safer in production. The latency is local Python dispatch overhead. The byte counts are request and response sizes in this harness, not provider billing. The run has one synthetic workflow and one induced failure per path.
+
+It also does not prove that an MCP server has correctly implemented an external OAuth flow. The MCP authorization specification has requirements for discovery, resource indicators, audience-bound tokens, and PKCE. This harness used pre-issued local tokens to make permission behavior reproducible. A real procurement packet should add the authorization-server metadata, consent screen, redirect URI, PKCE, token lifetime, refresh, and revocation evidence before approval.
+
+What remains unknown is how the two surfaces behave over the buyer's production-like network path, under concurrency and rate limits, with provider billing, an external OAuth server, and the buyer's actual rollback semantics. The next test should use the buyer's own sanitized workflow and keep the same fields so the second run remains comparable.
+
+## What should a technical buyer approve?
+
+Approve an MCP or API path only when the same owned workflow passes its acceptance criteria and every material risk has an owner and a veto condition. Choose an API when the team needs a stable endpoint contract and already controls the integration boundary. Choose MCP when the workflow must be discoverable as a schema-described tool surface for MCP clients and the team can own client-mediated approval and protocol-specific authorization.
+
+If you are still deciding the architecture, use this evidence packet alongside [How to Choose MCP or a Custom API](/blog/how-to-choose-mcp-or-a-custom-api). If the chosen path is MCP, the security checks in [How to Secure an MCP Server for AI Agents](/blog/how-to-secure-an-mcp-server-for-ai-agents) are the next review layer.
+
+For a team that needs help turning an owned workflow into a reproducible test and a decision record, [work with Marius Manolachi on AI capability](https://mariusmanolachi.com/learn-ai) after the packet's scope and veto authority are explicit.
