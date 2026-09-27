@@ -1,0 +1,257 @@
+---
+title: "What Evidence Should Product Teams Collect About Feedback Contradictions"
+date: "2026-09-28"
+updated: "2026-09-28"
+excerpt: "A fixed 40-review audit shows why ratings alone create false contradictions. Use this evidence matrix before turning opposing feedback into a roadmap decision."
+answer: "Product teams should preserve each feedback item's raw source, stable ID, date, rating, product area, request or problem type, segment or use-case proxy, workflow stage, severity, outcome signal, and unresolved question. Treat semantically related items with opposing judgments as candidates, not conflicts. Decide only after an audit; otherwise defer or collect the missing context."
+targetQuery: "what evidence should product teams collect about customer feedback contradictions"
+queryAliases:
+  - "evidence for contradictory customer feedback"
+  - "how product teams should analyze conflicting feedback"
+  - "what to record when customer feedback conflicts"
+intent: "informational"
+funnel: "opportunity"
+cluster: "opportunity"
+parent: "/blog/how-to-test-ai-on-contradictory-feedback"
+contentType: "original-research"
+kind: "flagship"
+sourceableAtom: "In a fixed 40-review public Netflix sample, a same-area/opposite-rating baseline generated 36 candidate contradiction links, while a bounded audit of 12 links confirmed 0 genuinely opposed requirements, with 8 false positives and 4 context-unknown or rating-text mismatches."
+evidenceType: "reproducible public-review analysis plus a worked contradiction ledger and decision artifact"
+evidenceBasis: "Fixed rows 0-39 from the public splevine/netflix-google-play-reviews-sample train split, accessed 2026-08-24; transparent keyword grouping; 36 candidate pairs; 12-link manual audit; worked evidence matrix and decision record."
+tags:
+  - "customer feedback"
+  - "product research"
+  - "evidence"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://linkinghub.elsevier.com/retrieve/pii/S2405844024127600"
+  - "https://link.springer.com/article/10.1007/s10664-024-10557-2"
+  - "https://www.atlassian.com/agile/product-management/customer-feedback"
+  - "https://www.productboard.com/wp-content/uploads/2020/10/stateofproductexcellence.pdf"
+  - "https://huggingface.co/datasets/splevine/netflix-google-play-reviews-sample/viewer/default/train"
+cover: "/blog/what-evidence-should-product-teams-collect-about-customer-feedback-contradictions-feedback-contradiction-evidence-hero.webp"
+coverAlt: "Illustration of a product team comparing opposing feedback records with missing context fields"
+draft: false
+---
+
+When two customers appear to want opposite things, I don't start with a vote. I check whether the records describe the same product area, user, workflow stage, and outcome.
+
+In a fixed sample of 40 public Netflix Google Play reviews, a simple text-only baseline produced 36 opposite-rating candidate pairs. A bounded audit of 12 candidates confirmed none as a genuinely opposed requirement.
+
+That gap is the useful finding. Product teams should collect enough evidence to explain a contradiction before they turn it into a roadmap item.
+
+> **Observed result:** In the fixed sample, 36 text-only candidates became 8 false positives and 4 context-unknown or rating-text cases in the audit. No audited pair justified a product-wide “build one thing, reject the other” decision. The sample is not representative, and the result is not a prevalence estimate.
+
+## What evidence should a product team preserve for every feedback item?
+
+Preserve provenance and decision context together. A quote without its source, timing, customer situation, and outcome is not enough to resolve a contradiction.
+
+At minimum, keep this record for every item:
+
+| Field | What to capture | Why it matters when feedback conflicts |
+| --- | --- | --- |
+| Stable source ID | Review ID, ticket ID, interview ID, or stable URL | Lets a reviewer reopen the raw evidence instead of trusting a summary |
+| Source and collection date | Channel, storefront, export date, and original timestamp | Separates a recent regression from an old preference and preserves provenance |
+| Raw text and rating | Original wording, title, star score, and edits if available | Prevents a synthesis from hiding qualifiers or a rating-text mismatch |
+| Product area and decision object | Playback, billing, onboarding, catalog, search, or the exact feature | Stops two different problems from being called one contradiction |
+| Request or problem type | Add, remove, restore, fix, simplify, speed up, or understand | Distinguishes opposing requirements from requests that point in the same direction |
+| Segment or use-case proxy | Plan, role, device, region, account type, job, or declared context | Tests whether different customers are optimizing for different outcomes |
+| Workflow stage | Discovery, setup, first use, repeat use, recovery, or cancellation | A positive first-use report can coexist with a severe recovery failure |
+| Severity and impact | Frequency, task blockage, workaround, revenue or retention exposure | Prevents a loud but low-impact preference from outweighing a rare blocker |
+| Behavioral or outcome signal | Usage, completion, repeat use, retention, cancellation, conversion, or support escalation | Tests whether stated preference changes what people actually do |
+| Opposing evidence | The exact item or group that appears to disagree | Keeps both sides visible in the decision record |
+| Unresolved question | The missing fact that could change the decision | Creates a concrete next evidence task instead of a vague “needs research” note |
+
+[Atlassian's product-feedback guidance](https://www.atlassian.com/agile/product-management/customer-feedback) recommends tracking source, segment, product area, request type, frequency, severity, business impact, related work, and next step. Research on continuous software engineering makes the same distinction from another angle: teams combine qualitative feedback with quantitative signals, but interpreting reviews often requires additional user context. [The study's full text](https://link.springer.com/article/10.1007/s10664-024-10557-2) is especially useful here because it treats access to vaguely defined user groups and metric selection as practical problems, not as fields an analyst can safely invent.
+
+The rule is simple: if a field could change which product action you choose, preserve it before summarizing the feedback.
+
+When I teach product managers to move from writing specifications to building and shipping, the recurring failure is rarely a missing model trick. It is that nobody can say what “done” means or which evidence would change the decision. The same problem appears here. A contradiction ledger is useful because it makes the missing decision fields visible.
+
+/blog/what-evidence-should-product-teams-collect-about-customer-feedback-contradictions-feedback-contradiction-ledger.webp
+
+## What did the fixed public-review sample actually show?
+
+The sample showed that coarse polarity creates candidates faster than it creates understanding.
+
+I fixed the corpus before drafting: rows 0 through 39 of the public `splevine/netflix-google-play-reviews-sample` train split, accessed on 2026-08-24. The dataset page exposes real review text, UUID review IDs, timestamps, ratings, app versions where present, platform, country, language, helpful-vote counts, developer-response fields, and collection timestamps. The selected rows are dated 2025-06-26, with some earlier row dates in the dataset's stated range. [The public dataset viewer](https://huggingface.co/datasets/splevine/netflix-google-play-reviews-sample/viewer/default/train) is the provenance for the raw records.
+
+I mapped ratings of 4 or 5 to positive, 3 to neutral, and 1 or 2 to negative. I then assigned one primary product area using a fixed keyword order and paired items in the same area when their rating polarities were opposite.
+
+| Measure | Result | What it does not prove |
+| --- | ---: | --- |
+| Review rows | 40 | Not a representative sample of Netflix users |
+| Positive, neutral, negative ratings | 22, 1, 17 | Ratings are not the same as requirements |
+| Rows assigned to a known area | 27 | The baseline leaves 13 vague or uncoded rows |
+| Playback or reliability rows | 6 | Nine candidate pairs, not nine conflicts |
+| Content or catalog rows | 10 | Twenty-four candidate pairs, not twenty-four opposing needs |
+| Pricing or billing rows | 6 | No opposite-rating pair in this slice |
+| Account or access rows | 4 | Three candidate pairs, all needing context |
+| Interface rows | 1 | No opposite-rating pair in this slice |
+| Candidate pairs | 36 | A triage output from a weak baseline |
+| Audited candidate links | 12 | A bounded audit, not a model-accuracy benchmark |
+| Confirmed opposing requirements | 0 of 12 | No claim about the full 5,000-row dataset |
+
+The most important column is the last one. A text-only contradiction detector can tell you where to look. It cannot tell you whether two people are making the same decision under the same conditions.
+
+## How should a team define a contradiction before detecting one?
+
+Define a contradiction as semantically related feedback that points to opposing judgments or requirements about the same decision object, then keep separate labels for the reasons the texts differ.
+
+For this analysis, an item pair became a **candidate** only when it met all three conditions:
+
+1. Both items matched the same primary product area.
+2. One rating was positive and the other was negative.
+3. Both contained a product judgment, request, or problem statement.
+
+The audit then asked a harder question: are the customers actually asking the product team to move in opposite directions?
+
+Use these explanations instead of a single “conflict” label:
+
+| Explanation | Meaning | Evidence needed |
+| --- | --- | --- |
+| Segment difference | The same feature serves groups with different priorities | Declared or verified segment, role, plan, device, region, or account context |
+| Workflow stage | The same area behaves differently during setup, first use, repeat use, or recovery | Event stage, app state, version, and task step |
+| Use-case difference | People need the feature for different jobs | Job-to-be-done, desired outcome, and actual workflow |
+| Severity difference | The same problem affects people with different consequences | Blockage, workaround, frequency, business or user impact |
+| Preference conflict | The same people, context, and decision object genuinely prefer opposite options | Comparable context and a stated trade-off |
+| Same direction | Ratings differ, but both records point toward the same improvement | Request type and exact object |
+| Rating-text mismatch | The star rating and written text disagree inside one record | Raw rating, raw text, and any edit history |
+| Context unknown | The record lacks enough information to classify the difference | A named missing field and a collection plan |
+
+The mobile-review comparator supplied in the topic package uses semantic similarity, sentiment distributions, topic modeling, antonym and negation handling, ratings, and frequency to identify apparent feature conflicts. [Its publisher record](https://linkinghub.elsevier.com/retrieve/pii/S2405844024127600) is a useful comparator, but its detection method should not be mistaken for a product decision standard. Your team still needs to know what the feedback means in context.
+
+## What does a transparent contradiction baseline look like?
+
+Start with a baseline that is easy to inspect and easy to disprove. A team should see why an item entered the candidate set.
+
+My dated configuration used lowercase text, a fixed keyword family, the rating polarity rule above, and all within-area opposite-polarity pairs. The area families were:
+
+```text
+pricing/billing: payment, recharge, price, pricing, plan, pay, budget, greedy
+account/access: household, login, log in, password, kicked, account, profile, watching
+interface: ui, user interface, pane, scroll, navigate, navigation, screen
+playback/reliability: load, loading, play, playing, open, working, crash, stuck, resume
+content/catalog: movie, movies, show, shows, series, content, squid, interactive, game, games, selection
+```
+
+The first matching family became the primary area. A row that matched none became `unknown`. Candidate generation was the equivalent of:
+
+```python
+rows = load_dataset(
+    "splevine/netflix-google-play-reviews-sample",
+    split="train",
+).select(range(40))
+
+for row in rows:
+    text = row["content"].lower()
+    row["sentiment"] = (
+        "positive" if row["rating"] >= 4
+        else "neutral" if row["rating"] == 3
+        else "negative"
+    )
+    row["product_area"] = first_matching_keyword_family(text) or "unknown"
+
+candidates = [
+    (a["review_id"], b["review_id"])
+    for a, b in combinations(rows, 2)
+    if a["product_area"] == b["product_area"] != "unknown"
+    and {a["sentiment"], b["sentiment"]} == {"positive", "negative"}
+]
+```
+
+This baseline is not meant to win a benchmark. It is meant to make a team's first failure legible. It cannot understand synonyms, mixed-area reviews, translated meaning, or whether “good but needs more movies” is support for the current product or a request to change it. Those weaknesses are exactly why the audit exists.
+
+/blog/what-evidence-should-product-teams-collect-about-customer-feedback-contradictions-feedback-baseline-candidate-pairs.webp
+
+## What should the contradiction ledger contain?
+
+The ledger should make every candidate answerable without reopening a dozen disconnected tools.
+
+Use one row per feedback item, then link rows into a contradiction group. Do not collapse the raw records into one synthetic summary before the decision is made.
+
+| Review ID | Date and rating | Area | Request or problem | Context proxy | Outcome signal | Opposing evidence | Missing question |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `1bb85164-2946-48d9-98e1-4c55c59ad531` | 2025-06-26, 5 | content/catalog | Wants more movies | US, English, app version missing | Helpful votes 0 | Selection complaints | Which titles, region, plan, and viewing behavior? |
+| `dd6106a0-0fb6-4ed0-854a-a754dfddf417` | 2025-06-26, 1 | content/catalog | Small selection and cancellations | US, English, version present | Helpful votes 0 | Broad catalog praise | Did the person cancel, stop watching, or only dislike the current titles? |
+| `b330cbbe-fa71-476a-bb82-9d28359d5aa6` | 2025-06-26, 1 | content/home | Remove games and short clips from the main surface | US, English, version present | Helpful votes 38 | Strategy that adds more surfaces | TV or mobile, discovery behavior, and task completion |
+| `c04516ac-b6df-4cd0-a745-f6effcaa2660` | 2025-06-26, 5 | content/catalog | Broad praise | US, English, version present | Helpful votes 0 | Negative catalog-specific records | What did the reviewer use and value? |
+| `ac1625c3-4e7e-492d-baed-e47260f01621` | 2025-06-26, 1 | content/catalog | Restore interactive shows | US, English, version present | Helpful votes 0 | General catalog approval | Is interactive content a meaningful use case for a defined segment? |
+| `6077f080-67d8-401b-abc9-e2bcf5788048` | 2025-06-26, 5 | content/catalog | General approval for movies | US, English, version missing | Helpful votes 0 | Requests for more or different content | Active use, plan, region, and renewal behavior |
+
+Two fields deserve special attention:
+
+- **Opposing evidence** keeps the counterexample beside the claim. A synthesis that says “customers want more content” without showing the rows that reject, qualify, or redirect that reading is not auditable.
+- **Missing question** turns uncertainty into work. “Need more context” is weak. “Which titles were available in the reviewer's region, and did the person cancel?” is testable.
+
+This is also where a reviewable AI workflow should stop. [The parent guide on testing AI with contradictory feedback](/blog/how-to-test-ai-on-contradictory-feedback) can help you implement the workflow, but the workflow should not invent the missing fields. If a model cannot distinguish a segment difference from a use-case difference, its output should say so.
+
+## What changes when context is added to the roadmap decision?
+
+Context changed the worked answer from “decide” to “collect more evidence.”
+
+Decision question: **Should the team make a broad roadmap commitment to expand the catalog based on this review slice?**
+
+| Decision field | Text-only view | Context-added view |
+| --- | --- | --- |
+| Visible evidence | Ten content or catalog rows, six positive and four negative; several mention more or different content | The rows mix broad praise, title-specific requests, catalog breadth complaints, cancellations, interactive content, and home-surface clutter |
+| Action | Decide: expand the catalog | Collect more evidence: no broad commitment yet |
+| Why | The same area contains clear demand and clear dissatisfaction | The records do not identify segment, region, plan, title availability, workflow stage, actual viewing behavior, or retention impact |
+| Evidence that would change the call | More reviews in the same theme | Exact titles and region, search-to-play behavior, completion, repeat use, cancellation or renewal reason, and a follow-up interview sample |
+| Owner and next check | Product manager after another synthesis pass | Product manager with analytics and research after a dated context-enrichment pass |
+| Reversibility | A roadmap commitment creates opportunity cost | A short evidence-collection task keeps the decision open |
+
+The text-only column is a deliberate trap, not a claim about Netflix's actual roadmap. It is what a majority-style synthesis might do when positive ratings, praise, and requests are treated as one kind of demand.
+
+The context-added column is the artifact I would want in a product review: both sides remain visible, the unknowns are named, and the next collection step is small enough to run. A team can still decide later. It just has not earned that decision from this public slice.
+
+## When is contradictory feedback strong enough to decide?
+
+Decide only when the evidence shows that the items refer to the same decision object and the difference survives context enrichment.
+
+Use this rule:
+
+| Evidence state | Action | Minimum record |
+| --- | --- | --- |
+| Same area, same decision object, comparable context, opposing preferences, meaningful impact | Decide | Raw IDs, context fields, severity, opposing evidence, owner, and expected outcome |
+| Same area, but different segment, workflow stage, use case, or severity | Split the decision | Separate groups and a decision for each group or stage |
+| Same area and opposite polarity, but missing context | Collect more evidence | Named missing field, collection method, owner, and date |
+| Weak text, unclear area, no request or outcome | Defer | Preserve the raw record and exclude it from roadmap counting |
+| Rating and text disagree | Read the text and preserve both | Rating-text mismatch flag, raw text, version, and any edit history |
+
+The exception is a safety or access blocker. A single well-proven severe failure may justify immediate containment even when it does not establish broad demand. That is not a contradiction-resolution shortcut. It is a severity rule, and the evidence record should say so.
+
+Productboard's older survey report is useful as a historical warning: it describes a gap between teams believing they are customer-driven and the completeness of their feedback-capture processes, and it identifies segmentation as one of the less-used prioritization dimensions. [The 2020 report](https://www.productboard.com/wp-content/uploads/2020/10/stateofproductexcellence.pdf) should not be read as a current benchmark, but its implication fits this artifact: a team cannot claim to understand contradictory demand if it never recorded who, when, where, or under what workflow conditions.
+
+## What can public reviews tell you, and what can they not tell you?
+
+Public reviews are useful for finding language, product areas, visible pain, and candidate contradictions. They are weak evidence for segment-level prioritization unless the source includes the missing context or you link it to first-party behavioral data.
+
+In this sample, every selected row carried `us` and `en` as country and language fields. Some rows carried app versions. Helpful votes were present, but a helpful vote tells you that other people engaged with the review, not that the underlying issue caused a failed task, churn, or lost revenue. Developer-response fields were null in the selected rows, so the sample cannot show whether a complaint was acknowledged or fixed.
+
+The limits matter because a text-only contradiction can be real at one level and irrelevant at another. “Add more movies” and “remove games from the home screen” may both be negative reviews, but they do not necessarily describe a single product decision. “The app is great” and “the catalog is too small” may coexist because a customer values the service while still requesting an improvement.
+
+Do not solve that ambiguity by asking an AI model to sound more certain. Add the field that would change the decision, then collect it.
+
+## How does this evidence standard prepare an AI feedback workflow?
+
+Use the ledger as the input contract and the decision record as the output contract.
+
+Before testing an AI workflow, require it to:
+
+1. preserve every source ID and raw review link;
+2. show the records it grouped together;
+3. separate rating, sentiment, request type, and product judgment;
+4. mark segment, workflow stage, use case, severity, and outcome as unknown when the source does not provide them;
+5. label a candidate as same-direction, context-unknown, or confirmed conflict;
+6. show the evidence that supports each label;
+7. produce a decide, split, defer, or collect-more-evidence recommendation with an owner and next evidence task.
+
+[The related guide on product-feedback synthesis evidence](/blog/what-evidence-does-product-feedback-synthesis-decision-need-before-a-team-commit) is the natural next read if your team needs a broader commitment gate. For model comparison, use [a blind comparison test for AI feedback synthesis](/blog/how-to-build-a-blind-comparison-test-for-ai-feedback-synthesis). For implementation, [the parent workflow guide](/blog/how-to-test-ai-on-contradictory-feedback) covers the reviewable system around this evidence contract.
+
+The article can answer the query without a model. The model becomes useful only after the product team has decided which evidence must remain visible.
+
+If you want your team to own this kind of evidence work rather than outsource the judgment, [Marius Manolachi's AI learning and consulting work](/learn-ai) is the relevant next step. The artifact above is complete without that step.
+
+/blog/what-evidence-should-product-teams-collect-about-customer-feedback-contradictions-feedback-decision-record.webp
