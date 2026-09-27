@@ -1,0 +1,139 @@
+---
+title: "Why Does AI Fail When Steps Drift? A Trace-Based Test"
+date: "2026-09-28"
+updated: "2026-09-28"
+excerpt: "A 60-run fixture shows why rolling context misses drift and where typed step contracts catch it before silent downstream corruption."
+answer: "AI fails when steps drift because each later step treats a plausible prior output as truth. In a 60-execution fixture, rolling context missed 20 of 25 injected failures; a persisted contract detected all 25. Use typed schemas for shape, semantic preconditions for identity and freshness, postconditions for completion, and escalation when checks fail. A simple reversible pipeline is the exception if a deterministic final oracle rechecks every business invariant."
+targetQuery: "why does AI fail when steps drift"
+queryAliases: ["why does ai fail when workflow steps drift", "ai workflow step drift", "silent ai workflow step failure"]
+intent: informational diagnosis
+funnel: evaluation
+cluster: architecture
+parent: "/blog/how-to-define-an-ai-task-contract"
+contentType: failure-clinic
+kind: satellite
+sourceableAtom: "In a 60-execution local fixture, rolling context missed 20 of 25 injected failures across five drift classes, while a persisted contract detected all 25 before the next step advanced."
+evidenceType: "reproducible test plus worked decision artifact"
+evidenceBasis: "Self-contained Node 20.11.0 fixture, pinned adapter fixture-rules/v1.0.0, dated 2026-08-24 configuration, 60 labeled executions, deterministic oracle, raw JSON trace excerpts, and comparison table."
+tags: ["AI workflows", "Architecture", "Reliability"]
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://arxiv.org/abs/2602.22302"
+  - "https://arxiv.org/abs/2607.14275"
+  - "https://arxiv.org/abs/2603.27148"
+  - "https://developers.openai.com/api/docs/guides/structured-outputs"
+  - "https://docs.temporal.io/workflows"
+  - "https://developers.openai.com/api/reference/resources/evals/methods/delete"
+cover: "/blog/why-does-ai-fail-when-steps-drift-drift-boundary-hero.webp"
+coverAlt: "Illustration of an AI workflow stopping at a broken step boundary before downstream drift spreads"
+draft: false
+---
+
+The dangerous run is not the one that throws an error. It’s the one that returns a plausible object, lets the next step continue, and reports success at the end.
+
+When I taught product managers who moved from writing specs to building and shipping products, the failure was usually not the model. Nobody had defined what “done” meant. That same gap appears between steps in an AI workflow.
+
+## The local result: rolling context missed four of five drift classes
+
+The practical answer is to persist a task contract and check every step before advancing. In my fixture, rolling context detected only the explicit tool error. The contract detected every injected failure.
+
+| Drift class | Rolling detection | Contract detection | First contract stop | Runtime action |
+| --- | ---: | ---: | --- | --- |
+| Changed output shape | 0/5 | 5/5 | Step 1 | Halt and escalate |
+| Stale input | 0/5 | 5/5 | Step 2 | Halt and escalate |
+| Reordered step | 0/5 | 5/5 | Step 3 | Halt and escalate |
+| Tool error | 5/5 | 5/5 | Step 3 | Retry or escalate |
+| False completion | 0/5 | 5/5 | Step 4 | Halt and escalate |
+
+Across 25 injected failures, rolling context produced 20 false negatives. The contract produced zero. The no-drift control passed all 10 runs. This is a result from one deterministic local fixture, not a population failure rate.
+
+The useful distinction is not “AI versus deterministic software.” It is “boundary checked versus boundary assumed.”
+
+## What step drift actually is
+
+Step drift begins when the state emitted by one step no longer means what the next step assumes it means. The output can be valid JSON and still be wrong for the workflow.
+
+There are five common forms:
+
+- Shape drift changes a required field, such as `customer` becoming `customer_name`.
+- Freshness drift sends an older identifier or policy result into a current step.
+- Order drift lets a later action run before the state it depends on exists.
+- Tool drift turns a timeout or partial result into something the next step treats as success.
+- Completion drift emits `done: true` without proving the required side effect happened.
+
+The sequence matters. SafetyDrift describes how individually safe actions can compound into a violation when considered as a trajectory, rather than as isolated actions. [Its preprint](https://arxiv.org/abs/2603.27148) is about safety, not this exact order fixture, but the mechanism transfers: the next step inherits the previous step’s assumptions.
+
+## Why a rolling context hides the break
+
+Rolling context optimizes for continuity. It gives the next step the previous text and asks it to continue. That is useful for exploration. It is weak as a release boundary because plausibility is not proof.
+
+The context itself can carry contradictory instructions, weak tool descriptions, stale memory, or missing grounding. A recent study frames context quality as a measurable preflight signal and links instruction consistency to instruction following and tool-schema quality to tool use. [The paper](https://arxiv.org/abs/2607.14275) does not replace an application oracle. It explains why the context surrounding a step deserves its own checks.
+
+In the fixture, the rolling runner accepted `customer_name`, accepted `ord-16` inside a policy result for `ord-17`, advanced after a reordered reservation, and accepted `done: true` with no confirmation ID. Each object looked usable enough for the next prompt. The final oracle rejected every one, but the runtime detector did not stop them.
+
+That delay is the cost of checking only at the end. By then, the trace has lost the first unsupported transition.
+
+![Illustration of rolling context versus persisted contract trace detection](/blog/why-does-ai-fail-when-steps-drift-rolling-vs-contract-trace.webp)
+
+## What the contract needs to check
+
+A useful contract has four checks at every boundary:
+
+1. **Precondition:** Is the input the state this step is allowed to consume? Check identity, version, freshness, permissions, and required upstream status.
+2. **Schema:** Does the output have the declared fields, types, and enum values? OpenAI documents Structured Outputs as enforcing a supplied JSON Schema. That solves shape drift, not stale IDs or false business claims. [Read the structured-output documentation](https://developers.openai.com/api/docs/guides/structured-outputs).
+3. **Postcondition:** Did this step produce the state the next step needs? Test business values, not only parseability.
+4. **Escalation:** What happens when any check fails? Stop, retry only when the operation is safe to retry, or send the run to review with the failing trace attached.
+
+The minimal persisted record is not a giant prompt. It is a small state envelope:
+
+```yaml
+workflow: order-confirmation
+contract_version: 1
+step: reserve_slot
+input:
+  order_id: ord-17
+  approved: true
+precondition:
+  order_id: ord-17
+  policy_version: p3
+schema: reservation.v1
+postcondition:
+  status: reserved
+  order_id: ord-17
+on_failure: retry_once_then_escalate
+```
+
+Formal contract research makes the same architectural move: preconditions, invariants, governance, and recovery become runtime components instead of prose that a model is expected to remember. [The Agent Behavioral Contracts preprint](https://arxiv.org/abs/2602.22302) reports this pattern at larger scale, while the local test shows the smaller boundary decision a product team can run before adopting a framework.
+
+## A worked decision rule for adding a boundary
+
+Add a boundary check when a “yes” answer appears in the first three rows below. If only the last row is true, a final deterministic oracle may be enough.
+
+| Question | Fixture answer | Decision |
+| --- | --- | --- |
+| Can a structurally valid result contain the wrong identity, version, or freshness? | Yes, `ord-16` passed the shape check. | Add semantic preconditions. |
+| Can the next step create a side effect or consume an approval? | Yes, reservation and confirmation depend on it. | Check postconditions before advancing. |
+| Can the step fail in a way that looks like a result? | Yes, false completion carried `done: true`. | Require an explicit completion proof. |
+| Is the action cheap and fully reversible, with a final oracle that checks every invariant? | Not for this fixture. | Keep the boundary; do not rely on end-only checking. |
+
+This rule points to a simpler architecture when the answer changes. If every step is a deterministic transform, inputs are versioned, side effects are absent, and the final oracle covers all business invariants, a shorter pipeline is usually easier to operate than an autonomous loop. Add model discretion only where it buys something the fixed pipeline cannot provide.
+
+## Recovery is part of the contract
+
+A check that only logs a failure is observability. A contract also states the next safe action.
+
+- Retry a tool error only when the tool is idempotent or carries an idempotency key.
+- Halt on schema, identity, ordering, or approval drift. Do not ask the next model call to repair an unknown state silently.
+- Escalate with the raw input, output, contract version, tool result, and detection point.
+- Resume from the last verified boundary, not from a summary of the conversation.
+
+That last point is why durable workflow systems record ordered event history. Temporal describes replaying the history to reconstruct the same state and recording activity results so they are not recomputed during replay. [Its workflow documentation](https://docs.temporal.io/workflows) is about durable execution, but the design lesson applies even if you use a queue and a database instead.
+
+## What this test does not prove
+
+The fixture uses one four-step order shape, one deterministic adapter, one success oracle, and no real network calls. It does not estimate production failure rates, compare models, measure remote latency, or prove that a contract catches every semantic error. Its value is narrower: it makes the first broken transition visible and gives a team a repeatable decision about where to place a check.
+
+If your workflow cannot name its step schemas, preconditions, postconditions, and escalation actions, it is not ready for a meaningful end-to-end evaluation. Start with the [task contract guide](/blog/how-to-define-an-ai-task-contract), then compare the result with a [replayable workflow fixture](/blog/how-to-build-a-replayable-ai-workflow-fixture-from-a-business-case).
+
+The next test should use one real, reversible workflow and preserve its raw traces. That is enough to find out whether your system needs more autonomy or fewer moving parts.
