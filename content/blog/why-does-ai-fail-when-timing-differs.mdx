@@ -1,0 +1,168 @@
+---
+title: "Why Does AI Fail When Timing Differs?"
+date: "2026-09-29"
+updated: "2026-09-29"
+excerpt: "A deterministic replay shows why delayed review creates stale AI actions, when async recovery works, and when both modes must stop."
+answer: "AI fails when timing differs because the model's proposal is reviewed or executed against a different external state than the one it saw. Use synchronous execution when a reviewer and state remain available for seconds; use asynchronous execution when you can persist state and revalidate it before acting. If the action is irreversible and freshness or reviewer presence is missing, stop and escalate."
+targetQuery: "why does AI fail when timing differs"
+queryAliases:
+  - "why does AI fail when review is delayed"
+  - "why does an AI workflow break when timing changes"
+intent: "diagnose timing-dependent AI workflow failure and choose a safe execution mode"
+funnel: "implementation"
+cluster: "implementation"
+parent: "/blog/how-to-choose-sync-or-async-ai-workflows"
+contentType: "failure-clinic"
+kind: "satellite"
+sourceableAtom: "In a 24-task provider-free replay, delayed timing changed the same reversible pricing task from synchronous failed_stale_context at 8 simulated seconds to asynchronous success at 9 seconds after one durable-state reload and recomputation; absent review timed out for reversible tasks, and an irreversible action stopped in both modes."
+evidenceType: "reproducible failure reproduction plus worked decision artifact"
+evidenceBasis: "Three fixed fixtures, four timing perturbations, two modes, 172 raw events, a 12-field task CSV, and byte-identical replays from two fresh copies."
+tags:
+  - "AI workflows"
+  - "Implementation"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://arxiv.org/abs/2605.27202"
+  - "https://www.nature.com/articles/s41562-024-02024-1"
+  - "https://code.mil/AI4SDLC/plays/ai_sdlc_workflows-play/"
+  - "https://docs.cloud.google.com/architecture/choose-design-pattern-agentic-ai-system"
+  - "https://openai.github.io/openai-agents-python/human_in_the_loop/"
+faq:
+  - q: "Should every AI workflow become asynchronous if reviewers work later?"
+    a: "No. Use asynchronous execution only when the workflow can persist the proposal, revalidate external state, and hold a real review boundary. If the action is irreversible or freshness cannot be checked, stop and escalate instead."
+  - q: "What should an AI workflow do when a reviewer misses the SLA?"
+    a: "Treat the missed review as a terminal state such as hold, timeout, or escalation. Do not convert silence into approval, and do not execute a stale proposal just because the queue is open."
+cover: "/blog/why-does-ai-fail-when-timing-differs-hero.webp"
+coverAlt: "Illustration of an AI workflow splitting at a delayed human review and stale state boundary"
+draft: false
+---
+
+I’ve seen teams call a timing failure a model failure because the first response looked fine. The break often happens later, when a reviewer returns to a changed state. I’m building TryUncle, an AI agent that watches the screen and annotates it live. That makes latency and human approval part of the product contract, not a cleanup task.
+
+## The failure is a context mismatch, not just a slow response
+
+AI fails when the proposal, the reviewer, and the external state stop referring to the same moment. A fast first draft can still create a slow or unsafe workflow if review capacity is limited and an error comes back as downstream rework. That is the queueing mechanism described in the recent `Queue & AI` preprint, not a claim about model intelligence alone ([Bartolucci and Vivo](https://arxiv.org/abs/2605.27202)).
+
+The useful diagnostic is simple:
+
+> If the external state can change before approval or execution, record the state version beside the proposal and check it again before the side effect.
+
+This also explains why a human approval button is not enough. Google Cloud describes human-in-the-loop as a predefined checkpoint where the agent pauses for approval, correction, or input, while noting that the review system adds architectural complexity ([Google Cloud's human-in-the-loop pattern](https://docs.cloud.google.com/architecture/choose-design-pattern-agentic-ai-system)). The checkpoint has to carry state, not only a yes or no.
+
+## What the timing replay showed
+
+I ran a provider-free harness with three fixed fixtures, four timing perturbations, and both execution modes. The deterministic model returned the same fixture-defined output each time. The only changing inputs were review timing, reviewer presence, and external state.
+
+The run produced 24 task rows and 172 raw events. Two fresh copies produced byte-identical task CSVs, raw logs, and raw-event schemas.
+
+| Replay case | Synchronous result | Asynchronous result | What changed |
+| --- | --- | --- | --- |
+| Pricing exception, immediate review | Success in 2 simulated seconds | Success in 2 seconds | Reviewer and state stayed aligned. |
+| Pricing exception, delayed review | `failed_stale_context` in 8 seconds, rework 1 | Success in 9 seconds, retry 1, rework 1 | Async reloaded durable state and recomputed before acting. |
+| Customer reply, reviewer absent | `review_timeout` at 12 seconds | `review_timeout` at 12 seconds | No review response became approval. |
+| Wire transfer, delayed or absent review | `stop_escalate_unsafe` | `stop_escalate_unsafe` | Neither mode could prove safe execution for an irreversible action. |
+
+The most useful result is not that async finished one simulated second later. It is that async preserved a recovery point. Synchronous execution failed after the reviewer approved a proposal for state version 1 while the external system was already at version 2. Asynchronous execution reloaded the paused state, recomputed against version 2, and requested refreshed approval.
+
+![Illustration of synchronous stale-context failure and asynchronous durable-state recovery](/blog/why-does-ai-fail-when-timing-differs-inline-1.webp)
+
+This result is bounded. The model was a lookup table, not a paid LLM call. The harness tests timing and state handling, not answer quality, reviewer disagreement, throughput, or business value.
+
+## How to reproduce the failure without a paid model call
+
+The evidence is useful only if another builder can rerun it. The preserved artifact contains `fixtures.json`, `config.json`, `run_harness.py`, raw JSONL, the task CSV, schemas, a decision matrix, and limitations.
+
+Run it from two fresh copies:
+
+```sh
+python3 run_harness.py --fixtures fixtures.json --config config.json --out run-1
+python3 run_harness.py --fixtures fixtures.json --config config.json --out run-2
+cmp run-1/task_results.csv run-2/task_results.csv
+cmp run-1/raw_events.jsonl run-2/raw_events.jsonl
+cmp run-1/raw_event_schema.json run-2/raw_event_schema.json
+```
+
+The task CSV records `start_time`, `first_response_s`, `review_wait_s`, `stale_context_status`, `retries`, `terminal_state`, `rework`, and `total_wall_time_s`. The raw event log adds state version, external version, proposal version, actor, and review status.
+
+The reproduction sequence is:
+
+1. Start a task with external state version 1.
+2. Emit the fixed model response and persist its proposal version.
+3. Open the review gate.
+4. Delay or remove the reviewer, or change the external state to version 2.
+5. Record whether the mode executes, reloads and recomputes, times out, or stops.
+6. Compare the terminal state and rework, not only first-response time.
+
+This is a more useful first test than swapping models. It isolates whether the workflow can survive a timing perturbation before model quality becomes a confounding variable.
+
+## When synchronous execution is the right repair
+
+Choose synchronous execution when the human is present, the decision must be made in the same short interaction, the state can remain stable, and the action is easy to inspect or reverse. A live reviewer can see the proposal and apply it while the context is still warm.
+
+The AI4SDLC guidance describes synchronous work as real-time and associates it with cognitive overload and rubber-stamping risks. It recommends explicit limits and review of accepted suggestions even for synchronous tools ([AI4SDLC workflow guidance](https://code.mil/AI4SDLC/plays/ai_sdlc_workflows-play/)).
+
+Use a synchronous path when these conditions are all true:
+
+- the reviewer is available now, not merely assigned;
+- the state will not change during the interaction, or the system checks it immediately before acting;
+- the reviewer can understand the proposal without reconstructing a long run;
+- the action is reversible or has a clear human authorization record.
+
+Synchronous does not mean “skip durable state.” If the interaction can be interrupted, store enough context to resume or abandon it safely. The main benefit is a smaller timing window, not immunity from stale context.
+
+## When asynchronous execution repairs the timing mismatch
+
+Choose asynchronous execution when review may arrive later and the work can wait safely. Async is the repair only if it creates a durable pause, makes the proposal version visible, and revalidates state before any side effect.
+
+OpenAI's Agents SDK documents this pause and resume shape: a run can become a durable `RunState`, be stored, receive an approval or rejection later, and resume from the original state ([OpenAI Agents SDK human-in-the-loop documentation](https://openai.github.io/openai-agents-python/human_in_the_loop/)). That is the implementation idea the replay exercises. It is not a promise that every queue or agent framework provides these guarantees automatically.
+
+The minimum asynchronous sequence is:
+
+1. Persist the input, proposal, external state version, policy version, and approval requirement.
+2. Put the task in an explicit `awaiting_review` state.
+3. Record reviewer identity, decision, timestamp, and the proposal version reviewed.
+4. Re-read the external state before executing.
+5. If the version changed, invalidate the old approval, recompute, and request review again.
+6. Apply only an approved proposal whose freshness and authorization checks pass.
+7. Send timeout, conflict, and missing-review cases to hold or escalation.
+
+The asynchronous path can take longer than the synchronous path. Its value is preserving correctness and recovery when the human arrives later. In the replay, it traded one retry and one unit of rework for a successful terminal state.
+
+## When neither mode is safe
+
+Stop and escalate when an action is irreversible and you cannot prove both reviewer presence and state freshness. This is not a failure to choose between sync and async. It is a boundary condition.
+
+| Timing tolerance | Human presence | State freshness | Reversibility | Safe decision |
+| --- | --- | --- | --- | --- |
+| Seconds | Present | Stable or checked at execution | Reversible | Synchronous |
+| Minutes or hours | Delayed but reliable | Re-checkable | Reversible | Asynchronous with durable state |
+| Any delay | Absent or unknown | Cannot be proven | Irreversible | Stop and escalate |
+| Review SLA exceeded | Later or uncertain | Stale or unreviewed | Any meaningful side effect | Hold, timeout, or escalate |
+
+The wire-transfer fixture makes this boundary visible. Immediate approval with stable state succeeds in the toy case. Once the reviewer is absent or the state changes before review, both modes stop rather than release the transfer. That is the correct outcome for the fixture because neither mode has enough evidence to authorize the irreversible action.
+
+The Nature Human Behaviour meta-analysis is a useful warning against universal human-AI recipes. Across 106 experiments and 370 effect sizes, human-AI combinations were, on average, worse than the better of human-alone or AI-alone. Decision tasks showed performance losses, while creation tasks showed gains, with substantial variation across studies ([Vaccaro, Almaatouq, and Malone](https://www.nature.com/articles/s41562-024-02024-1)). The mode has to follow the task and its decision boundary.
+
+## How to choose the mode before changing the model
+
+Use this short decision procedure on one real workflow:
+
+1. **Name the timing tolerance.** Must the answer arrive while the user is watching, or can the task wait for a review window?
+2. **Name the reviewer.** Who is present, what is their SLA, and what happens when they do not respond?
+3. **Version the context.** Which external record, policy, or source-of-truth version did the model see?
+4. **Test reversibility.** Can the action be undone without a second risky action or customer harm?
+5. **Replay a change.** Move the external state between proposal and review. Inspect the first broken event.
+6. **Choose the boundary.** Use synchronous for a short stable interaction, asynchronous for a durable and revalidatable wait, and stop/escalate when the evidence is insufficient.
+
+If your current workflow cannot emit those fields, it is not ready for a meaningful sync-versus-async comparison. Start with an event trace. The existing [sync-or-async workflow guide](/blog/how-to-choose-sync-or-async-ai-workflows) is the broader architecture decision; this failure clinic supplies the replay that should precede it. For a deeper queue design, see [how to build a queue-backed AI workflow](/blog/how-to-build-a-queue-backed-ai-workflow).
+
+The next useful action is to run the smallest timing perturbation against a reversible task. If the trace shows stale approval, add durable state and freshness checks before changing the model. If it shows missing reviewer capacity, fix the review boundary. If it shows an irreversible action with no reliable reviewer or state check, stop the automation.
+
+## How I verified the repair
+
+The repair is verified when two fresh copies produce the same task CSV, raw event log, and raw-event schema, and the trace contains the expected terminal states. The preserved runs confirm that delayed synchronous pricing ends in `failed_stale_context`, asynchronous execution emits a durable-state reload and recomputation before `success`, missed review ends in `review_timeout`, and unsafe wire transfer ends in `stop_escalate_unsafe` in both modes.
+
+That confirmation covers orchestration behavior only. It does not verify an LLM's answer quality, production latency, reviewer judgment, or business safety. Re-run the harness after changing a fixture, state transition, or decision rule, then inspect the first broken event again.
+
+If you want help turning that trace into a team-owned implementation decision, Marius Manolachi's [AI consulting and tutoring work](https://mariusmanolachi.com/learn-ai) is built around making existing people capable of building AI products on their own work.
