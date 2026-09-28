@@ -1,0 +1,175 @@
+---
+title: "Why Does AI Fail When Sessions Do Not Transfer?"
+date: "2026-09-29"
+updated: "2026-09-29"
+excerpt: "A fresh session can lose more than chat history. Use this 8-task transfer test to separate missing context from model, tool, and stale-state failures."
+answer: >-
+  AI fails after a session reset when the next session receives neither a complete state contract nor a verified runtime state. Transfer the goal, decisions, constraints, artifacts, permissions, unresolved questions, tool configuration, and project revision, then test against a no-transfer baseline. The exception is a complete handoff that still produces a wrong choice, which is a model error, not missing memory.
+targetQuery: "why does AI fail when sessions do not transfer"
+queryAliases:
+  - "why does AI lose context after a session reset"
+  - "AI session handoff failure"
+intent: "diagnose a session-transfer failure and decide whether to release"
+funnel: "evaluation"
+cluster: "capability"
+parent: "/blog/how-to-measure-ai-capability-transfer"
+contentType: "failure-clinic"
+kind: "satellite"
+sourceableAtom: "In an 8-task deterministic transfer fixture run on 2026-08-24, no-transfer baselines passed 0/8 while handoff-only transfers passed 4/8; the four failures isolated missing context, model error, tool/configuration drift, and stale project state, with zero unauthorized side effects."
+evidenceType: "reproducible test plus worked decision artifact"
+evidenceBasis: "A public 8-task fixture, raw handoff artifacts, dated run log, failure matrix, and release decision are included below. The first run used transfer-harness/0.1, a deterministic evaluator with no external LLM, so the result diagnoses transfer mechanics rather than model prevalence."
+tags: ["AI evaluation", "session transfer", "capability"]
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://openai.github.io/openai-agents-python/running_agents/"
+  - "https://openai.github.io/openai-agents-python/ref/memory/session/"
+  - "https://learn.microsoft.com/en-us/agent-framework/concepts/agents/conversations/storage"
+  - "https://github.com/cloudflare/agents/blob/main/docs/agents/sessions.md"
+  - "https://www.langchain.com/resources/agent-evals"
+  - "https://arxiv.org/abs/2410.10813"
+faq:
+  - q: "What should an AI handoff contain?"
+    a: "At minimum, transfer the goal, decisions, constraints, artifacts, permissions, unresolved questions, tool configuration, and the project or artifact revision the next session must verify."
+  - q: "How do I tell missing context from a model error?"
+    a: "Replay the task with a complete handoff and the same tools and project revision. If the state checks pass but the continuation chooses the wrong action, classify it as model error."
+cover: "/blog/why-does-ai-fail-when-sessions-do-not-transfer-session-transfer-hero.webp"
+coverAlt: "Illustration of an AI task state contract crossing a boundary into a fresh session"
+draft: false
+---
+
+I have watched capable AI work become unreliable at the session boundary. The agent did not suddenly forget how to write. It lost the conditions that made the earlier work safe to continue.
+
+When I taught product managers to move from writing specs to building and shipping, the recurring problem was often a vague definition of done, not a mysterious model defect. A session handoff has the same weakness when it carries a transcript but not a state contract.
+
+## The observed result: a handoff can fail for four different reasons
+
+The useful diagnosis is not “memory failed.” In the fixture below, a fresh session failed because state was absent, a choice was wrong despite complete state, the tool configuration changed, or the project revision was stale.
+
+| Condition | Passed | What failed |
+| --- | ---: | --- |
+| No-transfer baseline | 0/8 | The fresh session had no task state and had to recover before acting |
+| Handoff-only transfer | 4/8 | Four failures: missing decision, model error, tool/configuration drift, stale project state |
+| Unauthorized side effects | 0/8 | No write, send, merge, or ledger change was allowed after a mismatch |
+
+The sourceable result is bounded: this was an 8-task deterministic transfer fixture run on 2026-08-24, not a benchmark of GPT, Claude, or any other model. It gives you a failure matrix and a release question you can run on your own workflow.
+
+![Illustration of a handoff artifact being checked against a fresh session, tool configuration, and project state](/blog/why-does-ai-fail-when-sessions-do-not-transfer-session-transfer-failure-matrix.webp)
+
+The [full fixture and raw transfer artifacts](#public-fixture-and-raw-transfer-artifacts) are included later in the post. The short version is already enough to make the release decision: do not call a workflow session-transfer capable until it passes with a complete handoff and stops safely when state does not match.
+
+## Why session persistence is not capability transfer
+
+Session persistence preserves some representation of history. Capability transfer asks whether a fresh session can continue the work with the same intent, constraints, tools, files, and authority.
+
+The distinction matters because systems expose different persistence strategies. The [OpenAI Agents SDK documentation](https://openai.github.io/openai-agents-python/running_agents/) lists client-managed input history, SDK sessions, server-managed conversations, and response continuation as separate ways to carry state. It also warns that mixing client-managed and server-managed state can duplicate context unless the application reconciles both layers.
+
+The SDK's [Session reference](https://openai.github.io/openai-agents-python/ref/memory/session/) defines a session as conversation history for a specific session, with methods to retrieve and append items. That is useful storage behavior. It does not, by itself, prove that a decision, permission, artifact revision, or unresolved question survived in a form the next task can safely use.
+
+Microsoft's [Agent Framework storage guidance](https://learn.microsoft.com/en-us/agent-framework/concepts/agents/conversations/storage) makes the operational boundary clearer: storage controls where history lives, how much history loads, and how reliably a session resumes. For service-managed conversations, it recommends mapping provider identifiers to application session IDs and verifying ownership before resuming.
+
+So the right question is not “does the system remember the chat?” It is “what state did the next session receive, and what did it verify before acting?”
+
+## The state contract a fresh session needs
+
+Transfer these eight fields as a typed artifact, not as a hopeful summary:
+
+| Field | What the next session needs to know | Failure if missing |
+| --- | --- | --- |
+| Goal | The outcome still being pursued | It solves a nearby problem |
+| Decisions | Choices already made and their status | It reopens or reverses settled work |
+| Constraints | Boundaries, exclusions, and non-negotiables | It produces an unsafe or unusable result |
+| Artifacts | Files, records, links, or inputs that matter | It uses the wrong evidence |
+| Permissions | Tools and side effects allowed | It attempts an unauthorized action |
+| Unresolved questions | What must be clarified or escalated | It fills uncertainty with an assumption |
+| Tool configuration | The tool schema, version, and mode | It calls a changed interface |
+| Project revision | Commit, dataset, document, or artifact hash | It resumes against stale state |
+
+The last two fields are easy to omit because they are not natural-language memory. They are still part of task state. Cloudflare's [session documentation](https://github.com/cloudflare/agents/blob/main/docs/agents/sessions.md) shows why: a fork can copy message history while not copying compaction overlays. A history copy is therefore not automatically an equivalent execution state.
+
+This contract does not need to reproduce every message. It needs to preserve the facts that change what the next session is allowed to do.
+
+## How to reproduce the transfer failure on your workflow
+
+Use two fresh-session runs per task. The only difference in the first comparison is whether the handoff artifact crosses the boundary.
+
+1. Choose 8 to 12 independent-work tasks. Include at least one read-only investigation, one draft, one task with a permission boundary, one task with a changing artifact, and one task with an unresolved question.
+2. Write the expected state contract before running the agent. Record the goal, decisions, constraints, artifacts, permissions, unresolved questions, tool configuration, and project revision.
+3. Run the task in source session `S0`. Save the proposed handoff exactly as the system would produce it.
+4. Start fresh session `S1`. Run the no-transfer baseline with the same continuation prompt and no handoff.
+5. Start another fresh session `S2`. Transfer only the proposed handoff and use the same continuation prompt. Do not paste the full source transcript.
+6. Check the outcome against explicit success criteria. Record recovery turns, incorrect assumptions, and side effects, including blocked side effects.
+7. Re-run any failed transfer with a complete handoff, unchanged tools, and a current project revision. This separates missing context from model behavior, configuration drift, and stale state.
+
+The important control is step 7. Without it, a team can blame memory for a wrong tool schema or an old file revision.
+
+## The failure matrix: diagnose the first broken invariant
+
+Use the first observable mismatch, not the final bad answer, as the diagnosis.
+
+| Failure | Reproduce it by | First signal | Repair |
+| --- | --- | --- | --- |
+| Missing context | Remove a required field from the handoff | The session asks a question that was already decided, or assumes the blank | Require every field or an explicit `unknown` value |
+| Model error | Provide complete state, stable tools, and current project state, then inspect the wrong continuation choice | State checks pass but the task choice is wrong | Add an output check and a human stop for decision mismatch |
+| Tool/configuration drift | Change the tool manifest or schema between sessions | The call is blocked, malformed, or semantically different | Persist the tool/config version and compare it before action |
+| Stale project state | Point the handoff at an old commit, dataset, or document revision | The continuation reads or edits an obsolete object | Verify a revision or content hash before action |
+
+The [LangChain thread-level evaluation guidance](https://www.langchain.com/resources/agent-evals) makes the same evaluation point from another angle: a run can look correct while a full thread fails on context switching, memory management, or multi-step behavior. Test the thread boundary, not only the last response.
+
+LongMemEval is useful background, but it answers a broader question. Its [paper](https://arxiv.org/abs/2410.10813) evaluates information extraction, multi-session reasoning, temporal reasoning, knowledge updates, and abstention. It reports a 30% accuracy drop for memorizing information across sustained interactions. That does not tell you whether your handoff lost a decision, inherited a different tool, or resumed from a stale project. Your workflow still needs a situated fixture.
+
+## What the eight-task fixture actually found
+
+The table below is the run log in compressed form. The evaluator was `transfer-harness/0.1`, dated 2026-08-24, with no external LLM. Each task used a source session `S0`, a fresh session, and only the handoff JSON for the transfer run.
+
+| ID | Task | No transfer | Handoff only | Cause | Recovery | Side effect |
+| --- | --- | --- | --- | --- | ---: | --- |
+| T01 | Reopen product brief | fail | pass | none | 0 | none |
+| T02 | Investigate CSV anomaly | fail | fail | missing `decisions` | 1 | no write |
+| T03 | Draft release note | fail | fail | wrong model choice | 1 | draft stopped |
+| T04 | Prepare questionnaire evidence | fail | fail | `files-v2` vs `files-v1` | 1 | tool blocked |
+| T05 | Schedule an interview | fail | pass | none | 0 | none |
+| T06 | Repair a failing test | fail | fail | stale project hash | 1 | patch stopped |
+| T07 | Interpret policy exception | fail | pass | none | 0 | none |
+| T08 | Answer a close question | fail | pass | none | 0 | none |
+
+The most useful row is T03. The handoff contained the required state, and the evaluator still selected an unreviewed diff. That is a model-choice error in this controlled harness, not evidence that the session forgot the task. T04 and T06 show a different class of problem: even a correct handoff cannot make a changed tool contract or old project revision safe.
+
+## The release gate: hold, ship read-only, or release
+
+Use this scorecard before allowing an agent to resume independent work.
+
+| Check | Pass condition | Fixture result |
+| --- | --- | --- |
+| Paired baseline | Every task has a no-transfer fresh-session control | 8/8 |
+| State completeness | All eight state fields are present or explicitly unknown | 8/8 artifacts inspected |
+| Successful transfer | At least one task passes with handoff only | 4/8 |
+| Reproduced failure | At least one failure can be rerun | 4 failures |
+| Cause separation | Missing context, model error, config drift, and stale state have distinct signals | yes |
+| Outcome threshold | Every task in the intended release slice passes | 4/8, so no |
+| Side-effect safety | No unauthorized action occurs when a check fails | 0 unauthorized side effects |
+
+The worked decision is **hold autonomous session transfer and continue with a read-only, mismatch-visible pilot**. The fixture proves that a handoff can carry useful state, but it does not yet meet an all-tasks release threshold. The next run should use the production model and dated version, keep tools read-only, and require a stop on any state, tool, or project mismatch.
+
+Do not turn the 4/8 result into a general failure rate. It is a release artifact for this fixture. Its value is that it tells you what to repair next.
+
+## What to transfer when the work is allowed to continue
+
+The minimum handoff object can be small, but it must be explicit:
+
+```json
+{
+  "goal": "",
+  "decisions": [],
+  "constraints": [],
+  "artifacts": [],
+  "permissions": [],
+  "unresolved": [],
+  "toolConfig": {"name": "", "version": "", "mode": "read-only"},
+  "projectState": {"kind": "commit-or-hash", "value": "", "checkedAt": ""}
+}
+```
+
+Treat the object as an input contract. Validate it before the model sees the continuation request, then validate the proposed action before any side effect. The [OpenAI Agents SDK](https://openai.github.io/openai-agents-python/running_agents/) exposes session and run configuration choices, but the application still has to choose one persistence strategy and reconcile the state it owns.
+
+If you are measuring capability transfer, link this test to the parent guide, [How to Measure AI Capability Transfer](/blog/how-to-measure-ai-capability-transfer), and use [How to Score an AI Workflow Handoff Before Release](/blog/how-to-score-ai-workflow-handoff-before-release) for the downstream handoff review. The next capability is not remembering more conversation. It is resuming the right work with the right authority.
