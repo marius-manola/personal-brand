@@ -1,0 +1,150 @@
+---
+title: "Why Does AI Fail When Corrections Overwrite Output?"
+date: "2026-09-29"
+updated: "2026-09-29"
+excerpt: "A 12-case fixture shows what overwrite correction destroys and which records a versioned AI workflow can replay."
+answer: "AI fails when corrections overwrite output because the workflow replaces the evidence needed to interpret and replay the change. Preserve the original output, correction event, actor, timestamp, source version, diff, approval state, and replay link as separate records. The exception is a disposable draft with no audit, approval, or recovery requirement."
+targetQuery: "why does AI fail when corrections overwrite output"
+queryAliases:
+  - "why overwritten AI output loses context"
+  - "how to preserve human corrections to AI output"
+intent: "diagnose overwrite loss and choose a safe correction record"
+funnel: "implementation"
+cluster: "implementation"
+parent: "/blog/how-to-preserve-ai-output-and-human-corrections"
+contentType: "failure-clinic"
+kind: "satellite"
+sourceableAtom: "In a dated 12-case fixture, overwrite mode recovered only the latest approval state, while versioned mode recovered all seven tested provenance fields in every case."
+evidenceType: "reproducible failure reproduction plus worked decision artifact"
+evidenceBasis: "Provider-neutral deterministic fixture, 12 fixed cases, two storage modes, machine-checked reconstruction report, test date 2026-08-24."
+tags:
+  - "AI workflows"
+  - "versioning"
+  - "provenance"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://www.w3.org/TR/prov-primer/"
+  - "https://www.amazon.science/blog/bridging-intent-and-execution-in-agentic-systems"
+  - "https://arxiv.org/abs/2601.20727"
+  - "https://proceedings.mlr.press/v162/mitchell22a/mitchell22a.pdf"
+  - "https://engineering.stanford.edu/news/how-do-we-fix-and-update-large-language-models"
+cover: "/blog/why-does-ai-fail-when-corrections-overwrite-output-hero.webp"
+coverAlt: "Illustration of an AI output moving from overwrite correction to versioned revision"
+draft: false
+---
+
+The dangerous moment isn’t the first AI answer. It’s the second pass, after a person has corrected it.
+
+If the workflow writes that correction back into the same field and then asks AI to revise the field again, the current value may look fine while the evidence of how it got there disappears.
+
+![Illustration of an AI output moving from overwrite correction to versioned revision](/blog/why-does-ai-fail-when-corrections-overwrite-output-hero.webp)
+
+## What did the 12-case fixture show?
+
+In the fixture run for this page, versioned correction preserved all seven tested historical fields in all 12 cases. Overwrite mode preserved the final current state, but not the original output, correction actor or time, version lineage, diff, approval event, or replay path.
+
+That is the sourceable result here: **a correction is not recoverable just because the latest corrected text is still visible.**
+
+| Mode | Original output | Correction actor and time | Version lineage | Diff | Approval event | Replay path | Final state |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Overwrite | 0/12 | 0/12 | 0/12 | 0/12 | 0/12 | 0/12 | 12/12 |
+| Versioned | 12/12 | 12/12 | 12/12 | 12/12 | 12/12 | 12/12 | 12/12 |
+
+The 12 cases covered clean edits, corrections that contradicted the initial answer, repeated corrections, rejected corrections, a stale revision, and a concurrent revision. The test used fixed inputs and timestamps on 2026-08-24. It did not call a model provider.
+
+![Illustration of an append-only correction event linked to original and revised AI output](/blog/why-does-ai-fail-when-corrections-overwrite-output-inline-1.webp)
+
+## Why does overwrite lose the meaning of a correction?
+
+Overwrite collapses several different things into one mutable value: what AI proposed, what a person changed, what the system later generated, and what is currently approved.
+
+After the follow-up AI revision, the mutable record in this fixture contained the latest text, an AI source identifier, an AI timestamp, and a proposed state. It did not contain the pre-correction text or a durable correction event. A later investigator could see the endpoint, but could not reconstruct the transition from that record.
+
+This is a provenance problem, not only a logging problem. The W3C PROV model distinguishes entities, activities, agents, responsibility, revisions, and time. It models a revision as a new entity related to the prior one, rather than pretending that the prior entity never existed. See the [W3C PROV Model Primer](https://www.w3.org/TR/prov-primer/).
+
+When I taught product managers to move from writing specs to building and shipping products, the failure was usually that nobody could say what done meant. A correction workflow has the same problem. “The field contains the right text” is not a complete done condition when another person must approve, explain, or replay the change.
+
+## What happens when the correction is broad or stale?
+
+The correction can fail twice: first when the edit lands on the wrong text, then when the workflow destroys the evidence needed to diagnose it.
+
+Case c03 contained two occurrences of `open`. The intended correction changed only the first status. The overwrite path used a broad replacement and produced:
+
+```text
+Status: pending review. Escalation status: pending review.
+```
+
+The versioned path stored the intended full-span result:
+
+```text
+Status: pending review. Escalation status: open.
+```
+
+This mirrors Amazon Science’s edit-boundary finding: repeated matches and partial fragments make an edit underspecified, while stronger anchors and a returned diff make the state transition observable. The article recommends clarification before execution when the match is ambiguous and a diff after execution so the system can inspect collateral changes. [Amazon Science explains the failure modes and diff feedback](https://www.amazon.science/blog/bridging-intent-and-execution-in-agentic-systems).
+
+The fixture also included three stale or concurrent paths. Versioned mode rejected the correction whose base version was no longer current and retained the rejection reason. Overwrite mode applied the incoming text anyway. In c11, that made the later concurrent correction replace an accepted engineering owner with the stale support owner and urgent label.
+
+The practical rule is simple: **never apply a correction against a mutable value without recording the source version it was based on and checking that the version is still current.**
+
+## What should a correction event record?
+
+A correction event needs enough context to answer four questions later: what changed, who changed it, which state did they see, and what happened next.
+
+```json
+{
+  "event_id": "c11-correction-2",
+  "type": "correction",
+  "entity_before": "c11-v1",
+  "actor": "lea",
+  "occurred_at": "2026-08-24T09:14:00Z",
+  "source_version": "fixture-model-c11-1",
+  "proposed_text": "Owner: Support. Urgency: urgent.",
+  "diff": "unified diff from c11-v1 to the proposal",
+  "approval_state": "rejected",
+  "reason": "base version is not current"
+}
+```
+
+That is a minimum event shape, not a complete compliance design. The audit-trail paper describes a chronological, context-rich ledger that links technical provenance with approvals, waivers, and attestations, and it proposes required metadata plus append-only storage. [Read the audit-trail paper](https://arxiv.org/abs/2601.20727).
+
+For a real workflow, add the input or task identifier, model and prompt version for every AI generation, policy version, tenant or workspace boundary, retention class, and authorization decision. Keep the raw output separate from the human correction. Store the diff as an artifact, not only a boolean such as `edited: true`.
+
+## Should the workflow create a revision, an event, or a rollback?
+
+Use the record type that matches the operation. A revision represents a new candidate or accepted state. An event records what happened, including a rejected attempt. A rollback restores a known prior state while preserving the fact that the rollback occurred.
+
+| Situation | Record first | Apply state change? | Required guard |
+| --- | --- | --- | --- |
+| Human changes an output and the base is current | Correction event plus new revision | Yes, if approved | Store `entity_before`, diff, actor, time, and source version |
+| Human rejects a proposed change | Rejected correction event | No | Keep the proposal and rejection reason |
+| Incoming correction uses a stale base | Stale correction event | No | Compare the submitted base version with current version |
+| Two reviewers change the same base | One accepted revision plus a concurrent event | Only for the accepted branch | Require explicit conflict handling, not last-write-wins |
+| A known bad revision must be undone | Rollback event plus new revision from the prior entity | Yes | Never delete the bad revision or its approval history |
+| Disposable scratch text with no approval or replay need | Mutable value can be enough | Yes | State the exception explicitly and keep it outside the system of record |
+
+Model editing research makes a related distinction. SERAC stores edits in an external memory rather than changing the base model directly, and its authors discuss multiple edits, edit scope, and the possibility that edit memory grows without bound. That research is about model behavior, not workflow records, but the design lesson transfers carefully: an update needs scope and memory outside the latest answer. [See the SERAC paper](https://proceedings.mlr.press/v162/mitchell22a/mitchell22a.pdf).
+
+The exception matters. You don’t need a seven-field provenance record for a throwaway brainstorm that no one will approve, publish, or replay. The moment the output enters a customer, financial, compliance, code, or operational decision, treat the correction as a state transition.
+
+## How can a team verify correction handling before production?
+
+Run the same fixed cases through both storage paths. The test should fail loudly if the system can show the final answer but cannot reconstruct the path to it.
+
+1. Freeze 12 to 20 representative cases before implementation. Include at least one clean edit, contradictory correction, repeated correction, rejection, stale base, concurrent update, and duplicate or broad edit anchor.
+2. Capture the initial output as an immutable entity with input, model or source version, generation time, and hash.
+3. Apply the human correction twice: once through the overwrite path and once through a versioned path.
+4. Generate a follow-up AI revision from each path. Treat the revision as a new proposal, not as permission to delete the previous state.
+5. Check exact reconstruction of the original output, correction text, actor, timestamp, source version, diff, approval state, and replay sequence.
+6. Assert that stale and concurrent corrections are rejected or explicitly merged. Do not let “last write wins” count as conflict handling.
+7. Archive the fixed inputs, outputs, events, diffs, configuration, test date, and machine report with the release decision.
+
+The success condition is not “the final text looks right.” It is “a reviewer can reconstruct why this text exists and reproduce the approved path without asking the original operator.”
+
+## What does this test not prove?
+
+It does not prove that versioning fixes model quality, eliminates bad human edits, or makes a workflow tamper-proof. The fixture used short deterministic strings, one local storage abstraction, and no provider API. It measured recoverability and stale-state handling only.
+
+The Stanford explanation of model editing makes the broader limitation clear: changing a model or its behavior can have downstream effects, and updating new information must not silently remove existing knowledge. [Stanford’s model-editing overview](https://engineering.stanford.edu/news/how-do-we-fix-and-update-large-language-models) supports that scope boundary. This article applies the narrower workflow lesson: preserve the evidence around an output correction before asking AI to revise it again.
+
+If your current workflow overwrites a field, start by adding the immutable `original_output` and `correction_event` records. Then add version checks and replay. You can learn more about building this capability on your own work through [Marius Manolachi’s AI implementation and tutoring practice](https://mariusmanolachi.com/learn-ai), or use the parent guide, [How to Preserve AI Output and Human Corrections](/blog/how-to-preserve-ai-output-and-human-corrections), as the broader design path. For adjacent recovery work, see [How to Replay a Failed Multi-Agent Workflow Safely](/blog/replay-failed-multi-agent-workflow) and [How to Add an Audit Trail to an AI Workflow](/blog/how-to-add-an-audit-trail-to-an-ai-workflow).
