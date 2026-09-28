@@ -1,0 +1,138 @@
+---
+title: "Why Does AI Fail When Integration Choice Is Unclear?"
+date: "2026-09-29"
+updated: "2026-09-29"
+excerpt: "A paired direct-function and MCP test shows how to classify integration failures and assign repair ownership after a promising demo."
+answer: "AI fails when the integration leaves capability, contract, authorization, and result ownership implicit. In a paired local test, the same seven cases produced the same outcomes through a direct function/API adapter and an MCP adapter. Narrow the tool surface for overlap, change the contract for schema or result problems, keep routing and confirmation in code, and repair execution for authorization or retry failures."
+targetQuery: "why does AI fail when integration choice is unclear"
+queryAliases:
+  - "ai integration failure diagnosis"
+  - "post-demo integration incident review"
+intent: "diagnose a post-demo architecture failure and assign the repair owner"
+funnel: "architecture evaluation"
+cluster: "architecture"
+parent: "/blog/how-to-choose-mcp-or-a-custom-api"
+contentType: "failure-clinic"
+kind: "satellite"
+sourceableAtom: "A paired seven-case boundary fixture classifies integration failures by the first failed invariant and assigns repair to routing in code, the API/MCP contract, authorization/execution, or result verification."
+evidenceType: "reproducible failure test plus worked decision artifact"
+evidenceBasis: "Local paired adapter test run on 2026-08-24 with scripted-planner/v1, identical prompts, serialized direct function and MCP definitions, shared policy, and shared backend fixture; no external LLM call."
+tags:
+  - "AI architecture"
+  - "MCP"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://www.microsoft.com/en-us/research/video/tool-space-interference-an-emerging-problem-for-llm-agents/"
+  - "https://modelcontextprotocol.io/specification/2025-06-18/server/tools"
+  - "https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization"
+  - "https://developers.openai.com/api/docs/guides/function-calling"
+  - "https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools"
+cover: "/blog/why-does-ai-fail-when-integration-choice-is-unclear-hero.webp"
+coverAlt: "Illustration of a paired AI integration test separating direct API and MCP repair ownership"
+draft: false
+---
+
+The demo is usually not where this failure becomes visible. It appears when a user asks for a capability that sits between a model, a tool surface, a policy check, and a system of record.
+
+When I taught product managers to move from writing specifications to building and shipping, the hard part was often not the model. It was deciding what “done” meant. Integration failures have the same shape: everyone can point at a component, but nobody owns the boundary.
+
+## The paired test result
+
+The direct function/API path and the MCP path produced the same classification in all seven cases because the planner inputs, schemas, policy, and backend behavior were held constant. The test did not show that one surface is inherently safer. It showed where the first failed invariant belonged.
+
+| Path | Case | Candidate set | Selected | Arguments | Validation | Authorization | Result | Verified effect | Latency ms | Repair owner |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | ---: | --- |
+| direct | unavailable capability | `[]` | none | `{}` | not run | not run | unavailable | none | 0.000 | routing in code |
+| MCP | unavailable capability | `[]` | none | `{}` | not run | not run | unavailable | none | 0.000 | routing in code |
+| direct | overlapping tools | `get_status, lookup, change, delete` | `orders_lookup` | `A-17` | pass | pass | wrong capability | none | 0.010 | routing in code |
+| MCP | overlapping tools | `get_status, lookup, change, delete` | `orders_lookup` | `A-17` | pass | pass | wrong capability | none | 0.005 | routing in code |
+| direct | invalid arguments | `get_status, lookup, change, delete` | `orders_get_status` | `order_id: 17` | fail type | not run | invalid arguments | none | 0.005 | tool contract |
+| MCP | invalid arguments | `get_status, lookup, change, delete` | `orders_get_status` | `order_id: 17` | fail type | not run | invalid arguments | none | 0.003 | tool contract |
+| direct | unauthorized action | `get_status, lookup, change, delete` | `orders_change_status` | `A-17, shipped` | pass | deny viewer | unauthorized | none | 0.005 | executor policy |
+| MCP | unauthorized action | `get_status, lookup, change, delete` | `orders_change_status` | `A-17, shipped` | pass | deny viewer | unauthorized | none | 0.004 | executor policy |
+| direct | ambiguous result | `get_status, lookup, change, delete` | `orders_get_status` | `A-17` | pass | pass | ambiguous | not verified | 0.003 | result contract |
+| MCP | ambiguous result | `get_status, lookup, change, delete` | `orders_get_status` | `A-17` | pass | pass | ambiguous | not verified | 0.003 | result contract |
+| direct | retry after commit | `get_status, lookup, change, delete` | `orders_change_status` | `A-17, k-retry` | pass | pass | already applied | verified once | 0.004 | executor idempotency |
+| MCP | retry after commit | `get_status, lookup, change, delete` | `orders_change_status` | `A-17, k-retry` | pass | pass | already applied | verified once | 0.004 | executor idempotency |
+| direct | irreversible side effect | `get_status, lookup, change, delete` | `orders_delete` | `A-17, not-confirmed` | pass | pass | confirmation required | none | 0.003 | routing in code |
+| MCP | irreversible side effect | `get_status, lookup, change, delete` | `orders_delete` | `A-17, not-confirmed` | pass | pass | confirmation required | none | 0.003 | routing in code |
+
+The local adapter measurements are not a speed comparison. They exclude model generation, network time, and real backend time. The useful result is the ownership split.
+
+![Illustration of a paired AI integration failure matrix mapping traces to repair owners](/blog/why-does-ai-fail-when-integration-choice-is-unclear-boundary-matrix.webp)
+
+## Why the integration surface can become the failure
+
+An integration is not just a wire format. It decides what the model can see, which calls are valid, where authorization runs, and how a result says “verified.”
+
+MCP tools are model-controlled and expose names, descriptions, input schemas, and optional output schemas. The specification also separates protocol errors from tool execution errors and calls for input validation, access controls, result validation, timeouts, and logging. [MCP Tools specification](https://modelcontextprotocol.io/specification/2025-06-18/server/tools)
+
+Direct function calling has the same design pressures under a different envelope. OpenAI function definitions include a name, description, JSON Schema parameters, and a strict setting. The API also provides `tool_choice`, `allowed_tools`, and a way to disable parallel calls. [OpenAI function calling guide](https://developers.openai.com/api/docs/guides/function-calling)
+
+Anthropic makes the same boundary visible through detailed tool descriptions, JSON Schema input, tool-choice controls, and strict tool use. [Claude tool definitions](https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools)
+
+The shared lesson is an analysis, not a vendor claim: changing the surface does not decide who owns ambiguity. Your system still needs a named owner for routing, contracts, policy, execution, and verification.
+
+Microsoft Research gives the problem a useful external name. Its 2025 analysis of 1,470 MCP servers describes tool-space interference, including exact name collisions, semantic overlap, large tool surfaces, and long responses. [Microsoft Research](https://www.microsoft.com/en-us/research/video/tool-space-interference-an-emerging-problem-for-llm-agents/)
+
+## Classify the first failed boundary
+
+Do not start by asking whether MCP or a custom API is better. Start with the first invariant that failed.
+
+| Failure signal | What it means | Repair first |
+| --- | --- | --- |
+| No candidate can express the task | Capability routing is incomplete | Keep routing in code or add one scoped tool |
+| A valid call chooses a near-match | The model-facing surface is ambiguous | Narrow the surface or constrain allowed tools |
+| Arguments fail before execution | The contract is wrong or drifted | Change the schema and regenerate both adapters |
+| A valid call is denied | Runtime policy or credentials own the failure | Repair executor authorization, not the prompt |
+| Result is parseable but unverifiable | The output contract hides identity or verification | Return explicit status, identity, and `verified` state |
+| Timeout follows a committed write | Retry ownership is missing | Add idempotency and verification in the executor |
+| Irreversible action lacks confirmation | The action boundary is too loose | Keep approval routing in code |
+
+This matrix is the practical answer to the query. “AI failed” is not a repair category. “The call selected a near-match and returned a valid record” is.
+
+## When should you narrow the tool surface?
+
+Narrow the surface when two tools can satisfy the same user wording but produce different meanings. In the test, `orders_get_status` and `orders_lookup` both accepted `A-17`. The call passed validation and authorization, yet it was still the wrong capability.
+
+The repair belongs in routing or the exposed candidate set. Rename tools only if the names are part of the ambiguity. Otherwise, expose the smallest allowed subset for the current workflow or select the route in code before the model sees tools. OpenAI documents `allowed_tools` for restricting callable tools, and Microsoft Research recommends exposing as few tools as possible. [OpenAI function calling guide](https://developers.openai.com/api/docs/guides/function-calling), [Microsoft Research](https://www.microsoft.com/en-us/research/video/tool-space-interference-an-emerging-problem-for-llm-agents/)
+
+Verify the repair by replaying the overlap case. A passing result is not enough. The selected tool must match the requested capability, and the trace must show why the other tool was unavailable or rejected.
+
+## When should you change the API or MCP contract?
+
+Change the contract when the first failure is validation or verification. In the invalid-argument case, `order_id: 17` failed before execution. In the ambiguous-result case, the response was structurally readable but carried two candidate records and `verified=false`.
+
+The direct and MCP definitions deliberately carry the same fields, even though one uses `parameters` and the other uses `inputSchema`. MCP also supports an output schema, and its specification recommends client validation of structured results. [MCP Tools specification](https://modelcontextprotocol.io/specification/2025-06-18/server/tools)
+
+Do not repair a schema failure with a stronger prompt. Add the missing type, enum, required field, identity key, or verification state to the contract. Then regenerate both surfaces and replay invalid, ambiguous, and success cases.
+
+## When should routing and approval stay in code?
+
+Keep routing in code when the system must abstain, choose among semantically overlapping tools, or gate an irreversible action. These decisions depend on application state and authority, not only language understanding.
+
+The test blocked `orders_delete` because confirmation was `not-confirmed`, even though the operator was authorized. That is a code-owned stop rule. MCP's specification says applications should show the tools being exposed and provide confirmation prompts for sensitive operations. [MCP Tools specification](https://modelcontextprotocol.io/specification/2025-06-18/server/tools)
+
+For a concrete preview boundary around risky actions, pair this decision with the [dry-run mode guide](/blog/how-to-build-a-dry-run-mode-for-an-ai-agent).
+
+Authorization is also an executor concern. MCP's authorization specification distinguishes optional authorization support from the token and scope checks required for protected HTTP servers. [MCP Authorization specification](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization)
+
+Verify these repairs with a negative test: the unauthorized action and unconfirmed delete must produce no external effect. A natural-language refusal after the side effect is not a passing test.
+
+## Worked decision artifact for a post-demo incident
+
+Use this sequence in the incident review:
+
+1. **Freeze the trace.** Save the exact user task, candidate set, selected tool, arguments, validation result, authorization result, tool status, external effect, and latency. Do not begin with a rewritten prompt.
+2. **Find the first failed invariant.** If no capability was exposed or a near-match was selected, start with routing. If arguments failed, start with the contract. If authorization failed, start with the executor policy. If the result was ambiguous or a retry followed a commit, start with result or execution semantics.
+3. **Assign one owner.** The owner must be one of application routing, API/MCP contract, executor policy, executor idempotency, or result verification. “The AI team” is not an owner.
+4. **Replay the case and its neighbor.** A schema fix needs a valid and invalid call. A routing fix needs the overlap case and an unavailable-capability case. A retry fix needs timeout-after-commit and a second request. An approval fix needs confirmed and unconfirmed actions.
+
+The repair decision is complete only when the original failure is classified, the external effect is verified, and the same trace can be replayed with the new owner visible.
+
+## What this test does not prove
+
+This was a small synthetic local fixture run on 2026-08-24 with `scripted-planner/v1`. It did not call a live OpenAI or Anthropic model, a real MCP server, a remote API, or a production system. It does not estimate failure frequency, model-selection accuracy, provider differences, or network latency. Its claim is narrower: when the planner input and backend behavior are fixed, the integration surface alone did not change the classification, while the trace made repair ownership explicit.
+
+If you are still choosing between the two surfaces, use the parent guide on [how to choose MCP or a custom API](/blog/how-to-choose-mcp-or-a-custom-api). If you already have a working demo, replay the seven cases before expanding the tool set. For a team that needs a tighter build-and-ownership practice, Marius Manolachi's [AI consulting and tutoring work](https://mariusmanolachi.com/learn-ai) is about making existing people capable of building AI products on their own work.
