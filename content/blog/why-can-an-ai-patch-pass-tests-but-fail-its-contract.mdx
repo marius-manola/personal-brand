@@ -1,0 +1,141 @@
+---
+title: "Why Can an AI Patch Pass Tests but Fail Its Contract?"
+date: "2026-09-29"
+updated: "2026-09-29"
+excerpt: "AI patches fail review when intent, scope, and acceptance evidence stay implicit. A five-case paired diff shows what makes changes inspectable."
+answer: "AI fails to produce reviewable changes when it optimizes for a working patch but leaves intent, scope, and acceptance evidence implicit. In the five-case fixture archived with this post, both versions passed visible tests, but the unconstrained patch failed two seeded checks. A constrained sequence fixed that by naming intent, limiting files, and testing each acceptance condition. This is one model and one run, not a universal rate."
+targetQuery: "why can an AI patch pass tests but fail its contract"
+queryAliases:
+  - "why do green tests miss an AI feature bug"
+  - "how to diagnose a passing AI patch that violates requirements"
+intent: "diagnostic"
+funnel: "implementation"
+cluster: "implementation"
+parent: "/blog/how-to-implement-reviewable-ai-code-changes"
+contentType: "failure-clinic"
+kind: "satellite"
+sourceableAtom: "In a five-case task-board fixture, both AI-generated conditions passed visible tests, but only the constrained sequence passed all seeded checks and made the recorded reviewer reconstruction complete."
+evidenceType: "reproducible test plus worked review artifact"
+evidenceBasis: "Archived five-case fixture, paired diffs, complete prompts, independent oracle, fixed rubric, raw reviewer notes, and harness timings in the job experiment folder."
+tags:
+  - "ai-coding"
+  - "code-review"
+  - "implementation"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://google.github.io/eng-practices/review/"
+  - "https://google.github.io/eng-practices/review/reviewer/looking-for.html"
+  - "https://google.github.io/eng-practices/review/reviewer/navigate.html"
+  - "https://docs.github.com/en/pull-requests/reference/pull-request-reviews"
+  - "https://link.springer.com/article/10.1007/s10515-026-00638-5"
+  - "https://arxiv.org/abs/2304.10778"
+cover: "/blog/why-can-an-ai-patch-pass-tests-but-fail-its-contract-inspectability-hero.webp"
+coverAlt: "Illustration of an opaque AI code patch beside a constrained reviewable sequence"
+draft: false
+---
+
+An AI-assisted change can pass a demo and still fail the first serious review. The code runs, the screenshot looks right, and nobody can answer a basic question: what exactly was this patch allowed to change?
+
+When I taught product managers to move from writing specs to building and shipping, the recurring problem was not a measured model failure. It was a qualitative teaching observation: people often lacked a shared definition of done. That same gap makes AI-generated code hard to inspect.
+
+![Illustration of a reviewer reconstructing intent from an opaque patch and a small labeled sequence](/blog/why-can-an-ai-patch-pass-tests-but-fail-its-contract-paired-diff-review.webp)
+
+## The failure starts when the reviewer must reconstruct intent
+
+AI changes become hard to inspect when the patch makes the reviewer infer the purpose, allowed scope, and proof of correctness from code alone. A working result does not tell you whether the change satisfies the requirement, preserves existing behavior, or quietly adds work nobody requested.
+
+Google’s code-review guidance treats design, functionality, complexity, tests, naming, comments, style, and documentation as separate review concerns, not one pass/fail feeling. It also says a reviewer should understand every assigned line and the surrounding context. ([Google Engineering Practices](https://google.github.io/eng-practices/review/))
+
+That gives a useful diagnosis:
+
+| Inspectability question | What the reviewer needs to see | Typical opaque-patch failure |
+| --- | --- | --- |
+| Why was this change made? | An intent note tied to the requirement | The reviewer reverse-engineers purpose from implementation |
+| Where may it change code? | A touched-file boundary | Refactors and “helpful” modules expand the review surface |
+| What must be true? | Acceptance checks and boundary cases | A happy-path test stands in for the contract |
+| What must not change? | Explicit regression checks | Existing behavior moves without being named |
+| How do I decide? | A review order and decision rubric | The reviewer scans, guesses, and gives a vague approval |
+
+The problem is not that humans cannot read code. The problem is that the patch has hidden the map a human needs to read it quickly.
+
+## What the paired five-case experiment found
+
+In the fixture, both AI-generated conditions passed their visible tests. Only the constrained sequence passed all five independent seeded checks.
+
+| Condition | Visible tests | Seeded cases passed | Reviewer reconstruction accuracy | Missed seeded failures | Decision |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Unconstrained one-pass patch | 4/4 | 3/5 | 4/5 | 1 | Request changes |
+| Constrained intent-labeled sequence | 6/6 | 5/5 | 5/5 | 0 | Approve |
+
+The reviewer accuracy and timing are from one instrumented Codex pass, not a human study. The final harness run took 37.693 ms for the unconstrained condition and 37.990 ms for the constrained condition. Those values measure file reads and oracle execution, not how long an engineer would spend thinking.
+
+The trace is case-level rather than a single green or red label. The independent oracle records C1 through C5: the unconstrained patch fails C1, completed-task exclusion, and C4, scope and existing-order preservation; the constrained sequence passes all five. To reproduce and verify the repair, rerun the Python 3 test and oracle commands recorded in the archived method. This verifies the fixture, not a general failure rate.
+
+The sourceable result is narrower than “AI makes code worse”: a visible green test run did not distinguish the two conditions, while the independent oracle did. The constrained change made the missing review information explicit enough for the recorded reviewer to reconstruct all five cases.
+
+## Why did the opaque patch pass tests while failing the feature contract?
+
+It proved only the happy path and changed unrelated behavior in the same diff.
+
+The feature request added `Board.list_due(today)` to a small task board. The required contract was simple:
+
+1. Return open tasks with a due date.
+2. Include today and exclude tomorrow.
+3. Sort by due date, then task ID.
+4. Preserve the existing priority order of `list_open()`.
+5. Do not mutate stored tasks.
+
+The unconstrained patch did three things that made the review harder:
+
+- It filtered for a due date but forgot `status == "open"`, so a completed task appeared in the due queue.
+- It changed `list_open()` from priority order to due-date order, which was outside the request.
+- It added `src/reporting.py`, a future-dashboard helper that the feature did not need.
+
+Its tests still passed because they covered one open task due today and changed the existing ordering test to match the new behavior. That is a review failure hiding inside a test success. Google’s guidance makes the relevant distinction: tests should be useful and should fail when the code is broken, and a reviewer should consider the change in context rather than trust a nearby green assertion. ([What to Look For in a Code Review](https://google.github.io/eng-practices/review/reviewer/looking-for.html))
+
+The 2023 HumanEval study in the evidence bundle is a useful boundary on the larger claim. It measured generated-code quality across tools and found different correctness rates, but it did not test this patch-shape intervention or human inspectability. ([Yetiştiren et al., 2023](https://arxiv.org/abs/2304.10778))
+
+## Which artifacts made the constrained change easier to review?
+
+The constrained condition added evidence before adding code: an intent note, a touched-file boundary, named acceptance checks, and tests for each case.
+
+The intent note said the new method was a read-only due-task query and that the priority ordering of `list_open()` must remain unchanged. The allowed paths were `src/board.py`, `tests/test_board.py`, and `docs/due-task-queue.md`. That boundary turned scope from an opinion into a check.
+
+The tests then mirrored the contract instead of merely exercising the implementation:
+
+| Acceptance check | Test evidence |
+| --- | --- |
+| Completed tasks excluded | Add an overdue completed task and assert it is absent |
+| Today included, tomorrow excluded | Use adjacent dates around the review date |
+| Stable ordering | Add two same-day tasks in reverse insertion order |
+| Existing behavior preserved | Keep the original priority-order test unchanged |
+| No mutation | Compare the stored task before and after the read |
+
+This sequence also follows Google’s review navigation advice: start with the description and the main part of the change, then examine the rest in an appropriate order. Google explicitly recommends asking for smaller changes when a review is too large to understand. ([Navigating a CL in Review](https://google.github.io/eng-practices/review/reviewer/navigate.html))
+
+GitHub’s review model gives the team a concrete decision vocabulary: comment, approve, or request changes. Use it. A review that ends with “looks fine” but never records which contract was checked is hard to reproduce and hard to learn from. ([GitHub pull request reviews](https://docs.github.com/en/pull-requests/reference/pull-request-reviews))
+
+## What should you require before approving an AI code change?
+
+Require a small review packet whenever the reviewer cannot explain the change without reconstructing its intent from the diff.
+
+Use this five-question gate:
+
+1. **Intent:** Can the author state the behavior being added in one or two sentences?
+2. **Boundary:** Can the author list the files and behaviors that are out of scope?
+3. **Acceptance:** Does every requirement have a visible check, including at least one boundary or regression case?
+4. **Sequence:** Can the reviewer inspect the change in small logical steps rather than one mixed refactor?
+5. **Decision:** Does the recorded review say approve, comment, or request changes, and name the unresolved risk?
+
+If any answer is no, split or reshape the change before asking for approval. This is a decision rule from the fixture, not a universal threshold. It is useful because it catches the exact failure the experiment exposed: the patch can be executable and still leave the reviewer without enough evidence to judge it.
+
+The parent implementation guide, [How to Implement Reviewable AI Code Changes](/blog/how-to-implement-reviewable-ai-code-changes), covers the broader workflow. For the final pre-merge pass, use [How to Review AI-Generated Code Before Merging](/blog/how-to-review-ai-generated-code-before-merging). This article adds the narrower green-test failure diagnosis and the paired artifact.
+
+## What this experiment does not prove
+
+It does not show that constrained prompts always produce better code. It does not estimate human review speed. It does not compare models, temperatures, repositories, or teams. It uses one small fixture, one feature, one run date, one model record, and one non-independent reviewer pass.
+
+The broader literature also argues for caution. The 2026 study of LLM requirement-conformance review evaluated paired correct and buggy implementations across five models and reported false acceptance, false rejection, and explanation-alignment problems. That supports testing model judgements against executable evidence. It does not prove that the five-case result here will repeat at another scale. ([Jin and Chen, 2026](https://link.springer.com/article/10.1007/s10515-026-00638-5))
+
+The practical conclusion is smaller and more useful: if an AI change is hard to inspect, first make intent, scope, acceptance checks, and regression boundaries visible. Then review the code. If your team is trying to make that capability routine, [Marius Manolachi’s AI consulting and tutoring work](https://mariusmanolachi.com/learn-ai) is built around helping existing people build AI products on their own work.
