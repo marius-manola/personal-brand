@@ -1,0 +1,256 @@
+---
+title: "Why Does AI Fail When Scores Route Poorly?"
+date: "2026-09-29"
+updated: "2026-09-29"
+excerpt: "A reproducible routing fixture shows why one confidence threshold can auto-accept wrong cases, reject correct ones, and overload review."
+answer: "AI fails when scores route poorly because a confidence score is a ranking signal, not a correctness guarantee. If calibration changes by slice, one threshold can send high-scoring wrong cases to auto-accept and low-scoring correct cases to reject. Calibrate on held-out labels, inspect risk and coverage by slice, and add a failure-mode route when the needed intervention differs."
+targetQuery: "why does AI fail when scores route poorly"
+queryAliases:
+  - "why does ai confidence routing fail"
+  - "why do high ai scores still route wrong"
+intent: "diagnose a confidence-routing failure after an AI prototype"
+funnel: "implementation"
+cluster: "implementation"
+parent: "/blog/how-to-implement-confidence-routing"
+contentType: "failure-clinic"
+kind: "satellite"
+sourceableAtom: "A bounded routing fixture where a global threshold creates false auto-accepts, calibration removes them on held-out cases, and a failure-mode-specific review route removes the remaining false rejection."
+evidenceType: "failure-reproduction"
+evidenceBasis: "Deterministic fixture-oracle-v1 replay run on 2026-08-24 with 16 calibration cases, 6 held-out cases, fixed repeat offsets, raw labels, routing tables, and cost-sensitivity weights."
+tags:
+  - confidence routing
+  - AI evaluation
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://aclanthology.org/2021.acl-long.84/"
+  - "https://proceedings.neurips.cc/paper_files/paper/2017/file/4a8423d5e91fda00bb7e46540e2b0cf1-Paper.pdf"
+  - "https://arxiv.org/abs/2607.04430"
+  - "https://www.nature.com/articles/s42256-026-01217-9"
+  - "https://proceedings.neurips.cc/paper_files/paper/2024/hash/5a6815122f533193a022cbc41786c1cc-Abstract-Conference.html"
+faq:
+  - q: "How do I know whether the score or the threshold is broken?"
+    a: "Bin labelled cases by score and slice. If correctness is mixed or inverted inside the same band, the score is not calibrated for that slice. If the bands are reliable but the route still exceeds your error or review budget, the threshold or intervention policy is the problem."
+  - q: "Should every AI workflow use the same confidence threshold?"
+    a: "Only when the task, population, score meaning, error costs, and intervention are comparable and the threshold has been checked on held-out labels. Otherwise calibrate or route by slice."
+  - q: "Does adding human review fix poor AI routing?"
+    a: "Only if reviewers can resolve the failure and the queue has capacity. Review can reduce unsafe auto-accepts, but it cannot repair a score that hides a failure mode or a queue that nobody can process."
+cover: "/blog/why-does-ai-fail-when-scores-route-poorly-hero-routing-policy.webp"
+coverAlt: "Illustration of an AI confidence score splitting into auto-accept, human-review, and reject routes"
+draft: false
+---
+
+The dangerous routing bug is easy to miss. The score looks precise, the threshold looks reasonable, and the queue still receives the wrong work.
+
+I built the small fixture below to isolate that bug. It is not a production-model benchmark. It is a deterministic test of the policy that turns a score into `auto_accept`, `human_review`, or `reject`.
+
+## The observed routing failure
+
+In this fixture, the baseline `>=0.80` threshold sent 3 of 8 high-score calibration cases to the wrong route. On six held-out cases, it auto-accepted four cases, three of them wrong. Raising the global threshold to `>=0.90` removed those false auto-accepts, but a failure-mode-specific review rule was still needed to stop one correct low-score case from being rejected.
+
+| Held-out policy | Auto-accept | Human review | Reject | False auto-accepts | False reject escalations |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Baseline, high score `>=0.80` | 4 | 1 | 1 | 3 | 1 |
+| Calibrated global, high score `>=0.90` | 1 | 4 | 1 | 0 | 1 |
+| Calibrated plus failure-mode review | 1 | 5 | 0 | 0 | 0 |
+
+That is the sourceable result of this page. It supports a diagnosis, not a universal threshold. Your first job is to find out which part of your policy is failing.
+
+## Why a high score can still send the wrong case
+
+A confidence score normally answers a narrower question than the route asks. It may rank outputs from more to less likely to be correct. The queue needs a decision about what to do next, under a particular error cost and with a particular intervention available.
+
+Selective prediction makes that distinction explicit: a system can abstain instead of accepting every prediction. The useful object is the trade-off between risk among accepted cases and coverage, not a single accuracy number. [The ACL study on selective prediction](https://aclanthology.org/2021.acl-long.84/) treats abstention and confidence estimation as first-class parts of the classifier, while [the NeurIPS selective-classification paper](https://proceedings.neurips.cc/paper_files/paper/2017/file/4a8423d5e91fda00bb7e46540e2b0cf1-Paper.pdf) defines coverage and selective risk as the paired quantities to inspect.
+
+The route can fail in four different ways:
+
+| Failure location | What you see | What to test |
+| --- | --- | --- |
+| Score meaning | Wrong and right cases share a score band | Calibration bins by slice and task |
+| Threshold | The score ranks cases acceptably, but route volume or error is wrong | Risk-coverage curve and threshold sensitivity |
+| Slice | Easy cases look safe while borderline, new, or contradictory cases do not | Calibration and route metrics by slice |
+| Intervention | Review or retrieval cannot resolve the failure | Replay the route with the actual repair step |
+
+When I teach product managers to move from writing specs to building and shipping, the failure is usually an undefined “done,” not the model. Routing has the same dependency: define what correct means, what the score predicts, and what each queue can actually repair before choosing a cutoff.
+
+## How to reproduce the failure with a labelled fixture
+
+Use a small fixture that forces the score to meet the cases you care about. Do not sample only easy examples. The point is to make the queue see borderline, new-format, and failure-mode cases before production does.
+
+The fixture below pins `fixture-oracle-v1`, a deterministic score provider. It is deliberately not a named LLM and makes no API call. `correct=1` means the case label says the proposed output is correct. The calibration rows choose the repair. The held-out rows check it.
+
+For generated language, “correct” must belong to the task rubric, not to the score itself. The NeurIPS 2024 work on selective generation uses a textual-entailment relation and human-annotated data to define the correctness target before controlling selection. [Read the paper](https://proceedings.neurips.cc/paper_files/paper/2024/hash/5a6815122f533193a022cbc41786c1cc-Abstract-Conference.html) when your workflow has no simple binary answer.
+
+| ID | Split | Slice | Case | Score | Correct |
+| --- | --- | --- | ---: | ---: | ---: |
+| A1 | calibration | easy | Explicit evidence and clean match | .94 | 1 |
+| A2 | calibration | easy | Complete input and known format | .91 | 1 |
+| A3 | calibration | easy | Single rule with supporting evidence | .88 | 1 |
+| A4 | calibration | easy | Familiar request with one clear action | .82 | 1 |
+| B1 | calibration | borderline | Persuasive exception hides a missing approval field | .84 | 0 |
+| B2 | calibration | borderline | Borderline request with enough evidence | .73 | 1 |
+| B3 | calibration | borderline | Borderline request with a subtle policy conflict | .69 | 0 |
+| B4 | calibration | borderline | Correct exception near the route boundary | .80 | 1 |
+| O1 | calibration | out-of-distribution | New form layout with an unseen region code | .86 | 0 |
+| O2 | calibration | out-of-distribution | New layout but evidence is sufficient | .66 | 1 |
+| O3 | calibration | out-of-distribution | Unseen layout with a missing field | .58 | 0 |
+| O4 | calibration | out-of-distribution | Novel layout with a correct answer scored too low | .42 | 1 |
+| F1 | calibration | failure-mode | Fluent answer contradicts retrieved evidence | .89 | 0 |
+| F2 | calibration | failure-mode | Correct answer with contradictory context checked | .78 | 1 |
+| F3 | calibration | failure-mode | Fluent answer repeats an unsupported premise | .57 | 0 |
+| F4 | calibration | failure-mode | Correct answer is cautious but scored low | .31 | 1 |
+| H1 | held-out | easy | Known format with explicit evidence | .90 | 1 |
+| H2 | held-out | borderline | Confident wording misses the approval condition | .81 | 0 |
+| H3 | held-out | borderline | Borderline request with complete evidence | .64 | 1 |
+| H4 | held-out | out-of-distribution | New layout receives a confident wrong mapping | .83 | 0 |
+| H5 | held-out | failure-mode | Fluent output ignores a contradictory source | .87 | 0 |
+| H6 | held-out | failure-mode | Cautious low score accompanies a correct answer | .52 | 1 |
+
+Run each case three times with a fixed score offset of `-0.02`, `0.00`, and `+0.02`. This is not a claim about live-model randomness. It checks whether a small score movement changes the route. B4 moves from review at `.78` to auto-accept at `.80`, then stays auto-accepted at `.82`.
+
+## Failure trace from score to route
+
+The trace matters because a bad queue can hide two different errors: a wrong case accepted too early, and a correct case rejected too aggressively. Follow each case from its pinned score to the route, then apply the smallest policy change that addresses that error.
+
+| Case trace | Score | Baseline route | Label | Repaired route | What the trace shows |
+| --- | ---: | --- | ---: | --- | --- |
+| B1, persuasive exception hides approval field | .84 | auto-accept | 0 | human review at `.90` policy | A high score created a false auto-accept; the global threshold moved it to review. |
+| H6, cautious answer is correct | .52 | reject | 1 | human review with failure-mode override | The score hid a correct case; a higher global threshold could not fix it, but the slice route preserved review. |
+
+This is a policy trace, not a claim that every `.84` or `.52` score behaves the same way elsewhere. In your fixture, record the input slice, score definition, threshold comparison, assigned route, correctness label, and the intervention's result. If one of those fields is missing, you can describe the symptom but not reproduce the failure.
+
+![Illustration of a confidence score flowing through separate auto-accept, human-review, reject, and failure-mode routes](/blog/why-does-ai-fail-when-scores-route-poorly-inline-route-diagnosis.webp)
+
+## What the score bands actually showed
+
+The baseline score bands were not calibrated in this fixture:
+
+| Score band | Cases | Correct | Empirical correctness |
+| --- | ---: | ---: | ---: |
+| 0.80-1.00 | 8 | 5 | 62.5% |
+| 0.55-0.79 | 6 | 3 | 50.0% |
+| Below 0.55 | 2 | 2 | 100.0% |
+
+The high band contains B1, O1, and F1, all wrong. The low band contains O4 and F4, both correct. A score that behaves this way cannot be trusted as a global safety boundary, even though it may still be useful as one feature in a more specific policy.
+
+The slice view shows where the global band hides the problem:
+
+| Slice | Cases | Auto-accept correct / wrong | Review correct / wrong | Reject correct / wrong |
+| --- | ---: | --- | --- | --- |
+| Easy | 4 | 4 / 0 | 0 / 0 | 0 / 0 |
+| Borderline | 4 | 1 / 1 | 1 / 1 | 0 / 0 |
+| Out-of-distribution | 4 | 0 / 1 | 1 / 1 | 1 / 0 |
+| Failure-mode | 4 | 0 / 1 | 1 / 1 | 1 / 0 |
+
+The baseline routing counts make the operational cost visible:
+
+| Split | Auto-accept | Human review | Reject | False auto-accepts | Correct cases rejected |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Calibration | 8 | 6 | 2 | 3 | 2 |
+| Held-out | 4 | 1 | 1 | 3 | 1 |
+
+For held-out cases, baseline auto-accept coverage was 4/6, or 66.7%. Risk among auto-accepted cases was 3/4, or 75.0%. That is the number a review queue hides when it reports only overall accuracy.
+
+Selective-classification work uses this same risk and coverage framing. A recent [LLM abstention preprint](https://arxiv.org/abs/2607.04430) also makes the practical point that a threshold should be selected on held-out labelled cases against an explicit risk target, rather than treated as meaningful by itself. Its guarantee is conditional on its assumptions. That caveat matters here.
+
+## Diagnose whether the score or the policy is broken
+
+Use this order. It keeps a threshold change from masking a score problem.
+
+1. **Check the score definition.** Write down what a score of `.80` is supposed to mean. Correctness probability, preference, evidence sufficiency, and output quality are different targets.
+2. **Bin labels by score.** Compare empirical correctness with the reported band. Do this overall and for each important slice. A global bin can look acceptable while a failure slice is unsafe.
+3. **Draw risk against coverage.** Sort by score, accept the top portion, and record error among accepted cases. If risk does not fall as coverage shrinks, the score is not ranking safety well enough for selective routing.
+4. **Replay the intervention.** A review route is not a repair until a reviewer can see the missing evidence and change the decision. A retrieval or re-check route needs its own held-out result.
+5. **Repeat near boundaries.** If small score movement flips the queue, treat the boundary as unstable until the route has a margin or a second check.
+
+The diagnosis is usually clear after this table:
+
+| Observation | Likely break | First repair |
+| --- | --- | --- |
+| Correctness is mixed inside every score band | Score is not calibrated for the task | Recalibrate with held-out labels or change the score target |
+| Score ranking is useful but accepted error is too high | Threshold is too permissive | Move the threshold and measure coverage loss |
+| Only OOD or contradiction cases fail | Slice or failure mode is hidden | Add a slice flag and a separate intervention |
+| Review catches errors but the queue grows | Intervention capacity is the bottleneck | Measure review load and narrow auto-accept |
+
+## What repair worked on the held-out cases
+
+The first repair raised only the global auto-accept threshold from `.80` to `.90`. That produced one correct auto-accept, four reviews, one reject, and no false auto-accepts. It did not solve H6, a correct failure-mode case with a score of `.52`.
+
+The second repair added one policy rule: every `failure-mode` case goes to human review, regardless of score. This is not “trust humans” as a universal answer. It is a claim about the intervention in this fixture: contradictory evidence needs inspection, and the score did not identify that need reliably.
+
+| Held-out policy | Auto-accept correct / wrong | Review correct / wrong | Reject correct / wrong | Cost units |
+| --- | --- | --- | --- | ---: |
+| Baseline | 1 / 3 | 1 / 0 | 1 / 0 | 34 |
+| Calibrated global | 1 / 0 | 1 / 3 | 1 / 0 | 7 |
+| Calibrated plus failure-mode review | 1 / 0 | 2 / 3 | 0 / 0 | 5 |
+
+The cost weights are one unit for a review, ten for a false auto-accept, and three for a correct case sent to reject. They are sensitivity weights, not a forecast of money saved. Change them to your own reversibility, harm, and reviewer-time assumptions.
+
+The Nature Machine Intelligence study on [competing overconfidence and underconfidence in LLMs](https://www.nature.com/articles/s42256-026-01217-9) is a useful reason to test the failure-mode route separately: its abstract reports both persistence with an initial answer and disproportionate updating after contradictory information. That does not prove the same behavior in your workflow. It does explain why “add more feedback” is not a complete routing policy.
+
+## Verification evidence from held-out cases
+
+A repair passes only when the policy is rerun on cases that did not choose the threshold and the route-level errors are counted again. The verification evidence for this fixture is the row-level result below, not the improved appearance of one score band.
+
+| Held-out case | Label | Baseline route | Calibrated global route | Calibrated plus failure-mode route |
+| --- | ---: | --- | --- | --- |
+| H1, known format | 1 | auto-accept | auto-accept | auto-accept |
+| H2, missed approval condition | 0 | auto-accept | human review | human review |
+| H3, complete borderline evidence | 1 | human review | human review | human review |
+| H4, confident new-layout mapping | 0 | auto-accept | human review | human review |
+| H5, contradictory source ignored | 0 | auto-accept | human review | human review |
+| H6, cautious answer is correct | 1 | reject | reject | human review |
+
+The global repair therefore changes held-out results from four auto-accepts with three wrong to one correct auto-accept with no wrong auto-accepts. It still rejects H6, so it is incomplete for this fixture. The slice override moves H6 to review, leaving zero false auto-accepts and zero correct cases rejected, while reducing auto-accept coverage to 1 of 6. That is the verification decision: accept the policy only if the lower coverage and added review work fit the team's stated error and capacity limits.
+
+## The scoring script and what it does not prove
+
+This compact script is the exact route calculation used for the fixture. The full raw input is the table above.
+
+```python
+CASES = [
+    ("A1", "easy", .94, 1), ("A2", "easy", .91, 1),
+    ("A3", "easy", .88, 1), ("A4", "easy", .82, 1),
+    ("B1", "borderline", .84, 0), ("B2", "borderline", .73, 1),
+    ("B3", "borderline", .69, 0), ("B4", "borderline", .80, 1),
+    ("O1", "ood", .86, 0), ("O2", "ood", .66, 1),
+    ("O3", "ood", .58, 0), ("O4", "ood", .42, 1),
+    ("F1", "failure-mode", .89, 0), ("F2", "failure-mode", .78, 1),
+    ("F3", "failure-mode", .57, 0), ("F4", "failure-mode", .31, 1),
+    ("H1", "easy", .90, 1), ("H2", "borderline", .81, 0),
+    ("H3", "borderline", .64, 1), ("H4", "ood", .83, 0),
+    ("H5", "failure-mode", .87, 0), ("H6", "failure-mode", .52, 1),
+]
+
+def route(score, calibrated=False, slice_name=None):
+    if calibrated and slice_name == "failure-mode":
+        return "human_review"
+    high = .90 if calibrated else .80
+    if score >= high: return "auto_accept"
+    if score >= .55: return "human_review"
+    return "reject"
+
+for case_id, slice_name, base_score, correct in CASES:
+    for offset in (-.02, 0.00, .02):
+        score = round(max(0, min(1, base_score + offset)), 2)
+        print(case_id, score, route(score), route(score, True, slice_name), correct)
+```
+
+This proves that the stated policy produces the stated route counts for this fixture. It does not prove a named model is calibrated, that six held-out cases are enough for a release decision, or that the illustrative cost weights match your business.
+
+## What to publish before changing production routing
+
+Put these artifacts in the change review:
+
+- raw cases with labels, slices, and held-out membership;
+- the exact model or score provider, prompt, configuration, date, and repeat protocol;
+- score bins with empirical correctness, plus risk-coverage at the proposed coverage levels;
+- route confusion counts for auto-accept, review, and reject;
+- review-time assumptions and separate weights for false auto-accepts and false escalations;
+- at least one failure example per route that matters;
+- the repaired policy and a held-out result;
+- limits, including slices not represented in the fixture.
+
+For the broader implementation sequence, start with [How to implement confidence routing](/blog/how-to-implement-confidence-routing). If the problem is specifically score calibration, use [How to calibrate AI confidence scores for a workflow](/blog/how-to-calibrate-ai-confidence-scores-for-a-workflow). If the workflow should stop rather than guess, compare the route with [When should an AI workflow stop instead of guessing?](/blog/when-should-an-ai-workflow-stop-instead-of-guessing).
+
+Marius Manolachi teaches teams to build AI products on their own work. The useful handoff is not a magical threshold. It is a rerunnable fixture that lets the team explain why a case entered each queue, what the intervention can fix, and what evidence would justify changing the policy.
