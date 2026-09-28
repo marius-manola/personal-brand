@@ -1,0 +1,242 @@
+---
+title: "Why Does AI Fail When Gaps Are Unknown?"
+date: "2026-09-29"
+updated: "2026-09-29"
+excerpt: "A 36-case blind-spot fixture shows how a passing authored suite misses contradictory evidence, stale state, and failed tools."
+answer: "AI fails when gaps are unknown because an evaluation can only score conditions it has named. Keep the authored suite for known behavior, then generate controlled variants that change context, evidence agreement, state, tool availability, and scope. In my 36-case fixture, 12 authored cases passed all repeated trials, while 24 variants exposed 16 distinct failures."
+targetQuery: "why does ai fail when gaps are unknown"
+queryAliases:
+  - "AI unknown gaps"
+  - "AI blind spot testing"
+intent: "diagnostic"
+funnel: "evaluation"
+cluster: "evaluation"
+parent: "/blog/how-much-evaluation-coverage-ai-features-need"
+contentType: "failure-clinic"
+kind: "satellite"
+sourceableAtom: "In a pinned 36-case evidence-triage fixture, 12 authored cases passed 36/36 repeated trials while 24 controlled variants exposed 16 distinct failures outside the authored suite."
+evidenceType: "reproducible test and worked decision artifact"
+evidenceBasis: "Local blind-spot-fixture-0.1.0 run on 2026-08-24 with fixture-heuristic-v1, 12 authored cases, 24 generated variants, three recorded trials, raw pass/fail results, and traces saved with the post's job artifacts."
+tags:
+  - "AI evaluation"
+  - "AI reliability"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://www.nist.gov/publications/challenges-monitoring-deployed-ai-systems-center-ai-standards-and-innovation"
+  - "https://www.nist.gov/programs-projects/building-evaluation-probes-agentic-ai"
+  - "https://alignment.anthropic.com/2026/sleight-bench/"
+  - "https://arxiv.org/abs/2403.17860"
+  - "https://pages.nist.gov/ai-technology-evaluation/"
+cover: "/blog/why-does-ai-fail-when-gaps-are-unknown-blind-spot-fixture-hero.webp"
+coverAlt: "Illustration of an AI evaluation suite revealing an uncovered failure gap"
+draft: false
+---
+
+In this fixture, the first failure was not a bad answer. It was a condition nobody put in the test set.
+
+That distinction matters. If the team has only tested complete evidence, matching records, available tools, and one stable state, a clean pass says very little about what happens when one of those assumptions disappears.
+
+The parent guide on [evaluation coverage for AI features](/blog/how-much-evaluation-coverage-ai-features-need) explains how to think about coverage before launch. This page focuses on the next problem: finding the gaps your team has not named yet.
+
+## The result: a passing authored suite still left 16 failures
+
+In my pinned local fixture, the authored suite passed every repeated trial. Controlled variants then exposed 16 distinct failures that the authored cases did not enumerate.
+
+| Set | Cases | Trials | Passes | Fails | Distinct failures | What changed |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| Authored baseline | 12 | 36 | 36 | 0 | 0 | Nominal outcomes and obvious missing fields |
+| Generated missing context | 5 | 15 | 12 | 3 | 1 | A material field was absent but not described with the baseline's missing-field wording |
+| Generated contradictory evidence | 5 | 15 | 0 | 15 | 5 | Two records or policy signals disagreed |
+| Generated state changes | 5 | 15 | 0 | 15 | 5 | The relevant state changed after earlier evidence was recorded |
+| Generated tool failures | 5 | 15 | 0 | 15 | 5 | A current lookup or extraction step failed while stale evidence remained |
+| Generated out-of-scope requests | 4 | 12 | 12 | 0 | 0 | The request mixed a supported check with legal, policy, contract, or incident work |
+
+The fixture ran three times with the same pinned configuration. It is a local workflow test, not an LLM benchmark and not a production prevalence estimate. Its useful finding is narrower: a nominal pass did not reveal the failure conditions until the test data changed shape.
+
+![Illustration of a blind-spot fixture branching authored cases into controlled variants](/blog/why-does-ai-fail-when-gaps-are-unknown-blind-spot-fixture-variant-map.webp)
+
+## Why do unknown gaps survive an evaluation suite?
+
+An evaluation suite measures performance over its case distribution. It cannot directly score a condition that the distribution never represents. If every case contains current evidence and a single consistent state, the suite has tested the workflow under those assumptions, not outside them.
+
+NIST makes a related distinction in its report on deployed AI monitoring: pre-deployment evaluations are mostly run in controlled environments, while post-deployment monitoring is needed to see unforeseen outputs caused by changing inputs and other deployment conditions. That does not make pre-deployment evaluation useless. It tells you what it cannot establish. [NIST's monitoring report](https://www.nist.gov/publications/challenges-monitoring-deployed-ai-systems-center-ai-standards-and-innovation) treats the two activities as different evidence sources.
+
+The gap is usually created by one of four hidden assumptions:
+
+- the needed context is present and named in a familiar way;
+- every source agrees with every other source;
+- the state at intake is still the state at decision time;
+- every tool call returns usable, current evidence.
+
+Out-of-scope requests add a fifth boundary. A workflow can be good at eligibility triage and still fail when a user asks it to add legal advice or redesign policy in the same turn.
+
+The important question is not, “Did the model pass the test?” It is, “Which conditions did the test make impossible?” Those conditions are the blind spots worth probing next.
+
+## What did the fixture actually test?
+
+The workflow was intentionally small so the failure could be traced. It accepted a request and evidence packet, then returned one action: `answer`, `ask_clarifying`, `escalate`, or `out_of_scope`.
+
+The pinned configuration was:
+
+| Field | Value |
+| --- | --- |
+| Fixture | `blind-spot-fixture-0.1.0` |
+| Workflow | Evidence triage for approval and eligibility questions |
+| Model under test | `fixture-heuristic-v1`, deterministic local text classifier |
+| Temperature | `0` |
+| Top-p | `1` |
+| Trials | 3 repeated runs, trial IDs 1, 2, and 3 |
+| Input | Request plus evidence text |
+| Output contract | `answer`, `ask_clarifying`, `escalate`, or `out_of_scope` |
+| Run date | 2026-08-24 |
+
+The workflow's decision order was also recorded: out-of-scope marker, explicit missing-field marker, conflict marker, approval keyword, then clarification. That detail matters because the trace shows why a case passed or failed. A result without a trace only tells you that something went wrong. It does not tell you what the system noticed.
+
+The prompt and input template were saved verbatim:
+
+```text
+You are an evidence triage assistant. Choose exactly one action: answer, ask_clarifying, escalate, or out_of_scope. Use only the supplied request and evidence. Ask when a material field is absent. Escalate when sources disagree or current state cannot be verified. Never claim a tool completed when its result is unavailable. Refuse requests outside the supported approval and eligibility workflow.
+
+Request: {request}
+Evidence:
+{evidence}
+Return JSON with action and rationale.
+```
+
+The full authored and generated test data is versioned in the fixture specification. Each generated case changes one observable condition while keeping the workflow request stable: G01-G05 test missing context, G06-G10 contradictory evidence, G11-G15 state changes, G16-G20 tool failures, and G21-G24 mixed-scope boundaries.
+
+NIST's work on evaluation probes makes the same operational point from another angle. Its probes are designed as adversarial verifiers, and the results are accumulated in a structured audit trail that maps claims to supporting evidence. [The NIST probe project](https://www.nist.gov/programs-projects/building-evaluation-probes-agentic-ai) is broader than this fixture, but the design lesson transfers: preserve the evidence and the verdict together.
+
+## What did the raw pass and fail table show?
+
+The first trial is the compact raw result. Trials 2 and 3 reproduced the same action for every case.
+
+| Case | Gap axis | Expected | Actual | Result |
+| --- | --- | --- | --- | --- |
+| G01 | Missing context | ask_clarifying | ask_clarifying | pass |
+| G02 | Missing context | ask_clarifying | ask_clarifying | pass |
+| G03 | Missing context | ask_clarifying | ask_clarifying | pass |
+| G04 | Missing context | ask_clarifying | ask_clarifying | pass |
+| G05 | Missing context | ask_clarifying | answer | fail |
+| G06 | Contradictory evidence | escalate | answer | fail |
+| G07 | Contradictory evidence | escalate | answer | fail |
+| G08 | Contradictory evidence | escalate | answer | fail |
+| G09 | Contradictory evidence | escalate | answer | fail |
+| G10 | Contradictory evidence | escalate | answer | fail |
+| G11 | State change | escalate | answer | fail |
+| G12 | State change | escalate | answer | fail |
+| G13 | State change | escalate | answer | fail |
+| G14 | State change | escalate | answer | fail |
+| G15 | State change | escalate | answer | fail |
+| G16 | Tool failure | ask_clarifying | answer | fail |
+| G17 | Tool failure | ask_clarifying | answer | fail |
+| G18 | Tool failure | ask_clarifying | answer | fail |
+| G19 | Tool failure | ask_clarifying | answer | fail |
+| G20 | Tool failure | ask_clarifying | answer | fail |
+| G21 | Out of scope | out_of_scope | out_of_scope | pass |
+| G22 | Out of scope | out_of_scope | out_of_scope | pass |
+| G23 | Out of scope | out_of_scope | out_of_scope | pass |
+| G24 | Out of scope | out_of_scope | out_of_scope | pass |
+
+The pattern is more useful than the total. The workflow caught the out-of-scope variants because they used explicit boundary language. It missed most variants where the evidence was incomplete, stale, contradictory, or unavailable but still contained a plausible answer signal.
+
+This is why a gap map should record conditions, not only categories. “Tool failure” is too broad. “Current lookup returned no response while a stale record still said active” tells the engineer what to assert and what to replay.
+
+## What do the representative failure traces reveal?
+
+Three traces show the mechanism clearly.
+
+### G06: contradictory evidence
+
+```text
+Expected: escalate
+Actual: answer
+Observable condition: CRM status active, billing status cancelled, policy requires agreement
+Features noticed: approval keyword=true, conflict marker=false
+Decision path: approval keyword -> answer
+```
+
+The fixture did not fail because it lacked a word like “contradiction.” It failed because the workflow had no explicit comparison step for independently named sources. The evidence looked answerable to the classifier even though the policy said disagreement should stop the decision.
+
+### G11: state changed after intake
+
+```text
+Expected: escalate
+Actual: answer
+Observable condition: active at 09:00, suspended at 09:05, request at 09:06
+Features noticed: approval keyword=true, conflict marker=false
+Decision path: approval keyword -> answer
+```
+
+The current state was present in the evidence, but the workflow had no temporal rule. It treated an earlier valid state as sufficient evidence for a later decision.
+
+### G16: current tool lookup failed
+
+```text
+Expected: ask_clarifying
+Actual: answer
+Observable condition: CRM lookup returned no response, cached record says active, current status required
+Features noticed: approval keyword=true, tool marker=true, conflict marker=false
+Decision path: approval keyword -> answer
+```
+
+The trace contains the tool failure. The decision path ignores it. That is the gap. A monitor or evaluator that only checks the final answer can miss the fact that the workflow used stale evidence after a current lookup failed.
+
+The broader research points in the same direction. SLEIGHT-Bench constructs targeted variants around blind spots such as system state, omission, object reuse, and contradictory evidence, then tests whether monitors detect them. Its authors also note that synthetic variants improve scenario diversity while risking realism. [The SLEIGHT-Bench method and limits](https://alignment.anthropic.com/2026/sleight-bench/) are a useful model for probing, not a claim that this small fixture has the same scope.
+
+## Which discovered gaps become regression tests?
+
+Not every generated case deserves a permanent slot. Use the observed failure plus a testable condition to decide.
+
+| Gap | Fixture result | Regression decision | Minimum assertion |
+| --- | --- | --- | --- |
+| Missing approval identity or acceptance | G05 failed | Include G05 and one paraphrase | The required owner is named and has accepted responsibility |
+| Conflicting source records | G06-G10 all failed | Include G06 and G08, retain the rest as probes | Disagreement between named authorities produces `escalate` |
+| State changed after intake | G11-G15 all failed | Include G11 and G12, retain the rest as probes | Decision uses current state or stops when freshness is unknown |
+| Current tool lookup failed | G16-G20 all failed | Include G16 and G19, retain the rest as probes | Unavailable current evidence cannot be replaced by cached evidence |
+| Mixed supported and out-of-scope request | G21-G24 passed | Keep G21 as a boundary smoke test; generate more variants | The workflow refuses the unsupported portion rather than answering it |
+
+The rule is simple:
+
+1. Include the case when the expected action differs from the baseline output.
+2. Require an observable condition that can be asserted in a trace, state record, or tool result.
+3. Prioritize cases where the wrong action could authorize, mislead, or create an irreversible side effect.
+4. Keep paraphrases and low-risk variants as discovery probes until they reveal a distinct failure boundary.
+
+This decision makes the regression set smaller than the discovery set without throwing away the map. The permanent tests protect known boundaries. The probes keep looking for new ones.
+
+## How should you run a blind-spot fixture on your own feature?
+
+Use one representative workflow and keep its action contract narrow. A small, inspectable fixture is more useful than a large synthetic suite whose expected outcomes nobody can explain.
+
+1. **Freeze the contract.** Write the permitted actions and the observable expected outcome for each one. Include abstention or escalation if the feature needs them.
+2. **Author the baseline.** Create cases for complete evidence, clear outcomes, obvious missing fields, and the normal tool path. Save the exact inputs and expected actions.
+3. **Choose gap axes.** Start with missing context, contradictory sources, state changes, tool failures, and out-of-scope requests. Add an axis only when it changes a real decision boundary.
+4. **Generate controlled variants.** Mutate one condition at a time. Keep the task and most evidence stable so the failure has a plausible cause.
+5. **Run repeated trials.** Record the model or workflow version, prompt, configuration, tools, data, trial ID, output, and trace. Repeat enough to see whether a discovery is reproducible under the pinned setup.
+6. **Classify the failure.** Name the observable condition, not only the symptom. “Answered incorrectly” is weak. “Current lookup failed and stale evidence was used” is actionable.
+7. **Decide regression inclusion.** Apply the rule above. Add the smallest representative set that protects the decision boundary, and keep the remaining variants in the discovery pool.
+8. **Re-run after the repair.** A gap is not closed because a prompt changed. The failing case must now produce the expected action, and a nearby variant must still be checked.
+
+NIST's AITE program uses blind evaluation data and a sequestered testbed to reduce train/test contamination and improve comparability. Your local fixture does not need that infrastructure, but it should preserve the same discipline: hold back generated variants from the authored set, record what was unseen, and do not train or tune on the result without versioning the change. [NIST's AITE overview](https://pages.nist.gov/ai-technology-evaluation/) explains the rationale for blind data and common metrics.
+
+If your team needs a replayable starting point, use the [business-case replay fixture guide](/blog/how-to-build-a-replayable-ai-workflow-fixture-from-a-business-case). If the failure already came from a user, the separate guide on [why an evaluation suite misses a reported failure](/blog/why-does-an-ai-evaluation-suite-miss-the-failure-users-report) covers the handoff from incident to test case.
+
+## What this fixture does not prove
+
+It does not prove that a general class of AI models fails at these rates. It does not compare vendors, estimate production prevalence, or establish that contradictory evidence is always harder than missing context. The local classifier is intentionally transparent, and its heuristic weaknesses are part of the artifact.
+
+The result does support a narrower engineering decision: a nominal authored suite cannot tell you whether it has named the important conditions unless you test the boundary of the suite. The generated variants are a discovery instrument. They are not a substitute for production traces, domain review, or a release gate tied to the real cost of error.
+
+Lippmann, Spaan, and Yang describe unknown-unknown errors as high-confidence misclassifications that cluster in blind spots and use targeted synthetic samples to characterize them. [Their paper](https://arxiv.org/abs/2403.17860) supports the method's underlying logic, while the numbers in this post come only from the local fixture.
+
+When I teach product managers to move from writing specifications to building and shipping, the recurring failure is often an undefined “done,” not a missing tool. That is the same boundary this fixture makes visible: before asking whether the answer is good, define what the workflow must do when the evidence is not enough.
+
+## The next release decision
+
+Do not report the authored pass rate by itself. Report the named coverage, the untested axes, the first generated failures, and the regression decisions they caused.
+
+For this fixture, the next decision is clear: keep the 12-case authored baseline, add representative checks for contradictory sources, changed state, failed current lookups, and missing owner acceptance, and retain the remaining controlled variants as discovery probes. Then rerun the repaired workflow before expanding its authority.
+
+Marius Manolachi helps existing people become capable of building AI products on their own work through AI consulting and tutoring. If you are at the point where a feature has a pass rate but no credible blind-spot map, the useful review packet is small: the action contract, the current suite, one generated variant, its trace, and the proposed regression rule. The [AI consulting and tutoring page](/learn-ai) is the next step if you want help turning that packet into a repeatable team practice.
