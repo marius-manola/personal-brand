@@ -1,0 +1,196 @@
+---
+title: "Why AI Fails When Reviewers Optimize Different Outcomes"
+date: "2026-09-30"
+updated: "2026-09-30"
+excerpt: "A 10-output review test shows how accuracy, risk, and usefulness create different release advice, and how one shared contract resolves it."
+answer: "AI fails at review when reviewers score different outcomes, such as factual accuracy, risk exposure, or user usefulness. Separate those objectives first, then score the same fixed outputs independently. Use a shared contract with explicit thresholds and vetoes; the exception is a genuinely ambiguous source or policy, which should escalate instead of being averaged away."
+targetQuery: "why does AI fail when reviewers optimize different outcomes"
+queryAliases:
+  - "AI reviewer disagreement different objectives"
+  - "cross-functional AI review conflict"
+  - "why reviewers disagree about AI output quality"
+intent: "diagnose and repair a cross-functional AI review failure"
+funnel: "implementation"
+cluster: "implementation"
+parent: "/blog/ai-workflow-implementation"
+contentType: "failure-clinic"
+kind: "satellite"
+sourceableAtom: "A bounded 10-output review test shows output O8 would ship under a permissive usefulness-led rule but is held by a shared contract because it invents final decision authority; rewrite O8R passes all three role gates."
+evidenceType: "failure reproduction + worked decision artifact"
+evidenceBasis: "Dated 2026-08-24 fixed packet, role-separated raw component scores and comments, disagreement matrix, shared outcome contract C-v1, and O8 to O8R decision change recorded in research.md."
+tags:
+  - "AI evaluation"
+  - "AI implementation"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://arxiv.org/abs/2410.14632"
+  - "https://aclanthology.org/2023.emnlp-main.1038/"
+  - "https://github.com/cohere-ai/human-feedback-paper"
+  - "https://www.nist.gov/artificial-intelligence/ai-research/tevv-athlon-framework-evaluating-ai-systems"
+  - "https://www.gov.uk/government/publications/the-roadmap-to-an-effective-ai-assurance-ecosystem/the-roadmap-to-an-effective-ai-assurance-ecosystem-extended-version"
+cover: "/blog/why-ai-fails-when-reviewers-optimize-different-outcomes-hero-reviewer-objectives.webp"
+coverAlt: "Illustration of three reviewers scoring one AI output against different release objectives"
+draft: false
+---
+
+When I taught product managers to move from writing specs to building and shipping, the recurring failure was often not the model. It was that nobody could say what done meant. [Marius Manolachi's teaching work](https://mariusmanolachi.com/learn-ai) makes that distinction concrete.
+
+The same thing happens one step later. A team shows one AI output to three reviewers, each reviewer answers a different question, and the meeting treats the disagreement as if it were one score that needs averaging.
+
+![Illustration of a review packet moving through independent rubrics and a shared outcome contract](/blog/why-ai-fails-when-reviewers-optimize-different-outcomes-inline-contract-matrix.webp)
+
+## The result: one output was useful, but not releasable
+
+In a bounded review of 10 sanitized outputs from one low-risk meeting-note workflow, output O8 passed a permissive usefulness-led rule but failed the shared outcome contract. It claimed that “final decisions are recorded in the notes,” although the source brief said the notes were informational and had no approval authority.
+
+The contract changed the decision from release to hold and rewrite. The corrected O8R passed all three role gates.
+
+| Reviewer lens | Local question | O8 score | Gate |
+| --- | --- | ---: | --- |
+| Accuracy | Did the output preserve the source facts? | 4/6 | Hold below 5 |
+| Risk and compliance | Did it preserve authority and escalation boundaries? | 4/6 | Hold below 5, plus veto |
+| Usefulness and speed | Can an attendee act after one quick read? | 5/6 | Pass at 5 |
+
+This is the sourceable result from the packet. It is a small reproduction, not evidence about how common this failure is.
+
+## Why does the same AI output receive incompatible review advice?
+
+Because reviewers are often optimizing different loss functions. An accuracy reviewer loses when a source fact is omitted or changed. A risk reviewer loses when the output creates an obligation or authority. A usefulness reviewer loses when a cautious answer is too slow or vague to use.
+
+Those are not three noisy measurements of one hidden quality score. They are three objectives with partial overlap.
+
+Research on annotator disagreement reaches a similar conclusion. Zhang and colleagues describe disagreement from factors such as task underspecification and response style, and warn that standard reward modeling and LLM-as-judge methods can miss divergence between annotators. [Their paper](https://arxiv.org/abs/2410.14632) is evidence for treating disagreement as a diagnostic signal, not a reason to erase it immediately.
+
+The problem is not only theoretical. The Cohere research repository for “Human Feedback is not Gold Standard” says preference scores can under-represent factuality and that assertive wording can skew perceived factuality errors. [The public code and data repository](https://github.com/cohere-ai/human-feedback-paper) therefore separates granular annotations from one aggregate preference score.
+
+## What did the 10-output packet contain?
+
+The fixed source brief described a weekly sync:
+
+- Tuesday at 10:00 in Room B
+- agenda: backlog, blockers, and demos
+- agenda additions due Monday at 16:00
+- notes are informational and have no approval authority
+- unresolved items go to the team lead
+
+The packet contained these anonymized outputs. The totals below are raw role scores from the independent pass. A, R, and U mean accuracy, risk, and usefulness.
+
+| ID | Output | A | R | U | Initial reading |
+| --- | --- | ---: | ---: | ---: | --- |
+| O1 | “Weekly sync: Tue 10:00, Room B. Bring backlog, blockers, and demos. Add agenda items by Mon 16:00. Notes are informational; unresolved items go to the team lead.” | 6 | 6 | 5 | Release |
+| O2 | “Weekly sync Tue 10:00 Room B. Send agenda items by Monday afternoon.” | 4 | 5 | 6 | Release under usefulness-led review |
+| O3 | “Weekly sync Tue 10:00 Room B. Team leads approve agenda items added before Monday 16:00.” | 3 | 1 | 5 | Usefulness pass, risk veto |
+| O4 | “Tuesday's 10:00 sync in Room B decides backlog, blockers, and demos. Add requests by Monday 16:00.” | 3 | 1 | 6 | Usefulness pass, risk veto |
+| O5 | “The weekly sync is Tuesday at 10:00 in Room B. No action is required; notes are informational.” | 4 | 5 | 3 | Safe but not useful |
+| O6 | “Weekly sync: Tue 10 in Room B. Agenda: backlog, blockers, demos. Send additions Monday 16:00. Escalate unresolved items to the team lead.” | 5 | 5 | 6 | Release |
+| O7 | “Join Tuesday's weekly sync at 10:00 in Room B. The meeting covers backlog, blockers, and demos. Add items by Mon 16:00; unresolved items go to team lead. The recap records discussion and does not approve changes.” | 6 | 6 | 5 | Release |
+| O8 | “Weekly sync Tuesday 10:00 Room B. Add agenda items by Monday 16:00. Final decisions are recorded in the notes.” | 4 | 4 | 5 | Would ship under permissive rule, held by contract |
+| O9 | “Weekly sync is Tuesday at 10:00 in Room B. Add agenda items by Monday 16:00. If you miss the deadline, bring them to the meeting.” | 4 | 4 | 6 | Useful, but adds an unsupported route |
+| O10 | “Tuesday, 10:00, Room B. Agenda items Monday 16:00. Questions to team lead.” | 4 | 5 | 6 | Fast, but incomplete |
+
+The raw component scores and independent comments are part of the packet, not hidden adjudication. Totals alone hide why reviewers diverged.
+
+| ID | Accuracy comment | Risk comment | Usefulness comment |
+| --- | --- | --- | --- |
+| O1 | All five facts are present. | No invented authority; escalation is preserved. | Scannable, with one extra sentence. |
+| O2 | Exact deadline and unresolved-item route are omitted. | No unsafe claim, but escalation is absent. | Short enough to use. |
+| O3 | Adds approval authority not in the brief. | Invented authority is a veto. | Looks decisive and is easy to scan. |
+| O4 | Turns an informational sync into a decision forum. | Authority boundary breached. | Best skim and clearest action. |
+| O5 | Agenda and escalation are missing. | Safe wording, but the route is absent. | Does not tell the attendee what to bring or do. |
+| O6 | The informational-notes fact is omitted. | No dangerous claim is added. | Clear action list. |
+| O7 | All facts have safe equivalents. | Decision boundary and escalation are explicit. | Complete and still easy to scan. |
+| O8 | “Final decisions” conflicts with the brief. | Authority is ambiguous enough to veto. | Concise and apparently useful. |
+| O9 | The missed-deadline instruction is unsupported. | It adds a new route, even if harmless. | Gives a useful recovery action. |
+| O10 | “Questions” weakens the specific unresolved-item rule. | No new authority, but the boundary is incomplete. | Very fast to read. |
+
+## How should you score the same outputs independently?
+
+Separate the local objectives before anyone sees another review. The three rubrics in this test used a 0 to 2 score for each component.
+
+### Accuracy reviewer
+
+Score correctness, completeness, and traceability. The accuracy gate is 5/6, with no zero. This reviewer asks whether the output preserves the source, not whether a user would enjoy reading it.
+
+### Risk and compliance reviewer
+
+Score unsupported authority, boundary preservation, and escalation correctness. The risk gate is 5/6, with no zero. An invented authority, changed approval boundary, new obligation, or wrong escalation route is a veto regardless of the total.
+
+### Usefulness and speed reviewer
+
+Score scanability, actionability, and brevity. The usefulness gate is 5/6. This reviewer asks whether an attendee can act after one quick read, not whether every source fact appears in full.
+
+Do not let the usefulness reviewer silently become the product owner. Do not let the risk reviewer turn every omission into a production stop. Their objectives are useful because they remain distinct.
+
+## What does the disagreement matrix tell you?
+
+Under each role's strict local threshold, the packet produced this disagreement matrix:
+
+| Reviewer pair | Disagreeing outputs | Count |
+| --- | --- | ---: |
+| Accuracy vs risk | O2, O5, O10 | 3 |
+| Accuracy vs usefulness | O2, O3, O4, O5, O8, O9, O10 | 7 |
+| Risk vs usefulness | O3, O4, O8, O9 | 4 |
+
+The pattern is more useful than a single agreement percentage. Accuracy and usefulness diverged on seven outputs because concise wording hid omissions or introduced claims. Risk and usefulness diverged on four because decisive language looked helpful while changing the authority boundary.
+
+Classify each disagreement before changing the model:
+
+| Class | Diagnostic question | Packet examples |
+| --- | --- | --- |
+| Objective conflict | Are both reviewers applying valid but different goals? | O2, O4, O8 |
+| Context omission | Did the output omit the source fact needed to judge it? | O3, O5, O6, O10 |
+| Rubric ambiguity | Do the rubrics disagree about whether an addition is allowed? | O9 |
+| Reviewer error | Did someone misread the fixed source or rubric? | None identified in this run |
+
+Kumar, Ghosal, and Ekbal made reviewer contradiction itself an evaluation task. Their ContraSciView work publishes a dataset of roughly 8.5k papers, 28k review pairs, and nearly 50k review comments. [The ACL record](https://aclanthology.org/2023.emnlp-main.1038/) supports the narrower point that contradiction is worth identifying and preserving, not automatically collapsing.
+
+## What shared outcome contract resolves the conflict?
+
+Write the contract before the next review meeting. It should turn separate scores into one release decision without pretending they measure the same thing.
+
+```text
+Release only when:
+1. Accuracy >= 5/6 and no accuracy component is 0.
+2. Risk >= 5/6 and no risk component is 0.
+3. Usefulness >= 5/6.
+
+Veto when the output invents authority, changes an approval boundary,
+creates a new obligation, or sends an unresolved item to the wrong route.
+
+Veto status: hold-rewrite, even if usefulness passes.
+Escalate when the source brief is incomplete or a reviewer cannot decide
+whether a sentence changes policy.
+```
+
+This is not a universal rubric. It is a worked contract for a low-risk meeting-note workflow. Replace its thresholds and vetoes with the consequences of your own workflow.
+
+NIST's current TEVV-Athlon draft makes the same design move at a broader level: evaluation methods vary by use case, and assessments should be built from organizational objectives. [NIST's framework page](https://www.nist.gov/artificial-intelligence/ai-research/tevv-athlon-framework-evaluating-ai-systems) describes a four-stage approach that produces measurements tied to those objectives.
+
+The UK Centre for Data Ethics and Innovation's assurance roadmap is even more direct about the review boundary. It says assurance needs suitable criteria and sufficient evidence, and that performance testing alone cannot show whether the requirements are flawed or unsuitable for the use case. [The roadmap](https://www.gov.uk/government/publications/the-roadmap-to-an-effective-ai-assurance-ecosystem/the-roadmap-to-an-effective-ai-assurance-ecosystem-extended-version) also separates roles and responsibilities. That is why this contract has both role thresholds and an escalation route.
+
+## How do you know the contract added decision value?
+
+Use a before-and-after decision record. In this packet, the decisive case was O8.
+
+Before the contract, a permissive rule said: release when usefulness is at least 5/6 and no reviewer total is below 4/6. O8 scored A4, R4, and U5, so it would ship.
+
+The contract stopped it. “Final decisions are recorded in the notes” invented authority that the source brief explicitly denied. The status became `hold-rewrite`.
+
+The targeted rewrite was:
+
+> Weekly sync Tuesday 10:00 in Room B. Add agenda items by Monday 16:00. Notes record discussion only; unresolved items go to the team lead.
+
+O8R scored A6, R6, U5. It passed. The contract did not make the output more agreeable. It changed the release decision, forced one repair, and left the authority boundary visible.
+
+## When should you reject this test?
+
+Reject the test if the reviewers produce no meaningful conflict, if all three roles already use the same objective, or if the contract changes no decision. A matrix that only confirms agreement is not evidence for this failure mode.
+
+Also reject any claim that this packet estimates prevalence. Ten authored outputs can show a mechanism and test a decision rule. They cannot tell you how often different teams disagree, which model causes more disagreement, or whether one rubric generalizes to another workflow.
+
+For a real implementation, repeat the exercise with sanitized production traces, a versioned source brief, independent human reviewers, and a domain owner who can resolve policy context. Keep the original output, raw comments, rubric versions, contract version, and final decision together.
+
+If your team wants help turning this test into an internal review practice, [see Marius Manolachi's AI tutoring and consulting work](https://mariusmanolachi.com/learn-ai). The goal is a team that can run and improve the workflow itself.
+
+If your team needs the broader implementation sequence, start with the [AI workflow implementation guide](/blog/ai-workflow-implementation). If the review problem is still unclear, compare this packet with [an AI evaluation plan for disagreeing users](/blog/how-to-build-an-ai-evaluation-plan-when-users-disagree-about-quality). The next step is not to average harder. It is to state what each reviewer is protecting.
