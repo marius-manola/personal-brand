@@ -1,0 +1,227 @@
+---
+title: "How to Implement a Small AI Workflow With a Reversible Command"
+date: "2026-09-30"
+updated: "2026-09-30"
+excerpt: "A small operator command can pause before release, preserve a checkpoint, and make a schema failure cheap to recover from."
+answer: "Implement the workflow as a named command with read-only preparation, a proposed-effects record, a checkpoint, and an explicit operator gate. Validate the downstream contract before release, then expose discard for the reversible path. Keep irreversible writes behind a separate mode and measure external effects and recovery steps. The main exception is a system that cannot stage or compensate writes."
+targetQuery: "how to implement a small ai workflow with a reversible operator command"
+queryAliases:
+  - "reversible operator command for an ai workflow"
+  - "ai workflow checkpoint undo before release"
+  - "how to measure recovery steps after an ai workflow failure"
+intent: "implementation"
+funnel: "build"
+cluster: "implementation"
+parent: "/blog/ai-workflow-implementation"
+contentType: "implementation-lab"
+kind: "satellite"
+sourceableAtom: "In 15 paired trials per mode, the same injected schema failure left 0 external effects and 1 recovery step per reversible run versus 2 external effects and 5 recovery steps per irreversible run; all 30 runs reached the accepted final state."
+evidenceType: "paired failure-injection test with reproducible configuration, raw traces, recovery rubric, and analysis summary"
+evidenceBasis: "Deterministic fixture-001, seven indexed actions, failure injected at action index 6 in both modes, 30 JSONL traces, and a recovery rubric stored with this draft."
+tags:
+  - AI workflows
+  - implementation
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/"
+  - "https://code.claude.com/docs/en/hooks-guide"
+  - "https://docs.github.com/en/enterprise-cloud%40latest/copilot/concepts/agents/about-github-agentic-workflows"
+  - "https://docs.mistral.ai/getting-started/quickstarts/developer/build-a-workflow"
+  - "https://github.com/arrowassassin/kintsugi"
+faq:
+  - q: "Does a checkpoint remove the need for human approval?"
+    a: "No. A checkpoint limits the cost of a bad action. The operator gate still decides whether the proposed effects should be released."
+  - q: "What if the downstream system cannot stage writes?"
+    a: "Keep the system read-only until validation passes, or add a compensating action that can be tested. If neither exists, do not call the write reversible."
+cover: "/blog/implement-small-ai-workflow-reversible-operator-command-hero.webp"
+coverAlt: "Illustration of an operator pausing an AI workflow before a reversible release"
+draft: false
+---
+
+I keep the first write path smaller than the architecture diagram suggests. A named command, one fixture, one checkpoint, and one approval boundary are enough to expose whether recovery is real.
+
+> **Quick answer:** Use a named command with read-only preparation, a proposed-effects record, a checkpoint, and an explicit operator gate. Validate the downstream contract before release, then expose discard for the reversible path. Keep irreversible writes behind a separate mode and measure external effects and recovery steps. The main exception is a system that cannot stage or compensate writes.
+
+## What did the paired fixture show?
+
+The checkpoint changed recovery cost in this fixture, not failure detection. Across 15 paired trials per mode, the same downstream schema failure occurred at action index 6. Reversible mode left 0 external effects and needed 1 recovery step per run. Irreversible mode left 2 external effects and needed 5 recovery steps per run. All 30 runs reached the accepted final state after recovery.
+
+| Mode | Runs | Injected failure | External effects before recovery | Recovery steps | Accepted final state |
+| --- | ---: | --- | ---: | ---: | ---: |
+| Reversible checkpoint | 15 | Action 6, `SCHEMA_MISMATCH` | 0 total, 0 per run | 15 total, 1 per run | 15/15 |
+| Irreversible commit | 15 | Action 6, `SCHEMA_MISMATCH` | 30 total, 2 per run | 75 total, 5 per run | 15/15 |
+
+That is the sourceable result for this page. It is not a claim about general agent reliability. The fixture has no model call, network, concurrency, or live write.
+
+![Illustration of a reversible checkpoint separating a proposed AI action from an external release](/blog/implement-small-ai-workflow-reversible-operator-command-checkpoint-gate.webp)
+
+## What should the command do before it can write?
+
+Make the command produce a proposal before it can produce an effect. The minimum sequence is:
+
+1. Load a bounded input fixture.
+2. Derive a proposed change and show its target, old value, new value, and downstream effects.
+3. Record a checkpoint or enter a transaction-like staging area.
+4. Pause at an operator gate.
+5. Validate the downstream schema and current target state.
+6. Release staged effects, or discard them.
+7. Record the final state and recovery action.
+
+OpenAI's agent guidance separates data tools from action tools and recommends rating tools low, medium, or high using read-only access, write access, reversibility, permissions, and financial impact. It also recommends pausing or escalating when a function is high risk. That maps cleanly to a command contract: proposal and validation are low or medium risk; release is high risk; discard is an explicit recovery action. [OpenAI's practical agent guide](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/) supports the risk vocabulary, while the checkpoint and observed totals below are from this fixture.
+
+## What is the smallest command contract?
+
+Give the command a stable name, bounded input, explicit mode, operator gate, failure index, and recovery result. The fixture uses:
+
+```text
+review-release --case fixture-001 --mode reversible --trial 01
+review-release --case fixture-001 --mode irreversible --trial 01
+```
+
+The input is deliberately boring:
+
+```json
+{
+  "caseId": "fixture-001",
+  "recordId": "acct-017",
+  "currentLabel": "pending",
+  "proposedLabel": "approved",
+  "acceptedFinalState": {
+    "label": "pending",
+    "notificationCount": 0,
+    "releaseMarker": false
+  }
+}
+```
+
+The proposed effect is not the final state. It is an object the operator can inspect:
+
+```json
+{
+  "target": "acct-017",
+  "changes": [{"field": "label", "from": "pending", "to": "approved"}],
+  "externalEffects": ["primary write", "release notification"],
+  "checkpointId": "fixture-001-trial-01",
+  "operatorDecision": "required",
+  "downstreamContract": "owner_id:string"
+}
+```
+
+The command must stop if `operatorDecision` is not present. Approval is not validation, and validation is not release.
+
+Mistral's workflow example uses a named workflow definition that can be triggered by name and marks functions as durable activities, replaying from the last completed activity after a crash. That is useful vocabulary for a production implementation. In this lab, the local command and JSONL traces make the durable boundary visible without depending on a workflow service. [Mistral's workflow quickstart](https://docs.mistral.ai/getting-started/quickstarts/developer/build-a-workflow/) documents the named trigger and durable-step behavior.
+
+## Where should the operator gate sit?
+
+Put the gate after the proposed effects and checkpoint, but before any external write. The operator should see what will change and how it can be undone before choosing `approve`.
+
+```text
+load_input
+  -> propose_update
+  -> checkpoint_or_prepare
+  -> operator_gate
+  -> release_primary
+  -> release_notify
+  -> validate_downstream  [injected failure at index 6]
+```
+
+The reversible mode stages `release_primary` and `release_notify`; it does not count either as an external effect. The irreversible mode commits those two effects at actions 4 and 5, after the same operator gate, and fails at action 6. That difference is the test. The action index, fixture, and error stay fixed.
+
+For a coding-agent implementation, a deterministic pre-tool control is a useful place to enforce the gate. Claude Code documents `PreToolUse` hooks that receive structured tool input before execution and can deny a call with exit code 2 or a `permissionDecision` of `deny`. Its documentation also notes that a deny can block a tool even when permission mode would otherwise allow it. [Claude Code's hooks guide](https://code.claude.com/docs/en/hooks-guide) supports the control point. The hook does not decide business correctness. It only prevents the release tool from running without the required record.
+
+## How should read-only defaults and writes be separated?
+
+Treat every proposed effect as data until a validated release operation accepts it. GitHub Agentic Workflows uses this shape: repository permissions are read-only by default, and writes go through declared, validated `safe-outputs`. That is a useful implementation boundary even when you are not using GitHub. [GitHub's Agentic Workflows documentation](https://docs.github.com/en/enterprise-cloud%40latest/copilot/concepts/agents/about-github-agentic-workflows) describes the read-only default, safe outputs, isolated secrets, and threat checks.
+
+The local contract is:
+
+| Operation | Default | Requires operator approval | Can create an external effect |
+| --- | --- | --- | --- |
+| `load_input` | read-only | No | No |
+| `propose_update` | read-only | No | No |
+| `checkpoint_or_prepare` | mode-specific staging | Yes | No |
+| `operator_gate` | pause | Yes | No |
+| `release_primary` | staged in reversible mode | Yes | Only in irreversible mode |
+| `release_notify` | staged in reversible mode | Yes | Only in irreversible mode |
+| `validate_downstream` | read-only | No | No |
+
+If the downstream API cannot stage writes, use a preflight validation that completes before the write, or implement a tested compensating operation. Do not label a write reversible just because a human can issue a second command later. Reversibility requires a known recovery path and a bounded target.
+
+## What did the 30 raw trial traces contain?
+
+The complete event-level records are retained with the test artifact. Each record includes the action index, tool, status, injected error, external-effect count, recovery action, and final state. This compact JSONL index shows all 30 runs:
+
+```jsonl
+{"run":"rev-01","pair":"01","mode":"reversible","fail":6,"effects":0,"recovery":1,"final":"accepted"}
+{"run":"rev-02","pair":"02","mode":"reversible","fail":6,"effects":0,"recovery":1,"final":"accepted"}
+{"run":"rev-03","pair":"03","mode":"reversible","fail":6,"effects":0,"recovery":1,"final":"accepted"}
+{"run":"rev-04","pair":"04","mode":"reversible","fail":6,"effects":0,"recovery":1,"final":"accepted"}
+{"run":"rev-05","pair":"05","mode":"reversible","fail":6,"effects":0,"recovery":1,"final":"accepted"}
+{"run":"rev-06","pair":"06","mode":"reversible","fail":6,"effects":0,"recovery":1,"final":"accepted"}
+{"run":"rev-07","pair":"07","mode":"reversible","fail":6,"effects":0,"recovery":1,"final":"accepted"}
+{"run":"rev-08","pair":"08","mode":"reversible","fail":6,"effects":0,"recovery":1,"final":"accepted"}
+{"run":"rev-09","pair":"09","mode":"reversible","fail":6,"effects":0,"recovery":1,"final":"accepted"}
+{"run":"rev-10","pair":"10","mode":"reversible","fail":6,"effects":0,"recovery":1,"final":"accepted"}
+{"run":"rev-11","pair":"11","mode":"reversible","fail":6,"effects":0,"recovery":1,"final":"accepted"}
+{"run":"rev-12","pair":"12","mode":"reversible","fail":6,"effects":0,"recovery":1,"final":"accepted"}
+{"run":"rev-13","pair":"13","mode":"reversible","fail":6,"effects":0,"recovery":1,"final":"accepted"}
+{"run":"rev-14","pair":"14","mode":"reversible","fail":6,"effects":0,"recovery":1,"final":"accepted"}
+{"run":"rev-15","pair":"15","mode":"reversible","fail":6,"effects":0,"recovery":1,"final":"accepted"}
+{"run":"irr-01","pair":"01","mode":"irreversible","fail":6,"effects":2,"recovery":5,"final":"accepted"}
+{"run":"irr-02","pair":"02","mode":"irreversible","fail":6,"effects":2,"recovery":5,"final":"accepted"}
+{"run":"irr-03","pair":"03","mode":"irreversible","fail":6,"effects":2,"recovery":5,"final":"accepted"}
+{"run":"irr-04","pair":"04","mode":"irreversible","fail":6,"effects":2,"recovery":5,"final":"accepted"}
+{"run":"irr-05","pair":"05","mode":"irreversible","fail":6,"effects":2,"recovery":5,"final":"accepted"}
+{"run":"irr-06","pair":"06","mode":"irreversible","fail":6,"effects":2,"recovery":5,"final":"accepted"}
+{"run":"irr-07","pair":"07","mode":"irreversible","fail":6,"effects":2,"recovery":5,"final":"accepted"}
+{"run":"irr-08","pair":"08","mode":"irreversible","fail":6,"effects":2,"recovery":5,"final":"accepted"}
+{"run":"irr-09","pair":"09","mode":"irreversible","fail":6,"effects":2,"recovery":5,"final":"accepted"}
+{"run":"irr-10","pair":"10","mode":"irreversible","fail":6,"effects":2,"recovery":5,"final":"accepted"}
+{"run":"irr-11","pair":"11","mode":"irreversible","fail":6,"effects":2,"recovery":5,"final":"accepted"}
+{"run":"irr-12","pair":"12","mode":"irreversible","fail":6,"effects":2,"recovery":5,"final":"accepted"}
+{"run":"irr-13","pair":"13","mode":"irreversible","fail":6,"effects":2,"recovery":5,"final":"accepted"}
+{"run":"irr-14","pair":"14","mode":"irreversible","fail":6,"effects":2,"recovery":5,"final":"accepted"}
+{"run":"irr-15","pair":"15","mode":"irreversible","fail":6,"effects":2,"recovery":5,"final":"accepted"}
+```
+
+The error is intentionally mundane: the downstream validator expects `owner_id`, but receives `owner`. A useful failure fixture should be boring enough that the recovery comparison is about control flow, not model interpretation.
+
+## What is the recovery rubric?
+
+Use a small rubric that counts observable operator actions and verifies the final state. The full rubric is retained with the test artifact.
+
+| Mode | Recovery procedure | Pass condition |
+| --- | --- | --- |
+| Reversible | Discard the checkpoint and staged proposal. | No external effects, then `pending`, zero notifications, and no release marker. |
+| Irreversible | Identify the effects, revoke the notification, restore the primary value, clear the marker, and re-read the fixture. | Five recorded actions and the same accepted final state. |
+
+The rubric makes a distinction that approval logs often miss: a workflow can detect a failure and still leave expensive recovery work behind. Effect count and recovery steps belong in the trace.
+
+Kintsugi's public repository makes a similar distinction for bounded filesystem operations: it snapshots targets before destructive commands and exposes undo, while warning that unbounded targets and database operations need different recovery mechanisms. I use that as a boundary condition, not as evidence for the 30-run result. [Kintsugi's repository](https://github.com/arrowassassin/kintsugi) documents the snapshot and undo approach and its limits.
+
+![Illustration of two recovery paths after an injected downstream schema failure](/blog/implement-small-ai-workflow-reversible-operator-command-failure-recovery.webp)
+
+## What should you test before expanding the command?
+
+Run the same fixture in pairs before adding more autonomy. Change one variable at a time:
+
+1. Keep the task and injected failure fixed.
+2. Run reversible and irreversible modes with the same pair ID.
+3. Confirm the failure index is identical.
+4. Count external effects before recovery.
+5. Execute the documented recovery procedure.
+6. Verify the accepted final state.
+7. Add a new fixture only after the current trace is easy to inspect.
+
+Marius Manolachi is building TryUncle, an AI agent that watches the screen and annotates it live. That kind of product constraint makes latency and human approval part of the design, not paperwork added after the agent works. A small operator command creates the same discipline for a first workflow: name the trigger, show the proposed effects, stop before release, and prove the recovery path.
+
+This page links to the broader [AI workflow implementation hub](/blog/ai-workflow-implementation). For adjacent patterns, see [how to build a dry-run mode for an AI agent](/blog/how-to-build-a-dry-run-mode-for-an-ai-agent) and [how to define an AI workflow result envelope](/blog/how-to-define-an-ai-workflow-result-envelope).
+
+## Where does this pattern stop working?
+
+It stops being a reversible workflow when the target is unbounded, the external system has no compensating operation, or the operator cannot inspect the exact effects before approval. A filesystem snapshot may help with bounded files, but it does not undo an email already delivered, a payment already settled, or a database write without a tested transaction or compensation path.
+
+It also stops being a useful experiment if the failure moves between modes. The paired result depends on the same fixture and same injected action index. If you change the model, prompt, permissions, concurrency, or downstream behavior, create a new evidence row and report it as a new test.
+
+The practical next step is to copy the command contract into one internal workflow, keep the first mode reversible, and ask an operator to recover from one injected failure. If your team needs help becoming capable of owning that loop, [Marius Manolachi's AI learning and consulting work](/learn-ai) is the relevant next step.
