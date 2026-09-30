@@ -1,0 +1,147 @@
+---
+title: "Why AI Fails When Reviewers See Recommendations Without Evidence"
+date: "2026-09-30"
+updated: "2026-09-30"
+excerpt: "A recommendation is not reviewable without its inputs, evidence path, uncertainty, policy context, and recorded human action."
+answer: "AI fails in this setting because a recommendation is an endpoint, not a review path. A reviewer needs the input snapshot, source excerpts or IDs, uncertainty, policy context, and a recorded action to reproduce or challenge it. Recommendation-only packets can be acceptable for low-risk, reversible suggestions, but they are unsafe for decisions that require traceability or override."
+targetQuery: "why does AI fail when a reviewer sees only the recommendation and not the evidence"
+queryAliases:
+  - "ai recommendation without evidence"
+  - "reviewer cannot verify ai recommendation"
+  - "ai decision evidence traceability"
+intent: "informational diagnostic"
+funnel: "implementation"
+cluster: "implementation"
+parent: "/blog/ai-workflow-implementation"
+contentType: "failure-clinic"
+kind: "satellite"
+sourceableAtom: "In a declared 12-case packet pilot, recommendation-only review produced 2/12 reference matches and 0/12 traceable decisions, while evidence-linked packets produced 12/12 matches and 12/12 traceable decisions."
+evidenceType: "reproducible failure reproduction plus worked decision artifact"
+evidenceBasis: "A single-reviewer, model-mediated comparison of 12 synthetic, redacted fixtures. The result tests packet inspectability, not human reviewer performance or production accuracy."
+tags:
+  - "AI implementation"
+  - "AI evaluation"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://airc.nist.gov/airmf-resources/airmf/5-sec-core/"
+  - "https://airc.nist.gov/docs/AI_RMF_Playbook.pdf"
+  - "https://eur-lex.europa.eu/eli/reg/2024/1689/2026-07-27/eng"
+  - "https://codelabs.developers.google.com/codelabs/pair-guidebook"
+  - "https://arxiv.org/abs/2202.05402"
+faq:
+  - q: "Is an AI explanation enough for human review?"
+    a: "Not by itself. An explanation may describe why a system produced an output without giving the reviewer the input snapshot, source records, policy version, uncertainty, or a way to record an override. Test whether the reviewer can reproduce and challenge the decision."
+  - q: "What should an AI reviewer packet contain?"
+    a: "Include the recommendation, input snapshot, source excerpts with stable evidence IDs, uncertainty, policy and risk context, permitted review actions, and the recorded reviewer decision."
+cover: "/blog/why-does-ai-fail-when-reviewer-sees-only-recommendation-not-evidence-reviewer-packet-comparison-hero.webp"
+coverAlt: "Illustration of a reviewer comparing an AI recommendation-only packet with an evidence-linked packet"
+draft: false
+---
+
+Product work stalls at a simple question: what would make this recommendation safe to approve? A model can provide a neat answer, yet the reviewer has no input snapshot, no source to inspect, and no way to record a challenge.
+
+That isn't only an explainability problem. It is a packet problem.
+
+When teaching product managers who moved from writing specs to building and shipping products and automating work around them, Marius Manolachi found that the missing piece was often a definition of done and a review path, not another polished recommendation. That is a qualitative teaching observation, not a measured rate. ([Learn AI with Marius Manolachi](https://mariusmanolachi.com/learn-ai))
+
+## The observed failure: a recommendation can be correct and still be unreviewable
+
+In a bounded packet pilot, recommendation-only review matched the declared reference decision on 2 of 12 cases. The same cases, with linked evidence and policy context, matched on 12 of 12. Traceability went from 0 of 12 to 12 of 12.
+
+The pilot used 12 synthetic, redacted fixtures. It had one model-mediated reviewer, so it does not estimate how people generally behave. It tests a narrower question: does the packet contain enough information to support a review action?
+
+| Packet variant | Agreement with reference | Evidence traceability | Challenge or override |
+| --- | ---: | ---: | ---: |
+| Recommendation only | 2/12, 16.7% | 0/12, 0% | 0/12, 0% |
+| Recommendation plus linked evidence | 12/12, 100% | 12/12, 100% | 10/12, 83.3% |
+
+The linked packet took longer in the recorded processing proxy, with a median of 29.5 seconds versus 11.5 seconds. That is not a human time study. It is a reminder that reviewable work exposes information a reviewer must actually inspect.
+
+![Illustration of two AI review packets compared by evidence fields and recorded actions](/blog/why-does-ai-fail-when-reviewer-sees-only-recommendation-not-evidence-reviewer-verification-matrix.webp)
+
+The sourceable result is the comparison itself: in this fixture set, the recommendation-only packet hid the decision path, while the linked packet made the path inspectable. Another team can reuse the schema and rerun the test with its own redacted cases.
+
+## Why the recommendation-only packet breaks review
+
+A recommendation-only packet answers “what should we do?” but not “why is this the right action for this input, under this policy, at this time?” That missing context creates four separate failures.
+
+First, the reviewer cannot reproduce the input. A recommendation may have used a record, policy version, or exception that is no longer visible. Without the input snapshot, the reviewer is checking a conclusion against memory.
+
+Second, the reviewer cannot challenge the evidence. A confidence score or polished rationale is not the same as a source path. Google’s PAIR guidance treats explainability and confidence displays as things to test for user understanding and calibrated trust. It also says a heuristic may be better when people need complete transparency. ([Google PAIR Guidebook codelab](https://codelabs.developers.google.com/codelabs/pair-guidebook))
+
+Third, the reviewer cannot apply the policy boundary. “Approve” means different things when the action is reversible, affects a customer, crosses a legal hold, or spends money. NIST’s AI RMF asks teams to document context, knowledge limits, how output will be overseen, and the information needed for later decisions. ([NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/), [NIST AI RMF Playbook](https://airc.nist.gov/docs/AI_RMF_Playbook.pdf))
+
+Fourth, the system cannot learn from the review. If the only stored event is “approved,” the team cannot tell whether the reviewer agreed because the evidence was convincing, because the queue was busy, or because there was no visible route to challenge the output.
+
+The 2022 cognitive-engagement study is a useful warning here. Across three experiments, recommendation plus explanation improved immediate nutritional decisions but did not produce learning in the first two conditions. The authors hypothesized that deeper engagement occurred when people saw an explanation without a recommendation and had to make the decision themselves. That result does not prove that every reviewer will accept an unsupported AI answer. It does show why adding a rationale should not be treated as proof of careful engagement. ([Gajos and Mamykina, “Do People Engage Cognitively with AI?”](https://arxiv.org/abs/2202.05402))
+
+## What to put in an evidence-linked reviewer packet
+
+The minimum useful packet is not a chain-of-thought transcript. It is a compact decision record with inspectable inputs and an explicit action boundary.
+
+| Field | What it lets the reviewer do |
+| --- | --- |
+| Recommendation | See the proposed action and its scope |
+| Input snapshot | Check what the system actually saw |
+| Source excerpts and evidence IDs | Confirm, contradict, or qualify the recommendation |
+| Uncertainty | Notice missing, conflicting, or stale information |
+| Policy and risk context | Apply the rule, impact level, reversibility, and escalation path |
+| Allowed review actions | Approve, reject, defer, revise, or escalate without inventing a workflow |
+| Recorded review action and note | Preserve the human decision and the evidence used |
+
+The packet should link to evidence, not merely mention it. “Customer is high risk” is a claim. `E-04: payment history, last 90 days, two failed settlements` is an inspectable pointer. The excerpt can be redacted, but the identity and location must remain stable enough for a later reviewer to find the same basis.
+
+The European Union AI Act supports this design direction in regulatory language for high-risk AI systems. Article 12 concerns automatic event logs and traceability. Article 13 requires enough transparency for deployers to interpret output and use it appropriately. Article 14 describes oversight that lets people understand capabilities and limits and disregard, override, or reverse output. Those provisions do not automatically apply to every workflow, but they are a useful design baseline for consequential review. ([EU AI Act, consolidated text](https://eur-lex.europa.eu/eli/reg/2024/1689/2026-07-27/eng))
+
+## The 12-case failure reproduction
+
+The fixtures were synthetic and hand-authored from common recommendation shapes: access, support, procurement, pricing, finance, roadmap, HR, retention, incidents, refunds, and publishing. No production or client records were used.
+
+The reviewer saw unlabeled cards. In the first variant, the card contained only the recommendation. In the second, it contained the same recommendation plus the input snapshot, excerpts, evidence IDs, uncertainty, policy or risk context, and the review action field.
+
+| Case | Recommendation | Reference decision | Recommendation-only | Evidence-linked |
+| --- | --- | --- | --- | --- |
+| C01 | Renew supplier | Hold for SLA review | Approve, wrong | Challenge, match |
+| C02 | Approve read-only access | Approve | Approve, match | Approve, match |
+| C03 | Escalate support case to P1 | Keep at P2 | Accept P1, wrong | Challenge, match |
+| C04 | Reject duplicate invoice | Match PO before approval | Reject, wrong | Override, match |
+| C05 | Approve 20% discount | Reject and offer policy alternative | Approve, wrong | Challenge, match |
+| C06 | Fund roadmap item | Defer pending demand check | Fund, wrong | Defer, match |
+| C07 | Enrol new hire in mandatory training | Approve | Approve, match | Approve, match |
+| C08 | Purge old records | Stop for legal hold | Purge, wrong | Reject, match |
+| C09 | Select vendor A | Select B or escalate | Select A, wrong | Override, match |
+| C10 | Close incident | Keep open | Close, wrong | Keep open, match |
+| C11 | Issue full refund | Partial refund or manual review | Full refund, wrong | Partial/manual, match |
+| C12 | Publish article | Refresh dated sources first | Publish, wrong | Defer, match |
+
+This is the failure clinic in miniature. The recommendation-only reviewer was not given a fair way to challenge an action. The evidence-linked reviewer was.
+
+## How to test your own workflow before release
+
+Use this procedure when a model recommends an action that someone else must approve.
+
+1. **Declare the fixture basis.** Use redacted production traces, or label synthetic cases clearly. Include routine cases, exceptions, stale inputs, conflicting sources, and cases where the recommendation is correct.
+2. **Write the reference decision before the comparison.** State the action, the decisive evidence, the relevant policy, and the permitted exception. If two experts could reasonably disagree, record that limitation instead of hiding it.
+3. **Render paired packets.** Keep the recommendation identical. Remove only the evidence fields from the recommendation-only version. Add input snapshot, source excerpts, stable evidence IDs, uncertainty, policy and risk context, and review action to the linked version.
+4. **Blind the condition label.** Give reviewers unlabeled cards in a recorded order. Do not show the reference decision while they decide.
+5. **Score the decision, not the prose.** Record agreement with the reference, evidence IDs cited, uncertainty acknowledged, challenge or override, and time to decision. A fluent explanation that cannot be checked is not a pass.
+6. **Inspect every disagreement.** Classify it as missing input, missing source, unclear policy, hidden uncertainty, wrong recommendation, or missing action boundary. Repair the packet field that would have changed the decision.
+
+NIST describes measurement as requiring documented methods, test sets, metrics, uncertainty, and reporting. It also notes that independent review can improve testing and reduce internal bias. A real release exercise should therefore use more than one reviewer when the decision matters. ([NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/))
+
+## When recommendation-only can be acceptable
+
+Recommendation-only output can be reasonable for low-risk, reversible suggestions where the reviewer can inspect the underlying object directly and no policy or accountability record is required. A draft subject line, a sorting suggestion, or a private brainstorming option may not need a formal packet.
+
+The exception disappears when the reviewer must justify the action later, when the evidence is distributed across systems, when the recommendation can affect rights or money, or when an override must be audited. In those cases, add the evidence path before tuning the wording of the recommendation.
+
+This is also where the human decision boundary matters. A review button is not human oversight if the reviewer can only accept the recommendation, cannot see the relevant evidence, or cannot record why they rejected it. The [human-review rehearsal](/blog/how-to-build-a-human-review-rehearsal-for-an-ai-workflow) should exercise those actions before launch.
+
+## The implementation decision
+
+Do not ask whether the model can explain its recommendation. Ask whether the reviewer can reproduce, challenge, and record the decision from the packet they receive.
+
+If the answer is no, keep the workflow read-only or advisory. Add the missing fields, rerun the paired cases, and preserve the disagreements. The [AI workflow implementation guide](/blog/ai-workflow-implementation) gives the wider delivery context, while [attaching source evidence to workflow outputs](/blog/how-to-attach-source-evidence-to-ai-workflow-outputs) covers the provenance mechanics.
+
+The practical release gate is simple: a recommendation is not reviewable until its input snapshot, evidence path, uncertainty, policy context, and human action are all inspectable. The 12-case pilot is small, but it makes the missing work visible.
