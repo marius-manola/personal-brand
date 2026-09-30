@@ -1,0 +1,163 @@
+---
+title: "Why Does AI Fail When the Review Brief Changes Between Teams?"
+date: "2026-09-30"
+updated: "2026-09-30"
+excerpt: "A worked contract-diff artifact for separating brief drift from model regression, choosing a repair, and verifying the release decision across teams."
+answer: "When AI decisions split between teams, compare the review briefs and rendered inputs before changing the model. Hold cases, model configuration, and output schema constant; classify each changed criterion, then choose one shared contract, versioned contracts, or human escalation. If inputs or model settings also changed, treat the cause as unresolved until you rerun the same trace."
+targetQuery: "why does AI fail when the review brief changes between teams"
+queryAliases:
+  - "ai review brief changes between teams"
+  - "cross-team ai review contract drift"
+intent: "diagnostic implementation failure clinic"
+funnel: "problem-aware"
+cluster: "implementation"
+parent: "/blog/ai-workflow-implementation"
+contentType: "failure-clinic"
+kind: "satellite"
+sourceableAtom: "A worked two-team brief-drift artifact that makes the release choice inspectable: hold cases, rendered inputs, model configuration, and output schema constant, then decide between one shared contract, versioned team-specific contracts, or human escalation from criterion-level differences and a held-out check."
+evidenceType: "worked contract-diff and release decision artifact"
+evidenceBasis: "This article contains a worked contract-diff, a trace schema, a diagnosis matrix, a repair choice, and a held-out verification procedure derived from the supplied OpenAI, AWS, and Apple guidance. It is an instructional artifact, not a production run or model benchmark, so it reports no invented result."
+tags:
+  - "AI evaluation"
+  - "AI implementation"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://help.openai.com/en/articles/9824968-generate-prompts-function-definitions-and-structured-output-schemas-in-the-playground"
+  - "https://platform.openai.com/docs/api-reference/evals/deleteRun?lang=python"
+  - "https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentops02-bp01.html"
+  - "https://developer.apple.com/documentation/foundationmodels/evaluating-prompts-to-measure-performance-and-improve-model-responses?language=_6"
+  - "https://developer.apple.com/documentation/FoundationModels/updating-prompts-for-new-model-versions"
+faq:
+  - q: "What if the model configuration changed at the same time as the brief?"
+    a: "Do not assign the failure to brief drift yet. Restore the earlier model and configuration, render both briefs against the same case, and compare the outputs before choosing a repair."
+  - q: "What if two teams genuinely need different review policies?"
+    a: "Keep separate, named contract versions when the policy difference is intentional. Share the input schema and evidence fields, and route unresolved or high-risk disagreements to a human."
+cover: "/blog/why-does-ai-fail-when-review-brief-changes-between-teams-review-brief-drift-hero.webp"
+coverAlt: "Illustration of two review teams comparing a versioned AI brief before release"
+draft: false
+---
+
+When the same AI review produces different decisions after a team handoff, the model is only one possible cause. The review brief may have changed what pass, fail, or escalate means.
+
+The useful artifact is a contract diff. It names the changed criterion, keeps the case and rendered input stable, and records the release decision that follows. This article's fixture is instructional, not a production measurement. It gives you a trace another operator can inspect without pretending that an unrun experiment produced a result.
+
+![Illustration of one AI review input branching into two brief versions and a release gate](/blog/why-does-ai-fail-when-review-brief-changes-between-teams-review-contract-diff.webp)
+
+## What changed when the teams started getting different AI decisions?
+
+The first diagnosis is brief drift when the same case and model receive different instructions about the decision boundary. A changed word such as “complete,” “safe,” or “escalate” can change the label even when the underlying input is identical.
+
+Here is a worked contract diff. The rows illustrate the artifact to build from a real handoff. They are not counts from a team study.
+
+| Criterion | Team A brief v1 | Team B brief v2 | Decision risk |
+| --- | --- | --- | --- |
+| Pass condition | All required fields are present and supported by evidence | Required fields are present unless the reviewer can infer the missing value | The same omission can become a pass |
+| Escalation | Escalate a policy conflict | Escalate only a safety or privacy conflict | Ambiguous cases stop reaching a human |
+| Evidence rule | Use the current approved policy | Use any relevant document in the case packet | Stale or lower-authority evidence can win |
+| Output contract | Return verdict, missing criteria, and evidence references | Return verdict and a short rationale | A pass may look identical while its proof disappears |
+
+The artifact isolates the semantic change. It does not say that Team B is careless or that the model regressed. It says which instruction changed the meaning of the label.
+
+The exception is a changed input. If Team B received a different document set, a different rendered variable, a different model version, or different generation settings, the table identifies a possible contract change but does not prove it caused the output difference.
+
+## How do you reproduce brief drift without blaming the model?
+
+Freeze the case, rendered input, model configuration, and output schema first. Change one brief version at a time, then preserve both outputs and the criterion-level comparison.
+
+Use this trace sequence:
+
+1. Select representative cases: ordinary, ambiguous, high-risk, and cross-team cases. Record why each case belongs in the set.
+2. Save the exact source text, variables after rendering, input order, data version, and access filters. A brief comparison is weak if the model saw different evidence.
+3. Record the model identifier, prompt or brief version, generation settings, output schema, run identifier, and timestamp. OpenAI's prompt workflow documents version history, pinned versions, side-by-side comparison, and linked evaluation reruns ([Prompt management in Playground](https://help.openai.com/en/articles/9824968-generate-prompts-function-definitions-and-structured-output-schemas-in-the-playground)). Its Evals API also exposes run resources that can be retained with the review record ([OpenAI Evals API](https://platform.openai.com/docs/api-reference/evals/deleteRun?lang=python)).
+4. Render Team A and Team B briefs against the same case. Store the rendered text, not only the template names.
+5. Ask each team to label the case independently against its own brief. Save pass, fail, escalation, missing criteria, and evidence references separately.
+6. Compare the labels and the instructions that produced them. Do not collapse a disagreement into one “correct” label before recording the disagreement.
+
+A compact record can look like this:
+
+```json
+{
+  "case_id": "ambiguous-review-01",
+  "source_snapshot": "same approved packet in both runs",
+  "rendered_input": "same text and variables in both runs",
+  "model_configuration": "same recorded model and settings",
+  "output_schema": "same verdict and evidence fields",
+  "brief_versions": ["team-a-v1", "team-b-v2"],
+  "team_labels": "stored independently",
+  "criterion_diff": "stored per criterion",
+  "adjudication": "recorded after disagreement",
+  "held_out_check": "linked before release"
+}
+```
+
+AWS describes the same operational need in broader terms: retain prompt history, evaluation records, ownership, monitoring, and rollback so a change can be inspected before release ([AWS Agentic AI Lens](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentops02-bp01.html)). Apple likewise frames prompt evaluation around realistic scenarios and measurable criteria, not a single attractive output ([Evaluating prompts](https://developer.apple.com/documentation/foundationmodels/evaluating-prompts-to-measure-performance-and-improve-model-responses?language=_6)).
+
+The exception is a case that cannot be deidentified or permissioned for inspection. Exclude it from the shared artifact and record that limitation. Do not fill the gap with a hand-written model response and call it a reproduction.
+
+## How do you diagnose contract drift versus model regression?
+
+Treat the cause as contract drift only when the brief changed while the rendered input, model configuration, and output schema stayed fixed. Every other combination is unresolved until you isolate another variable.
+
+| Stable variables | Changed variable | Safe diagnosis | Next check |
+| --- | --- | --- | --- |
+| Case, rendered input, model, settings, schema | Brief criteria or instructions | Brief drift is implicated | Compare the changed criterion and rerun the disagreement |
+| Case and brief | Model or generation settings | Model or configuration change is implicated | Restore the earlier configuration |
+| Case, model, settings, brief | Rendered input or source packet | Input or data change is implicated | Compare variables, source order, filters, and truncation |
+| All recorded inputs and settings | Nothing intentionally changed | Nondeterminism or an unrecorded change is implicated | Repeat the same run and inspect run metadata |
+| Same case, different team labels | Label policy or interpretation differs | Calibration or policy disagreement is implicated | Adjudicate the criterion before changing the model |
+
+The important distinction is between an output mismatch and a contract mismatch. A different answer is a symptom. A changed criterion, missing evidence rule, or altered escalation boundary is a diagnosis candidate.
+
+For a neighboring failure trace, see [How to Tell Whether a RAG Failure Is Retrieval or Generation](/blog/how-to-tell-whether-a-rag-failure-is-retrieval-or-generation). That article uses the same debugging habit: preserve the input evidence, change one layer, and classify only what the trace supports.
+
+Apple's prompt-update guidance also supports keeping old outputs and versioning prompts across model changes ([Updating prompts for new model versions](https://developer.apple.com/documentation/FoundationModels/updating-prompts-for-new-model-versions)). That matters here because a brief change and a model change can produce the same visible symptom.
+
+The exception is a genuinely ambiguous policy. If two reasonable readers can apply the same sentence differently, the problem is not yet a model regression. Rewrite the criterion or make the escalation rule explicit, then rerun the case.
+
+## What repair should the release decision choose?
+
+Choose the narrowest repair that restores a shared meaning. Use one contract when teams share the policy, versioned contracts when policy differences are intentional, and human escalation when the disagreement affects a high-risk or unresolved decision.
+
+| Observed contract condition | Repair | Release evidence |
+| --- | --- | --- |
+| Teams evaluate the same policy and the diff is accidental | Publish one shared contract and retire the divergent wording | Same cases, criterion labels, and held-out cases agree after the change |
+| Teams have intentionally different policy scope or authority | Publish named team-specific versions with shared input and evidence fields | Each version has an owner, scope, effective date, and separate evaluation record |
+| The policy is ambiguous, high-risk, or still disputed | Keep the AI recommendation advisory and require human escalation | The escalation condition appears in the output contract and is tested directly |
+| The model or input changed with the brief | Pause the contract decision | A controlled rerun isolates the model, data, or rendering change first |
+
+The release record should state what changed, who owns the contract, which cases were rerun, which criteria disagreed, how adjudication resolved them, and what happens on a held-out case. AWS's versioning and rollback guidance supports this recordkeeping pattern. The guidance does not choose your team's policy for you.
+
+For the wider implementation sequence, connect this clinic to the canonical [AI workflow implementation guide](/blog/ai-workflow-implementation). Start there when the review contract is one part of a larger workflow rather than the only failing component.
+
+## How do you verify the repair before release?
+
+Verification means rerunning the same trace and then checking cases the editor did not use to explain the change. A repaired brief is not ready because the original disagreement disappeared.
+
+Run this release check:
+
+1. Re-render the original cases with the repaired brief and the same model configuration.
+2. Compare every criterion, not only the final verdict. Record missing evidence, escalation, and evidence references.
+3. Run a held-out slice containing at least one ambiguous case, one high-risk case, and one ordinary case. The slice tests transfer without claiming a population statistic.
+4. Test the negative path. Remove required evidence or introduce a policy conflict and confirm that the contract returns the intended escalation or failure.
+5. Compare the release record with the previous version. Confirm that the source packet, model settings, output schema, owner, and effective version are all visible.
+6. Release only when the remaining disagreement is an explicit policy choice with an owner. Otherwise keep the AI result advisory and send the case to a human.
+
+The verification artifact should let another operator answer five questions: What did the model see? Which brief did it receive? Which criterion changed? What repair was selected? What happened on a case not used to write the repair?
+
+The principal exception is a moving source. If the approved policy or document packet changed during the comparison, pin the source snapshot and rerun. A clean brief diff built on moving evidence is not a clean test.
+
+## Which exceptions prevent a clean cross-team diagnosis?
+
+Some failures sit outside the brief. Mark them instead of forcing every mismatch into the contract-drift label.
+
+- **Different source authority:** one team used a current policy and another used an older or lower-authority document. Fix source precedence first.
+- **Different rendering:** variables, truncation, ordering, or filters changed the text sent to the model. Compare the final rendered input byte for byte where practical.
+- **Different model behavior:** model version, tool availability, temperature, reasoning settings, or output constraints changed. Restore the earlier configuration before judging the brief.
+- **Different risk tolerance:** one team is allowed to recommend while another must escalate. This is a policy difference, so name and version it.
+- **Unclear ground truth:** reviewers disagree about the expected decision itself. Adjudicate the policy before evaluating consistency.
+- **Unsafe external action:** a review result can trigger a write, notification, or other irreversible action. Keep approval outside the model until the contract and escalation path are proven.
+
+This is why a short “the model failed” ticket is not enough. The trace must preserve the case, evidence, rendered brief, configuration, output, criterion labels, disagreement, repair, and verification decision. If one of those is missing, record the uncertainty and keep the release boundary narrow.
+
+The article's sourceable atom is the worked contract-diff and release decision artifact itself. It is useful because it turns a vague cross-team mismatch into a set of inspectable reader decisions. It does not claim a measured failure rate, a production benchmark, or a universal rule about which team is right.
