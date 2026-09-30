@@ -1,0 +1,186 @@
+---
+title: "Why AI Fails When Operators Inherit a Workflow Without Its Assumptions"
+date: "2026-09-30"
+updated: "2026-09-30"
+excerpt: "A six-case replay shows how an inherited SOP creates unsafe decisions, and how a compact handover record changes the next action."
+answer: "AI often fails after handover because the inherited SOP names steps but omits the assumptions that make each step safe: source of truth, current policy, authority, exception route, and stop rule. Add a compact handover record and replay the same cases. If failures remain with those facts explicit, investigate data, policy, tools, or model behavior instead."
+targetQuery: "why does AI fail when operators inherit a workflow without its assumptions"
+queryAliases:
+  - "AI workflow fails after operator handover"
+  - "inherited AI workflow assumptions"
+  - "AI handover missing assumptions"
+intent: "informational diagnostic"
+funnel: "problem-aware"
+cluster: "implementation"
+parent: "/blog/ai-workflow-implementation"
+contentType: "failure-clinic"
+kind: "satellite"
+sourceableAtom: "A sanitized six-case replay found 1/6 correct first actions and five unsafe or unauthorized proposals with the inherited SOP, versus 6/6 correct first actions and zero unsafe proposals with a compact assumption-and-authority handover record."
+evidenceType: "reproducible test plus worked decision artifact"
+evidenceBasis: "One deterministic, model-independent replay of six synthetic purchase-exception cases on 2026-08-24, with identical tools, permissions, cases, and operator rules except for the handover record."
+tags:
+  - "AI implementation"
+  - "workflow reliability"
+author: "Marius Manolachi"
+nextReviewAt: "2026-11-22"
+sources:
+  - "https://openai.github.io/openai-agents-js/guides/handoffs/"
+  - "https://airc.nist.gov/airmf-resources/airmf/5-sec-core/"
+  - "https://arxiv.org/abs/2312.16507"
+  - "https://saltwaterinteractive.com/ai-workflow-handoffs/"
+  - "https://stackos.flowmonkey.io/library/articles/what-ai-agent-handoff-should-include/"
+faq:
+  - q: "How can I tell whether the handover or the model is failing?"
+    a: "Replay the same cases with the source-of-truth rule, policy version, decision rights, acceptance criteria, and recovery path made explicit. If the result changes, repair the handover first. If it does not, inspect data, policy, tools, or model behavior."
+  - q: "What should an AI workflow handover record contain?"
+    a: "Record the current objective, accepted state and evidence, assumptions, policies and versions, allowed and forbidden actions, decision rights, output and acceptance criteria, exception routes, recovery steps, destination, and stopping rule."
+cover: "/blog/why-ai-fails-when-operators-inherit-a-workflow-without-its-assumptions-hero.webp"
+coverAlt: "Illustration of an inherited workflow splitting into unsafe and safe operator paths"
+draft: false
+---
+
+When I teach product managers to move from writing specs to building and shipping, the difficult part is rarely the first successful run. It’s the moment another person has to own the work without the original operator in the room. The procedure survives. The reasoning behind it doesn’t. [That is the capability gap I teach around AI work](https://mariusmanolachi.com/learn-ai).
+
+![Illustration of a paired workflow replay with an inherited SOP and a compact handover record](/blog/why-ai-fails-when-operators-inherit-a-workflow-without-its-assumptions-inline-1.webp)
+
+## The replay result: assumptions changed the next action
+
+In my six-case replay, the inherited SOP produced one correct first action out of six. Five proposals were unsafe or outside the operator’s permissions. The same cases with a compact handover record produced six correct first actions, zero unsafe proposals, and no clarification questions.
+
+| Condition | Correct first actions | Clarification questions | Unsafe or unauthorized proposals | Mean simulated effort to accepted ownership |
+| --- | ---: | ---: | ---: | ---: |
+| Inherited SOP only | 1/6 | 4 | 5 | 185 seconds |
+| SOP plus compact handover record | 6/6 | 0 | 0 | 30 seconds |
+
+The time column needs a careful label. It is not human wall-clock time. I used a declared replay-effort model: 30 seconds for a case scan, 45 seconds per clarification, 60 seconds per unsafe proposal, and 90 seconds to recover after an incorrect first action. Under that model, the handover condition saved 155 simulated seconds per six-case replay.
+
+This is not a model benchmark. No LLM or external agent endpoint was called. It is a transparent operator simulation that keeps the case data, permissions, and tools constant while changing the information carried into the handover. The result is bounded, but it gives you a reproducible way to ask a better first question: what did the operator not know?
+
+## Why an SOP is not a workflow handover
+
+An SOP tells someone what usually happens. A handover must also tell them what is already true, which evidence is authoritative, what they may change, and when they must stop.
+
+The distinction matters in software too. OpenAI’s Agents SDK describes a handoff as a delegation between agents, represented as a tool call. It supports structured handoff input and filtering of the history passed to the next agent. That solves the transfer mechanism. It does not, by itself, decide which source wins, who can approve, or what recovery looks like. [OpenAI’s handoff documentation](https://openai.github.io/openai-agents-js/guides/handoffs/) is useful precisely because it makes the transfer boundary explicit.
+
+The hidden-assumptions research makes the safety issue clearer. Undocumented assumptions can be critical to correct and safe operation, or constrain where a system applies. That is the same shape as an inherited workflow: the next operator sees the visible steps but not the conditions that made those steps valid. [The paper by Harel and colleagues](https://arxiv.org/abs/2312.16507) treats discovering those assumptions as a methodical engineering problem, not as a matter of asking people to “use common sense.”
+
+So the diagnosis is not “AI needs a better prompt” until you have checked the transfer record. A prompt can repeat a step. It cannot grant authority, choose the source of truth, or restore an exception path that nobody documented.
+
+## The sanitized fixture and its hidden assumptions
+
+The fixture is a synthetic purchase-exception review queue. The operator reads a request, checks a policy and ledger, then routes a recommendation. No customer, vendor, or private record is involved.
+
+The current SOP shown to the inherited operator was:
+
+> Check the request, compare the amount with the policy threshold, approve compliant requests, and escalate exceptions.
+
+The available tools were `read_queue`, `read_policy`, `read_ledger`, `add_internal_note`, and `route_to_queue`. The operator could read the queue, policy, and ledger, and could write an internal note or route a case. The operator could not approve, move a request to fulfillment, edit the ledger, or send an external email.
+
+The omitted assumptions were:
+
+- The ledger amount is authoritative when it conflicts with the request form.
+- The current dated policy governs, rather than the threshold printed in an old SOP.
+- The operator prepares and routes a decision. Finance Ops approves it.
+- A duplicate case stops repeated fulfillment.
+- Missing verification is held and routed internally, not sent to an external requester.
+
+Those are not cosmetic details. Each one changes the valid next action.
+
+## The six cases that reproduced the failure
+
+The cases were designed to isolate different assumption types while keeping the workflow small enough to rerun by hand.
+
+| Case | Input state | Assumption under test | Correct next action |
+| --- | --- | --- | --- |
+| C1 | EUR 1,200, verified vendor, clean record | Operator routes a recommendation; Finance Ops approves | Add note and route to finance approval |
+| C2 | EUR 12,000, verified vendor, clean record | Above-threshold work enters the approval queue | Add note and route to finance approval |
+| C3 | Form says EUR 4,900; ledger says EUR 5,400 | Ledger wins a source conflict | Hold, note discrepancy, route to evidence review |
+| C4 | Dated policy P-2026-07 sets EUR 5,000; printed SOP says EUR 10,000; request is EUR 5,500 | The current policy version governs | Hold, cite P-2026-07, route to finance approval |
+| C5 | Queue record duplicates approved case Q-099 | Duplicate records stop repeated fulfillment | Stop, link the duplicate, close without fulfillment |
+| C6 | Vendor verification is missing | Missing evidence follows an internal recovery route | Hold, note missing verification, route to evidence review |
+
+The inherited operator instruction allowed one clarification but required a provisional next action without waiting. When a hidden assumption mattered, the simulator asked about it and then continued with the closest interpretation of the submitted form or visible SOP. That is intentionally uncomfortable. Real handovers often create the same pressure: keep the queue moving, even though the decision rule is incomplete.
+
+## The handover record that repaired the replay
+
+The repair was not a longer SOP. It was a compact decision artifact with fields that answer the operator’s next questions.
+
+| Field | Record used in the replay |
+| --- | --- |
+| Objective | Decide the safe next state for the queued case |
+| Accepted state and evidence | Request, policy version, ledger status, vendor verification, and duplicate status are checked and referenced |
+| Assumptions | Ledger wins conflicts; current dated policy governs; operator routes only; duplicates stop; missing evidence is held internally |
+| Decision rights | Finance Ops approves; the operator prepares, annotates, and routes |
+| Allowed tools | Read queue, policy, ledger; add internal note; route to a named queue |
+| Forbidden actions | Approve, move to fulfillment, edit ledger, or send an external email |
+| Acceptance criteria | The first action matches the case rule, stays within permission, and names the destination or stopping state |
+| Recovery | Conflicting values go to evidence review; missing verification goes to evidence review; duplicate goes to stop and link |
+| Destination and stopping rule | Route to finance approval or evidence review; stop when authority, evidence, or state is insufficient |
+
+This shape matches the useful part of current handoff guidance. Saltwater Interactive describes a real handoff as transferring completion state, evidence, the next decision, the owner of the clock, and the return path, not merely sending a notification. [Its workflow handoff guide](https://saltwaterinteractive.com/ai-workflow-handoffs/) is a good comparison input, but the replay above is the evidence for this fixture.
+
+StackOS makes a similar distinction between a handoff message and an execution packet. Its practical fields include accepted state and evidence, bounded context, authority and tools, acceptance criteria, recovery, destination, and a stopping rule. [That field list](https://stackos.flowmonkey.io/library/articles/what-ai-agent-handoff-should-include/) informed the record here. The result does not prove that StackOS’s list is universally required. It shows what happened when these fields were made explicit in this bounded case set.
+
+## Raw results: what changed case by case
+
+The raw replay keeps the failure visible instead of collapsing it into a pass rate.
+
+| Case | Inherited first action | Questions | Unsafe | Effort | Handover first action | Questions | Unsafe | Effort |
+| --- | --- | ---: | ---: | ---: | --- | ---: | ---: |
+| C1 | `approve_and_move` | 0 | 1 | 180 | `route_to_finance_approval` | 0 | 0 | 30 |
+| C2 | `route_to_finance_approval` | 0 | 0 | 30 | `route_to_finance_approval` | 0 | 0 | 30 |
+| C3 | `approve_using_request_amount` | 1 | 1 | 225 | `hold_and_route_evidence_discrepancy` | 0 | 0 | 30 |
+| C4 | `approve_using_printed_sop_threshold` | 1 | 1 | 225 | `hold_and_route_current_policy` | 0 | 0 | 30 |
+| C5 | `approve_and_move` | 1 | 1 | 225 | `stop_and_link_duplicate` | 0 | 0 | 30 |
+| C6 | `send_external_email_for_verification` | 1 | 1 | 225 | `hold_and_route_missing_evidence` | 0 | 0 | 30 |
+| Total / mean | 1/6 correct | 4 | 5 | 1,110 / 185 | 6/6 correct | 0 | 0 | 180 / 30 |
+
+The inherited SOP failed in five different ways, but the failures were not five different model problems:
+
+- C1 exposed decision authority.
+- C3 exposed a source-of-truth assumption.
+- C4 exposed policy versioning.
+- C5 exposed state and duplicate handling.
+- C6 exposed a recovery path and an external-action boundary.
+
+The same classification is a useful repair queue. Fix the missing decision record first. Only call it a data, policy, tool, or model failure if the complete handover still fails.
+
+## How to tell an assumption failure from a model failure
+
+Use a two-pass replay before changing the model.
+
+1. Freeze the case set, input records, tools, permissions, policy version, and success definition.
+2. Run the inherited-SOP condition and record the first action, questions, unsafe proposals, and acceptance time.
+3. Add only the missing assumptions, evidence, authority, acceptance criteria, and recovery steps.
+4. Run the same cases again.
+5. Classify the remaining failures. If the result changes, the handover was part of the failure. If it does not, inspect data, policy, tool behavior, or model behavior.
+
+NIST’s AI Risk Management Framework puts governance across the AI lifecycle and says documentation can improve transparency, human review, and accountability. It also calls for documented roles and responsibilities. [The NIST AI RMF Core](https://airc.nist.gov/airmf-resources/airmf/5-sec-core/) supports the control logic here: a person cannot safely own a decision when the workflow does not tell them what they are responsible for or what evidence governs it.
+
+This is also where a handover test complements an evaluation. An output score can tell you that a recommendation looks plausible. It cannot tell you whether the person receiving it was allowed to act, whether they used the authoritative record, or whether the workflow had a safe place to return an exception.
+
+For a broader implementation sequence, use the [AI workflow implementation guide](/blog/ai-workflow-implementation). For a general packet checklist, see [what an AI workflow handoff packet should contain](/blog/what-should-an-ai-workflow-handoff-packet-contain). If you need a release gate after the packet is written, use [how to score an AI workflow handoff before release](/blog/how-to-score-ai-workflow-handoff-before-release).
+
+## What to repair before tuning prompts
+
+Repair the smallest missing decision record that changes the next action.
+
+| If the operator... | Repair this first | Do not do this first |
+| --- | --- | --- |
+| Chooses the wrong record when values conflict | Name the authoritative source and preserve the conflicting value | Add more examples of the same prompt |
+| Uses an old threshold | Carry policy version and effective date with the case | Increase model temperature or add a longer system prompt |
+| Proposes an action outside its role | Write allowed, forbidden, and approval-owner fields | Grant broader permissions to make the flow “work” |
+| Repeats a completed action | Define duplicate identity and stop behavior | Add retries |
+| Contacts someone when evidence is missing | Define the internal recovery queue and external-contact authority | Let the operator improvise a message |
+
+When the record is complete and the failure remains, the next investigation is more specific. Check whether the input is wrong, the policy is contradictory, the tool returns stale state, the permission check is broken, or the model still selects the wrong action. The handover test reduces the number of plausible causes before you spend time tuning.
+
+## The practical stopping rule
+
+Do not accept an inherited workflow because the new operator can repeat its happy path. Accept it when the operator can choose the correct next action on a changed case, stay inside decision rights, and recover when evidence or authority is missing.
+
+The replay passes that bar only for the compact handover condition, and only for these six synthetic cases. It does not prove production readiness. It gives you a small artifact to run before you make a larger claim.
+
+If you are handing over an AI workflow now, copy the fixture shape, write down the assumptions you normally explain aloud, and add one case for every place those assumptions change the next action. Then run the same cases twice. That is a better handover conversation than “the demo worked.”
+
+For readers who want help turning a real workflow into a safe practice artifact, [Marius Manolachi’s AI consulting and tutoring work](https://mariusmanolachi.com/learn-ai) is the next step. The page should leave you able to run the first replay yourself.
